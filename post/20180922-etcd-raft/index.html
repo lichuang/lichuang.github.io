@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>etcd Raft库解析 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="序言 今年初开始学习了解Raft协议，论文读下来之后还是决定结合一个成熟的代码进行更深的理解。etcd做为一个非常成熟的作品，其Raft库实现" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.48" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20180922-etcd-raft/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="etcd Raft库解析" />
+<meta property="og:description" content="序言 今年初开始学习了解Raft协议，论文读下来之后还是决定结合一个成熟的代码进行更深的理解。etcd做为一个非常成熟的作品，其Raft库实现" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20180922-etcd-raft/" /><meta property="article:published_time" content="2018-09-22T11:01:02&#43;08:00"/>
+<meta property="article:modified_time" content="2018-09-22T11:01:02&#43;08:00"/>
+<meta itemprop="name" content="etcd Raft库解析">
+<meta itemprop="description" content="序言 今年初开始学习了解Raft协议，论文读下来之后还是决定结合一个成熟的代码进行更深的理解。etcd做为一个非常成熟的作品，其Raft库实现">
+
+
+<meta itemprop="datePublished" content="2018-09-22T11:01:02&#43;08:00" />
+<meta itemprop="dateModified" content="2018-09-22T11:01:02&#43;08:00" />
+<meta itemprop="wordCount" content="2312">
+
+
+
+<meta itemprop="keywords" content="etcd,Raft,分布式," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="etcd Raft库解析"/>
+<meta name="twitter:description" content="序言 今年初开始学习了解Raft协议，论文读下来之后还是决定结合一个成熟的代码进行更深的理解。etcd做为一个非常成熟的作品，其Raft库实现"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">Even</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">Even</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">etcd Raft库解析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2018-09-22 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"> 分布式 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title"></h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#序言">序言</a></li>
+<li><a href="#输入及输出">输入及输出</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<h1 id="序言">序言</h1>
+
+<p>今年初开始学习了解Raft协议，论文读下来之后还是决定结合一个成熟的代码进行更深的理解。etcd做为一个非常成熟的作品，其Raft库实现也非常精妙，屏蔽了网络、存储等模块，提供接口由上层应用者来实现。</p>
+
+<p>本篇文章解析etcd的Raft库实现，基于etcd 3.1.10版本。etcd的Raft库，位于其代码目录的Raft中。</p>
+
+<p>我自己也单独将3.1.10的代码拉出了一个专门添加了我阅读代码注释的版本，目前Raft这部分基本都做了注释，见：
+<a href="https://github.com/lichuang/etcd-3.1.10-codedump">https://github.com/lichuang/etcd-3.1.10-codedump</a></p>
+
+<p>以下在介绍的时候，可能会混用中文和英文术语，这里先列举出来：</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">英文</th>
+<th align="right">中文</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">Term</td>
+<td align="right">选举任期，每次选举之后递增1</td>
+</tr>
+
+<tr>
+<td align="left">Vote</td>
+<td align="right">选举投票(的ID)</td>
+</tr>
+
+<tr>
+<td align="left">Entry</td>
+<td align="right">Raft算法的日志数据条目</td>
+</tr>
+
+<tr>
+<td align="left">candidate</td>
+<td align="right">候选人</td>
+</tr>
+
+<tr>
+<td align="left">leader</td>
+<td align="right">领导者</td>
+</tr>
+
+<tr>
+<td align="left">follower</td>
+<td align="right">跟随者</td>
+</tr>
+</tbody>
+</table>
+
+<h1 id="输入及输出">输入及输出</h1>
+
+<p>既然做为一个库使用，就有其确定的输入和输出接口，先来了解这部分再进行后续的展开讨论。</p>
+
+<p>作为一个一致性算法的库，不难想象使用的一般场景是这样的：</p>
+
+<ol>
+<li>应用层接收到新的写入数据请求，向该算法库写入一个数据。</li>
+<li>算法库返回是否写入成功。</li>
+<li>应用层根据写入结果进行下一步的操作。</li>
+</ol>
+
+<p>然而，Raft库却相对而言更复杂一些，因为还有以下的问题存在：</p>
+
+<ol>
+<li>写入的数据，可能是集群状态变更的数据，Raft库在执行写入这类数据之后，需要返回新的状态给应用层。</li>
+<li>Raft库中的数据不可能一直以日志的形式存在，这样会导致数据越来越大，所以有可能被压缩成快照（snapshot）的数据形式，这种情况下也需要返回这部分快照数据。</li>
+<li>由于etcd的Raft库不包括持久化数据存储相关的模块，而是由应用层自己来做实现，所以也需要返回在某次写入成功之后，哪些数据可以进行持久化保存了。</li>
+<li>同样的，etcd的Raft库也不自己实现网络传输，所以同样需要返回哪些数据需要进行网络传输给集群中的其他节点。</li>
+</ol>
+
+<p>以上的这些，集中在raft/node.go的Ready结构体中，其包括以下成员：</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员名称</th>
+<th align="right">类型</th>
+<th align="center">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">SoftState</td>
+<td align="right">SoftState</td>
+<td align="center">软状态，软状态易变且不需要保存在WAL日志中的状态数据，包括：集群leader、节点的当前状态</td>
+</tr>
+
+<tr>
+<td align="left">HardState</td>
+<td align="right">HardState</td>
+<td align="center">硬状态，与软状态相反，需要写入持久化存储中，包括：节点当前Term、Vote、Commit</td>
+</tr>
+
+<tr>
+<td align="left">ReadStates</td>
+<td align="right">[]ReadStates</td>
+<td align="center">用于读一致性的数据，后续会详细介绍</td>
+</tr>
+
+<tr>
+<td align="left">Entries</td>
+<td align="right">[]pb.Entry</td>
+<td align="center">在向其他集群发送消息之前需要先写入持久化存储的日志数据</td>
+</tr>
+
+<tr>
+<td align="left">Snapshot</td>
+<td align="right">pb.Snapshot</td>
+<td align="center">需要写入持久化存储中的快照数据</td>
+</tr>
+
+<tr>
+<td align="left">CommittedEntries</td>
+<td align="right">[]pb.Entry</td>
+<td align="center">需要输入到状态机中的数据，这些数据之前已经被保存到持久化存储中了</td>
+</tr>
+
+<tr>
+<td align="left">Messages</td>
+<td align="right">[]pb.Message</td>
+<td align="center">在entries被写入持久化存储中以后，需要发送出去的数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>以上的成员说明，最开始看不一定能理解其含义和用法，不过在后续会慢慢展开讨论。</p>
+
+<p>根据上面的分析，应用层在写入一段数据之后，Raft库将返回这样一个Ready结构体，其中可能某些字段是空的，毕竟不是每次改动都会导致Ready结构体中的成员都发生变化，此时使用者就需要根据情况，取出其中不为空的成员进行操作了。</p>
+
+<p>在etcd项目中，也提供了使用Raft库的demo例子，在contrib/Raftexample目录中，这里简单的演示了一下如何根据这个raft库实现一个简单的KV存储服务器，下面根据这里的代码结合着上面的Ready结构体，来分析如何使用etcd的Raft库。</p>
+
+<p>raft库对外提供一个Node的interface，其实现有raft/node.go中的node结构体实现，这也是应用层唯一需要与这个raft库直接打交道的结构体，简单的来看看Node接口需要实现的函数：</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">函数</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">Tick</td>
+<td align="right">应用层每次tick时需要调用该函数，将会由这里驱动raft的一些操作比如选举等。至于tick的单位是多少由应用层自己决定，只要保证是恒定时间都会来调用一次就好了。</td>
+</tr>
+
+<tr>
+<td align="left">Campaign</td>
+<td align="right">调用该函数将驱动节点进入候选人状态，进而将竞争leader。</td>
+</tr>
+
+<tr>
+<td align="left">Propose</td>
+<td align="right">提议写入数据到日志中，可能会返回错误。</td>
+</tr>
+
+<tr>
+<td align="left">ProposeConfChange</td>
+<td align="right">提交配置变更</td>
+</tr>
+
+<tr>
+<td align="left">Step</td>
+<td align="right">将消息msg灌入状态机中</td>
+</tr>
+
+<tr>
+<td align="left">Ready</td>
+<td align="right">这里是核心函数，将返回Ready的channel，应用层需要关注这个channel，当发生变更时将其中的数据进行操作</td>
+</tr>
+
+<tr>
+<td align="left">Advance</td>
+<td align="right">Advance函数是当使用者已经将上一次Ready数据处理之后，调用该函数告诉raft库可以进行下一步的操作</td>
+</tr>
+</tbody>
+</table>
+
+<p>这里大部分函数在这个demo中不需要进行关心，我们只看如何对接Ready结构体就好了。</p>
+
+<p>raftexample中，首先在main.go中创建了两个channel：</p>
+
+<ol>
+<li>proposeC：用于提交写入的数据。</li>
+<li>confChangeC：用于提交配置改动数据。</li>
+</ol>
+
+<p>然后分别启动如下核心的协程：</p>
+
+<ol>
+<li>启动HTTP服务器，用于接收用户的请求数据，最终会将用户请求的数据写入前面的proposeC/confChangeC channel中。</li>
+<li>启动raftNode结构体，该结构体中有上面提到的raft/node.go中的node结构体，也就是通过该结构体实现的Node接口与raft库进行交互。同时，raftNode还会启动协程监听前面的两个channel，收到数据之后通过Node接口的函数调用raft库对应的接口。</li>
+</ol>
+
+<p>以上的交互流程就很清楚了，HTTP服务负责接收用户数据，再写入到两个核心channel中，而raftNode负责监听这两个channel：</p>
+
+<ol>
+<li>如果收到proposeC channel的消息，说明有数据提交，则调用Node.Propose函数进行数据的提交。</li>
+<li>如果收到confChangeC channel的消息，说明有配置变更，则调用Node.ProposeConfChange函数进行配置变更。</li>
+<li>设置一个定时器tick，每次定时器到时时，调用Node.Tick函数。</li>
+<li>监听Node.Ready函数返回的Ready结构体channel，有数据变更时根据Ready结构体的不同数据类型进行相应的操作，完成了之后需要调用Node.Advance函数进行收尾。</li>
+</ol>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title"></span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title"></span>
+    <span class="item-content">2018-09-22</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/etcd/">etcd</a>
+          
+          <a href="/tags/raft/">Raft</a>
+          
+          <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="lichuang1982@gmail.com" class="iconfont icon-email" title="email"></a>
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    %!(EXTRA string=<a class="hexo-link" href="https://gohugo.io">Hugo</a>)
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+     - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2018
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
