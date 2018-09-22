@@ -60,7 +60,7 @@
 
 <meta itemprop="datePublished" content="2018-09-22T11:01:02&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-22T11:01:02&#43;08:00" />
-<meta itemprop="wordCount" content="2312">
+<meta itemprop="wordCount" content="7854">
 
 
 
@@ -158,6 +158,22 @@
 <ul>
 <li><a href="#序言">序言</a></li>
 <li><a href="#输入及输出">输入及输出</a></li>
+<li><a href="#raft库代码结构及组织">raft库代码结构及组织</a></li>
+<li><a href="#节点状态">节点状态</a></li>
+<li><a href="#选举流程">选举流程</a>
+<ul>
+<li><a href="#发起选举的节点">发起选举的节点</a></li>
+<li><a href="#收到选举消息的节点">收到选举消息的节点</a></li>
+</ul></li>
+<li><a href="#集群成员变化流程">集群成员变化流程</a>
+<ul>
+<li><a href="#一般的成员删减">一般的成员删减</a></li>
+<li><a href="#leader转让">leader转让</a></li>
+</ul></li>
+<li><a href="#如何做到线性一致性">如何做到线性一致性？</a>
+<ul>
+<li><a href="#readonlysafe方式">ReadOnlySafe方式</a></li>
+</ul></li>
 </ul>
 </nav>
   </div>
@@ -303,7 +319,7 @@
 
 <p>根据上面的分析，应用层在写入一段数据之后，Raft库将返回这样一个Ready结构体，其中可能某些字段是空的，毕竟不是每次改动都会导致Ready结构体中的成员都发生变化，此时使用者就需要根据情况，取出其中不为空的成员进行操作了。</p>
 
-<p>在etcd项目中，也提供了使用Raft库的demo例子，在contrib/Raftexample目录中，这里简单的演示了一下如何根据这个raft库实现一个简单的KV存储服务器，下面根据这里的代码结合着上面的Ready结构体，来分析如何使用etcd的Raft库。</p>
+<p>在etcd项目中，也提供了使用Raft库的demo例子，在contrib/raftexample目录中，这里简单的演示了一下如何根据这个raft库实现一个简单的KV存储服务器，下面根据这里的代码结合着上面的Ready结构体，来分析如何使用etcd的Raft库。</p>
 
 <p>raft库对外提供一个Node的interface，其实现有raft/node.go中的node结构体实现，这也是应用层唯一需要与这个raft库直接打交道的结构体，简单的来看看Node接口需要实现的函数：</p>
 
@@ -377,6 +393,329 @@
 <li>设置一个定时器tick，每次定时器到时时，调用Node.Tick函数。</li>
 <li>监听Node.Ready函数返回的Ready结构体channel，有数据变更时根据Ready结构体的不同数据类型进行相应的操作，完成了之后需要调用Node.Advance函数进行收尾。</li>
 </ol>
+
+<p>将以上流程用伪代码实现如下：</p>
+
+<pre><code class="language-Go">// HTTP server
+HttpServer:
+  接收用户提交的数据：
+    如果是PUT请求：
+      将数据写入到proposeC中
+    如果是POST请求：
+      将配置变更数据写入到confChangeC中
+
+// raft Node
+raftNode结构体主循环：
+  如果proposeC中有数据写入：
+    调用node.Propose向raft库提交数据
+  如果confChangeC中有数据写入：
+    调用node.Node.ProposeConfChange向raft库提交配置变更数据
+  如果tick定时器到期：
+    调用node.Tick函数进行raft库的定时操作
+  如果node.Ready()函数返回的Ready结构体channel有数据变更：
+    依次处理Ready结构体中各成员数据
+    处理完毕之后调用node.Advance函数进行收尾处理
+</code></pre>
+
+<p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
+
+<h1 id="raft库代码结构及组织">raft库代码结构及组织</h1>
+
+<p>现在可以来看看raft库的代码组织了。</p>
+
+<p>前面已经看到了raft/node.go文件中，提供出去的是Node接口及其实现node结构体，这是外界与raft库打交道的唯一接口，除此之外该路径下的其他文件并不直接与外界打交道。</p>
+
+<p>接着是raft算法的实现文件，raft/raft.go文件，其中包含两个核心数据结构：</p>
+
+<ol>
+<li>Config：与raft算法相关的配置参数都包装在该结构体中。从这个结构体的命名是大写字母开头，就可以知道是提供给外部调用的。</li>
+<li>raft：具体实现raft算法的结构体。</li>
+</ol>
+
+<p>除去以上两个文件之外，raft目录下的其他文件，都是间接给raft结构体服务的，下面的表格做一个总结和罗列：</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">结构体/接口</th>
+<th align="right">所在文件</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">Node接口</td>
+<td align="right">node.go</td>
+<td align="right">提供raft库与外界交互的接口</td>
+</tr>
+
+<tr>
+<td align="left">node</td>
+<td align="right">node.go</td>
+<td align="right">实现Node接口</td>
+</tr>
+
+<tr>
+<td align="left">Config</td>
+<td align="right">raft.go</td>
+<td align="right">封装raft算法相关配置参数</td>
+</tr>
+
+<tr>
+<td align="left">raft</td>
+<td align="right">raft.go</td>
+<td align="right">raft算法的实现</td>
+</tr>
+
+<tr>
+<td align="left">ReadState</td>
+<td align="right">read_only.go</td>
+<td align="right">线性一致性读相关</td>
+</tr>
+
+<tr>
+<td align="left">readOnly</td>
+<td align="right">read_only.go</td>
+<td align="right">线性一致性读相关</td>
+</tr>
+
+<tr>
+<td align="left">raftLog</td>
+<td align="right">log.go</td>
+<td align="right">实现raft日志操作</td>
+</tr>
+
+<tr>
+<td align="left">Progress</td>
+<td align="right">progress.go</td>
+<td align="right">该数据结构用于在leader中保存每个follower的状态信息，leader将根据这些信息决定发送给节点的日志</td>
+</tr>
+
+<tr>
+<td align="left">Storage接口</td>
+<td align="right">storage.go</td>
+<td align="right">提供存储接口，应用层可以按照自己的需求实现该接口</td>
+</tr>
+</tbody>
+</table>
+
+<h1 id="节点状态">节点状态</h1>
+
+<p>每个raft的节点，分为以下三种状态：</p>
+
+<ol>
+<li>candidate：候选人状态，节点切换到这个状态时，意味着将进行一次新的选举。</li>
+<li>follower：跟随者状态，节点切换到这个状态时，意味着选举结束。</li>
+<li>leader：领导者状态，所有数据提交都必须先提交到leader上。</li>
+</ol>
+
+<p>每一个状态都有其对应的状态机，每次收到一条提交的数据时，都会根据其不同的状态将消息输入到不同状态的状态机中。同时，在进行tick操作时，每种状态对应的处理函数也是不一样的。</p>
+
+<p>所以raft结构体中将不同的状态，及其不同的处理函数独立出来几个成员变量：</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">state</td>
+<td align="right">保存当前节点状态</td>
+</tr>
+
+<tr>
+<td align="left">tick函数</td>
+<td align="right">tick函数，每个状态对应的tick函数不同</td>
+</tr>
+
+<tr>
+<td align="left">step函数</td>
+<td align="right">状态机函数，同样每个状态对应的状态机也不相同</td>
+</tr>
+</tbody>
+</table>
+
+<p>raft库中提供几个成员函数becomeCandidate、becomeFollower、becomeLeader分别进入这几种状态的，这些函数中做的事情，概况起来就是：</p>
+
+<ol>
+<li>切换raft.state成员到对应状态。</li>
+<li>切换raft.tick函数到对应状态的处理函数。</li>
+<li>切换raft.step函数到对应状态的状态机。</li>
+</ol>
+
+<h1 id="选举流程">选举流程</h1>
+
+<p>raft算法的第一步是首先选举出一个leader出来，在没有产生leader的情况下，其他数据提交等操作都无从谈起，所以这里首先从选举的流程开始谈起。</p>
+
+<h2 id="发起选举的节点">发起选举的节点</h2>
+
+<p>只有在candidate或者follower状态下的节点，才有可能发起一个选举流程，而这两种状态的节点，其对应的tick函数都是raft.tickElection函数，这个函数的主要流程是：</p>
+
+<ol>
+<li>将选举超时递增1。</li>
+<li>当选举超时到期，同时该节点又在集群中时，说明此时可以进行一轮新的选举。此时会向本节点发送HUP消息，这个消息最终会走到状态机函数raft.Step中进行处理。</li>
+</ol>
+
+<p>明白了raft.tickElection函数的作用，可以来看选举流程了：</p>
+
+<ul>
+<li><p>节点启动时都以follower状态启动，同时随机选择自己的选举超时时间。之所以每个节点随机选择自己的超时时间，是为了避免同时有两个节点同时进行选举，这种情况下会出现没有任何一个节点赢得半数以上的投票从而这一轮选举失败，继续再进行下一轮选举</p></li>
+
+<li><p>在follower的tick函数tickElection函数中，当选举超时到时，节点向自己发送HUP消息。</p></li>
+
+<li><p>在状态机函数raft.Step函数中，在收到HUP消息之后，节点首先判断当前有没有没有apply的配置变更消息，如果有就忽略该消息。其原因在于，当有配置更新的情况下不能进行选举操作，即要保证每一次集群成员变化时只能同时变化一个，不能同时有多个集群成员的状态发生变化。</p></li>
+
+<li><p>否则进入campaign函数中进行选举：首先将任期号+1，然后广播给其他节点选举消息，带上的其它字段包括：节点当前的最后一条日志索引（Index字段），最后一条日志对应的任期号（LogTerm字段），选举任期号（Term字段，即前面已经进行+1之后的任期号），Context字段（目的是为了告知这一次是否是leader转让类需要强制进行选举的消息）。</p></li>
+
+<li><p>如果在一个选举超时之内，该发起新的选举流程的节点，得到了超过半数的节点投票，那么状态就切换到leader状态，成为leader的同时，leader将发送一条dummy的append消息，目的是为了提交该节点上在此任期之前的值（见疑问部分如何提交之前任期的值）</p></li>
+</ul>
+
+<h2 id="收到选举消息的节点">收到选举消息的节点</h2>
+
+<ul>
+<li><p>当收到任期号大于当前节点任期号的消息，同时该消息类型如果是选举类的消息（类型为prevote或者vote）时，会做以下判断：</p>
+
+<ol>
+<li><p>首先会判断一下该消息是否为强制要求进行选举的类型（context为campaignTransfer，context为这种类型时表示在进行leader转让，流程见下面的leader转让流程）</p></li>
+
+<li><p>判断当前是否在租约期以内，判断的条件包括：checkQuorum为true，当前节点保存的leader不为空，没有到选举超时，前面这三个条件同时满足。</p></li>
+</ol></li>
+</ul>
+
+<p>如果不是强制要求选举，同时又在租约期以内，那么就忽略该选举消息返回不进行处理，这么做是为了避免出现那些离开集群的节点，频繁发起新的选举请求（见论文4.2.3）。</p>
+
+<ul>
+<li><p>如果不是前面的忽略选举消息的情况，那么除非是prevote类的选举消息，在收到其他消息的情况下，该节点都切换为follower状态。</p></li>
+
+<li><p>此时需要针对投票类型中带来的其他字段进行处理了，需要同时满足以下两个条件：</p>
+
+<ol>
+<li><p>只有在没有给其他节点进行过投票，或者消息的term任期号大于当前节点的任期号，或者之前的投票给的就是这个发出消息的节点</p></li>
+
+<li><p>进行选举的节点，它的日志是更新的，条件为：logterm比本节点最新日志的任期号大，在两者相同的情况下，消息的index大于等于当前节点最新日志的index，即总要保证该选举节点的日志比自己的大。</p></li>
+</ol></li>
+</ul>
+
+<p>只有在同时满足以上两个条件的情况下，才能同意该节点的选举，否则都会被拒绝。这么做的原因是：保证最后能胜出来当新的leader的节点，它上面的日志都是最新的。</p>
+
+<h1 id="集群成员变化流程">集群成员变化流程</h1>
+
+<p><strong>大原则是不能同时进行两个以上的成员变更</strong>，因为同时进行两个以上的成员变更，可能会出现集群中有两个leader即导致了集群分裂的情况出现。</p>
+
+<p>成员变化分为以下几种情况：成员删减、leader转让，下面分开讲解。</p>
+
+<h2 id="一般的成员删减">一般的成员删减</h2>
+
+<p>成员变化操作做为日志的特殊类型，当可以进行commit的情况下，各个节点拿出该消息进行节点内部的成员删减操作。</p>
+
+<h2 id="leader转让">leader转让</h2>
+
+<ul>
+<li><p>旧leader在接收到转让leader消息之后，会做如下的判断：
+a.  如果新的leader上的日志，已经跟当前leader上的日志同步了，那么发送timeout消息。
+b.  否则继续发append消息到新的leader上，目的为了让其能够与旧leader日志同步。</p></li>
+
+<li><p>当旧leader处于转让leader状态时，将停止接收新的prop消息，这样就避免出现在转让过程中新旧leader一直日志不能同步的情况。</p></li>
+
+<li><p>当旧leader收到append消息应答时，如果当前处于leader转让状态，那么会判断新的leader日志是否已经与当前leader同步，如果是将发送timeout消息。</p></li>
+
+<li><p>新的leader当收到timeout消息时，将使用context为campaignTransfer的选举消息发起新一轮选举，当context为该类型时，此时的选举是强制进行的（见前面的选举流程）。</p></li>
+</ul>
+
+<h1 id="如何做到线性一致性">如何做到线性一致性？</h1>
+
+<p>线性一致性（Linearizable Read）通俗来讲，就是读请求需要读到最新的已经commit的数据，不会读到老数据。</p>
+
+<p>由于所有的leader和follower都能处理客户端的读请求，所以存在可能造成返回读出的旧数据的情况：</p>
+
+<ul>
+<li><p>leader和follower之间存在状态差，因为follower总是由leader同步过去的，可能会返回同步之前的数据。</p></li>
+
+<li><p>如果发生了网络分区，某个leader实际上已经被隔离出了集群之外，但是该leader并不知道，如果还继续响应客户端的读请求，也可能会返回旧的数据。</p></li>
+</ul>
+
+<p>因此，在接收到客户端的读请求时，需要保证返回的数据都是当前最新的。</p>
+
+<h2 id="readonlysafe方式">ReadOnlySafe方式</h2>
+
+<p>leader在接收到读请求时，需要向集群中的超半数server确认自己仍然是当前的leader，这样它返回的就是最新的数据。</p>
+
+<p>在etcd-raft中，为了实现ReadOnlySafe，有如下的数据结构：</p>
+
+<pre><code class="language-Go">type ReadState struct {
+  Index uint64
+  RequestCtx []byte
+}
+</code></pre>
+
+<p>其中：</p>
+
+<ol>
+<li>Index：接收到该读请求时，当前节点的commit索引。</li>
+<li>RequestCtx：客户端读请求的唯一标识。</li>
+</ol>
+
+<p>这个数据用于保存读请求到来时的节点状态。</p>
+
+<pre><code class="language-Go">type readIndexStatus struct {
+ req pb.Message
+ index uint64
+ acks map[uint64]struct{}
+}
+</code></pre>
+
+<p>readIndexStatus数据结构用于追踪leader向follower发送的心跳信息，其中：
+1. req：保存原始的readIndex请求。
+2. index：leader当前的commit信息。
+3. acks：存放该readIndex请求有哪些节点进行了应答。</p>
+
+<pre><code class="language-Go">type readOnly struct {
+ option ReadOnlyOption
+ pendingReadIndex map[string]*readIndexStatus
+ readIndexQueue []string
+}
+</code></pre>
+
+<p>readOnly用于管理全局的readIndx数据，其中：</p>
+
+<ol>
+<li><p>option：readOnly选项。</p></li>
+
+<li><p>pendingReadIndex：当前所有待处理的readIndex请求，其中key为客户端读请求的唯一标识。</p></li>
+
+<li><p>readIndexQueue：保存所有readIndex请求的请求唯一标识数组。</p></li>
+</ol>
+
+<p>有了以上的数据结构介绍，后面是流程介绍：</p>
+
+<ol>
+<li><p>server收到客户端的读请求，此时会调用raft.ReadIndex函数发起一个MsgReadIndex的请求，带上的参数是客户端读请求的唯一标识。</p></li>
+
+<li><p>follower将向leader直接转发MsgReadIndex消息，而leader收到不论是本节点还是由其他server发来的MsgReadIndex消息，其处理都是：</p>
+
+<p>a. 首先如果该leader在成为新的leader之后没有提交过任何值，那么会直接返回不做处理。</p>
+
+<p>b. 调用r.readOnly.addRequest(r.raftLog.committed, m)保存该MsgreadIndex请求到来时的commit索引。</p>
+
+<p>c. r.bcastHeartbeatWithCtx(m.Entries[0].Data)，向集群中所有其他节点广播一个心跳消息MsgHeartbeat，并且在其中带上该读请求的唯一标识。</p>
+
+<p>d. follower在收到leader发送过来的MsgHeartbeat，将应答MsgHeartbeatResp消息，并且如果MsgHeartbeat消息中有ctx数据，MsgHeartbeatResp消息将原样返回这个ctx数据。</p>
+
+<p>e. leader在接收到MsgHeartbeatResp消息后，如果其中有ctx字段，说明该MsgHeartbeatResp消息对应的MsgHeartbeat消息，是收到ReadIndex时leader消息为了确认自己还是集群leader发送的心跳消息。首先会调用r.readOnly.recvAck(m)函数，根据消息中的ctx字段，到全局的pendingReadIndex中查找是否有保存该ctx的带处理的readIndex请求，如果有就在acks map中记录下该follower已经进行了应答。</p>
+
+<p>f. 当ack数量超过了集群半数时，意味着该leader仍然还是集群的leader，此时调用r.readOnly.advance(m)函数，将该readIndex之前的所有readIndex请求都认为是已经成功进行确认的了，所有成功确认的readIndex请求，将会加入到readStates数组中，同时leader也会向follower发送MsgReadIndexResp。</p>
+
+<p>g. follower收到MsgReadIndexResp消息时，同样也会更新自己的readStates数组信息。</p>
+
+<p>h. readStates数组的信息，将做为ready结构体的信息更新给上层的raft协议库的使用者。</p></li>
+</ol>
+
+<p>需要特别说明的是，处理读请求时，实际上leader需要确保当前自己是不是leader、该读请求对应的commit索引是否得到了半数投票，而当一个节点刚成为leader的时候，如果没有提交过任何数据，那么在它所在的这个任期（term）内的commit索引当时是并不知道的，因此在成为leader之后，需要马上提交一个no-op的空日志，这样拿到该任期的第一个commit索引。</p>
 
     </div>
 
