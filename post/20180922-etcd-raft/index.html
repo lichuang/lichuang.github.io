@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
@@ -60,7 +60,7 @@
 
 <meta itemprop="datePublished" content="2018-09-22T11:01:02&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-22T11:01:02&#43;08:00" />
-<meta itemprop="wordCount" content="7854">
+<meta itemprop="wordCount" content="10028">
 
 
 
@@ -151,14 +151,14 @@
     
     
 <div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title"></h2>
+  <h2 class="post-toc-title">Contents</h2>
   
   <div class="post-toc-content always-active">
     <nav id="TableOfContents">
 <ul>
 <li><a href="#序言">序言</a></li>
 <li><a href="#输入及输出">输入及输出</a></li>
-<li><a href="#raft库代码结构及组织">raft库代码结构及组织</a></li>
+<li><a href="#raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</a></li>
 <li><a href="#节点状态">节点状态</a></li>
 <li><a href="#选举流程">选举流程</a>
 <ul>
@@ -173,6 +173,21 @@
 <li><a href="#如何做到线性一致性">如何做到线性一致性？</a>
 <ul>
 <li><a href="#readonlysafe方式">ReadOnlySafe方式</a></li>
+</ul></li>
+<li><a href="#杂项">杂项</a>
+<ul>
+<li><a href="#节点的几种状态">节点的几种状态</a>
+<ul>
+<li><a href="#progressstateprobe">ProgressStateProbe</a></li>
+<li><a href="#progressstatereplicate">ProgressStateReplicate</a></li>
+<li><a href="#progressstatesnapshot">ProgressStateSnapshot</a></li>
+</ul></li>
+<li><a href="#progress上的数据索引">Progress上的数据索引</a></li>
+<li><a href="#流量控制">流量控制</a></li>
+</ul></li>
+<li><a href="#疑问采集">疑问采集</a>
+<ul>
+<li><a href="#为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目">为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目？</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -419,7 +434,7 @@ raftNode结构体主循环：
 
 <p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
 
-<h1 id="raft库代码结构及组织">raft库代码结构及组织</h1>
+<h1 id="raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</h1>
 
 <p>现在可以来看看raft库的代码组织了。</p>
 
@@ -660,7 +675,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <li>RequestCtx：客户端读请求的唯一标识。</li>
 </ol>
 
-<p>这个数据用于保存读请求到来时的节点状态。</p>
+<p>ReadState结构体用于保存读请求到来时的节点状态。</p>
 
 <pre><code class="language-Go">type readIndexStatus struct {
  req pb.Message
@@ -684,11 +699,9 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <p>readOnly用于管理全局的readIndx数据，其中：</p>
 
 <ol>
-<li><p>option：readOnly选项。</p></li>
-
-<li><p>pendingReadIndex：当前所有待处理的readIndex请求，其中key为客户端读请求的唯一标识。</p></li>
-
-<li><p>readIndexQueue：保存所有readIndex请求的请求唯一标识数组。</p></li>
+<li>option：readOnly选项。</li>
+<li>pendingReadIndex：当前所有待处理的readIndex请求，其中key为客户端读请求的唯一标识。</li>
+<li>readIndexQueue：保存所有readIndex请求的请求唯一标识数组。</li>
 </ol>
 
 <p>有了以上的数据结构介绍，后面是流程介绍：</p>
@@ -717,16 +730,122 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 
 <p>需要特别说明的是，处理读请求时，实际上leader需要确保当前自己是不是leader、该读请求对应的commit索引是否得到了半数投票，而当一个节点刚成为leader的时候，如果没有提交过任何数据，那么在它所在的这个任期（term）内的commit索引当时是并不知道的，因此在成为leader之后，需要马上提交一个no-op的空日志，这样拿到该任期的第一个commit索引。</p>
 
+<h1 id="杂项">杂项</h1>
+
+<h2 id="节点的几种状态">节点的几种状态</h2>
+
+<p>一个节点在leader上保存的状态有:</p>
+
+<pre><code class="language-Go">const (
+    ProgressStateProbe ProgressStateType = iota
+    ProgressStateReplicate
+    ProgressStateSnapshot
+)
+</code></pre>
+
+<p>以下来分开解释这几种状态。</p>
+
+<h3 id="progressstateprobe">ProgressStateProbe</h3>
+
+<p>探测状态，当节点拒绝了最近的append消息时，那么就会进入探测状态，此时leader会试图继续往前追述该节点的日志从哪里开始丢失的，让该节点的日志能跟leader同步上。在probe状态时，只能向它发送一次append消息，此后除非状态发生变化，否则就暂停向该节点发送新的append消息了。</p>
+
+<p>只有在以下情况才会恢复取消暂停状态（调用Progress的resume函数）：</p>
+
+<ol>
+<li>收到该节点的心跳消息。</li>
+<li>该节点成功应答了前面的最后一条append消息。</li>
+</ol>
+
+<p>至于Probe状态，只有在该节点成功应答了Append消息之后，在leader上保存的索引值发生了变化，才会修改其状态切换到Replicate状态。</p>
+
+<h3 id="progressstatereplicate">ProgressStateReplicate</h3>
+
+<p>正常接收副本数据的状态，当处于该状态时，leader在发送副本消息之后，就修改该节点的next索引为发送消息的最大索引+1</p>
+
+<h3 id="progressstatesnapshot">ProgressStateSnapshot</h3>
+
+<p>接收快照状态。
+当leader向某个follower发送append消息，试图让该follower状态跟上leader时，发现此时leader上保存的索引数据已经对不上了，比如leader在index为10之前的数据都已经写入快照中了，但是该follower需要的是10之前的数据，此时就会切换到该状态下，发送快照给该follower。</p>
+
+<p>因为快照数据可能很多，不知道会同步多久，所以单独把这个状态抽象出来。</p>
+
+<p>当快照数据同步追上之后，并不是直接切换到Replicate状态，而是首先切换到Probe状态。</p>
+
+<h2 id="progress上的数据索引">Progress上的数据索引</h2>
+
+<p>Progress结构体中有两个保存该follower节点日志索引的数据，其中：</p>
+
+<ul>
+<li>Next：保存下一次leader发送append消息给该follower时的日志索引。</li>
+<li>Match：保存该follower节点上的最大日志索引。</li>
+</ul>
+
+<p>在正常情况下，Next = Match + 1，也就是Next总是节点当前保存最大日志索引的下一条索引。</p>
+
+<p>有两种情况除外：</p>
+
+<ul>
+<li>接收快照状态：此时Next = max(pr.Match+1, pendingSnapshot+1)</li>
+<li>当该follower不在Replicate状态时，说明不是正常的接收副本状态。此时当leader与follower同步leader上的日志时，可能出现覆盖的情况，即此时follower上面假设Match为3，但是索引为3的数据会被leader覆盖，此时Next指针可能会一直回溯到与leader上日志匹配的位置，再开始正常同步日志，此时也会出现Next != Match + 1的情况出现。</li>
+</ul>
+
+<p><img src="/media/imgs/20180922-etcd-raft/next-match.jpg" alt="Alt text" title="Optional title" /></p>
+
+<p>如上图所示，节点s1上最大日志索引为2，即Match = 2，Next = 3。
+但是，由于新选出来的leader s2，其最大日志索引为3，此时s3需要同步日志到s1上，发现s1上的日志与自己的不匹配，所以会一直找到两者最开始匹配的索引位置，即最终找到索引1，因此会保存s1的Next索引为1，而Match还是2（因为此时还没有修改s1上的日志）。当最终s1上的数据与s2同步时，此时Next = 4，Match=3。</p>
+
+<h2 id="流量控制">流量控制</h2>
+
+<p>Progress结构体中，使用另一个inflights的数据结构用于流量控制。
+该结构体使用一个固定大小的循环缓冲区来控制给一个节点同步数据的流量控制，每当给该follower发送同步消息时，就占用该缓冲区的一个空间；反之，当收到该follower的成功接收了该同步消息的应答之后，就释放缓冲区的空间。</p>
+
+<p>当该缓冲区数据饱和时，将暂停继续同步数据到该follower。</p>
+
+<p>##快照、日志的存储</p>
+
+<h1 id="疑问采集">疑问采集</h1>
+
+<h2 id="为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目">为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目？</h2>
+
+<p>论文中专门有一段，论述了为什么在选举完成之后，不能通过计算日志条目数量的方式来提交任期之前的日志条目。</p>
+
+<p>如果leader在写入但是还没有提交一条日志之前崩溃，那么这条没有提交的日志是否能提交？</p>
+
+<p><img src="/media/imgs/20180922-etcd-raft/etcd-log.jpeg" alt="Alt text" title="Optional title" /></p>
+
+<p>如上图所示：</p>
+
+<ul>
+<li><p>情况a：s1是leader，index 2位置写入了数据2，该值只写在了s1，s2上，但是还没有被提交。</p></li>
+
+<li><p>情况b: s1崩溃，s5成为新的leader，该节点在index 2上面提交了另外一个值3，但是这个值只写在了s5上面，并没有被提交。</p></li>
+
+<li><p>情况c: s5崩溃，s1重新成为leader，这一次，index 2的值2写到了集群的大多数节点上。</p></li>
+</ul>
+
+<p>此时可能存在以下两种情况：</p>
+
+<ul>
+<li>情况d1: s1崩溃，s5重新成为leader（投票给s5的是s4，s2和s5自身），那么index 2上的值3这一次成功的写入到集群的半数以上节点之上，并成功提交。</li>
+<li>情况d2: s1不崩溃，而是将index 2为2的值成功提交。</li>
+</ul>
+
+<p>从情况d的两种场景可以看出，在index 2值为2，且已经被写入到半数以上节点的情况下，同样存在被新的leader覆盖的可能性。</p>
+
+<p>由于以上的原因，对于当前任期之前任期提交的日志，并不通过判断是否已经在半数以上集群节点写入成功来作为能否提交的依据。只有当前leader任期内的日志是通过比较写入数量是否超过半数来决定是否可以提交的。</p>
+
+<p>对于任期之前的日志，Raft采用的方式，是只要提交成功了当前任期的日志，那么在日志之前的日志就认为提交成功了。这也是为什么etcd-Raft代码中，在成为leader之后，需要再提交一条dummy的日志的原因&ndash;只要该日志提交成功，leader上该日志之前的日志就可以提交成功。</p>
+
     </div>
 
     
     <div class="post-copyright">
   <p class="copyright-item">
-    <span class="item-title"></span>
+    <span class="item-title">Author</span>
     <span class="item-content">codedump</span>
   </p>
   <p class="copyright-item">
-    <span class="item-title"></span>
+    <span class="item-title">LastMod</span>
     <span class="item-content">2018-09-22</span>
   </p>
   
@@ -775,11 +894,11 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 
 <div class="copyright">
   <span class="power-by">
-    %!(EXTRA string=<a class="hexo-link" href="https://gohugo.io">Hugo</a>)
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
   </span>
   <span class="division">|</span>
   <span class="theme-info">
-     - 
+    Theme - 
     <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
   </span>
 
