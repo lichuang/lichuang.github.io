@@ -23,7 +23,7 @@
 
 
 
-
+<meta name="google-site-verification" content="UA-126255685-1" />
 
 
 <meta name="generator" content="Hugo 0.48" />
@@ -60,7 +60,7 @@
 
 <meta itemprop="datePublished" content="2018-09-22T11:01:02&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-22T11:01:02&#43;08:00" />
-<meta itemprop="wordCount" content="10028">
+<meta itemprop="wordCount" content="18741">
 
 
 
@@ -158,7 +158,36 @@
 <ul>
 <li><a href="#序言">序言</a></li>
 <li><a href="#输入及输出">输入及输出</a></li>
-<li><a href="#raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</a></li>
+<li><a href="#raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</a>
+<ul>
+<li><a href="#raft消息结构体">raft消息结构体</a></li>
+<li><a href="#msghup消息">MsgHup消息</a></li>
+<li><a href="#msgbeat消息">MsgBeat消息</a></li>
+<li><a href="#msgprop消息">MsgProp消息</a>
+<ul>
+<li><a href="#candidate">candidate</a></li>
+<li><a href="#follower">follower</a></li>
+<li><a href="#leader">leader</a></li>
+</ul></li>
+<li><a href="#msgapp消息">MsgApp消息</a></li>
+<li><a href="#msgappresp消息">MsgAppResp消息</a>
+<ul>
+<li><a href="#msg-reject为true的情况">msg.Reject为true的情况</a></li>
+<li><a href="#msg-reject为false的情况">msg.Reject为false的情况</a></li>
+</ul></li>
+<li><a href="#msgvote-msgprevote消息以及msgvoteresp-msgprevoteresp消息">MsgVote/MsgPreVote消息以及MsgVoteResp/MsgPreVoteResp消息</a>
+<ul>
+<li><a href="#msgvote-msgprevote的处理流程">MsgVote/MsgPreVote的处理流程</a></li>
+<li><a href="#msgvoteresp-msgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</a></li>
+</ul></li>
+<li><a href="#msgsnap消息">MsgSnap消息</a></li>
+<li><a href="#msgheartbeat-msgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</a></li>
+<li><a href="#msgunreachable消息">MsgUnreachable消息</a></li>
+<li><a href="#msgsnapstatus消息">MsgSnapStatus消息</a></li>
+<li><a href="#msgcheckquorum消息">MsgCheckQuorum消息</a></li>
+<li><a href="#msgtransferleader消息">MsgTransferLeader消息</a></li>
+<li><a href="#msgtimeoutnow消息">MsgTimeoutNow消息</a></li>
+</ul></li>
 <li><a href="#节点状态">节点状态</a></li>
 <li><a href="#选举流程">选举流程</a>
 <ul>
@@ -249,6 +278,16 @@
 <tr>
 <td align="left">follower</td>
 <td align="right">跟随者</td>
+</tr>
+
+<tr>
+<td align="left">commit</td>
+<td align="right">提交</td>
+</tr>
+
+<tr>
+<td align="left">propose</td>
+<td align="right">提议</td>
 </tr>
 </tbody>
 </table>
@@ -412,7 +451,7 @@
 <p>将以上流程用伪代码实现如下：</p>
 
 <pre><code class="language-Go">// HTTP server
-HttpServer:
+HttpServer主循环:
   接收用户提交的数据：
     如果是PUT请求：
       将数据写入到proposeC中
@@ -514,6 +553,959 @@ raftNode结构体主循环：
 </tr>
 </tbody>
 </table>
+
+<h2 id="raft消息结构体">raft消息结构体</h2>
+
+<p>大体而言，raft算法本质上是一个大的状态机，任何的操作例如选举、提交数据等，最后的操作一定是封装成一个消息结构体，输入到raft算法库的状态机中。</p>
+
+<p>在raft/raftpb/raft.proto文件中，定义了raft算法中传输消息的结构体。熟悉raft论文的都知道，raft算法其实由好几个协议组成，但是在这里，统一定义在了Message这个结构体之中，以下总结了该结构体的成员用途。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MessageType</td>
+<td align="right">消息类型</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">消息发送者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">term</td>
+<td align="right">uint64</td>
+<td align="right">任期ID</td>
+</tr>
+
+<tr>
+<td align="left">logTerm</td>
+<td align="right">uint64</td>
+<td align="right">日志所处的任期ID</td>
+</tr>
+
+<tr>
+<td align="left">index</td>
+<td align="right">uint64</td>
+<td align="right">日志索引ID，用于节点向leader汇报自己已经commit的日志数据ID</td>
+</tr>
+
+<tr>
+<td align="left">entries</td>
+<td align="right">Entry</td>
+<td align="right">日志条目数组</td>
+</tr>
+
+<tr>
+<td align="left">commit</td>
+<td align="right">uint64</td>
+<td align="right">提交日志索引</td>
+</tr>
+
+<tr>
+<td align="left">snapshot</td>
+<td align="right">Snapshot</td>
+<td align="right">快照数据</td>
+</tr>
+
+<tr>
+<td align="left">reject</td>
+<td align="right">bool</td>
+<td align="right">是否拒绝</td>
+</tr>
+
+<tr>
+<td align="left">rejectHint</td>
+<td align="right">uint64</td>
+<td align="right">拒绝同步日志请求时返回的当前节点日志ID，用于被拒绝方快速定位到下一次合适的同步日志位置</td>
+</tr>
+
+<tr>
+<td align="left">context</td>
+<td align="right">bytes</td>
+<td align="right">上下文数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>由于这个Message结构体，全部将raft协议相关的数据都定义在了一起，有些协议不是用到其中的全部数据，所以这里的字段都是optinal的，我个人感觉这样不太好，会导致混合在一起显得杂乱无章，所以这里还是将每个协议（即不同的消息类型）中使用的用途做一个记录，如下。</p>
+
+<h2 id="msghup消息">MsgHup消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgHup</td>
+<td align="right">不用于节点间通信，仅用于发送给本节点让本节点进行选举</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="msgbeat消息">MsgBeat消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgBeat</td>
+<td align="right">不用于节点间通信，仅用于leader节点在heartbeat定时器到期时向集群中其他节点发送心跳消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="msgprop消息">MsgProp消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgProp</td>
+<td align="right">raft库使用者提议（propose）数据</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">entries</td>
+<td align="right">Entry</td>
+<td align="right">日志条目数组</td>
+</tr>
+</tbody>
+</table>
+
+<p>raft库的使用者向raft库propose数据时，最后会封装成这个类型的消息来进行提交，不同类型的节点处理还不尽相同。</p>
+
+<h3 id="candidate">candidate</h3>
+
+<p>由于candidate节点没有处理propose数据的责任，所以忽略这类型消息。</p>
+
+<h3 id="follower">follower</h3>
+
+<p>首先会检查集群内是否有leader存在，如果当前没有leader存在说明还在选举过程中，这种情况忽略这类消息；否则转发给leader处理。</p>
+
+<h3 id="leader">leader</h3>
+
+<p>leader的处理在leader的状态机函数针对MsgProp这种case的处理下，大体如下。</p>
+
+<ol>
+<li>检查entries数组是否没有数据，这是一个保护性检查。</li>
+<li>检查本节点是否还在集群之中，如果已经不在了则直接返回不进行下一步处理。什么情况下会出现一个leader节点发现自己不存在集群之中了？这种情况出现在本节点已经通过配置变化被移除出了集群的场景。</li>
+<li>检查raft.leadTransferee字段，当这个字段不为0时说明正在进行leader迁移操作，这种情况下不允许提交数据变更操作，因此此时也是直接返回的。</li>
+<li>检查消息的entries数组，看其中是否带有配置变更的数据。如果其中带有数据变更而raft.pendingConf为true，说明当前有未提交的配置更操作数据，根据raft论文，每次不同同时进行一次以上的配置变更，因此这里会将entries数组中的配置变更数据置为空数据。</li>
+<li>到了这里可以进行真正的数据propose操作了，将调用raft算法库的日志模块写入数据，根据返回的情况向其他节点广播消息。</li>
+</ol>
+
+<h2 id="msgapp消息">MsgApp消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgApp</td>
+<td align="right">用于leader向集群中其他节点同步数据的消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">entries</td>
+<td align="right">Entry</td>
+<td align="right">日志条目数组</td>
+</tr>
+
+<tr>
+<td align="left">logTerm</td>
+<td align="right">uint64</td>
+<td align="right">日志所处的任期ID</td>
+</tr>
+
+<tr>
+<td align="left">index</td>
+<td align="right">uint64</td>
+<td align="right">索引ID</td>
+</tr>
+
+<tr>
+<td align="left">entries</td>
+<td align="right">Entry</td>
+<td align="right">日志条目数组</td>
+</tr>
+</tbody>
+</table>
+
+<p>如果说前面的MsgProp消息是集群中的节点向leader转发用户提交的数据，那么MsgApp消息就是相反的，是leader节点用于向集群中其他节点同步数据的。</p>
+
+<p>// TODO</p>
+
+<h2 id="msgappresp消息">MsgAppResp消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgAppResp</td>
+<td align="right">集群中其他节点针对leader的MsgApp/MsgSnap消息的应答消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">index</td>
+<td align="right">uint64</td>
+<td align="right">日志索引ID，用于节点向leader汇报自己已经commit的日志数据ID</td>
+</tr>
+
+<tr>
+<td align="left">reject</td>
+<td align="right">bool</td>
+<td align="right">是否拒绝同步日志的请求</td>
+</tr>
+
+<tr>
+<td align="left">rejectHint</td>
+<td align="right">uint64</td>
+<td align="right">拒绝同步日志请求时返回的当前节点日志ID，用于被拒绝方快速定位到下一次合适的同步日志位置</td>
+</tr>
+</tbody>
+</table>
+
+<p>在节点收到leader的MsgApp/MsgSnap消息时，可能出现leader上的数据与自身节点数据不一致的情况，这种情况下会返回reject为true的MsgAppResp消息，同时rejectHint字段是本节点raft最后一条日志的索引ID。</p>
+
+<p>而index字段则返回的是当前节点的日志索引ID，用于向leader汇报自己已经commit的日志数据ID，这样leader就知道下一次同步数据给这个节点时，从哪条日志数据继续同步了。</p>
+
+<p>leader节点在收到MsgAppResp消息的处理流程大体如下（stepLeader函数中MsgAppResp case的处理流程）。</p>
+
+<p>首先，收到节点的MsgAppResp消息，说明该节点是活跃的，因此保存节点状态的RecentActive成员置为true。</p>
+
+<p>接下来，再根据msg.Reject的返回值，即节点是否拒绝了这次数据同步，来区分两种情况进行处理。</p>
+
+<h3 id="msg-reject为true的情况">msg.Reject为true的情况</h3>
+
+<p>如果msg.Reject为true，说明节点拒绝了前面的MsgApp/MsgSnap消息，根据msg.RejectHint成员回退leader上保存的关于该节点的日志记录状态。比如leader前面认为从日志索引为10的位置开始向节点A同步数据，但是节点A拒绝了这次数据同步，同时返回RejectHint为2，说明节点A告知leader在它上面保存的最大日志索引ID为2，这样下一次leader就可以直接从索引为2的日志数据开始同步数据到节点A。而如果没有这个RejectHint成员，leader只能在每次被拒绝数据同步后都递减1进行下一次数据同步，显然这样是低效的。</p>
+
+<ol>
+<li><p>因为上面节点拒绝了这次数据同步，所以节点的状态可能存在一些异常，此时如果leader上保存的节点状态为ProgressStateReplicate，那么将切换到ProgressStateProbe状态（关于这几种状态，下面会谈到）。</p></li>
+
+<li><p>前面已经按照msg.RejectHint修改了leader上关于该节点日志状态的索引数据，接着再次尝试按照这个新的索引数据向该节点再次同步数据。</p></li>
+</ol>
+
+<h3 id="msg-reject为false的情况">msg.Reject为false的情况</h3>
+
+<p>这种情况说明这个节点通过了leader的这一次数据同步请求，这种情况下根据msg.Index来判断在leader中保存的该节点日志数据索引是否发生了更新，如果发生了更新那么就说明这个节点通过了新的数据，这种情况下会做以下的几个操作。</p>
+
+<ol>
+<li><p>修改节点状态</p>
+
+<ul>
+<li>如果该节点之前在ProgressStateProbe状态，说明之前处于探测状态，此时可以切换到ProgressStateReplicate，开始正常的接收leader的同步数据了。</li>
+<li>如果之前处于ProgressStateSnapshot状态，即还在同步副本，说明节点之前可能落后leader数据比较多才采用了接收副本的状态。这里还需要多做一点解释，因为在节点落后leader数据很多的情况下，可能leader会多次通过snapshot同步数据给节点，而当 pr.Match &gt;= pr.PendingSnapshot的时候，说明通过快照来同步数据的流程完成了，这时可以进入正常的接收同步数据状态了，这就是函数Progress.needSnapshotAbort要做的判断。</li>
+<li>如果之前处于ProgressStateReplicate状态，此时可以修改leader关于这个节点的滑动窗口索引，释放掉这部分数据索引，好让节点可以接收新的数据了。关于这个滑动窗口设计，见下面详细解释。</li>
+</ul></li>
+
+<li><p>判断是否有新的数据可以提交（commit）了。因为raft的提交数据的流程是这样的：首先节点将数据提议（propose）给leader，leader在将数据写入到自己的日志成功之后，再通过MsgApp把这些提议的数据广播给集群中的其他节点，在某一条日志数据收到超过半数（qurom）的节点同意之后，才认为是可以提交（commit）的。因此每次leader节点在收到一条MsgAppResp类型消息，同时msg.Reject又是false的情况下，都需要去检查当前有哪些日志是超过半数的节点同意的，再将这些可以提交（commit）的数据广播出去。而在没有数据可以提交的情况下，如果之前节点处于暂停状态，那么将继续向该节点同步数据。</p></li>
+
+<li><p>最后还要做一个跟leader迁移相关的操作。如果该消息节点是准备迁移过去的新leader节点（raft.leadTransferee == msg.From），而且此时该节点上的Match索引已经跟旧的leader的日志最大索引一致，说明新旧节点的日志数据已经同步，可以正式进行集群leader迁移操作了。</p></li>
+</ol>
+
+<h2 id="msgvote-msgprevote消息以及msgvoteresp-msgprevoteresp消息">MsgVote/MsgPreVote消息以及MsgVoteResp/MsgPreVoteResp消息</h2>
+
+<p>这里把这四种消息放在一起了，因为不论是Vote还是PreVote流程，其请求和应答时传输的数据都是一样的。</p>
+
+<p>先看请求数据。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgVote/MsgPreVote</td>
+<td align="right">节点投票给自己以进行新一轮的选举</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">term</td>
+<td align="right">uint64</td>
+<td align="right">任期ID</td>
+</tr>
+
+<tr>
+<td align="left">index</td>
+<td align="right">uint64</td>
+<td align="right">日志索引ID，用于节点向leader汇报自己已经commit的日志数据ID</td>
+</tr>
+
+<tr>
+<td align="left">logTerm</td>
+<td align="right">uint64</td>
+<td align="right">日志所处的任期ID</td>
+</tr>
+
+<tr>
+<td align="left">context</td>
+<td align="right">bytes</td>
+<td align="right">上下文数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>应答数据。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgVoteResp/MsgPreVoteResp</td>
+<td align="right">投票应答消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">reject</td>
+<td align="right">bool</td>
+<td align="right">是否拒绝</td>
+</tr>
+</tbody>
+</table>
+
+<p>// TODO：为什么不是campaignPreElection的情况就不需要+1了？
+节点调用raft.campaign函数进行投票给自己进行一次新的选举，其中的参数CampaignType有以下几种类型：</p>
+
+<ol>
+<li>campaignPreElection：对应PreVote的场景。</li>
+<li>campaignElection：正常的选举场景。</li>
+<li>campaignTransfer：由于leader迁移发生的选举。如果是这种类型的选举，那么msg.Context字段保存的是“CampaignTransfer”`字符串，这种情况下会强制进行leader的迁移。</li>
+</ol>
+
+<p>MsgVote还需要带上几个与本节点日志相关的数据（Index、LogTerm），因为raft算法要求，一个节点要成为leader的一个必要条件之一就是这个节点上的日志数据是最新的。</p>
+
+<h3 id="msgvote-msgprevote的处理流程">MsgVote/MsgPreVote的处理流程</h3>
+
+<p>来看看节点对于投票消息的处理，这些处理有两处，但是都在raft.Step函数中。</p>
+
+<ol>
+<li>首先该函数会判断msg.Term是否大于本节点的Term，如果消息的任期号更大则说明是一次新的选举。这种情况下将根据msg.Context是否等于“CampaignTransfer”字符串来确定是不是一次由于leader迁移导致的强制选举过程。同时也会根据当前的electionElapsed是否小于electionTimeout来确定是否还在租约期以内。如果既不是强制leader选举又在租约期以内，那么节点将忽略该消息的处理，在论文4.2.3部分论述这样做的原因，是为了避免已经离开集群的节点在不知道自己已经不在集群内的情况下，仍然频繁的向集群内节点发起选举导致耗时在这种无效的选举流程中。如果以上检查流程通过了，说明可以进行选举了，如果消息类型还不是MsgPreVote类型，那么此时节点会切换到follower状态且认为发送消息过来的节点msg.From是新的leader。</li>
+</ol>
+
+<pre><code>	case m.Term &gt; r.Term:
+		// 消息的Term大于节点当前的Term
+		lead := m.From
+		if m.Type == pb.MsgVote || m.Type == pb.MsgPreVote {
+			// 如果收到的是投票类消息
+
+			// 当context为campaignTransfer时表示强制要求进行竞选
+			force := bytes.Equal(m.Context, []byte(campaignTransfer))
+			// 是否在租约期以内
+			inLease := r.checkQuorum &amp;&amp; r.lead != None &amp;&amp; r.electionElapsed &lt; r.electionTimeout
+			if !force &amp;&amp; inLease {
+				// 如果非强制，而且又在租约期以内，就不做任何处理
+				// 非强制又在租约期内可以忽略选举消息，见论文的4.2.3，这是为了阻止已经离开集群的节点再次发起投票请求
+				// If a server receives a RequestVote request within the minimum election timeout
+				// of hearing from a current leader, it does not update its term or grant its vote
+				r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] ignored %s from %x [logterm: %d, index: %d] at term %d: lease is not expired (remaining ticks: %d)&quot;,
+					r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term, r.electionTimeout-r.electionElapsed)
+				return nil
+			}
+			// 否则将lead置为空
+			lead = None
+		}
+		switch {
+		// 注意Go的switch case不做处理的话是不会默认走到default情况的
+		case m.Type == pb.MsgPreVote:
+			// Never change our term in response to a PreVote
+			// 在应答一个prevote消息时不对任期term做修改
+		case m.Type == pb.MsgPreVoteResp &amp;&amp; !m.Reject:
+			// We send pre-vote requests with a term in our future. If the
+			// pre-vote is granted, we will increment our term when we get a
+			// quorum. If it is not, the term comes from the node that
+			// rejected our vote so we should become a follower at the new
+			// term.
+		default:
+			r.logger.Infof(&quot;%x [term: %d] received a %s message with higher term from %x [term: %d]&quot;,
+				r.id, r.Term, m.Type, m.From, m.Term)
+			// 变成follower状态
+			r.becomeFollower(m.Term, lead)
+		}
+</code></pre>
+
+<ol>
+<li>在raft.Step函数的后面，会判断消息类型是MsgVote或者MsgPreVote来进一步进行处理。其判断条件是以下两个条件同时成立：
+
+<ul>
+<li>当前没有给任何节点进行过投票（r.Vote == None ），或者消息的任期号更大（m.Term &gt; r.Term ），或者是之前已经投过票的节点（r.Vote == m.From)）。这个条件是检查是否可以还能给该节点投票。</li>
+<li>同时该节点的日志数据是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm) ）。这个条件是检查这个节点上的日志数据是否足够的新。
+只有在满足以上两个条件的情况下，节点才投票给这个消息节点，将修改raft.Vote为消息发送者ID。如果不满足条件，将应答msg.Reject=true，拒绝该节点的投票消息。</li>
+</ul></li>
+</ol>
+
+<pre><code>	case pb.MsgVote, pb.MsgPreVote:
+		// 收到投票类的消息
+		// The m.Term &gt; r.Term clause is for MsgPreVote. For MsgVote m.Term should
+		// always equal r.Term.
+		if (r.Vote == None || m.Term &gt; r.Term || r.Vote == m.From) &amp;&amp; r.raftLog.isUpToDate(m.Index, m.LogTerm) {
+			// 如果当前没有给任何节点投票（r.Vote == None）或者投票的节点term大于本节点的（m.Term &gt; r.Term）
+			// 或者是之前已经投票的节点（r.Vote == m.From）
+			// 同时还满足该节点的消息是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm)），那么就接收这个节点的投票
+			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d&quot;,
+				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
+			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type)})
+			if m.Type == pb.MsgVote {
+				// Only record real votes.
+				// 保存下来给哪个节点投票了
+				r.electionElapsed = 0
+				r.Vote = m.From
+			}
+		} else {
+			// 否则拒绝投票
+			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d&quot;,
+				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
+			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type), Reject: true})
+		}
+</code></pre>
+
+<h3 id="msgvoteresp-msgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
+
+<p>来看节点收到投票应答数据之后的处理。</p>
+
+<ol>
+<li>节点调用raft.poll函数，其中传入msg.Reject参数表示发送者是否同意这次选举，根据这些来计算当前集群中有多少节点给这次选举投了同意票。</li>
+<li>如果有半数的节点同意了，如果选举类型是PreVote，那么进行Vote状态正式进行一轮选举；否则该节点就成为了新的leader，调用raft.becomeLeader函数切换状态，然后开始同步日志数据给集群中其他节点了。</li>
+<li>而如果半数以上的节点没有同意，那么重新切换到follower状态。</li>
+</ol>
+
+<pre><code class="language-Go">	case myVoteRespType:
+		// 计算当前集群中有多少节点给自己投了票
+		gr := r.poll(m.From, m.Type, !m.Reject)
+		r.logger.Infof(&quot;%x [quorum:%d] has received %d %s votes and %d vote rejections&quot;, r.id, r.quorum(), gr, m.Type, len(r.votes)-gr)
+		switch r.quorum() {
+		case gr:	// 如果进行投票的节点数量正好是半数以上节点数量
+			if r.state == StatePreCandidate {
+				r.campaign(campaignElection)
+			} else {
+				// 变成leader
+				r.becomeLeader()
+				r.bcastAppend()
+			}
+		case len(r.votes) - gr:	// 如果是半数以上节点拒绝了投票
+			// 变成follower
+			r.becomeFollower(r.Term, None)
+		}
+</code></pre>
+
+<h2 id="msgsnap消息">MsgSnap消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgSnap</td>
+<td align="right">用于leader向follower同步数据用的快照消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">snapshot</td>
+<td align="right">Snapshot</td>
+<td align="right">快照数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>MsgSnap消息做的事情其实跟前面提到的MsgApp消息是一样的：都是用于leader向follower同步数据。实际上对于leader而言，向某个节点同步数据这个操作，都封装在raft.sendAppend函数中，至于具体用的哪种消息类型由这个函数内部实现。</p>
+
+<p>那么，什么情况下会用到快照数据来同步呢？raft算法中，任何的数据要提交成功，首先leader会在本地写一份日志，再广播出去给集群的其他节点，只有在超过半数以上的节点同意，leader才能进行提交操作，这一个流程在前面讲解MsgAppResp消息流程时做了解释。</p>
+
+<p>但是，如果这个日志文件不停的增长，显然是不能接受的。因此，在某些时刻，节点会将日志数据进行压缩处理，就是把当前的数据写入到一个快照文件中。而leader在向某一个节点进行数据同步时，是根据该节点上的日志记录进行数据同步的。</p>
+
+<p>比方说，leader上已经有最大索引为10的日志数据，而节点A的日志索引是2，那么leader将从3开始向节点A同步数据。</p>
+
+<p>但是如果前面的数据已经进行了压缩处理，转换成了快照数据，而压缩后的快照数据实际上已经没有日志索引相关的信息了。这时候只能将快照数据全部同步给节点了。还是以前面的流程为例，假如leader上日志索引为7之前的数据都已经被压缩成了快照数据，那么这部分数据在同步时是需要整份传输过去的，只有当同步完成节点赶上了leader上的日志进度时，才开始正常的日志同步流程。</p>
+
+<p>以上就是关于MsgSnap的解释，除此之外跟MsgApp并没有太大区别，而该消息也没有自己专属的应答消息类型，而是同样使用MsgAppResp消息。</p>
+
+<h2 id="msgheartbeat-msgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</h2>
+
+<p>心跳请求消息。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgHeartbeat</td>
+<td align="right">用于leader向follower发送心跳消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">commit</td>
+<td align="right">uint64</td>
+<td align="right">提交日志索引</td>
+</tr>
+
+<tr>
+<td align="left">context</td>
+<td align="right">bytes</td>
+<td align="right">上下文数据，在这里保存一致性读相关的数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>心跳请求应答消息。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgHeartbeatResp</td>
+<td align="right">用于follower向leader应答心跳消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">本节点ID</td>
+</tr>
+
+<tr>
+<td align="left">context</td>
+<td align="right">bytes</td>
+<td align="right">上下文数据，在这里保存一致性读相关的数据</td>
+</tr>
+</tbody>
+</table>
+
+<p>leader中会定时向集群中其他节点发送心跳消息，该消息的作用除了探测节点的存活情况之外，还包括：</p>
+
+<ol>
+<li>commit成员：leader选择min[节点上的Match，leader日志最大提交索引]，用于告知节点哪些日志可以进行提交（commit）。</li>
+<li>context：与线性一致性读相关，后面会进行解释。</li>
+</ol>
+
+<h2 id="msgunreachable消息">MsgUnreachable消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgUnreachable</td>
+<td align="right">用于应用层向raft库汇报某个节点当前已不可达</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">不可用的节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<p>仅leader才处理这类消息，leader如果判断该节点此时处于正常接收数据的状态（ProgressStateReplicate），那么就切换到探测状态。</p>
+
+<h2 id="msgsnapstatus消息">MsgSnapStatus消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgSnapStatus</td>
+<td align="right">用于应用层向raft库汇报某个节点当前接收快照状态</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">节点ID</td>
+</tr>
+
+<tr>
+<td align="left">reject</td>
+<td align="right">bool</td>
+<td align="right">是否拒绝</td>
+</tr>
+</tbody>
+</table>
+
+<p>仅leader处理这类消息：</p>
+
+<ol>
+<li>如果reject为false：表示接收快照成功，将切换该节点状态到探测状态。</li>
+<li>否则接收失败。</li>
+</ol>
+
+<h2 id="msgcheckquorum消息">MsgCheckQuorum消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgCheckQuorum</td>
+<td align="right">用于leader检查集群可用性的消息</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<p>leader的定时器函数，在超过选举时间时，如果当前打开了raft.checkQuorum开关，那么leader将给自己发送一条MsgCheckQuorum消息，对该消息的处理是：检查集群中所有节点的状态，如果超过半数的节点都不活跃了，那么leader也切换到follower状态。</p>
+
+<h2 id="msgtransferleader消息">MsgTransferLeader消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgTransferLeader</td>
+<td align="right">用于迁移leader</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">消息接收者的节点ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">注意这里不是发送者的ID了，而是准备迁移过去成为新leader的节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<p>这类消息follower将转发给leader处理，因为follower并没有修改集群配置状态的权限。</p>
+
+<p>leader在收到这类消息时，是以下的处理流程。</p>
+
+<ol>
+<li>如果当前的raft.leadTransferee成员不为空，说明有正在进行的leader迁移流程。此时会判断是否与这次迁移是同样的新leader ID，如果是则忽略该消息直接返回；否则将终止前面还没有完毕的迁移流程。</li>
+<li>如果这次迁移过去的新节点，就是当前的leader ID，也直接返回不进行处理。</li>
+<li>到了这一步就是正式开始这一次的迁移leader流程了，一个节点能成为一个集群的leader，其必要条件是上面的日志与当前leader的一样多，所以这里会判断是否满足这个条件，如果满足那么发送MsgTimeoutNow消息给新的leader通知该节点进行leader迁移，否则就先进行日志同步操作让新的leader追上旧leader的日志数据。</li>
+</ol>
+
+<pre><code class="language-Go">
+case pb.MsgTransferLeader:
+  leadTransferee := m.From
+  lastLeadTransferee := r.leadTransferee
+  if lastLeadTransferee != None {
+    // 判断是否已经有相同节点的leader转让流程在进行中
+    if lastLeadTransferee == leadTransferee {
+      r.logger.Infof(&quot;%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x&quot;,
+        r.id, r.Term, leadTransferee, leadTransferee)
+      // 如果是，直接返回
+      return
+    }
+    // 否则中断之前的转让流程
+    r.abortLeaderTransfer()
+    r.logger.Infof(&quot;%x [term %d] abort previous transferring leadership to %x&quot;, r.id, r.Term, lastLeadTransferee)
+  }
+  // 判断是否转让过来的leader是否本节点，如果是也直接返回，因为本节点已经是leader了
+  if leadTransferee == r.id {
+    r.logger.Debugf(&quot;%x is already leader. Ignored transferring leadership to self&quot;, r.id)
+    return
+  }
+  // Transfer leadership to third party.
+  r.logger.Infof(&quot;%x [term %d] starts to transfer leadership to %x&quot;, r.id, r.Term, leadTransferee)
+  // Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
+  r.electionElapsed = 0
+  r.leadTransferee = leadTransferee
+  if pr.Match == r.raftLog.lastIndex() {
+    // 如果日志已经匹配了，那么就发送timeoutnow协议过去
+    r.sendTimeoutNow(leadTransferee)
+    r.logger.Infof(&quot;%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log&quot;, r.id, leadTransferee, leadTransferee)
+  } else {
+    // 否则继续追加日志
+    r.sendAppend(leadTransferee)
+  }
+
+</code></pre>
+
+<h2 id="msgtimeoutnow消息">MsgTimeoutNow消息</h2>
+
+<table>
+<thead>
+<tr>
+<th align="left">成员</th>
+<th align="right">类型</th>
+<th align="right">作用</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td align="left">type</td>
+<td align="right">MsgTimeoutNow</td>
+<td align="right">leader迁移时，当新旧leader的日志数据同步后，旧leader向新leader发送该消息通知可以进行迁移了</td>
+</tr>
+
+<tr>
+<td align="left">to</td>
+<td align="right">uint64</td>
+<td align="right">新的leader ID</td>
+</tr>
+
+<tr>
+<td align="left">from</td>
+<td align="right">uint64</td>
+<td align="right">旧的leader的节点ID</td>
+</tr>
+</tbody>
+</table>
+
+<p>新的leader节点，在还未迁移之前仍然是follower，在收到这条消息后，就可以进行迁移了，此时会调用前面分析MsgVote时说过的campaign函数，传入的参数是campaignTransfer，表示这是一次由于迁移leader导致的选举流程。</p>
 
 <h1 id="节点状态">节点状态</h1>
 
