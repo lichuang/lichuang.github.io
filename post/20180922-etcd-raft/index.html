@@ -60,7 +60,7 @@
 
 <meta itemprop="datePublished" content="2018-09-22T11:01:02&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-22T11:01:02&#43;08:00" />
-<meta itemprop="wordCount" content="20728">
+<meta itemprop="wordCount" content="21817">
 
 
 
@@ -163,6 +163,8 @@
 <li><a href="#raft库日志存储相关结构">raft库日志存储相关结构</a>
 <ul>
 <li><a href="#unstable">unstable</a></li>
+<li><a href="#storage接口">Storage接口</a></li>
+<li><a href="#raftlog的实现">raftLog的实现</a></li>
 </ul></li>
 <li><a href="#raft消息结构体">raft消息结构体</a></li>
 <li><a href="#msghup消息">MsgHup消息</a></li>
@@ -223,10 +225,7 @@
 <li><a href="#progress上的数据索引">Progress上的数据索引</a></li>
 <li><a href="#流量控制">流量控制</a></li>
 </ul></li>
-<li><a href="#疑问采集">疑问采集</a>
-<ul>
-<li><a href="#为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目">为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目？</a></li>
-</ul></li>
+<li><a href="#疑问采集">疑问采集</a></li>
 </ul>
 </nav>
   </div>
@@ -588,6 +587,91 @@ raftNode结构体主循环：
 <li>slice：返回索引范围在[lo-u.offset : hi-u.offset]之间的数据。</li>
 <li>mustCheckOutOfBounds：检查传入的数据索引范围是否合理。</li>
 </ul>
+
+<h3 id="storage接口">Storage接口</h3>
+
+<p>Storage接口，提供了存储持久化日志相关的接口操作。其提供出来的接口函数说明如下。</p>
+
+<ul>
+<li>InitialState() (pb.HardState, pb.ConfState, error)：返回当前的初始状态，其中包括硬状态（HardState）以及配置（里面存储了集群中有哪些节点）。</li>
+<li>Entries(lo, hi, maxSize uint64) ([]pb.Entry, error)：传入起始和结束索引值，以及最大的尺寸，返回索引范围在这个传入范围以内并且不超过大小的日志条目数组。</li>
+<li>Term(i uint64) (uint64, error)：传入日志索引i，返回这条日志对应的任期号。找不到的情况下error返回值不为空，其中当返回ErrCompacted表示传入的索引数据已经找不到，说明已经被压缩成快照数据了；返回ErrUnavailable：表示传入的索引值大于当前的最大索引。</li>
+<li>LastIndex() (uint64, error)：返回最后一条数据的索引。</li>
+<li>FirstIndex() (uint64, error)：返回第一条数据的索引。</li>
+<li>Snapshot() (pb.Snapshot, error)：返回最近的快照数据。</li>
+</ul>
+
+<p>我对这个接口提供出来的接口函数比较有疑问，因为搜索了etcd的代码，该接口只有MemoryStorage一个实现，而实际上MemoryStorage这个结构体还有其他的函数，比如添加日志数据的操作，但是这个操作并没有在Storage接口中声明。</p>
+
+<p>接下来看看实现了Storage接口的MemoryStorage结构体的实现，其成员主要包括以下几个部分：</p>
+
+<ul>
+<li>hardState pb.HardState：存储硬状态。</li>
+<li>snapshot  pb.Snapshot：存储快照数据。</li>
+<li>ents []pb.Entry：存储紧跟着快照数据的日志条目数组，即ents[i]保存的日志数据索引位置为i + snapshot.Metadata.Index。</li>
+</ul>
+
+<h3 id="raftlog的实现">raftLog的实现</h3>
+
+<p>有了以上的介绍unstable、Storage的准备之后，下面可以来介绍raftLog的实现，这个结构体承担了raft日志相关的操作。</p>
+
+<p>raftLog由以下成员组成。</p>
+
+<ul>
+<li>storage Storage：前面提到的存放已经持久化数据的Storage接口。</li>
+<li>unstable unstable：前面分析过的unstable结构体，用于保存应用层还没有持久化的数据。</li>
+<li>committed uint64：保存当前提交的日志数据索引。</li>
+<li>applied uint64：保存当前传入状态机的数据最高索引。</li>
+</ul>
+
+<p>需要说明的是，一条日志数据，首先需要被提交（committed）成功，然后才能被应用（applied）到状态机中。因此，以下不等式一直成立：applied &lt;= committed。</p>
+
+<p>raftLog结构体中，几部分数据的排列如下图所示。</p>
+
+<p><img src="/media/imgs/20180922-etcd-raft/raftlog.png" alt="raftlog" title="raftlog" /></p>
+
+<p>这个数据排布的情况，可以从raftLog的初始化函数中看出来：</p>
+
+<pre><code class="language-Go">func newLog(storage Storage, logger Logger) *raftLog {
+	if storage == nil {
+		log.Panic(&quot;storage must not be nil&quot;)
+	}
+	log := &amp;raftLog{
+		storage: storage,
+		logger:  logger,
+	}
+	firstIndex, err := storage.FirstIndex()
+	if err != nil {
+		panic(err) // TODO(bdarnell)
+	}
+	lastIndex, err := storage.LastIndex()
+	if err != nil {
+		panic(err) // TODO(bdarnell)
+	}
+	// offset从持久化之后的最后一个index的下一个开始
+	log.unstable.offset = lastIndex + 1
+	log.unstable.logger = logger
+	// Initialize our committed and applied pointers to the time of the last compaction.
+	// committed和applied从持久化的第一个index的前一个开始
+	log.committed = firstIndex - 1
+	log.applied = firstIndex - 1
+
+	return log
+}
+</code></pre>
+
+<p>在这里：</p>
+
+<ul>
+<li>firstIndex：该值取自storage.FirstIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的第一个数据索引，也就是MemoryStorage结构体中快照数据与日志条目数据的分界线。</li>
+<li>lastIndex：该值取自storage.LastIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的最后一个数据索引。</li>
+<li>unstable.offset：该值为lastIndex索引的下一个位置。</li>
+<li>committed、applied：在初始的情况下，这两个值是firstIndex的上一个索引位置，这是因为在firstIndex之前的数据既然已经是持久化数据了，说明都是已经被提交成功的数据了。</li>
+</ul>
+
+<p>因此，从这里的代码分析可以看出，raftLog的两部分，持久化存储和非持久化存储，它们之间的分界线就是lastIndex，在此之前都是Storage管理的已经持久化的数据，而在此之后都是unstable管理的还没有持久化的数据。</p>
+
+<p>以上分析中还有一个疑问，为什么并没有初始化unstable.snapshot成员，也就是unstable结构体的快照数据？原因在于，上面这个是初始化函数，也就是节点刚启动的时候调用来初始化存储状态的函数，而unstable.snapshot数据，是在启动之后同步数据的过程中，如果需要同步快照数据时才会去进行赋值修改的数据，因此在这里并没有对它进行操作的地方。</p>
 
 <h2 id="raft消息结构体">raft消息结构体</h2>
 
@@ -1883,37 +1967,6 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 
 <h1 id="疑问采集">疑问采集</h1>
 
-<h2 id="为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目">为什么不能通过计算日志条目数量的方式来提交任期之前的日志条目？</h2>
-
-<p>论文中专门有一段，论述了为什么在选举完成之后，不能通过计算日志条目数量的方式来提交任期之前的日志条目。</p>
-
-<p>如果leader在写入但是还没有提交一条日志之前崩溃，那么这条没有提交的日志是否能提交？</p>
-
-<p><img src="/media/imgs/20180922-etcd-raft/etcd-log.jpeg" alt="Alt text" title="Optional title" /></p>
-
-<p>如上图所示：</p>
-
-<ul>
-<li><p>情况a：s1是leader，index 2位置写入了数据2，该值只写在了s1，s2上，但是还没有被提交。</p></li>
-
-<li><p>情况b: s1崩溃，s5成为新的leader，该节点在index 2上面提交了另外一个值3，但是这个值只写在了s5上面，并没有被提交。</p></li>
-
-<li><p>情况c: s5崩溃，s1重新成为leader，这一次，index 2的值2写到了集群的大多数节点上。</p></li>
-</ul>
-
-<p>此时可能存在以下两种情况：</p>
-
-<ul>
-<li>情况d1: s1崩溃，s5重新成为leader（投票给s5的是s4，s2和s5自身），那么index 2上的值3这一次成功的写入到集群的半数以上节点之上，并成功提交。</li>
-<li>情况d2: s1不崩溃，而是将index 2为2的值成功提交。</li>
-</ul>
-
-<p>从情况d的两种场景可以看出，在index 2值为2，且已经被写入到半数以上节点的情况下，同样存在被新的leader覆盖的可能性。</p>
-
-<p>由于以上的原因，对于当前任期之前任期提交的日志，并不通过判断是否已经在半数以上集群节点写入成功来作为能否提交的依据。只有当前leader任期内的日志是通过比较写入数量是否超过半数来决定是否可以提交的。</p>
-
-<p>对于任期之前的日志，Raft采用的方式，是只要提交成功了当前任期的日志，那么在日志之前的日志就认为提交成功了。这也是为什么etcd-Raft代码中，在成为leader之后，需要再提交一条dummy的日志的原因&ndash;只要该日志提交成功，leader上该日志之前的日志就可以提交成功。</p>
-
     </div>
 
     
@@ -1948,6 +2001,11 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
       <nav class="post-nav">
         
         
+          <a class="next" href="/post/20180921-raft/">
+            <span class="next-text nav-default">Raft算法原理</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
       </nav>
     </footer>
   </article>
