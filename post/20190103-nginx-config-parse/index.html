@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>Nginx源码阅读笔记-配置解析流程 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.48" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20190103-nginx-config-parse/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="Nginx源码阅读笔记-配置解析流程" />
+<meta property="og:description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20190103-nginx-config-parse/" /><meta property="article:published_time" content="2019-01-03T08:41:44&#43;08:00"/>
+<meta property="article:modified_time" content="2019-01-03T08:41:44&#43;08:00"/>
+<meta itemprop="name" content="Nginx源码阅读笔记-配置解析流程">
+<meta itemprop="description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析">
+
+
+<meta itemprop="datePublished" content="2019-01-03T08:41:44&#43;08:00" />
+<meta itemprop="dateModified" content="2019-01-03T08:41:44&#43;08:00" />
+<meta itemprop="wordCount" content="7383">
+
+
+
+<meta itemprop="keywords" content="nginx," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Nginx源码阅读笔记-配置解析流程"/>
+<meta name="twitter:description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">Even</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">Even</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">Nginx源码阅读笔记-配置解析流程</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-01-03 </span>
+        <div class="post-category">
+            
+              <a href="/categories/nginx/"> nginx </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#模块与配置值解析相关数据结构">模块与配置值解析相关数据结构</a></li>
+<li><a href="#解析配置流程">解析配置流程</a>
+<ul>
+<li><a href="#相关核心函数">相关核心函数</a></li>
+<li><a href="#解析ngx-direct-conf类型指令的例子">解析NGX_DIRECT_CONF类型指令的例子</a></li>
+<li><a href="#解析ngx-main-conf类型指令的例子">解析NGX_MAIN_CONF类型指令的例子</a></li>
+<li><a href="#解析其它类型指令的例子">解析其它类型指令的例子</a></li>
+</ul></li>
+<li><a href="#参考资料">参考资料</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<p>本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。</p>
+
+<h1 id="模块与配置值解析相关数据结构">模块与配置值解析相关数据结构</h1>
+
+<p>整个Nginx是以模块的方式来组织的，即使是核心的组件如epoll之类的，最终也是以模块的方式注册到nginx中的。所以先了解整个nginx模块的结构很有必要。</p>
+
+<p>与模块相关的核心数据结构有以下这几个。</p>
+
+<p>ngx_module_t结构体用于定义nginx模块相关的数据结构，其中包括几个核心的数据：</p>
+
+<ul>
+<li>void *ctx：用于存储每个模块相关的context数据。</li>
+<li>ngx_command_t *commands：用于存储与该模块相关的配置命令解析数据。所谓的配置命令，就是对应的nginx配置文件中的语句，如”event“、”include“等，每个配置语句最终一定有一个相关的ngx_command_t数据与之对应，负责解析这个命令。</li>
+<li>ngx_uint_t type：用于保存模块的类型，目前包括NGX_HTTP_MODULE，NGX_CORE_MODULE，NGX_CONF_MOULE，NGX_EVENT_MODULE，NGX_MAIL_MODULE这几种类型。</li>
+<li>一组回调函数：用于在解析配置的时候进行回调。</li>
+</ul>
+
+<p>而上面的ngx_command_t结构体又有以下成员：</p>
+
+<ul>
+<li>ngx_str_t name：配置文件里对应的配置项名称。如前面提到的nginx配置文件中的”event“、”include“等。</li>
+<li>ngx_uint_t type：配置项类型，这里会存储如该配置项应该出现在什么位置（http块、server块、location块等），以及配置项参数数量，以便于解析过程中进行合法性的判断。
+
+<ul>
+<li>命令的作用域，即该命令能够出现在什么位置（http块、server块、location块等），这些与作用域相关的类型有NGX_MAIN_CONF、NGX_EVENT_CONF、NGX_HTTP_MAIN_CONF、NGX_HTTP_SRV_CONF、 NGX_HTTP_LOC_CONF、NGX_MAIL_MAIN_CONF、NGX_MAIL_SRV_CONF 等。</li>
+<li>命令能够接受的参数数量，如NGX_CONF_NOARGS、NGX_CONF_TAKE1等。</li>
+</ul></li>
+<li>ngx_uint_t offset：该配置命令所要修改的配置项在该模块配置结构体中的偏移量。</li>
+<li>ngx_uint_t conf：该配置在子模块配置项中的索引。</li>
+<li>回调函数set：在解析到配置项的时候进行回调。</li>
+</ul>
+
+<p>下图中给出一个简单的nginx配置文件的作用域示意图：</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/ngx-conf-scope.png" alt="ngx-conf-scope" title="ngx-conf-scope" /></p>
+
+<p>有了以上两个核心数据结构，可以知道每个nginx模块注册时的方式：</p>
+
+<ul>
+<li>定义一组与本模块相关的ngx_command_t，用于定义本模块相关的配置项信息。</li>
+<li>定义一个与本模块相关的数据结构，注册为ngx_module_t的ctx指针，用于保存本模块相关的数据结构。</li>
+<li>最后，将上面的数据放到ngx_module_t中，nginx解析配置的时候会自动回调对应的处理函数了。</li>
+</ul>
+
+<p>以epoll模块来说，其ngx_module_t结构体是如下组织的。</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/epoll-module.png" alt="epoll-module" title="epoll-module" /></p>
+
+<p>根据上面的图示，不难想象，nginx在配置解析的时候是如何解析epoll相关的配置的：</p>
+
+<ul>
+<li>首先解析到event模块，也就是nginx配置文件中的event{}部分，此时会把对用的context指针指向ngx_epoll_module_ctx，开始进行event模块的解析工作。</li>
+<li>如果在event块中遇到名为“epoll_events”或者“worker_aio_requests”开始的配置，那么就知道是上面ngx_epoll_commands数组中定义的配置命令，nginx首先会根据这里定义的type来分析其出现的位置（是否出现在event块）以及参数数量（NGX_CONF_TAKE1）是否正确，都检测通过之后，才会调用ngx_command_t中set回调函数进行配置解析。</li>
+</ul>
+
+<h1 id="解析配置流程">解析配置流程</h1>
+
+<h2 id="相关核心函数">相关核心函数</h2>
+
+<p>上面分析到ngx_module_t结构体的时候曾经提到过，当前的type有如下类型：NGX_HTTP_MODULE，NGX_CORE_MODULE，NGX_CONF_MOULE，NGX_EVENT_MODULE，NGX_MAIL_MODULE。</p>
+
+<p>实际上，nginx的模块类型是一个树形结构，最顶层的是NGX_CORE_MODULE，它下面的子类型是NGX_HTTP_MODULE、NGX_EVENT_MODULE等。</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/module-tree.png" alt="module-tree" title="module-tree" /></p>
+
+<p>如果一个结构体是使用树形结构来进行组织的，那么首先会想到的是“递归算法”。</p>
+
+<p>实际上nginx配置解析，确实也是以递归的方式来进行解析的。仍然是以前面的epoll模块解析为例来说明这个流程：</p>
+
+<ul>
+<li>首先解析类型为NGX_CORE_MODULE的顶层模块，由于event模块（即event{}配置块）也是NGX_CORE_MODULE，因此解析到event{}块时会进入event模块相关的配置解析中。</li>
+<li>下面开始进入NGX_EVENT_MODULE这个二层模块的解析中，当遇到epoll相关的指令时，进入epoll模块的解析。</li>
+</ul>
+
+<p>上面可以看到，既然是递归方式来解析的，那么意味着解析配置使用的解析函数是可以被递归调用的，在nginx中这个会被递归调用的核心函数是core/ngx_conf_file.c中的ngx_conf_parse函数。</p>
+
+<p>在ngx_conf_parse中，会根据传入的filename来区分几种情况：</p>
+
+<ul>
+<li>filename不为空：说明是首次调用该函数，此时会打开filename指定的文件名开始解析。</li>
+<li>cf-&gt;conf_file-&gt;file.fd != NGX_INVALID_FILE：说明此时是被递归调用的情况，用于分析一个{}block的内容。</li>
+<li>如果以上情况都不是，说明也是被递归调用的情况，而这时是分析一个参数的情况。</li>
+</ul>
+
+<p>另外，既然ngx_conf_parse会被递归调用，每次传入的参数就都是一个类型的，被递归调用的时候就需要相应的做修改。</p>
+
+<p>ngx_conf_parse的函数原型如下：</p>
+
+<pre><code>char*
+ngx_conf_parse(ngx_conf_t *cf, ngx_str_t *filename);
+</code></pre>
+
+<p>可以看到其中有两个入参，其中之一的filename前面已经介绍过了，下面来介绍ngx_conf_t结构体。这个结构体可以认为是解析配置文件过程中为了保存数据的中间数据结构，其重要的几个成员是：</p>
+
+<ul>
+<li>ngx_uint_t module_type：模块类型，即前面提到的NGX_HTTP_MODULE，NGX_CORE_MODULE，NGX_CONF_MOULE，NGX_EVENT_MODULE，NGX_MAIL_MODULE。</li>
+<li>ngx_uint_t cmd_type：命令类型，表示指令的作用域。有NGX_MAIN_CONF、NGX_EVENT_CONF、NGX_HTTP_MAIN_CONF、NGX_HTTP_SRV_CONF、 NGX_HTTP_LOC_CONF、NGX_MAIL_MAIN_CONF、NGX_MAIL_SRV_CONF 等。</li>
+</ul>
+
+<p>因此，在每次递归调用ngx_conf_parse函数之前，调用方都要相应的设置ngx_conf_t结构体这两个成员，好让ngx_conf_parse函数知道当前解析的是哪个模块、在哪个配置作用域中。</p>
+
+<p>在ngx_conf_parse内部，又会调用ngx_conf_handler来做配置的解析，其主体的代码流程如下：</p>
+
+<pre><code class="language-C">-------------core/ngx_conf_file.c-------------
+static ngx_int_t
+ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
+{
+  ...
+  for (i = 0; ngx_modules[i]; i++) {
+    /* module type checking */
+    ...
+    cmd = ngx_modules[i]-&gt;commands;
+    ...
+    for ( /* void */ ; cmd-&gt;name.len; cmd++) {
+      /* name comparison */
+      ...
+      /* namespace checking */
+      ...
+      /* checking argument numbers */
+      ...
+      /* set up the directive's configuration context */
+
+      conf = NULL;
+
+      if (cmd-&gt;type &amp; NGX_DIRECT_CONF) {
+        conf = ((void **) cf-&gt;ctx)[ngx_modules[i]-&gt;index];
+      } else if (cmd-&gt;type &amp; NGX_MAIN_CONF) {
+        conf = &amp;(((void **) cf-&gt;ctx)[ngx_modules[i]-&gt;index];
+      } else if (cf-&gt;ctx) {
+        confp = *(void **) ((char *) cf-&gt;ctx + cmd-&gt;conf);
+        if (confp) {
+          conf = confp[ngx_modules[i]-&gt;ctx_index];
+        }
+      }
+
+      rc = cmd-&gt;set(cf, cmd, conf);
+      ...
+    }
+  }
+}
+</code></pre>
+
+<p>这个函数做的主要事情是：</p>
+
+<ol>
+<li>读取到一条配置指令后，将使用指令名在所有指令中查找对应的ngx_command_t结构体，找到对应的ngx_command_t结构体之后，将进行校验工作：检查模块的类型和当前解析函数上下文的类型是否一致、检查指令的作用域是否包含当前解析函数上下文记录中的作用域、检查参数数量是否和指令中定义的一致。</li>
+<li>校验工作完成后，根据指令类型来找到配置项。</li>
+</ol>
+
+<p>第二步值得好好分析一下，毕竟这里是很多人读到这部分代码的困惑。</p>
+
+<p>前面讲到ngx_module_t结构体的时候，提到其成员ctx用来保存模块相关的context数据。最终这些数据创建成功之后，是保存在ngx_cycle_t.conf_ctx，注意到这是一个void ****类型的指针。</p>
+
+<p>为什么这是一个四级的void指针？原因在于，nginx模块之间也是分层次的。比如前面提到的模块分层，最顶层是NGX_CORE_MODULE，然后如果解析到event块就到了NGX_EVENT_MODULE模块，如果在event块中再解析到epoll命令，就到了epoll模块中。</p>
+
+<p>而这些所有的模块，不管在哪一层，最终都是存储在这个ngx_cycle_t.conf_ctx中的，四级指针是它能够接受的最大模块层级。</p>
+
+<p>但是呢，所有模块都存储在这个数据中，存储读写的时候却不一样：有的配置是有子项目的，比如http块、event块，内部都还有别的指令
+，所以在操作这些有子项的指令时，应该拿到它的指针，再到子项中修改指针中的某个成员；有的配置项只顾着自己就好，能从这个conf_ctx中读到自己模块的上下文指针就可以进行操作了。</p>
+
+<p>从上面的代码里面，可以看到根据命令类型的不同，区分三种不同的配置项存储位置：</p>
+
+<ul>
+<li>NGX_DIRECT_CONF类型的配置指令：这类型的命令，一定在类型中同时和NGX_MAIN_CONF一起出现，即一个配置命令如果是NGX_DIRECT_CONF类型的，那么它一定也是NGX_MAIN_CONF类型的，反之不然。这类型的指令，指的是在nginx配置文件中只出现在顶层作用域，但是又没有单独block即没有子项目的配置项，比如daemon，master_process这样的指令。这种就是前面提到的只需要顾着自己配置的模块，因此从ctx中提取的时候直接拿出来就好了。</li>
+<li>NGX_MAIN_CONF：在顶层模块而且有子项的配置，都有这个类型，比如http块、event块。因为这些模块还有内部的子项，提取出来的时候要提取出的是指针，内部再解析它们的子项时使用指针来读写操作。</li>
+<li>除了以上两种类型之外，剩下的就是第三种类型的配置命令了。从代码中可以看出，读取这种类型的配置是，首先取出来对应的配置项（没有取配置项的指针），然后在配置中根据配置上下文索引ctx_index再取出对应的配置。</li>
+</ul>
+
+<p>上面的说明还是有些抽象，所以还是以例子来进行说明。</p>
+
+<h2 id="解析ngx-direct-conf类型指令的例子">解析NGX_DIRECT_CONF类型指令的例子</h2>
+
+<p>从最简单的解析NGX_DIRECT_CONF类型的指令开始说起，以daemon指令为例。</p>
+
+<p>daemon指令属于core模块，因此是首先解析到core模块才到这个模块中的daemon指令的。</p>
+
+<p>先看core模块的定义：</p>
+
+<pre><code class="language-C">static ngx_command_t  ngx_core_commands[] = {
+{ ngx_string(&quot;daemon&quot;),
+  NGX_MAIN_CONF|NGX_DIRECT_CONF|NGX_CONF_FLAG,
+  ngx_conf_set_flag_slot,
+  0,
+  offsetof(ngx_core_conf_t, daemon),
+  NULL },
+  ...
+} 
+
+static ngx_core_module_t  ngx_core_module_ctx = {
+  ngx_string(&quot;core&quot;),
+  ngx_core_module_create_conf,
+  ngx_core_module_init_conf
+};
+
+
+ngx_module_t  ngx_core_module = {
+  NGX_MODULE_V1,
+  &amp;ngx_core_module_ctx,                  /* module context */
+  ngx_core_commands,                     /* module directives */
+  NGX_CORE_MODULE,                       /* module type */
+  NULL,                                  /* init master */
+  NULL,                                  /* init module */
+  NULL,                                  /* init process */
+  NULL,                                  /* init thread */
+  NULL,                                  /* exit thread */
+  NULL,                                  /* exit process */
+  NULL,                                  /* exit master */
+  NGX_MODULE_V1_PADDING
+};
+</code></pre>
+
+<p>可以看到其对应的context是ngx_core_module_t类型的指针，首先会调用ngx_core_module_create_conf函数创建这个模块对应的配置数据，这个数据结构就是ngx_core_conf_t，因此在ngx_init_cycle函数中，首先解析core类型模块时，会调用create_conf函数指针创建该模块的上下文数据并且保存下来：</p>
+
+<pre><code class="language-C">ngx_cycle_t *
+ngx_init_cycle(ngx_cycle_t *old_cycle)
+{
+	...
+	for (i = 0; cycle-&gt;modules[i]; i++) {
+		if (cycle-&gt;modules[i]-&gt;type != NGX_CORE_MODULE) {
+			continue;
+		}
+
+		module = cycle-&gt;modules[i]-&gt;ctx;
+
+		if (module-&gt;create_conf) {
+			rv = module-&gt;create_conf(cycle);
+			if (rv == NULL) {
+				ngx_destroy_pool(pool);
+				return NULL;
+			}
+			cycle-&gt;conf_ctx[cycle-&gt;modules[i]-&gt;index] = rv;
+		}
+	}
+	...
+}
+</code></pre>
+
+<p>可以看到，cycle-&gt;conf_ctx数组存储的关于core模块的context数据，就是前面ngx_core_module_create_conf函数返回的ngx_core_conf_t结构体。</p>
+
+<p>接着进入core模块中配置命令的解析。当解析到daemon命令时，因为这个命令的类型是NGX_DIRECT_CONF，因此在ngx_conf_handler函数中，其对应的获取配置存储位置的代码是：</p>
+
+<pre><code class="language-C">if (cmd-&gt;type &amp; NGX_DIRECT_CONF) {
+	conf = ((void **) cf-&gt;ctx)[ngx_modules[i]-&gt;index];
+</code></pre>
+
+<p>这里取出来的conf指针，就是core模块最开始创建的ngx_core_conf_t结构体指针。</p>
+
+<p>而daemon指令的ngx_command_t是这样的：</p>
+
+<pre><code class="language-C">{ ngx_string(&quot;daemon&quot;),
+	NGX_MAIN_CONF|NGX_DIRECT_CONF|NGX_CONF_FLAG,
+	ngx_conf_set_flag_slot,
+	0,
+	offsetof(ngx_core_conf_t, daemon),
+	NULL }
+</code></pre>
+
+<p>这说明：</p>
+
+<ol>
+<li>daemon指令对应的set函数是ngx_conf_set_flag_slot。</li>
+<li>该指令修改的数据，在ngx_core_conf_t结构体的daemon成员，即用offsetof(ngx_core_conf_t, daemon)来表示这个数据在该结构体中的偏移量。</li>
+</ol>
+
+<p>把以上的分析总结下来就是下图所示的结构：</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/core-daemon.png" alt="core-daemon" title="core-daemon" /></p>
+
+<h2 id="解析ngx-main-conf类型指令的例子">解析NGX_MAIN_CONF类型指令的例子</h2>
+
+<p>以event命令为例，来说明NGX_MAIN_CONF类型指令的解析。</p>
+
+<p>event命令对应的模块相关结构体如下：</p>
+
+<pre><code class="language-C">static ngx_command_t  ngx_events_commands[] = {
+  { ngx_string(&quot;events&quot;),
+    NGX_MAIN_CONF|NGX_CONF_BLOCK|NGX_CONF_NOARGS,
+    ngx_events_block,
+    0,
+    0,
+    NULL },
+
+    ngx_null_command
+};
+
+
+static ngx_core_module_t  ngx_events_module_ctx = {
+  ngx_string(&quot;events&quot;),
+  NULL,
+  ngx_event_init_conf
+};
+
+
+ngx_module_t  ngx_events_module = {
+  NGX_MODULE_V1,
+  &amp;ngx_events_module_ctx,                /* module context */
+  ngx_events_commands,                   /* module directives */
+  NGX_CORE_MODULE,                       /* module type */
+  NULL,                                  /* init master */
+  NULL,                                  /* init module */
+  NULL,                                  /* init process */
+  NULL,                                  /* init thread */
+  NULL,                                  /* exit thread */
+  NULL,                                  /* exit process */
+  NULL,                                  /* exit master */
+  NGX_MODULE_V1_PADDING
+};
+</code></pre>
+
+<p>可以看到，该模块对应的create_conf函数为NULL，而其取配置的存储位置是取其指针：</p>
+
+<pre><code class="language-C">if (cmd-&gt;type &amp; NGX_MAIN_CONF) {
+	conf = &amp;(((void **) cf-&gt;ctx)[ngx_modules[i]-&gt;index];
+}
+</code></pre>
+
+<p>在event命令的回调set函数ngx_events_block，就将event模块对应的ctx存入进来：</p>
+
+<pre><code class="language-C">static char *
+ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+	...
+	if (*(void **) conf) {
+			return &quot;is duplicate&quot;;
+	}
+
+	/* count the number of the event modules and set up their indices */
+
+	ngx_event_max_module = ngx_count_modules(cf-&gt;cycle, NGX_EVENT_MODULE);
+
+	ctx = ngx_pcalloc(cf-&gt;pool, sizeof(void *));
+
+	*ctx = ngx_pcalloc(cf-&gt;pool, ngx_event_max_module * sizeof(void *));
+
+	*(void **) conf = ctx; 
+}
+</code></pre>
+
+<p>该函数的主要工作是：</p>
+
+<ol>
+<li>既然前面conf = &amp;(((void **) cf-&gt;ctx)[ngx_modules[i]-&gt;index]传入了模块ctx的指针，所以首先判断该指针存放值是否为空，不为空意味着前面已经解析过event命令了，因此这是一个重复配置，将报错退出。</li>
+<li>ctx初始化为一个void*型数据的指针，而该指针保存的是一个有ngx_event_max_module个void*型数据的数组。</li>
+<li>最后将ctx写入传入的event模块配置context中。</li>
+</ol>
+
+<p>同样的，将以上分析event模块的流程总结下来，形成的就是下面的数据结构图：
+<img src="/media/imgs/20190103-nginx-config-parse/event-module.png" alt="event-module" title="event-module" /></p>
+
+<p>可以看到event模块的context最终是一个存储void*数据的指针。原因在于：event模块中又会存储一些不同的数据类型，这些数据最终都保存在这个数组中。</p>
+
+<p>不仅是event模块是这样，http模块的上下文结构存储的也是一个数组，都是因为这些模块都还有从属于它们的子模块。</p>
+
+<h2 id="解析其它类型指令的例子">解析其它类型指令的例子</h2>
+
+<p>有了以上的准备，最后来讲解最后一种类型指令的解析，这种类型既不是NGX_DIRECT_CONF类型，也不是NGX_MAIN_CONF类型，因为这类型指令属于从属于某个NGX_CORE_MODULE内部的配置命令，如epoll模块，下面就以这个模块做为例子来分析。</p>
+
+<p>而这个类型是这样来读取配置项存储位置的：</p>
+
+<pre><code class="language-C">confp = *(void **) ((char *) cf-&gt;ctx + cmd-&gt;conf);
+
+if (confp) {
+  conf = confp[ngx_modules[i]-&gt;ctx_index];
+}
+</code></pre>
+
+<p>说明一下上面的代码：</p>
+
+<ol>
+<li>首先使用confp = *(void **) ((char *) cf-&gt;ctx + cmd-&gt;conf);取到该模块的配置，注意这里取的并不是指针而是指针存储的数据位置，以event模块来说，就是前面在ngx_events_block函数中创建的数组。另外需要注意的是，这里是使用cmd-&gt;conf做为该数组的索引，ngx_command_t的conf成员就是存储某一个子模块（这里是epoll模块）在所属模块（这里是event模块，epoll模块从属于event模块）配置数组中的索引的。</li>
+<li>接下来，根据模块的ctx_index索引在该数组中找到该模块真正的存储位置。</li>
+</ol>
+
+<p>以该模块的epoll_events命令为例，其与配置解析相关的数据如下所示：</p>
+
+<pre><code class="language-C">static ngx_command_t  ngx_epoll_commands[] = {
+  { ngx_string(&quot;epoll_events&quot;),
+    NGX_EVENT_CONF|NGX_CONF_TAKE1,
+    ngx_conf_set_num_slot,
+    0,
+    offsetof(ngx_epoll_conf_t, events),
+    NULL },
+}
+
+static ngx_event_module_t  ngx_epoll_module_ctx = {
+  &amp;epoll_name,
+  ngx_epoll_create_conf,               /* create configuration */
+  ngx_epoll_init_conf,                 /* init configuration */
+}
+ngx_module_t  ngx_epoll_module = {
+  NGX_MODULE_V1,
+  &amp;ngx_epoll_module_ctx,               /* module context */
+  ngx_epoll_commands,                  /* module directives */
+  NGX_EVENT_MODULE,                    /* module type */
+  NULL,                                /* init master */
+  NULL,                                /* init module */
+  NULL,                                /* init process */
+  NULL,                                /* init thread */
+  NULL,                                /* exit thread */
+  NULL,                                /* exit process */
+  NULL,                                /* exit master */
+  NGX_MODULE_V1_PADDING
+};
+</code></pre>
+
+<p>从以上结构体可以看出：</p>
+
+<ol>
+<li>create_conf回调函数是ngx_epoll_create_conf，该函数创建了ngx_epoll_conf_t类型的结构存储起来，这个类型就是epoll模块的context数据。该数据最终就是存储到event模块数组中，其索引是ctx_index。</li>
+<li>epoll_events命令通过offsetof(ngx_epoll_conf_t, events)来做为ngx_epoll_conf_t类型中的偏移量来修改该类型中的成员，对应的修改函数是ngx_conf_set_num_slot。</li>
+</ol>
+
+<p>同样的，将以上分析epoll模块的流程总结下来，形成的就是下面的数据结构图：
+<img src="/media/imgs/20190103-nginx-config-parse/epoll-module-struct.png" alt="epoll-module-struct" title="epoll-module-struct" /></p>
+
+<p>而在最顶层，开始从NGX_CORE_MODULE类型模块进行解析的解析配置入口函数则是core/ngx_cycle.c中的ngx_init_cycle函数，其做的事情最核心的就是初始化ngx_conf_t结构体，将module_type设置为最顶层的模块NGX_CORE_MODULE，cmd_type设置为NGX_MAIN_CONF，接着就调用ngx_conf_parse函数进行配置解析了，这就开启了整个解析Nginx配置的流程。</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/config-parse.png" alt="config-parse" title="config-parse" /></p>
+
+<p>从上图中可以看到：</p>
+
+<ol>
+<li>在解析配置的入口函数ngx_init_cycle中，将ngx_conf_t的module_type类型初始化为NGX_CORE_MODULE，而cmd_type初始化为NGX_MAIN_CONF，这就是解析配置的起点。在接下来对ngx_conf_parse函数的调用中，该函数就会查找module_type和cmd_type都对应的模块，比如event、http这样的模块。</li>
+<li>解析到event命令时，进入event模块的解析，此时就会将module_type变成NGX_EVENT_MODULE，以及把cmd_type变为NGX_EVENT_CONF
+，这样再调用ngx_conf_parse函数时就只会查询event模块的配置命令了。</li>
+<li>http模块的解析过程类似，不再阐述。</li>
+</ol>
+
+<p>所有的模块信息，保存在ngx_cycle_t结构体的conf_ctx中，从类型来看是一个void****的四级指针，如果解析到的模块又有自己内部的子模块ctx数据，那么就会继续存放到这个模块之中，比如epoll模块就是event模块的子模块。总体来看结构图如下：</p>
+
+<p><img src="/media/imgs/20190103-nginx-config-parse/ngx-conf-chart.png" alt="ngx-conf-chart" title="ngx-conf-chart" /></p>
+
+<h1 id="参考资料">参考资料</h1>
+
+<ul>
+<li><a href="https://ialloc.org/blog/ngx-notes-conf-parsing/">Nginx 源代码笔记 - 配置文件解析</a></li>
+</ul>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-01-03</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/nginx/">nginx</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20181125-etcd-server/">
+            <span class="next-text nav-default">Etcd存储的实现</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="lichuang1982@gmail.com" class="iconfont icon-email" title="email"></a>
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
