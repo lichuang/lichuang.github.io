@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>Nginx源码阅读笔记-Master Woker进程模型 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20190131-nginx-master-worker/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型" />
+<meta property="og:description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20190131-nginx-master-worker/" /><meta property="article:published_time" content="2019-01-31T09:53:57&#43;08:00"/>
+<meta property="article:modified_time" content="2019-01-31T09:53:57&#43;08:00"/>
+
+<meta itemprop="name" content="Nginx源码阅读笔记-Master Woker进程模型">
+<meta itemprop="description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进">
+
+
+<meta itemprop="datePublished" content="2019-01-31T09:53:57&#43;08:00" />
+<meta itemprop="dateModified" content="2019-01-31T09:53:57&#43;08:00" />
+<meta itemprop="wordCount" content="1944">
+
+
+
+<meta itemprop="keywords" content="nginx," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Nginx源码阅读笔记-Master Woker进程模型"/>
+<meta name="twitter:description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">Nginx源码阅读笔记-Master Woker进程模型</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-01-31 </span>
+        <div class="post-category">
+            
+              <a href="/categories/nginx/"> nginx </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#master进程">master进程</a></li>
+<li><a href="#worker进程">worker进程</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<h1 id="master进程">master进程</h1>
+
+<p>Nginx采用的模型是master-worker模型，即：</p>
+
+<ul>
+<li>由master进程负责创建worker进程，以及监控worker进程的情况，如需要更新配置的情况下发消息给worker进程重新加载配置等。</li>
+<li>master进程负责具体网络事件。</li>
+</ul>
+
+<p>将里面核心的流程和函数抽取出来，如下图所示：</p>
+
+<p><img src="/media/imgs/20190131-nginx-master-worker/master-worker.png" alt="master-worker" title="master-worker" /></p>
+
+<ul>
+<li>master进程的主循环在函数ngx_master_process_cycle中，主要负责：
+
+<ul>
+<li>调用ngx_start_worker_processes函数创建worker子进程。</li>
+<li>监控各种信号量的变化做处理，比如需要停止进程、重新加载配置等。</li>
+</ul></li>
+<li>master进程最终会调用函数ngx_spawn_process函数来创建出worker子进程：
+
+<ul>
+<li>使用共享内存创建出用于master-worker进程之间通信的channel。</li>
+<li>fork出子进程之后，进入worker进程的主函数ngx_worker_process_cycle。</li>
+</ul></li>
+</ul>
+
+<p>以下列举出几个相关的信号量：</p>
+
+<table>
+<thead>
+<tr>
+<th>信号</th>
+<th>对应全局变量</th>
+<th>处理</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>QUIT</td>
+<td>ngx_quit</td>
+<td>优雅关闭整个Nginx服务</td>
+</tr>
+
+<tr>
+<td>TERM或者INT</td>
+<td>ngx_terminate</td>
+<td>强制关闭Nginx服务</td>
+</tr>
+
+<tr>
+<td>USR1</td>
+<td>ngx_reopen</td>
+<td>重新打开文件</td>
+</tr>
+
+<tr>
+<td>WINCH</td>
+<td>ngx_noaccept</td>
+<td>所有worker进程不再接受新的连接，相当于给子进程发送QUIT信号</td>
+</tr>
+
+<tr>
+<td>USR2</td>
+<td>ngx_change_binary</td>
+<td>平滑升级到新的Nginx二进制文件</td>
+</tr>
+
+<tr>
+<td>HUP</td>
+<td>ng_reconfigure</td>
+<td>重新加载配置文件</td>
+</tr>
+
+<tr>
+<td>CHLD</td>
+<td>ngx_reap</td>
+<td>需要监控所有子进程</td>
+</tr>
+</tbody>
+</table>
+
+<h1 id="worker进程">worker进程</h1>
+
+<p>worker进程的函数入口在ngx_worker_process_cycle中，其主要做的工作分为两部分：</p>
+
+<ul>
+<li>调用ngx_process_events_and_timers处理IO事件以及定时器事件。</li>
+<li>判断ngx_terminate、ngx_quit、ngx_reopen这几个变量是否被置位来做相应的处理。</li>
+</ul>
+
+<p>下面主要谈网络IO事件的处理，即ngx_process_events_and_timers函数。</p>
+
+<p>先来介绍几个与接收连接相关的全局变量：</p>
+
+<ul>
+<li>ngx_use_accept_mutex：由配置项accept_mutex配置，表示是否需要使用accept锁，只有抢到该锁的worker才允许接收新的连接。</li>
+<li>ngx_accept_mutex_delay：由配置项accept_mutex_delay配置，在开启accept_mutex的情况下，一个worker进程在抢不到accept锁的情况下，最长多少时间才重新接收新的连接。</li>
+<li>ngx_accept_disabled：值为ngx_cycle-&gt;connection_n / 8 - ngx_cycle-&gt;free_connection_n，可以看到当链接数量到nginx.conf中配置的worker_connections的7/8以上时，这个变量ngx_accept_disabled为正数，此时不会接收新的连接，直到该值小于等于0为止。</li>
+<li>ngx_accept_mutex_held：表示是否抢到了accept锁，只有抢到的才能接收新连接。</li>
+</ul>
+
+<p>具体来看看ngx_process_events_and_timers函数中与接收连接相关的逻辑，伪代码如下：</p>
+
+<pre><code class="language-C">如果开启了accept_mutex配置：
+  如果当前ngx_accept_disabled大于0，表示不能接收新的连接，直接返回。
+  否则尝试获取accept mutex。
+  如果获取accept mutex锁成功：
+    将调用事件轮询函数的标志位加上NGX_POST_EVENTS标志
+  如果获取失败：
+    调用事件轮询函数的事件参数不得超过ngx_accept_mutex_delay值。
+
+  调用ngx_process_events函数处理轮询事件
+
+  调用ngx_event_process_posted(cycle, &amp;ngx_posted_accept_events)函数处理accept事件
+
+  如果前面拿到了accept mutex锁，则释放这个锁，好让其他worker也有机会接收新的连接
+
+  调用ngx_event_expire_timers处理定时器事件
+
+  调用ngx_event_process_posted(cycle, &amp;ngx_posted_events);函数处理除了accept事件以外的其他post事件
+</code></pre>
+
+<p>在ngx_process_events处理函数中，当传入的flags有NGX_POST_EVENTS标志时，意味着并不马上在这个函数中调用事件的回调函数进行处理，而是放在一个队列中，回头在后面的ngx_event_process_posted函数中再进行处理。</p>
+
+<p>而这里的队列分为两类：</p>
+
+<ul>
+<li>ngx_posted_accept_events用于存放接收新连接事件。</li>
+<li>ngx_posted_events用于存放除了accept之外的其他事件。</li>
+</ul>
+
+<p>这样的做法，是为了将接收新连接的事件优先级放在其他IO事件以及定时器事件之前。</p>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-01-31</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/nginx/">nginx</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190123-libuv/">
+            <span class="next-text nav-default">Libuv代码简单分析</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
