@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>zeromq所谓的“无锁消息队列” - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20190209-zeromq/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="zeromq所谓的“无锁消息队列”" />
+<meta property="og:description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20190209-zeromq/" /><meta property="article:published_time" content="2019-02-09T20:10:13&#43;08:00"/>
+<meta property="article:modified_time" content="2019-02-09T20:10:13&#43;08:00"/>
+
+<meta itemprop="name" content="zeromq所谓的“无锁消息队列”">
+<meta itemprop="description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变">
+
+
+<meta itemprop="datePublished" content="2019-02-09T20:10:13&#43;08:00" />
+<meta itemprop="dateModified" content="2019-02-09T20:10:13&#43;08:00" />
+<meta itemprop="wordCount" content="5386">
+
+
+
+<meta itemprop="keywords" content="网络编程,zeromq," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="zeromq所谓的“无锁消息队列”"/>
+<meta name="twitter:description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">zeromq所谓的“无锁消息队列”</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-02-09 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/"> 网络编程 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#概述">概述</a></li>
+<li><a href="#基本架构">基本架构</a></li>
+<li><a href="#使用无锁队列实现的消息邮箱">使用无锁队列实现的消息邮箱</a>
+<ul>
+<li><a href="#yqueue-t">yqueue_t</a></li>
+<li><a href="#ypipe-t">ypipe_t</a>
+<ul>
+<li><a href="#1-初始化">1、初始化</a></li>
+<li><a href="#2-write-a-true">2、write(&lsquo;a&rsquo;, true)</a></li>
+<li><a href="#3-write-a-false">3、write(&lsquo;a&rsquo;, false)</a></li>
+<li><a href="#4-flush">4、flush()</a></li>
+<li><a href="#5-read-ret">5、read(&amp;ret)</a></li>
+<li><a href="#6-read-ret">6、read(&amp;ret)</a></li>
+<li><a href="#7-read-ret">7、read(&amp;ret)</a></li>
+</ul></li>
+<li><a href="#mailbox-t">mailbox_t</a></li>
+</ul></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<p>本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。</p>
+
+<h1 id="概述">概述</h1>
+
+<p>zeromq这个网络库，有以下几个亮点：</p>
+
+<ul>
+<li>从以往的面向TCP流的网络开发，变成了面向消息的开发。应用层关注的是什么类型的消息，库本身解决网络收发、断线重连等问题。</li>
+<li>将这些消息的传输模式封装成几个模式，应用开发者只需要关注自己的业务符合什么模式，采用搭积木的方式就能构建起应用服务。</li>
+<li>内部实现无锁消息队列用于对象间通信，类似actor模式。</li>
+</ul>
+
+<h1 id="基本架构">基本架构</h1>
+
+<p>zeromq内部运行着多个io线程，每个io线程内部有以下两个核心组件：</p>
+
+<ul>
+<li>poller：即针对epoll、select等事件轮询器的封装。</li>
+<li>mailbox：负责接收消息的消息邮箱。</li>
+</ul>
+
+<p>可以简单理解IO线程做的事情是：内部通过一个poller，监听着各种事件，其中包括针对IO线程的mailbox的消息，以及绑定在该IO线程上的IO对象的消息。</p>
+
+<p>即这是一个per-thread-per-loop的线程设计，线程之间的通信通过消息邮箱来进行。</p>
+
+<p>除了io线程之外，io对象也有mailbox，即如果想与某个IO对象通信也是通过该mailbox进行。由于消息邮箱是zeromq中的重要组成部分，下面将专门分析zeromq是如何实现的。</p>
+
+<p>所有需要收发消息的对象都继承自object_t：</p>
+
+<pre><code class="language-C">class object_t
+{
+public:
+  object_t (zmq::ctx_t *ctx_, uint32_t tid_);
+  void process_command (zmq::command_t &amp;cmd_);
+private:
+  zmq::ctx_t *ctx;//  Context provides access to the global state.
+  uint32_t tid;//  Thread ID of the thread the object belongs to.
+  void send_command (command_t &amp;cmd_);
+}
+</code></pre>
+
+<p>而IO对象之间的命令通过command_t结构体来定义：</p>
+
+<pre><code class="language-C">struct command_t
+{
+  //  Object to process the command.
+  zmq::object_t *destination;
+
+  enum type_t
+  {
+    ...
+  } type;
+
+  union {
+    ...
+  } args;
+};
+</code></pre>
+
+<p>可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。</p>
+
+<h1 id="使用无锁队列实现的消息邮箱">使用无锁队列实现的消息邮箱</h1>
+
+<p>zeromq内部类似actor模型，每个actor内部有一个mailbox，负责收发消息，对外暴露的接口就是收发相关的send、recv接口。</p>
+
+<p>负责收发消息的类是mailbox_t，内部实现使用了ypipe_t来实现无锁消息队列，而ypipe_t内部又使用了yqueue_t来实现队列，这个实现的目的是为了减少内部的分配。</p>
+
+<p><img src="/media/imgs/20190209-zeromq/mailbox_t.png" alt="mailbox_t" title="mailbox_t" /></p>
+
+<p>下面根据上面这个图，自上而下分析邮箱的实现。</p>
+
+<h2 id="yqueue-t">yqueue_t</h2>
+
+<p>yqueue_t的实现，每次能批量分配一批元素，减少内存的分配和释放。</p>
+
+<p>yqueue_t内部由一个一个chunk组成，每个chunk保存N个元素，如下图：</p>
+
+<p><img src="/media/imgs/20190209-zeromq/yqueue_t.png" alt="yqueue_t" title="yqueue_t" /></p>
+
+<p>有了chunk_t来管理数据，这样每次需要新分配元素的时候，如果当前已经没有可用元素，可以一次性分配一个chunk_t，这里面有N个元素；另外在回收的时候，也不是马上被释放，根据局部性原理可以先回收到spare_chunk里面，当再次需要分配chunk_t的时候从spare_chunk中获取。</p>
+
+<p>yqueue_t内部有三个chunk_t类型指针以及对应的索引位置：</p>
+
+<ul>
+<li>begin_chunk/begin_pos：begin_chunk用于指向队列头的chunk，begin_pos用于指向队列第一个元素在当前chunk中的位置。</li>
+<li>back_chunk/back_pos：back_chunk用于指向队列尾的chunk，back_chunk用于指向队列最后一个元素在当前chunk的位置。</li>
+<li>end_chunk/end_pos：由于chunk是批量分配的，所以end_chunk用于指向分配的最后一个chunk位置。</li>
+</ul>
+
+<p>注意不要混淆了back和end的作用，<strong>back_chunk/back_pos负责的是元素的存储，而end_chunk/end_pos负责的是chunk的分配</strong>，yqueue_t的back函数返回的是back_pos，而对外部而言，end相关的数据不可见。</p>
+
+<p><img src="/media/imgs/20190209-zeromq/chunk.png" alt="chunk" title="chunk" /></p>
+
+<p>如上图中：</p>
+
+<ul>
+<li>有三块chunk，分别由begin_chunk、back_chunk、end_chunk组成。</li>
+<li>begin_pos指向begin_chunk中的第n个元素。</li>
+<li>back_pos指向back_chunk的最后一个元素。</li>
+<li>由于back_pos已经指向了back_chunk的最后一个元素，所以end_pos就指向了end_chunk的第一个元素。</li>
+</ul>
+
+<p>另外还有一个spare_chunk指针，用于保存释放的chunk指针，当需要再次分配chunk的时候，会首先查看这里，从这里分配chunk。这里使用了原子的cas操作来完成，利用了操作系统的局部性原理。</p>
+
+<h2 id="ypipe-t">ypipe_t</h2>
+
+<p>ypipe_t在yqueue_t之上，构建了一个<strong>单写单读的无锁队列</strong>。</p>
+
+<p>内部的元素有以下几个：</p>
+
+<ul>
+<li>yqueue_t<T, N> _queue：由yqueue_t实现的队列。</li>
+<li>T *_w：指向第一个没有被flush的元素，只能被写线程使用。</li>
+<li>T *_r：指向第一个未读的元素，只能被读线程使用。</li>
+<li>T *_f：指向第一个写入但是还没有被刷新的元素。</li>
+<li>atomic_ptr_t<T> _c：读写线程都能使用的指针，指向最后一个被刷新的元素。如果为空，那么读线程将休眠。</li>
+</ul>
+
+<p>之所以除了写指针_w之外，还需要一个_f的刷新指针，原因在于：可能会分批次写入一堆数据，但是在没有写完毕之前，不希望被读线程看到，所以写入数据的时候由_w指针控制，而_f指针控制读线程可以看到哪些数据。</p>
+
+<p>来看相关的几个对外API：</p>
+
+<ul>
+<li>void write (const T &amp;value<em>, bool incomplete</em>)：写入数据，incomplete参数表示写入是否还没完成，在没完成的时候不会修改flush指针，即这部分数据不会让读线程看到。</li>
+<li>bool flush ()：刷新所有已经完成的数据到管道，返回false意味着读线程在休眠，在这种情况下调用者需要唤醒读线程。</li>
+<li>bool read (T *value_):读数据，将读出的数据写入value指针中，返回false意味着没有数据可读。</li>
+</ul>
+
+<p>以下面的场景来解释这个无锁队列相关的流程：</p>
+
+<p><img src="/media/imgs/20190209-zeromq/ypipe_t.png" alt="ypipe_t" title="ypipe_t" /></p>
+
+<p>说明：以下场景忽略begin、back、end在不同chunk的情况，假设都在一个chunk完成的操作。</p>
+
+<h3 id="1-初始化">1、初始化</h3>
+
+<p>ypipe_t构造函数在初始化的时候，将push进去一个哑元素在队列尾部，然后_r、_w、_c、_f指针都同时指向队列头。
+而经过这个操作之后，begin_pos和back_pos都为0，end_pos为1（因为push了一个元素）。</p>
+
+<pre><code class="language-C">inline ypipe_t ()
+{
+  //  Insert terminator element into the queue.
+  //  先放入一个空元素
+  _queue.push ();
+
+  //  Let all the pointers to point to the terminator.
+  //  (unless pipe is dead, in which case c is set to NULL).
+  _r = _w = _f = &amp;_queue.back ();
+  _c.set (&amp;_queue.back ());
+}
+</code></pre>
+
+<h3 id="2-write-a-true">2、write(&lsquo;a&rsquo;, true)</h3>
+
+<p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
+
+<p>写入一个元素a，同时incomplete为true，意味着写入还未完成，所以并没有更新flush指针，_w指针也没有在这个函数中被更新，因此当incomplete为true时不会更新上面的四个指针。</p>
+
+<pre><code class="language-C">//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
+inline void write (const T &amp;value_, bool incomplete_)
+{
+  // 注意在这里写入数据的时候修改的是_f指针
+  //  Place the value to the queue, add new terminator element.
+  _queue.back () = value_;
+  _queue.push ();
+
+  //  Move the &quot;flush up to here&quot; poiter.
+  if (!incomplete_)
+    // incomplete_为false表示写完毕数据了，可以修改flush指针指向
+    _f = &amp;_queue.back ();
+}
+</code></pre>
+
+<h3 id="3-write-a-false">3、write(&lsquo;a&rsquo;, false)</h3>
+
+<p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
+
+<p>写入一个元素a，同时incomplete为false，意味着写入完成，此时需要修改flush指针指向队列尾，即新的back_pos位置2。</p>
+
+<h3 id="4-flush">4、flush()</h3>
+
+<p>刷新数据操作，该操作中将更新_w以及_c指针。</p>
+
+<p>更新_w指针的操作，由于只有写线程来完成，因此不需要加锁，_w指针用于与_f指针进行对比，快速知道是否有数据需要刷新，以唤醒读线程来继续读数据。</p>
+
+<p>而_c指针，则是读写线程都可以操作，因此需要使用原子的CAS操作来修改，它的可能值有以下几种：</p>
+
+<ul>
+<li>NULL：读线程设置，此时意味着已经没有数据可读，读线程在休眠。</li>
+<li>非零：写线程设置，这里又区分两种情况：
+
+<ul>
+<li>旧值为_w的情况下，cas(_w,_f)操作修改为_f，意味着如果原先的值为_w，则原子性的修改为_f，表示有更多已被刷新的数据可读。</li>
+<li>在旧值为NULL的情况下，此时读线程休眠，因此可以安全的设置为当前_f指针的位置。</li>
+</ul></li>
+</ul>
+
+<pre><code class="language-C">inline bool flush ()
+{
+  //  If there are no un-flushed items, do nothing.
+  //  _w等于_f，意味着没有需要刷新的元素了，直接返回
+  if (_w == _f)
+    return true;
+
+  //  Try to set 'c' to 'f'.
+  //  如果c原来是_w，切换为_f，同时返回旧的值
+  //  如果返回值不是_w，意味着旧的值不是_w
+  if (_c.cas (_w, _f) != _w) {
+    //  Compare-and-swap was unseccessful because 'c' is NULL.
+    //  This means that the reader is asleep. Therefore we don't
+    //  care about thread-safeness and update c in non-atomic
+    //  manner. We'll return false to let the caller know
+    //  that reader is sleeping.
+    //  cas操作返回不是_w，意味着_c指针为NULL
+    //  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
+    _c.set (_f);
+    _w = _f;
+    return false;
+  }
+
+  //  Reader is alive. Nothing special to do now. Just move
+  //  the 'first un-flushed item' pointer to 'f'.
+  //  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
+  _w = _f;
+  return true;
+}
+</code></pre>
+
+<h3 id="5-read-ret">5、read(&amp;ret)</h3>
+
+<p>第一次读操作，read函数返回true表示读到了数据，ret中保存的是&rsquo;a&rsquo;返回。</p>
+
+<p>读操作首先进入check_read函数中检查是否有数据可读，做以下的判断：</p>
+
+<ul>
+<li>&amp;_queue.front () != _r &amp;&amp; _r：如果队列头不等于_r，而且_r不为NULL，意味着有预读的数据，这种情况下直接返回。</li>
+<li>如果上面的条件不满足，意味着没有预读的数据。此时根据_c指针来判断是否有数据可读。使用原子的CAS操作，在_c为队列头的情况下重置为NULL，同时将_c的旧值返回到_r指针中，如果_r为队列头或者为NULL，则返回false表示没有数据可读。</li>
+<li>否则，返回true意味着有数据可读。</li>
+</ul>
+
+<p>而在check_read函数返回true表示有数据可读的情况下，read函数将pop出队列的头部数据，这个操作将begin_pos递增一位。</p>
+
+<pre><code class="language-C">//  返回是否有数据可以读
+inline bool check_read ()
+{
+  //  Was the value prefetched already? If so, return.
+  //  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
+  if (&amp;_queue.front () != _r &amp;&amp; _r)
+    return true;
+
+  //  There's no prefetched value, so let us prefetch more values.
+  //  Prefetching is to simply retrieve the
+  //  pointer from c in atomic fashion. If there are no
+  //  items to prefetch, set c to NULL (using compare-and-swap).
+  //  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
+  _r = _c.cas (&amp;_queue.front (), NULL);
+
+  //  If there are no elements prefetched, exit.
+  //  During pipe's lifetime r should never be NULL, however,
+  //  it can happen during pipe shutdown when items
+  //  are being deallocated.
+  //  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
+  if (&amp;_queue.front () == _r || !_r)
+    return false;
+
+  //  There was at least one value prefetched.
+  return true;
+}
+//  Reads an item from the pipe. Returns false if there is no value.
+//  available.
+inline bool read (T *value_)
+{
+  //  Try to prefetch a value.
+  if (!check_read ())
+    return false;
+
+  //  There was at least one value prefetched.
+  //  Return it to the caller.
+  *value_ = _queue.front ();
+  _queue.pop ();
+  return true;
+}
+</code></pre>
+
+<p>明白了以上的流程，具体解释第一次调用read(&amp;ret)操作：
+* 在调用之前，_r指向队列头，由于_c不是指向队列头，所以_r = _c.cas (&amp;_queue.front (), NULL)的操作并没有修改_c的值，只是将_r置为_c，然后check_read函数返回true表示有数据可读。
+* 由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为1。</p>
+
+<h3 id="6-read-ret">6、read(&amp;ret)</h3>
+
+<p>第二次读操作，read函数返回true表示读到了数据，ret中保存的是&rsquo;b&rsquo;返回。</p>
+
+<p>流程如下：</p>
+
+<ul>
+<li>此时_r和_c为back_pos即索引位置2，而队列头为begin_pos索引位置1，因此有数据可读check_read返回true。</li>
+<li>由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为2。</li>
+</ul>
+
+<h3 id="7-read-ret">7、read(&amp;ret)</h3>
+
+<p>第三次读操作（上图中没有给出），read函数返回false表示没有数据可读。</p>
+
+<p>流程如下：</p>
+
+<ul>
+<li>此时_r为back_pos即索引位置2，而队列头begin_pos也是2，因此check_read返回false表示没有数据可读。</li>
+</ul>
+
+<p>总结ypipe_t的整体设计：</p>
+
+<ul>
+<li>区分了几个指针，分别有以下不同的功能：
+
+<ul>
+<li>_f：用于存放刷新数据的位置。只有写线程可以更新，在写入的数据未完成的情况下不会更新该指针。</li>
+<li>_w：用于存放写入数据的位置。只有写线程可以更新，只有在写入完成之后调用flush函数才会将该指针更新到_f。</li>
+<li>_r：用于存放读取数据的位置。只有读线程可以更新，如果_r不是队列头，则表示一直有数据可读；否则需要根据_c的值判断是否有数据可读。</li>
+<li>_c：指向最后一个被刷新数据的位置，读写线程都可以修改，如果为NULL表示没有数据可读。</li>
+</ul></li>
+</ul>
+
+<h2 id="mailbox-t">mailbox_t</h2>
+
+<p>有了以上的介绍，实际理解起来mailbox_t的实现就比较简单了。但是前面分析ypipe_t的时候提到过，这个无锁队列的实现是单写单读的，而正常情况下，会有多个不同的线程同时往一个actor发消息，即需要的是多写多读的模式，来看mailbox_t中send函数的实现：</p>
+
+<pre><code class="language-C">void zmq::mailbox_t::send (const command_t &amp;cmd_)
+{
+    // 这里需要加锁，因为是多写一读的邮箱
+    _sync.lock ();
+    _cpipe.write (cmd_, false);
+    const bool ok = _cpipe.flush ();
+    _sync.unlock ();
+    if (!ok)  // flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
+        _signaler.send ();
+}
+</code></pre>
+
+<p>可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
+因此，<strong>zeromq号称的无锁消息队列设计，其实准确的说只是针对读写线程无锁，对于多个写线程而言还是有锁的</strong>。</p>
+
+<p>另外，由于在没有元素可读的情况下，读线程会休眠，因此需要一个唤醒读线程的机制，这里采用了signaler_t类型的成员变量_signaler，内部实现实际上一个pipe，向这个pipe写入一个字符用于唤醒读线程。</p>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-02-09</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
+          
+          <a href="/tags/zeromq/">zeromq</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190131-nginx-read-http-request/">
+            <span class="next-text nav-default">Nginx源码阅读笔记-接收HTTP请求流程</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
