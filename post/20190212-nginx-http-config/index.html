@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>Nginx源码阅读笔记-查询HTTP配置流程 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="概述 前面已经分析过nginx解析配置文件的整体流程，接下来看查询HTTP配置的流程。 HTTP属于nginx的core顶层模块，下面又包括了三" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20190212-nginx-http-config/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="Nginx源码阅读笔记-查询HTTP配置流程" />
+<meta property="og:description" content="概述 前面已经分析过nginx解析配置文件的整体流程，接下来看查询HTTP配置的流程。 HTTP属于nginx的core顶层模块，下面又包括了三" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20190212-nginx-http-config/" /><meta property="article:published_time" content="2019-02-12T09:54:25&#43;08:00"/>
+<meta property="article:modified_time" content="2019-02-12T09:54:25&#43;08:00"/>
+
+<meta itemprop="name" content="Nginx源码阅读笔记-查询HTTP配置流程">
+<meta itemprop="description" content="概述 前面已经分析过nginx解析配置文件的整体流程，接下来看查询HTTP配置的流程。 HTTP属于nginx的core顶层模块，下面又包括了三">
+
+
+<meta itemprop="datePublished" content="2019-02-12T09:54:25&#43;08:00" />
+<meta itemprop="dateModified" content="2019-02-12T09:54:25&#43;08:00" />
+<meta itemprop="wordCount" content="5212">
+
+
+
+<meta itemprop="keywords" content="nginx," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Nginx源码阅读笔记-查询HTTP配置流程"/>
+<meta name="twitter:description" content="概述 前面已经分析过nginx解析配置文件的整体流程，接下来看查询HTTP配置的流程。 HTTP属于nginx的core顶层模块，下面又包括了三"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">Nginx源码阅读笔记-查询HTTP配置流程</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-02-12 </span>
+        <div class="post-category">
+            
+              <a href="/categories/nginx/"> nginx </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#概述">概述</a></li>
+<li><a href="#根据host查找server块流程">根据Host查找server块流程</a></li>
+<li><a href="#根据uri查找location块流程">根据URI查找location块流程</a>
+<ul>
+<li><a href="#ngx-http-core-loc-conf-s结构体">ngx_http_core_loc_conf_s结构体</a></li>
+<li><a href="#ngx-http-location-queue-t">ngx_http_location_queue_t</a></li>
+<li><a href="#ngx-http-location-tree-node-t">ngx_http_location_tree_node_t</a></li>
+<li><a href="#构建location查找树的流程">构建location查找树的流程</a>
+<ul>
+<li><a href="#ngx-http-init-locations">ngx_http_init_locations</a></li>
+<li><a href="#ngx-http-init-static-location-trees">ngx_http_init_static_location_trees</a>
+<ul>
+<li><a href="#ngx-http-create-locations-list">ngx_http_create_locations_list</a></li>
+<li><a href="#ngx-http-create-location-trees">ngx_http_create_location_trees</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#查找location流程">查找location流程</a></li>
+</ul></li>
+<li><a href="#参考资料">参考资料</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<h1 id="概述">概述</h1>
+
+<p>前面已经分析过<a href="https://www.codedump.info/post/20190103-nginx-config-parse/#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">nginx解析配置文件的整体流程</a>，接下来看查询HTTP配置的流程。</p>
+
+<p>HTTP属于nginx的core顶层模块，下面又包括了三部分：</p>
+
+<ul>
+<li>main部分配置：即在HTTP块但是又不在任何server、location块中的配置，如下图中的sendfile配置指令。</li>
+<li>server块：在server块内部的配置。</li>
+<li>location块：在location块内部分配置。</li>
+</ul>
+
+<p><img src="/media/imgs/20190212-nginx-http-config/http_config.jpg" alt="http_config" title="http_config" /></p>
+
+<p>解析HTTP模块的入口函数是ngx_http_block，这一点可以从http指令相关的配置看出：</p>
+
+<pre><code class="language-C">{ ngx_string(&quot;http),
+  NGX_MAIN_CONF|NGX_CONF_BLOCK|NGX_CONF_NOARGS,
+  ngx_http_block,
+  0,
+  0,
+  NULL }
+</code></pre>
+
+<p>在这个解析函数的开始，就创建了ngx_http_conf_ctx_t结构体，所以看的出来这个结构体是HTTP模块的第一级配置，它的定义如下：</p>
+
+<pre><code class="language-C">typedef struct {
+  void        **main_conf;
+  void        **srv_conf;
+  void        **loc_conf;
+} ngx_http_conf_ctx_t;
+</code></pre>
+
+<p>下面列举出来这几部分相关的函数以及数据结构：</p>
+
+<table>
+<thead>
+<tr>
+<th>块</th>
+<th>入口函数</th>
+<th>数据结构</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>http</td>
+<td>ngx_http_block</td>
+<td>ngx_http_conf_ctx_t</td>
+</tr>
+
+<tr>
+<td>main</td>
+<td></td>
+<td>ngx_http_core_main_conf_t</td>
+</tr>
+
+<tr>
+<td>server</td>
+<td>ngx_http_core_server</td>
+<td>ngx_http_core_srv_conf_t</td>
+</tr>
+
+<tr>
+<td>location</td>
+<td>ngx_http_core_location</td>
+<td>ngx_http_core_loc_conf_t</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="/media/imgs/20190212-nginx-http-config/ngx_http_module.png" alt="ngx_http_module" title="ngx_http_module" /></p>
+
+<p>另外，由于HTTP块内的一些配置，作用域可以在多种块中，因此需要涉及到合并配置的流程，即：</p>
+
+<ul>
+<li>如果子作用域某配置项在解析过程中未被赋值，则将父作用域的 相同的配置项值拷贝至此配置项里；</li>
+<li>如果子作用域配置项在解析过程中被赋值了，则保留原 样；如果子作用域配置项和父作用域配置项都没有被初始化，则填入代码中预设的默认值。</li>
+</ul>
+
+<p>相关的合并配置函数列举如下：</p>
+
+<table>
+<thead>
+<tr>
+<th>块</th>
+<th>合并函数</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>server</td>
+<td>ngx_http_merge_servers</td>
+</tr>
+
+<tr>
+<td>location</td>
+<td>ngx_http_merge_locations</td>
+</tr>
+</tbody>
+</table>
+
+<p>以下具体看看一次HTTP请求如何查找到相关HTTP配置的流程，分为两步：</p>
+
+<ul>
+<li>根据Host查找server块</li>
+<li>根据URI查找location块</li>
+</ul>
+
+<h1 id="根据host查找server块流程">根据Host查找server块流程</h1>
+
+<p>前面分析<a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">nginx接收HTTP请求流程</a>中分析到，nginx在接收HTTP请求流程中，将调用ngx_http_process_request_headers函数来处理请求头。</p>
+
+<p>nginx使用一个ngx_http_header_t结构体，定义了哪些请求头需要进行特定的函数回调处理，函数ngx_http_process_request_headers会根据这个表来查询接收到的请求头都需要哪些回调函数来处理：</p>
+
+<pre><code class="language-C">ngx_http_header_t  ngx_http_headers_in[] = {
+  { ngx_string(&quot;Host&quot;), offsetof(ngx_http_headers_in_t, host),
+    ngx_http_process_host },
+
+  { ngx_string(&quot;Connection&quot;), offsetof(ngx_http_headers_in_t, connection),
+    ngx_http_process_connection },
+  ....
+}
+</code></pre>
+
+<p>可以看到，针对Host这个header，会调用ngx_http_process_host函数，这个函数最终会调用ngx_http_set_virtual_server函数来根据Host头确定对应的server块。</p>
+
+<p>nginx中，不同的server块可以监听同一个地址端口，只要对应的server_name不一样就可以了。</p>
+
+<p>而相同的地址端口，在nginx中对应的是ngx_http_addr_conf_t，内部将同样地址端口的多个不同server_name再组织到一起来：</p>
+
+<pre><code class="language-C">typedef struct {
+  ngx_hash_combined_t        names;
+
+  ngx_uint_t                 nregex;
+  ngx_http_server_name_t    *regex;
+} ngx_http_virtual_names_t;
+
+struct ngx_http_addr_conf_s {
+  /* the default server configuration for this address:port */
+  ngx_http_core_srv_conf_t  *default_server;
+
+  ngx_http_virtual_names_t  *virtual_names;
+
+  unsigned                   ssl:1;
+  unsigned                   http2:1;
+  unsigned                   proxy_protocol:1;
+};
+</code></pre>
+
+<p>显然，如果相同地址端口的server如果使用链表组织在一起，每一次都是线性时间的查找复杂度，这就太慢了。因此nginx定义了ngx_hash_combined_t这个数据结构，将相同地址端口的server_name组织到一起来：</p>
+
+<pre><code class="language-C">typedef struct {
+  ngx_hash_t            hash;
+  ngx_hash_wildcard_t  *wc_head;
+  ngx_hash_wildcard_t  *wc_tail;
+} ngx_hash_combined_t;
+</code></pre>
+
+<p>该结构体中有三个成员，区分不同的server_name格式：</p>
+
+<ul>
+<li>ngx_hash_t hash：精确匹配的哈希表，用于存储没有使用通配符的虚拟主机名，如”www.example.com“。</li>
+<li>ngx_hash_wildcard_t  <em>wc_head：前置通配符哈希表，用于存储如”</em>.example.org“和”.example.org“这样的前置通配符虚拟主机名。</li>
+<li>ngx_hash_wildcard_t  *wc_tail：后置通配符哈希表，用于存储如”example.*“这样的后置通配符虚拟主机名。</li>
+</ul>
+
+<p>具体这个支持通配符的hash表，不在这里讲解，只谈host的查找顺序：</p>
+
+<ul>
+<li>首先查找精确匹配hash表，查找到则返回；</li>
+<li>接着查找前置通配符hash表，查找到则返回；</li>
+<li>最后查找后置通配符hash表，查找到则返回；</li>
+<li>如果以上都没有查找到，落到default_server的server块进行处理。</li>
+</ul>
+
+<h1 id="根据uri查找location块流程">根据URI查找location块流程</h1>
+
+<p>根据Host查找到了server块，紧跟着就是根据URI来查找location块了。</p>
+
+<p>location区分几种格式：</p>
+
+<pre><code class="language-C">location = / {
+    [ configuration A ]
+}
+
+location / {
+    [ configuration B ]
+}
+
+location /documents/ {
+    [ configuration C ]
+}
+
+location ^~ /images/ {
+    [ configuration D ]
+}
+
+location ~* \.(gif|jpg|jpeg)$ {
+    [ configuration E ]
+}
+
+</code></pre>
+
+<p>在上面的配置例子中：</p>
+
+<ul>
+<li>配置A：精确匹配&rdquo;/&rdquo; URI，主机名后面不能带任何字符串。</li>
+<li>配置B：因为所有的地址都以 / 开头，所以这条规则将匹配到所有请求，但是正则和最长字符串会优先匹配。</li>
+<li>配置C：匹配任何以 /documents/ 开头的地址，匹配符合以后，还要继续往下搜索，只有后面的正则表达式没有匹配到时，这一条才会采用这一条。</li>
+<li>配置D：匹配任何以 /images/ 开头的地址，匹配符合以后，停止往下搜索正则，采用这一条。</li>
+<li>配置E：匹配所有以 gif,jpg或jpeg 结尾的请求，然而，所有请求 /images/ 下的图片会被 config D 处理，因为 ^~ 到达不了这一条正则。</li>
+</ul>
+
+<p>具体根据URI匹配location的流程如下：</p>
+
+<ul>
+<li>首先先检查使用前缀字符定义的location，选择最长匹配的项并记录下来；</li>
+<li>如果找到了精确匹配的location，也就是使用了=修饰符的location，结束查找，使用它的配置。</li>
+<li>然后按顺序查找使用正则定义的location，如果匹配则停止查找，使用它定义的配置。</li>
+<li>如果没有匹配的正则location，则使用前面记录的最长匹配前缀字符location。</li>
+</ul>
+
+<p>可以看到：</p>
+
+<ul>
+<li>不包含正则的 location 在配置文件中的顺序不会影响匹配顺序。而包含正则表达式的 location 会按照配置文件中定义的顺序进行匹配。</li>
+<li>设置为精确匹配 (with = prefix) 的 location 如果匹配请求 URI 的话，此 location 被马上使用，匹配过程结束。</li>
+<li>在其它只包含普通字符的 location 中，找到和请求 URI 最长的匹配。如果此 server {} 没有包含正则的 location 或者该 location 启用了 ^~ 的话，这个最 长匹配的 location 会被使用。如果此 server {} 中包含正则的 location，则先在 这些正则 location 中进行匹配，如果找到匹配，则使用匹配的正则 location，如果 没找到匹配，依然使用最大匹配的 location。</li>
+</ul>
+
+<p>有了以上的准备，开始看具体的代码实现。</p>
+
+<h2 id="ngx-http-core-loc-conf-s结构体">ngx_http_core_loc_conf_s结构体</h2>
+
+<p>ngx_http_core_loc_conf_s结构体对应一个location块的配置，相关的成员如下：</p>
+
+<pre><code class="language-C">struct ngx_http_core_loc_conf_s {
+  ngx_str_t           name;   /* URI 部分字符串 */
+  ngx_http_regex_t    *regex; /* 正则引擎编译过的 正则表达式对象 */
+  ...
+  unsigned            named:1;        /* @ 修饰符 */
+  unsigned            noname:1;       /* if () {} */
+  unsigned            exact_match:1;  /* = 修饰符 */
+  unsigned            noregex:1;      /* ^= 修饰符 */
+
+  ...
+  ngx_http_location_tree_node_t   *static_location;
+  ngx_http_core_loc_conf_t        **regex_location;
+  void                **loc_conf;
+  ...
+  ngx_queue_t         *locations; /* 连接 `location` 作用域，由
+                                     ngx_http_location_queue_t 强制转
+                                     换而来 */
+};
+</code></pre>
+
+<p>可以看到，在ngx_http_core_loc_conf_s中使用了几个成员named、noname、exact_match、noregex区分了以上的情况。</p>
+
+<h2 id="ngx-http-location-queue-t">ngx_http_location_queue_t</h2>
+
+<p>结构体ngx_http_location_queue_t用于临时保存location的队列：</p>
+
+<pre><code class="language-C">typedef struct {
+  ngx_queue_t                 queue;
+  ngx_http_core_loc_conf_t    *exact; /* exact_match, regex, named, noname */
+  ngx_http_core_loc_conf_t    *inclusive; /* 非 exact 的 location */
+  ngx_str_t                   *name;
+} ngx_http_location_queue_t;
+</code></pre>
+
+<h2 id="ngx-http-location-tree-node-t">ngx_http_location_tree_node_t</h2>
+
+<p>ngx_http_location_tree_node_t结构体是最终存储location的结构体，将location以树状组织在一起，实现location的快速查找：</p>
+
+<pre><code class="language-C">struct ngx_http_location_tree_node_s {
+  ngx_http_location_tree_node_t   *left;
+  ngx_http_location_tree_node_t   *right;
+  ngx_http_location_tree_node_t   *tree;
+
+  ngx_http_core_loc_conf_t        *exact;     // 精确匹配的location配置
+  ngx_http_core_loc_conf_t        *inclusive; // inclusive匹配的location配置
+
+  u_char                          auto_redirect;
+  u_char                          len;
+  u_char                          name[1];
+};
+</code></pre>
+
+<h2 id="构建location查找树的流程">构建location查找树的流程</h2>
+
+<p>在函数ngx_http_block中（该函数即HTTP块的入口函数），将调用两个函数进行location的初始化：</p>
+
+<ul>
+<li>ngx_http_init_locations：用于完成location的排序以及分类存放。</li>
+<li>ngx_http_init_static_location_trees：用于将exact以及inclusive类型的location进一步处理，构造出可以快速访问的树状结构。</li>
+</ul>
+
+<h3 id="ngx-http-init-locations">ngx_http_init_locations</h3>
+
+<ul>
+<li>首先调用ngx_queue_sort(locations, ngx_http_cmp_locations)函数对location队列进行排序，排序的结果为：exact(sorted) -&gt; inclusive(sorted) -&gt; regex -&gt; named -&gt; noname，这里说明一下inclusive，它表示URI之间的包含关系，即”/abc/a“这个URI是包含”/abc“的。</li>
+<li>遍历排序过后的location队列，将其中的noname类型的location分离出队列。</li>
+<li>将named类型的location分离出来，放到配置的named_locations中。</li>
+<li>将含有正则的location分离出来，放到配置的regex_locations中。</li>
+</ul>
+
+<p>可以看到，以上流程完成之后，原先的location队列就只剩下exact以及inclusive类型的location了。接着调用ngx_http_init_static_location_trees函数做进一步的处理。</p>
+
+<h3 id="ngx-http-init-static-location-trees">ngx_http_init_static_location_trees</h3>
+
+<p>有以下几个流程：</p>
+
+<ul>
+<li>ngx_http_join_exact_locations：将当前虚拟主机中 uri 字符串完全一致的 exact 和 inclusive 类型的 location 进行合并。</li>
+<li>ngx_http_create_locations_list：将前缀一致的location放到list链表中。</li>
+<li>ngx_http_create_locations_tree：构造location的树结构。</li>
+</ul>
+
+<h4 id="ngx-http-create-locations-list">ngx_http_create_locations_list</h4>
+
+<pre><code class="language-C">static void
+ngx_http_create_locations_list(ngx_queue_t *locations, ngx_queue_t *q)
+{
+  u_char                     *name;
+  size_t                      len;
+  ngx_queue_t                *x, tail;
+  ngx_http_location_queue_t  *lq, *lx;
+
+  // 由于本函数存在递归调用，所以这个判断是递归的终止条件
+  if (q == ngx_queue_last(locations)) {
+    return;
+  }
+
+  lq = (ngx_http_location_queue_t *) q;
+
+  if (lq-&gt;inclusive == NULL) {
+    // 如果不是inclusive类型的location，直接跳过，继续队列中下一个location的处理
+    ngx_http_create_locations_list(locations, ngx_queue_next(q));
+    return;
+  }
+
+  len = lq-&gt;name-&gt;len;
+  name = lq-&gt;name-&gt;data;
+
+  // 从该location的下一个元素开始遍历队列
+  for (x = ngx_queue_next(q);
+    x != ngx_queue_sentinel(locations);
+    x = ngx_queue_next(x))
+  {
+    lx = (ngx_http_location_queue_t *) x;
+
+    // 找到第一个不以q的location做为前缀的location就退出循环
+    // 比如当前队列location为：/a /ab /abc /b
+    // 这里的q就是/a，x就是/b，中间的/ab和/abc都是以/a为前缀的，不会终止循环
+    if (len &gt; lx-&gt;name-&gt;len
+      || ngx_filename_cmp(name, lx-&gt;name-&gt;data, len) != 0)
+    {
+      break;
+    }
+  }
+
+  q = ngx_queue_next(q);
+
+  if (q == x) { // 如果x就是q的下一个元素，说明没有找到前缀匹配的，那么直接进入x进行下次递归调用
+    ngx_http_create_locations_list(locations, x);
+    return;
+  }
+
+  // 到了这里说明前面找到有前缀匹配的location了
+
+  // 这里将与q相同前缀的节点，分离出队列
+  ngx_queue_split(locations, q, &amp;tail);
+  // 然后加入到q的list链表中
+  ngx_queue_add(&amp;lq-&gt;list, &amp;tail);
+
+  if (x == ngx_queue_sentinel(locations)) {
+    ngx_http_create_locations_list(&amp;lq-&gt;list, ngx_queue_head(&amp;lq-&gt;list));
+    return;
+  }
+
+  // 将x从队列中分离出来
+  ngx_queue_split(&amp;lq-&gt;list, x, &amp;tail);
+  // 放回到location队列中
+  ngx_queue_add(locations, &amp;tail);
+
+  // 对lq-&gt;list做相同的操作
+  ngx_http_create_locations_list(&amp;lq-&gt;list, ngx_queue_head(&amp;lq-&gt;list));
+
+  // 对从x开始的剩余节点做相同的操作
+  ngx_http_create_locations_list(locations, x);
+}
+</code></pre>
+
+<p>对该函数的几个说明：</p>
+
+<ul>
+<li>由于存在递归调用，所以函数开始要做q == ngx_queue_last(locations)的判断，做为递归的终止条件。</li>
+<li>对于非 inclusive 类型 (此时 locations 队列中也只包含 exact 和 inclusive 类型的 location 节点) 的 location 节点，直接跳过，不做任何整理。</li>
+<li>从lq开始遍历队列，直到查找到第一个不以q做为前缀的location才退出循环，退出循环时保存当前位置为x。比如当前队列location为：/a /ab /abc /b，这里的q就是/a，x就是/b，中间的/ab和/abc都是以/a为前缀的，不会终止循环。</li>
+<li>将与lq前缀匹配的队列元素，放到lq的list中，同时针对这个list递归调用ngx_http_create_locations_list函数。</li>
+<li>继续针对x开始的剩余队列节点递归调用ngx_http_create_locations_list函数。</li>
+</ul>
+
+<p>如下图所示就是ngx_http_create_locations_list调用前后的效果：</p>
+
+<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-list.png" alt="ngx-location-create-locations-list" title="ngx-location-create-locations-list" /></p>
+
+<h4 id="ngx-http-create-location-trees">ngx_http_create_location_trees</h4>
+
+<p>ngx_http_create_location_trees在上面的基础上构造location查找树</p>
+
+<pre><code class="language-C">static ngx_http_location_tree_node_t *
+  ngx_http_create_locations_tree(ngx_conf_t *cf, ngx_queue_t *locations,
+  size_t prefix)
+{
+  size_t                          len;
+  ngx_queue_t                    *q, tail;
+  ngx_http_location_queue_t      *lq;
+  ngx_http_location_tree_node_t  *node;
+
+  // 快速确定中间节点的位置，保存到q中
+  q = ngx_queue_middle(locations);
+
+  lq = (ngx_http_location_queue_t *) q;
+  // 左边元素的数量
+  len = lq-&gt;name-&gt;len - prefix;
+
+  node = ngx_palloc(cf-&gt;pool,
+    offsetof(ngx_http_location_tree_node_t, name) + len);
+  if (node == NULL) {
+    return NULL;
+  }
+
+  node-&gt;left = NULL;
+  node-&gt;right = NULL;
+  node-&gt;tree = NULL;
+  node-&gt;exact = lq-&gt;exact;
+  node-&gt;inclusive = lq-&gt;inclusive;
+
+  node-&gt;auto_redirect = (u_char) ((lq-&gt;exact &amp;&amp; lq-&gt;exact-&gt;auto_redirect)
+    || (lq-&gt;inclusive &amp;&amp; lq-&gt;inclusive-&gt;auto_redirect));
+
+  node-&gt;len = (u_char) len;
+  ngx_memcpy(node-&gt;name, &amp;lq-&gt;name-&gt;data[prefix], len);
+
+  // 从中间节点将location分为两部分
+  ngx_queue_split(locations, q, &amp;tail);
+
+  // 如果分离完毕location队列为空
+  if (ngx_queue_empty(locations)) {
+    /*
+     * ngx_queue_split() insures that if left part is empty,
+     * then right one is empty too
+     */
+    // 直接跳到构造inclusive类型的子树
+    goto inclusive;
+  }
+
+  // 构造左子树
+  node-&gt;left = ngx_http_create_locations_tree(cf, locations, prefix);
+  if (node-&gt;left == NULL) {
+    return NULL;
+  }
+
+  ngx_queue_remove(q);
+
+  if (ngx_queue_empty(&amp;tail)) {
+    goto inclusive;
+  }
+
+  // 构造右子树
+  node-&gt;right = ngx_http_create_locations_tree(cf, &amp;tail, prefix);
+  if (node-&gt;right == NULL) {
+    return NULL;
+  }
+
+inclusive:
+  // 到这里构造inclusive类型的树保存到tree成员中
+
+  // list为空说明没有inclusive类型的location了
+  if (ngx_queue_empty(&amp;lq-&gt;list)) {
+    return node;
+  }
+
+  node-&gt;tree = ngx_http_create_locations_tree(cf, &amp;lq-&gt;list, prefix + len);
+  if (node-&gt;tree == NULL) {
+    return NULL;
+  }
+
+  return node;
+}
+</code></pre>
+
+<p>说明：</p>
+
+<ul>
+<li>调用ngx_queue_middle快速确定locaiton队列的中间节点。</li>
+<li>从中间节点将location分为两部分。</li>
+<li>分别构造左右子树放到成员left和right中。</li>
+<li>将inclusive类型的location放入到成员tree中。</li>
+</ul>
+
+<p>如下图所示就是ngx-location-create-locations-tree调用前后的效果：</p>
+
+<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-tree.png" alt="ngx-location-create-locations-tree" title="ngx-location-create-locations-tree" /></p>
+
+<h2 id="查找location流程">查找location流程</h2>
+
+<p>请求的 location 匹配，在请求处理的 FIND_CONFIG 阶段相对应的 checker ngx_http_core_find_config_phase 函数中完成。ngx_http_core_find_config_phase 函数调用 ngx_http_core_find_location 函数完成实际的匹配工作。</p>
+
+<p>本质上就是根据前面构建好的树结构，进行二分查找，不再阐述。</p>
+
+<h1 id="参考资料">参考资料</h1>
+
+<ul>
+<li><a href="https://ialloc.org/blog/ngx-notes-conf-parsing/">Nginx 源代码笔记 - 配置文件解析</a></li>
+<li><a href="https://ialloc.org/blog/ngx-notes-http-location/">Nginx 源代码笔记 - URI 匹配</a></li>
+<li><a href="https://ialloc.org/blog/ngx-notes-hashtable-2/">Nginx 源代码笔记 - 哈希表 [2]</a></li>
+</ul>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-02-12</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/nginx/">nginx</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190209-zeromq-lockfree-queue/">
+            <span class="next-text nav-default">zeromq所谓的“无锁消息队列”</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
