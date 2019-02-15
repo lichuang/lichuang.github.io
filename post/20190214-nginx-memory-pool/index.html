@@ -17,7 +17,7 @@
 
 
 <meta name="author" content="codedump" />
-  <meta name="description" content="nginx的内存池设计的比较简单了，一个内存池中分为两个部分： 超过max大小的内存分配，走大块内存分配，这部分内存管理由ngx_pool_l" />
+  <meta name="description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内" />
 
   <meta name="keywords" content="Hugo, theme, even" />
 
@@ -50,13 +50,13 @@
 
 
 <meta property="og:title" content="Nginx源码阅读笔记-内存池的设计" />
-<meta property="og:description" content="nginx的内存池设计的比较简单了，一个内存池中分为两个部分： 超过max大小的内存分配，走大块内存分配，这部分内存管理由ngx_pool_l" />
+<meta property="og:description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://lichuang.github.io/post/20190214-nginx-memory-pool/" /><meta property="article:published_time" content="2019-02-14T14:48:24&#43;08:00"/>
 <meta property="article:modified_time" content="2019-02-14T14:48:24&#43;08:00"/>
 
 <meta itemprop="name" content="Nginx源码阅读笔记-内存池的设计">
-<meta itemprop="description" content="nginx的内存池设计的比较简单了，一个内存池中分为两个部分： 超过max大小的内存分配，走大块内存分配，这部分内存管理由ngx_pool_l">
+<meta itemprop="description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内">
 
 
 <meta itemprop="datePublished" content="2019-02-14T14:48:24&#43;08:00" />
@@ -68,7 +68,7 @@
 <meta itemprop="keywords" content="nginx," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-内存池的设计"/>
-<meta name="twitter:description" content="nginx的内存池设计的比较简单了，一个内存池中分为两个部分： 超过max大小的内存分配，走大块内存分配，这部分内存管理由ngx_pool_l"/>
+<meta name="twitter:description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内"/>
 
 <!--[if lte IE 9]>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
@@ -172,14 +172,14 @@
     <div class="post-content">
       
 
+<p>nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内存，内存池的生命周期与请求一样，请求完毕则直接回收内存。这样的好处在于：统一分配和统一释放，降低了内存泄露问题的出现。</p>
+
 <p>nginx的内存池设计的比较简单了，一个内存池中分为两个部分：</p>
 
 <ul>
 <li>超过max大小的内存分配，走大块内存分配，这部分内存管理由ngx_pool_large_t结构体负责。</li>
 <li>否则就是在ngx_pool_t遍历符合要求的ngx_pool_t结构体，找到符合要求大小的pool直接返回，否则就申请一块新的内存pool。</li>
 </ul>
-
-<p>nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内存，内存池的生命周期与请求一样，请求完毕则直接回收内存。这样的好处在于：统一分配和统一释放，降低了内存泄露问题的出现。</p>
 
 <h1 id="ngx-pool-data-t">ngx_pool_data_t</h1>
 
