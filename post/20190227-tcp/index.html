@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>TCP协议笔记 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://lichuang.github.io/post/20190227-tcp/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="TCP协议笔记" />
+<meta property="og:description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://lichuang.github.io/post/20190227-tcp/" /><meta property="article:published_time" content="2019-02-27T21:01:43&#43;08:00"/>
+<meta property="article:modified_time" content="2019-02-27T21:01:43&#43;08:00"/>
+
+<meta itemprop="name" content="TCP协议笔记">
+<meta itemprop="description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应">
+
+
+<meta itemprop="datePublished" content="2019-02-27T21:01:43&#43;08:00" />
+<meta itemprop="dateModified" content="2019-02-27T21:01:43&#43;08:00" />
+<meta itemprop="wordCount" content="10220">
+
+
+
+<meta itemprop="keywords" content="网络编程," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="TCP协议笔记"/>
+<meta name="twitter:description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">TCP协议笔记</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-02-27 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/"> 网络编程 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#概述">概述</a></li>
+<li><a href="#tcp协议格式">TCP协议格式</a></li>
+<li><a href="#tcp连接的建立和终止">TCP连接的建立和终止</a>
+<ul>
+<li><a href="#连接建立">连接建立</a>
+<ul>
+<li><a href="#backlog参数与syn-flood攻击">backlog参数与SYN Flood攻击</a></li>
+</ul></li>
+<li><a href="#连接结束">连接结束</a>
+<ul>
+<li><a href="#四次挥手的原因">四次挥手的原因</a></li>
+<li><a href="#time-wait状态">TIME-WAIT状态</a></li>
+</ul></li>
+<li><a href="#tcp协议状态机与系统调用的关系">TCP协议状态机与系统调用的关系</a></li>
+</ul></li>
+<li><a href="#tcp重传机制">TCP重传机制</a>
+<ul>
+<li><a href="#估计往返时间">估计往返时间</a></li>
+<li><a href="#重传时间间隔">重传时间间隔</a></li>
+<li><a href="#可靠数据传输">可靠数据传输</a>
+<ul>
+<li><a href="#简化的算法">简化的算法</a></li>
+<li><a href="#超时时间加倍">超时时间加倍</a></li>
+<li><a href="#快速重传-fast-retransmit">快速重传（fast retransmit）</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#流量控制">流量控制</a>
+<ul>
+<li><a href="#tcp滑动窗口">TCP滑动窗口</a></li>
+</ul></li>
+<li><a href="#拥塞控制">拥塞控制</a>
+<ul>
+<li><a href="#慢启动-slow-start-算法">慢启动（slow start）算法</a></li>
+<li><a href="#拥塞避免-congestion-avoidance-算法">拥塞避免（ Congestion Avoidance）算法</a></li>
+<li><a href="#拥塞状态的算法">拥塞状态的算法</a></li>
+<li><a href="#快速恢复-fast-recovery">快速恢复（fast recovery）</a></li>
+<li><a href="#拥塞控制算法的有限状态机">拥塞控制算法的有限状态机</a></li>
+</ul></li>
+<li><a href="#参考资料">参考资料</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<h1 id="概述">概述</h1>
+
+<p><img src="/media/imgs/20190227-tcp/tcpip.png" alt="tcpip" title="tcpip" /></p>
+
+<ul>
+<li>应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应用层的信息是通过端口号，即不同的端口号提供不同的服务。</li>
+<li>传输层：通常也称为“四层”，TCP、UDP协议工作在这一层，位于这一层的分组称为报文段（segment）。</li>
+<li>网络层：通常也称为“三层”，负责将数据包（datagram）从一台主机移动到另一台主机。</li>
+<li>接口层：通常也称为“二层”，链路层分组称为帧（frame）。</li>
+</ul>
+
+<h1 id="tcp协议格式">TCP协议格式</h1>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-header.jpg" alt="tcp-header" title="tcp-header" /></p>
+
+<ul>
+<li>端口号：tcp使用端口号来标记目标和源端口，tcp头中并没有ip地址信息，根据前面的tcp/ip模型，ip地址这是三层做的事情。</li>
+<li>序号（Sequence Number）：用于对tcp字节流进行编号，以解决网络包乱序问题。</li>
+<li>确认号（Acknowledgement Number）：用于确认接收到的报文段序号，用来解决丢包问题。</li>
+<li>窗口：用于通知对端接收窗口大小，用于解决流控问题。</li>
+<li>TCP标志位，用于控制TCP协议状态机的，包括以下几个：
+
+<ul>
+<li>ACK：只有这个标志位置位时，前面的确认号字段才有效。</li>
+<li>SYN：在连接建立时用来同步序号。当 SYN=1，ACK=0 时表示这是一个连接请求报文段。若对方同意建立连接，则响应报文中 SYN=1，ACK=1。</li>
+<li>FIN：用来释放一个连接，当 FIN=1 时，表示此报文段的发送方的数据已发送完毕，并要求释放连接。</li>
+<li>RST：重置连接，比如向一个不存在监听服务的端口发请求时，就会收到RST包。</li>
+</ul></li>
+<li>TCP选项：这部分可选，不属于TCP头部必然存在的部分。
+
+<ul>
+<li>MSS（Maximum Segment Size，最大报文长度）：MSS选项用于在TCP连接建立时，收发双方协商通信时每一个报文段所能承载的最大数据长度。为了达到最佳的传输效能，TCP协议在建立连接的时候通常要协商双方的MSS值，这个值TCP协议在实现的时候往往用MTU值代替（需要减去IP数据包包头的大小20Bytes和TCP数据段的包头20Bytes）所以一般MSS值1460。</li>
+</ul></li>
+</ul>
+
+<h1 id="tcp连接的建立和终止">TCP连接的建立和终止</h1>
+
+<h2 id="连接建立">连接建立</h2>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-connect.png" alt="tcp-connect" title="tcp-connect" /></p>
+
+<p>以上图说明建立TCP连接的过程，其中左边的A为客户端，右边的B为服务器：</p>
+
+<ul>
+<li>B调用listen系统命令，进入监听状态，等待客户端的连接。</li>
+<li>A向B发送连接请求报文，其中TCP标志位里SYN=1，ACK=0，选择一个初始的序号x。</li>
+<li>B收到请求报文，向 A 发送连接确认报文，SYN=1，ACK=1，确认号为 x+1，同时也选择一个初始的序号 y。</li>
+<li>A 收到 B 的连接确认报文后，还要向 B 发出确认，确认号为 y+1，序号为 x+1。</li>
+<li>B 收到 A 的确认后，连接建立。</li>
+</ul>
+
+<p>以上就是TCP建立连接的三次握手过程，以上流程还需要补充的是：</p>
+
+<ul>
+<li>对于建链接的3次握手，主要是要初始化Sequence Number 的初始值。通信的双方要互相通知对方自己的初始化的Sequence Number（缩写为ISN：Inital Sequence Number）——所以叫SYN，全称Synchronize Sequence Numbers。也就上图中的 x 和 y。这个号要作为以后的数据通信的序号，以保证应用层接收到的数据不会因为网络上的传输的问题而乱序（TCP会用这个序号来拼接数据）。</li>
+<li>第三次握手是为了防止失效的连接请求到达服务器，让服务器错误打开连接。客户端发送的连接请求如果在网络中滞留，那么就会隔很长一段时间才能收到服务器端发回的连接确认。客户端等待一个超时重传时间之后，就会重新请求连接。但是这个滞留的连接请求最后还是会到达服务器，如果不进行三次握手，那么服务器就会打开两个连接。如果有第三次握手，客户端会忽略服务器之后发送的对滞留连接请求的连接确认，不进行第三次握手，因此就不会再次打开连接。</li>
+</ul>
+
+<h3 id="backlog参数与syn-flood攻击">backlog参数与SYN Flood攻击</h3>
+
+<p>listen系统调用中，会传入一个backlog参数，man文档对其的解释是：</p>
+
+<pre><code class="language-C">The behavior of the backlog argument on TCP sockets changed with Linux 2.2.  Now it specifies the queue  length  for
+completely established sockets waiting to be accepted, instead of the number of incomplete connection requests.  The
+maximum length of the queue for incomplete sockets can be set  using  /proc/sys/net/ipv4/tcp_max_syn_backlog.   When
+syncookies are enabled there is no logical maximum length and this setting is ignored.  See tcp(7) for more informa-
+tion.
+
+If the backlog argument is greater than the value in /proc/sys/net/core/somaxconn, then it is silently truncated  to
+that  value;  the  default  value in this file is 128.  In kernels before 2.4.25, this limit was a hard coded value,
+SOMAXCONN, with the value 128.
+</code></pre>
+
+<p>以上文字简单的翻译：该参数在Linux 2.2内核版本前后有不同的表现。在2.2版本以后表示的是已经建立起连接等待被接受的队列大小，而在之前则是未完成连接队列长度。未完成连接队列的最大长度由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog指定。而backlog不得大于系统参数/proc/sys/net/core/somaxconn，该参数的默认值为128。</p>
+
+<p>上面提到的“未完成连接”，其实就是处于SYN-RCVD状态的连接，即只收到了客户端的SYN报文的连接。</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-sync-queue-and-accept-queue-small.jpg" alt="tcp-sync-queue-and-accept-queue-small" title="tcp-sync-queue-and-accept-queue-small" /></p>
+
+<p>Linux服务器内部，会维护一个半连接队列，即处于SYN-RCVD状态的连接都维护在这个队列中。同时还会维护一个完全连接队列，即处于ESTABLISH状态的队列。当连接从SYN-RCVD切换到ESTABLISH状态时，连接将从半连接队列转移到全连接队列中。</p>
+
+<p>半连接队列无法由用户指定，而是由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog控制。
+全连接队列大小取listen系统调用的backlog和系统参数/proc/sys/net/core/somaxconn中的最小值。</p>
+
+<p>当客户端建立连接时，server端给客户端的SYN-ACK回报，由于种种原因客户端一直没有收到，此时连接一直处于半连接状态，既不能算连接成功了也不算连接失败，此时server端需要给客户端重传SYN-ACK报文。但是也有一种可能，即客户端恶意的发送大量SYN报文给服务器，让服务器长期有大量处于半连接状态的连接，耗尽服务器资源。Linux有几个参数用于控制重传SYN-ACK报文重传行为的：</p>
+
+<pre><code class="language-C">net.ipv4.tcp_synack_retries #内核放弃连接之前发送SYN+ACK包的数量
+net.ipv4.tcp_syn_retries #内核放弃建立连接之前发送SYN包的数量
+</code></pre>
+
+<h2 id="连接结束">连接结束</h2>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-finish.jpg" alt="tcp-finish" title="tcp-finish" /></p>
+
+<p>以上图来说明TCP连接释放的过程：</p>
+
+<ul>
+<li>A主动关闭连接，向B发送FIN=1的报文，由于A进行了主动关闭，因此进入FIN-WAIT-1状态。</li>
+<li>B收到FIN=1的报文之后，进入被动关闭状态，即CLOSE-WAIT状态，此时这个TCP连接属于半关闭状态，即A向B的通路被关闭不能再发送数据，但是B还是可以向A发送数据。</li>
+<li>A收到B针对FIN=1报文的应答之后，从FIN-WAIT-1状态切换到FIN-WAIT-2状态。</li>
+<li>当B也需要释放连接时，同样向A发送FIN=1的报文，然后B从CLOSE-WAIT状态切换到LAST-ACK状态。</li>
+<li>处于FIN-WAIT-2状态的A收到B的FIN=1报文后，进入TIME-WAIT状态，这个状态将持续2MSL时间，最后切换到CLOSED状态。</li>
+<li>处于LAST-ACK状态的B，收到A针对FIN=1报文的应答之后，进入CLOSED状态。</li>
+</ul>
+
+<p>以上就是TCP释放连接的四次挥手过程，以上流程还需要补充：</p>
+
+<h3 id="四次挥手的原因">四次挥手的原因</h3>
+
+<p>TCP连接是全双工的，即一端接收到FIN报时，对端虽然不再能发送数据，但是可以接收数据，所以需要两边都关闭连接才算完全关闭了这条TCP连接。</p>
+
+<h3 id="time-wait状态">TIME-WAIT状态</h3>
+
+<p>主动关闭的一方收到对端发出的FIN报之后，就从FIN-WAIT-2状态切换到TIME-WAIT状态了，再等待2MSL时间才再切换到CLOSED状态。这么做的原因在于：</p>
+
+<ul>
+<li>确保被动关闭的一方有足够的时间收到ACK，如果没有收到会触发重传。</li>
+<li>有足够的时间，以让该连接不会与后面的连接混在一起。</li>
+</ul>
+
+<p>TIME-WAIT状态如果过多，会占用系统资源。Linux下有几个参数可以调整TIME-WAIT状态时间：</p>
+
+<ul>
+<li>net.ipv4.tcp_tw_reuse = 1 表示开启重用。允许将TIME-WAIT sockets重新用于新的TCP连接，默认为0，表示关闭。</li>
+<li>net.ipv4.tcp_tw_recycle = 1 表示开启TCP连接中TIME-WAIT sockets的快速回收，默认为0，表示关闭。</li>
+<li>net.ipv4.tcp_max_tw_buckets = 5000表示系统同时保持TIME_WAIT套接字的最大数量，如果超过这个数字，TIME_WAIT套接字将立刻被清除并打印警告信息。默认为180000，改为5000。</li>
+</ul>
+
+<p>然而，从TCP状态转换图可以看出，主动进行关闭的链接才会进入TIME-WAIT状态，所以最好的办法：尽量不要让服务器主动关闭链接，除非一些异常情况，如客户端协议错误、客户端超时等等。</p>
+
+<h2 id="tcp协议状态机与系统调用的关系">TCP协议状态机与系统调用的关系</h2>
+
+<p>下图给出了TCP协议状态机与系统调用之间的对应关系。</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-statemachine.png" alt="tcp-statemachine" title="tcp-statemachine" /></p>
+
+<h1 id="tcp重传机制">TCP重传机制</h1>
+
+<p>TCP重转涉及到以下几个问题：</p>
+
+<ul>
+<li>如何估算往返时间？只有在正确估算往返时间的前提下，才知道一个TCP包多久没有收到回应算超时。</li>
+<li>在已知重传时间的前提下，重传TCP包依赖的其他数据结构和重传算法是如何的？</li>
+</ul>
+
+<p>以下来分别解释TCP重传机制中的几个问题。</p>
+
+<h2 id="估计往返时间">估计往返时间</h2>
+
+<p>报文段的样本RTT（sampleRTT）就是从某报文段被发出（即交给IP）到对该报文段的确认（ACK）被收到之间的时间。</p>
+
+<p>大多数TCP的实现仅在某一个时刻做一次SampleRTT的测量，而不是为每个发送的报文段测量一个SampleRTT。这就是说，在任意时刻，仅为一个已发送的但尚未被确认的报文段估计SampleRTT，从而产生一个接近每个RTT的新SampleRTT值。另外,TCP绝不为已被重传的报文段计算SampleRTT，它仅为传输一次的报文段测量SampleRTT。</p>
+
+<p>由于路由器的拥塞和系统负载的变化，SampleRTT也会随之波动。因此，TCP维持一个SampleRTT均值（称为EstimateRTT），一旦获得一个新的SampleRTT值，根据以下公式更新EstimateRTT：</p>
+
+<pre><code>  EstimateRTT = (1 - α) * EstimateRTT + α * SampleRTT
+</code></pre>
+
+<p>即：新的EstimateRTT值由旧的EstimateRTT值与SampleRTT值加权相加而成。，在RFC 6298中，α参考值是0.125（1/8）。</p>
+
+<p>除了估算RTT之外，还需要测量RTT的变化，RFC 6298定义了RTT偏差DevRTT，用于估算SampleRTT偏离EstimateRTT的程度，公式为：</p>
+
+<pre><code>  DevRTT = (1 - β) * DevRTT + β * | SampleRTT - EstimateRTT|
+</code></pre>
+
+<p>如果SampleRTT波动值较小，那么DevRTT的值就会比较小。β的推荐值为0.25。</p>
+
+<h2 id="重传时间间隔">重传时间间隔</h2>
+
+<p>有了EstimateRTT和DevRTT值，就可以计算出重传时间间隔。显然，这个值应该大于等于EstimateRTT，否则将造成不必要的重传，但是超时时间也不能比EstimateRTT大太多，否则当报文段丢失时，TCP不能很快重传该报文段，导致数据传输时延时太大。因此要求将超时间隔设为EstimateRTT加上一定余量。当SampleRTT值波动较大时，这个余量应该大些，当波动较小时这个余量应该小一些。因此，DevRTT在这里就派上用场了，公式如下：</p>
+
+<pre><code>  TimeoutInterval = EstimateRTT + 4 * DevRTT
+</code></pre>
+
+<p>RFC 6298推荐的TimeoutInterval值为1秒。当出现超时后，TimeoutInterval值将加倍，以免即将被确认的后续报文段过早出现超时。</p>
+
+<h2 id="可靠数据传输">可靠数据传输</h2>
+
+<h3 id="简化的算法">简化的算法</h3>
+
+<p>先给出一个最简化版本的重传算法，在这里假设发送方不受TCP流量和拥塞控制的限制，来自上层的数据长度小于MSS，且数据传送只在一个方向进行。在这里，发送方只使用超时来恢复报文段的丢失，后面再给出更全面的描述。</p>
+
+<p>TCP发送方有三个与发送和重传相关的主要事件：</p>
+
+<ul>
+<li>从上层应用程序接收数据。此时TCP将数据封装到一个报文段中，并把报文段交给IP。此时，如果定时器没有给其他报文段运行，那么此时就启动重传定时器，该定时器的超时时间是前面计算出来的TimeoutInterval。</li>
+<li>超时事件。此时TCP的处理是重传引起超时的报文段来响应超时事件，然后TCP重启定时器。</li>
+<li>收到来到接收方的确认报文段（ACK）。当该事件发生时，TCP将ACK的值y与自己的变量SendBase进行比较。TCP的状态变量SendBase是最早未被确认的字节序号（因此SendBase-1是指接收方已正确按序接收到的数据的最后一个字节的序号。）如果y&gt;SendBase，那么该ACK是在确认一个或多个先前未被确认的报文段，因此发送方更新它的SendBase变量；如果当前还有未被确认的报文段，TCP还需要重启定时器。</li>
+</ul>
+
+<p>综上，该简化算法如下处理以上三个事件：</p>
+
+<pre><code>NextSeqNum = InitialSeqNumber
+SendBase = InitialSeqNumber
+
+循环：
+  如果是收到了上层应用程序发出的数据：
+    使用NextSeqNum创建新的TCP报文
+    如果当前TCP重传定时器没有在运行：
+      启动TCP重传定时器
+    将TCP报文交给IP层
+    NextSeqNum = NextSeqNum + length(data)
+
+  如果TCP重传定时器超时：
+    重传所有还没有被确认(ACK)的报文中seq最小的那个TCP报文
+    启动TCP重传定时器
+
+  如果收到了ACK报文，其中ACK值=y：
+    如果 y &gt; SendBase：
+      SendBase = y
+      如果当前还有没有被ACK的TCP报文：
+        启动TCP重传定时器
+</code></pre>
+
+<h3 id="超时时间加倍">超时时间加倍</h3>
+
+<p>如上所述，每当TCP超时定时器被触发，意味着有TCP报文在指定时间内没有收到ACK，此时TCP会重传最小序号的没有ACK的报文。每次TCP重传时都会将下一次超时时间设置为先前值的两倍，而不是使用当前计算得到的EstimateRTT值。</p>
+
+<h3 id="快速重传-fast-retransmit">快速重传（fast retransmit）</h3>
+
+<p>超时触发重传存在的问题之一是超时周期可能相对较长。当一个报文段丢失时，这种长超时周期迫使发送方延迟重传丢失的分组，因而增加了端到端的时延。发送方通常可在超时事件发生之前通过注意所谓冗余ACK来检测丢包情况。</p>
+
+<p>冗余ACK（duplicate ACK）就是再次确认某个报文段的ACK，而发送方之前已经收到对该报文段的ACK。</p>
+
+<p>如果TCP发送方收到相同数据的3个冗余ACK，将以这个做为一个提示，说明跟在这个已被确认过3次的报文段之后的报文已经丢失。一旦收到3个冗余ACK，TCP就执行快速重传（fast retransmit），即在该报文段的定时器过期之前重传丢失的报文段。</p>
+
+<p>有了以上的补充，将前面收到ACK事件的处理修改如下：</p>
+
+<pre><code>  如果收到了ACK报文，其中ACK值=y：
+    如果 y &gt; SendBase：
+      SendBase = y
+      如果当前还有没有被ACK的TCP报文：
+        启动TCP重传定时器
+    否则：  // 意味着收到了duplicate ACK
+      递增针对y的duplicate ACK计数
+      如果该计数 == 3：
+        重传seq在y之后的报文
+</code></pre>
+
+<h1 id="流量控制">流量控制</h1>
+
+<p>TCP为它的应用程序提供了流量控制服务（flow control service），以消除发送方使接收方数据溢出的可能性。</p>
+
+<p>流量控制因此是一种速度匹配服务，即发送方的发送速率与接收方应用程序的读取速率相匹配。</p>
+
+<p>另一种控制发送方速度的方式是拥塞控制（congestion control），但是这两者是不同的：</p>
+
+<ul>
+<li>流量控制基于对端的窗口大小来调整发送方的发送速度。</li>
+<li>拥塞控制基于IP网络的速度来调整发送方的发送策略。</li>
+</ul>
+
+<p>下一节分析拥塞控制，这一节分析流量控制。</p>
+
+<p>TCP让发送方维持一个接收窗口（receive window）的变量来提供流量控制。接收窗口用于给发送方一个提示，该接收方还有多少可用的缓存空间。因为TCP是全双工通信，因此在连接两端都各自维护一个接收窗口，通过TCP头的window字段来通知对方本方的接收窗口大小。</p>
+
+<h2 id="tcp滑动窗口">TCP滑动窗口</h2>
+
+<p>client和server两端都有自己的协议栈buffer，传输时不可能一直无限量的传输数据下去。此时如何让对端知道自己最多能接收多少数据呢？通过TCP协议头中的window字段来通知对端自己当前的接收窗口大小。</p>
+
+<p>从以上可以看出，TCP协议通过TCP头部的window字段来解决流量控制问题。</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcpswwindows.png" alt="tcpswwindows" title="tcpswwindows" /></p>
+
+<p>如上图中，分成了四个部分，其中黑色框住的部分是滑动窗口：</p>
+
+<ul>
+<li>#1：表示已收到ack报文确认的数据。</li>
+<li>#2：发送出去但是还没有收到对端ACK确认的数据。</li>
+<li>#3：还没有发送出去的数据。</li>
+<li>#4：窗口以外的数据。</li>
+</ul>
+
+<p>当收到对端确认一部分数据的ACK之后，滑动窗口将向右边移动，如下图中，收到36的ACK，并且发出了46-51字节的数据之后，滑动窗口变化成了：</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcpswslide.png" alt="tcpswslide" title="tcpswslide" /></p>
+
+<p>以下图为例来解释滑动窗口变化的流程：</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcpswflow.png" alt="tcpswflow" title="tcpswflow" /></p>
+
+<ol>
+<li>client端的可用窗口大小为360字节。client发送140字节数据到server，其中seq=1，length=140；发送之后，client的可用窗口向右移动140字节，窗口总大小还是360字节。</li>
+<li>server端的可用窗口大小为360字节。收到client发来的140字节数据之后，server端接收窗口向右移动140字节，但是由于应用程序繁忙，只取出了其中的100字节，因此server在ACK的时候，可用窗口还剩360-100=260字节，ACK=141。</li>
+<li>client在接收到server的ACK=141报文之后，发送窗口左边缘向右移动140字节，表示前面发送的140字节server已经接收到了。剩下的260字节，由于server端告知窗口大小为260字节，client调整自己的发送窗口为260字节，表示此时不能发送大于260字节的数据。</li>
+<li>client发送180字节，可用窗口变成80（260-189）字节。</li>
+<li>server收到client发送的180字节，放入buffer中，这时应用程序还是很繁忙一个字节都没有处理，因此这一次应答回客户端ACK=321（140+180+1），窗口大小为80（260-180）。</li>
+<li>client收到server的确认应答，确认了第二次发送的180字节已经被server端收到，于是发送窗口左边缘向
+前移动了180字节。</li>
+<li>client发送80字节，可用窗口变成0（80-80）。</li>
+<li>server收到了80字节，但是这一次应用程序还是一个字节都没有从buffer中取出处理，因此server应答client端ACK=401（140+180+80+1），窗口大小为0（80-80）。</li>
+<li>client收到确认包，确认之前发送的80字节已经到达server端。另外server端告知窗口大小为0，因此client无论是否有数据需要发送，都不能发送了。</li>
+</ol>
+
+<h1 id="拥塞控制">拥塞控制</h1>
+
+<p>TCP所采用的方法是让每一个发送方根据所感知的网络拥塞程度来限制其能向连接发送流量的速率。这种方法提出了三个问题：</p>
+
+<ul>
+<li>一个TCP发送方如何限制它向其连接发送流量的速率？</li>
+<li>一个TCP发送方如何感知从它到目的地之间的路径上存在拥塞呢？</li>
+<li>当发送方感受到端到端之间的拥塞时，采用何种算法来改变其发送速率呢？</li>
+</ul>
+
+<p>首先分析TCP发送方如何限制向起连接发送流量的。在发送方的拥塞控制机制中再维护一个变量，即cwnd（congestion window，拥塞窗口），通过它对一个TCP发送方能向网络发送的流量速率进行限制。即：一个发送方中未被确认的数据量不会超过cwnd与rwnd中的最小值：</p>
+
+<pre><code>  LastByteSent - LastBtyeAcked &lt;= min(cwnd, rwnd)
+</code></pre>
+
+<p>接下来讨论如何感知出现了拥塞的。我们将一个TCP发送方的“丢包事件”定义为：要么出现超时，要么收到来自接收方的3次冗余ACK（duplicate ACK）。</p>
+
+<p>拥塞控制有以下几个常用的手段：慢启动、拥塞避免、快速恢复。其中慢启动和拥塞避免是TCP的强制部分，两者的差异在于对收到ACK做出反应时增加cwnd的方式，而快速恢复则是推荐部分，对TCP发送方并非是必需的。</p>
+
+<h2 id="慢启动-slow-start-算法">慢启动（slow start）算法</h2>
+
+<p>慢启动算法的思想是：刚建立的连接，根据对端的应答情况慢慢提速，不要一下子发送大量的数据。</p>
+
+<p>慢启动算法维护一个cwnd（Congestion Window）变量，以及一个慢启动阈值变量ssthresh（slow start threshold），算法的逻辑是：</p>
+
+<ul>
+<li>连接建立好之后，cwnd初始为1，表示可以传一个MSS大小的数据。</li>
+<li>在每收到一个对新的报文段的确认后，将拥塞窗口递增1。</li>
+<li>当cwnd&gt;=ssthresh，拥塞控制算法进入后面将介绍到的“拥塞避免”阶段。</li>
+</ul>
+
+<p>可以看到，慢启动算法通过对对端应答报文的RTT时间探测，来修改cwnd值。而这个修改，在不超过ssthresh的情况下，是指数增长的。</p>
+
+<p><img src="/media/imgs/20190227-tcp/slow-start.png" alt="slow-start" title="slow-start" /></p>
+
+<p>何时结束这种指数增长呢？有如下三种情况：</p>
+
+<ul>
+<li>如果存在一个由超时指示的丢包事件（即拥塞），TCP发送方将cwnd设置为1并重新开始慢启动过程，此时还会将ssthresh设置为cwnd/2。</li>
+<li>当cwnd&gt;=ssthresh，进入后面介绍的“拥塞避免”阶段。</li>
+<li>如果检测到三个冗余ACK（duplicate ACK），这时TCP进入快速重转并进入快速恢复状态。</li>
+</ul>
+
+<h2 id="拥塞避免-congestion-avoidance-算法">拥塞避免（ Congestion Avoidance）算法</h2>
+
+<p>当cwnd&gt;=ssthresh，进入拥塞避免阶段，此时cwnd的增长不再像之前那样是指数增长，而是线性增长。</p>
+
+<ul>
+<li>收到一个ACK时，cwnd = cwnd + 1/cwnd。</li>
+<li>当每过一个RTT时，cwnd = cwnd + 1。</li>
+</ul>
+
+<h2 id="拥塞状态的算法">拥塞状态的算法</h2>
+
+<p>TCP拥塞控制认为网络丢包是由于网络拥塞造成的，有如下两种判定丢包的方式：</p>
+
+<ul>
+<li>上面提到过的超时重传。</li>
+<li>收到三个重复确认ACK包（duplicate ACK）。</li>
+</ul>
+
+<p>超时重传的原理，在上面也简单提到过：在发送一个TCP报文之后，会启动一个计时器，该计时器的超时时间是根据之前预估的几个往返时间RTT相关的参数计算得到的，如果再这个计时器超时之前都没有收到对端的应答，那么就需要重传这个报文。</p>
+
+<p>而如果发送端收到三个以上的重复ACK时，就认为数据已经丢失需要重传，此时会立即重传数据而不是等待前面的超时重传定时器超时，所以被称为“快速重传”。</p>
+
+<p>最早的TCP Tohoe算法是这么处理拥塞状态的，当出现丢包时：</p>
+
+<ul>
+<li>将慢启动阈值ssthresh变成当前cwnd的一半，即：ssthresh = cwnd / 2。</li>
+<li>cwnd = 1，从而直接回到原来的慢启动状态。</li>
+</ul>
+
+<p>但是由于这个算法过于激进，每次一出现丢包cwnd就变成1，因此后来的TCP Reno算法进行了优化，其优化点在于，在收到三个重复确认ACK时，TCP开启快速重传Fast Retransmit算法：</p>
+
+<ul>
+<li>cwnd变成现在的一半，即：cwnd = cwnd / 2。</li>
+<li>ssthresh设置为缩小后的cwnd大小。</li>
+<li>进入快速恢复阶段。</li>
+</ul>
+
+<p>以下图来解释上面三种状态的处理：</p>
+
+<p><img src="/media/imgs/20190227-tcp/tcp-congestion-avoidance-example.png" alt="tcp-congestion-avoidance-example" title="tcp-congestion-avoidance-example" /></p>
+
+<p>上图中，横轴为传输轮次，纵轴为cwnd大小，按照时间顺序，其过程如下：</p>
+
+<ul>
+<li>0-4：为慢启动阶段，在这个时间里，cwnd指数级增长，到时间4时等于初始的ssthresh值，此时进入拥塞避免状态。</li>
+<li>4-12：为拥塞避免状态，此时cwnd值线性增长。</li>
+<li>12：在时间点12，收到了三个重复ACK值，此时两个不同的拥塞控制算法的处理不同：
+
+<ul>
+<li>TCP Tohoe算法：图中的点线部分，在时间点12，直接将cwnd变成1进入慢启动阶段，这个算法已经废弃。</li>
+<li>TCP Reno算法：cwnd变成原来的一半，ssthresh变成最新的cwnd值使用快速恢复算法。</li>
+</ul></li>
+</ul>
+
+<p>这里提到了TCP Reno算法在收到三个重复ACK时，cwnd变成原来的一半并且使用快速恢复算法来处理拥塞，下面就接着分析快速恢复算法。</p>
+
+<h2 id="快速恢复-fast-recovery">快速恢复（fast recovery）</h2>
+
+<p>再次说明：该算法只有TCP Reno版本才用，已经被废弃的TCP Tohoe算法并没有这部分。</p>
+
+<p>在进入快速恢复以前，TCP Reno已经做了如下的事情：</p>
+
+<ul>
+<li>cwnd = cwnd / 2，即变成原来的一半。</li>
+<li>ssthresh = cwnd，即ssthresh变成新的cwnd值。</li>
+</ul>
+
+<p>快速恢复算法的逻辑如下：</p>
+
+<ul>
+<li>cwnd = cwnd + 3 MSS，加3 MSS的原因是因为收到3个重复的ACK。</li>
+<li>重传重复ACK（duplicate ACK）指定的数据包。</li>
+<li>如果再收到重复ACK，cwnd递增1。</li>
+<li>如果收到新的ACK，表明重传的报文已经收到。此时将cwnd设置为ssthresh值，进入拥塞避免状态。</li>
+</ul>
+
+<p><img src="/media/imgs/20190227-tcp/fast-recovery-example.png" alt="fast-recovery-example" title="fast-recovery-example" /></p>
+
+<p>如上图中：发送端的第五个包丢失，导致发送端收到三个重复的针对第五个包的ACK。此时将ssthresh值设置为当时cwnd的一半，即6/2=3，而cwnd设置为3+3=6。然后重传第五个包。当收到最新的ACK时，即ACK 11，此时将cnwd设置为当前的ssthresh，即3，然后退出快速恢复而进入拥塞避免状态。</p>
+
+<h2 id="拥塞控制算法的有限状态机">拥塞控制算法的有限状态机</h2>
+
+<p>有了前面的解释，理解TCP拥塞控制算法的FSM就容易了：</p>
+
+<p><img src="/media/imgs/20190227-tcp/congestion-flow-algo-fsm.png" alt="congestion-flow-algo-fsm" title="congestion-flow-algo-fsm" /></p>
+
+<p>下面对以上FSM进行简单的总结，每个状态转换箭头都做了数字标记，以数字标记为序来分别做解释：</p>
+
+<ol>
+<li>这是拥塞控制算法的初始状态：
+
+<ul>
+<li>cwnd = 1 MSS</li>
+<li>ssthresh = 64KB</li>
+<li>dupACKCount（重复ACK数量） = 0</li>
+<li>此时进入慢启动状态。</li>
+</ul></li>
+<li>慢启动状态下重传超时，则几个拥塞控制算法变量变为：
+
+<ul>
+<li>ssthresh = cwnd / 2</li>
+<li>cwnd = 1 MSS</li>
+<li>dupACKCount = 0</li>
+<li>同时重传丢失的报文段。</li>
+</ul></li>
+<li>收到重复ACK时，递增dupACKCount数量。</li>
+<li>当收到的重复ACK数量为3时，进入快速恢复状态：
+
+<ul>
+<li>ssthresh = cwnd / 2</li>
+<li>cwnd = ssthresh + 3 MSS</li>
+<li>同时重传丢失的报文段。</li>
+</ul></li>
+<li>在慢启动状态下收到了新的ACK时，每收到一个ACK则递增cwnd一个MSS，即“指数增长”：
+
+<ul>
+<li>cwnd = cwnd + MSS</li>
+<li>dupACKCount = 0</li>
+<li>继续传输新的报文。</li>
+</ul></li>
+<li>在慢启动状态下，cwnd&gt;=ssthresh值时，进入拥塞避免状态：</li>
+<li>慢启动状态下，每次收到一个ACK报文时，加法递增：
+
+<ul>
+<li>cwnd = cwnd + MSS * (MSS/cwnd)</li>
+<li>dupACKCount = 0</li>
+<li>继续传输新的报文</li>
+</ul></li>
+<li>收到重复ACK时，递增dupACKCount数量。</li>
+<li>当收到的重复ACK数量为3时，进入快速恢复状态，注意这里的处理跟慢启动状态下收到三个重复ACK的处理是一致的（见状态4）：
+
+<ul>
+<li>ssthresh = cwnd / 2</li>
+<li>cwnd = ssthresh + 3 MSS</li>
+<li>同时重传丢失的报文段。</li>
+</ul></li>
+<li>快速恢复状态下，收到重复ACK时：
+
+<ul>
+<li>cwnd = cwnd + MSS</li>
+<li>传输新的报文段。</li>
+</ul></li>
+<li>快速恢复状态下重传超时，则几个拥塞控制算法变量变为：
+
+<ul>
+<li>ssthresh = cwnd / 2</li>
+<li>cwnd = 1</li>
+<li>dupACKCount = 0</li>
+<li>同时重传丢失的报文段。</li>
+</ul></li>
+<li>在快速恢复状态下收到了新的ACK时：
+
+<ul>
+<li>cwnd = ssthresh</li>
+<li>dupACKCount = 0</li>
+</ul></li>
+</ol>
+
+<h1 id="参考资料">参考资料</h1>
+
+<ul>
+<li><a href="https://coolshell.cn/articles/11564.html">TCP 的那些事儿（上）</a></li>
+<li><a href="http://remcarpediem.net/2019/02/27/TCP%E6%8B%A5%E5%A1%9E%E6%8E%A7%E5%88%B6%E7%AE%97%E6%B3%95%E7%AE%80%E4%BB%8B/">TCP拥塞控制算法简介</a></li>
+<li><a href="https://www.cnxct.com/something-about-phpfpm-s-backlog/">TCP SOCKET中backlog参数的用途是什么？</a></li>
+<li><a href="https://segmentfault.com/a/1190000008224853">tcp的半连接与完全连接队列</a></li>
+<li><a href="https://github.com/CyC2018/CS-Notes/blob/master/docs/notes/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C.md#tcp-%E9%A6%96%E9%83%A8%E6%A0%BC%E5%BC%8F">计算机网络</a></li>
+</ul>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-02-27</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190215-leveldb/">
+            <span class="next-text nav-default">Leveldb代码阅读笔记</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://lichuang.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
