@@ -61,7 +61,7 @@
 
 <meta itemprop="datePublished" content="2019-03-24T09:41:21&#43;08:00" />
 <meta itemprop="dateModified" content="2019-03-24T09:41:21&#43;08:00" />
-<meta itemprop="wordCount" content="3405">
+<meta itemprop="wordCount" content="3881">
 
 
 
@@ -176,6 +176,7 @@ if (!doNotTrack) {
 <li><a href="#情景分析">情景分析</a></li>
 <li><a href="#利用好测试用例">利用好测试用例</a></li>
 <li><a href="#厘清核心数据结构之间的关系">厘清核心数据结构之间的关系</a></li>
+<li><a href="#整体和细节">整体和细节</a></li>
 <li><a href="#多问自己几个问题">多问自己几个问题</a></li>
 <li><a href="#写自己的代码阅读笔记">写自己的代码阅读笔记</a></li>
 <li><a href="#总结">总结</a></li>
@@ -250,6 +251,31 @@ if (!doNotTrack) {
 
 <p>我惯用的做法，是在某个重要的入口函数上面加上断点，然后构造触发场景的调试代码，当代码在断点处停下，通过查看堆栈、变量值等等来观察代码的行为。</p>
 
+<p>例如，Lua解释器代码中中，生成Opcode最终都会调用函数luaK_code，那么我就在这个函数上面加上断点，然后构造我想要调试的场景，只要在断点处中断，我通过函数堆栈就能看到完整的调用流程：</p>
+
+<pre><code class="language-C">(lldb) bt
+* thread #1: tid = 0xb1dd2, 0x00000001000071b0 lua`luaK_code, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+* frame #0: 0x00000001000071b0 lua`luaK_code
+frame #1: 0x000000010000753e lua`discharge2reg + 238
+frame #2: 0x000000010000588f lua`exp2reg + 31
+frame #3: 0x000000010000f15b lua`statement + 3131
+frame #4: 0x000000010000e0b6 lua`luaY_parser + 182
+frame #5: 0x0000000100009de9 lua`f_parser + 89
+frame #6: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
+frame #7: 0x0000000100009bf4 lua`luaD_pcall + 68
+frame #8: 0x0000000100009d65 lua`luaD_protectedparser + 69
+frame #9: 0x00000001000047e1 lua`lua_load + 65
+frame #10: 0x0000000100018071 lua`luaL_loadfile + 433
+frame #11: 0x0000000100000eb9 lua`pmain + 1545
+frame #12: 0x00000001000090cd lua`luaD_precall + 589
+frame #13: 0x00000001000098c1 lua`luaD_call + 81
+frame #14: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
+frame #15: 0x0000000100009bf4 lua`luaD_pcall + 68
+frame #16: 0x00000001000046fb lua`lua_cpcall + 43
+frame #17: 0x00000001000007af lua`main + 63
+frame #18: 0x00007fff6468708d libdyld.dylib`start + 1
+</code></pre>
+
 <p>情景分析的好处在于：不会在一个项目中大海捞针似的查找，而是能够把问题缩小到一个范围内展开来理解。</p>
 
 <p>“情景分析”这一概念不是我想出来的名词，比如有这么几本分析代码的书籍，如：<a href="https://book.douban.com/subject/1231584/">《Linux内核源代码情景分析》</a>，<a href="https://book.douban.com/subject/3715700/">《Windows内核情景分析》</a>。</p>
@@ -273,6 +299,14 @@ if (!doNotTrack) {
 <p>需要说明的是，情景分析、厘清核心数据结构这两步并没有严格的顺序关系，不见得是先做某事再做某事，而是交互进行的。</p>
 
 <p>比如，你如果现在刚接手某个项目，需要简单的了解一下项目，可以先阅读代码了解都有哪些核心数据结构。理解了之后，如果不清楚某些情景下的流程，可以使用情景分析法。总而言之，交替进行直到解答你的疑问为止。</p>
+
+<h1 id="整体和细节">整体和细节</h1>
+
+<p>阅读代码的过程中，需要在整体和细节之间做权衡。</p>
+
+<p>比如，有时候你需要大体了解一个整体的框架、轮廓、流程之后，才能再针对具体的细节深入进去。这个时候，不宜针对具体的函数实现、算法等深入分析。而细节的分析，又不能缺少，否则一些东西的理解又流于表面。</p>
+
+<p>所以，如何把握整体和细节是一个需要累积阅读代码经验才能把握好的。我的建议是：过程中还是以整体为首，在不理解整体的前提之前，不要太过深入某个细节。把某个函数、数据结构当成一个黑盒，知道它们的输入、输出就好，只要不影响整体的理解就暂且放下接着往前看。</p>
 
 <h1 id="多问自己几个问题">多问自己几个问题</h1>
 
