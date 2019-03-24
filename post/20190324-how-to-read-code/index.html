@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>如何阅读一份源代码？ - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于： 不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://codedump.info/post/20190324-how-to-read-code/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="如何阅读一份源代码？" />
+<meta property="og:description" content="阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于： 不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://codedump.info/post/20190324-how-to-read-code/" /><meta property="article:published_time" content="2019-03-24T09:41:21&#43;08:00"/>
+<meta property="article:modified_time" content="2019-03-24T09:41:21&#43;08:00"/>
+
+<meta itemprop="name" content="如何阅读一份源代码？">
+<meta itemprop="description" content="阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于： 不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，">
+
+
+<meta itemprop="datePublished" content="2019-03-24T09:41:21&#43;08:00" />
+<meta itemprop="dateModified" content="2019-03-24T09:41:21&#43;08:00" />
+<meta itemprop="wordCount" content="3101">
+
+
+
+<meta itemprop="keywords" content="" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="如何阅读一份源代码？"/>
+<meta name="twitter:description" content="阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于： 不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，"/>
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">如何阅读一份源代码？</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-03-24 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E6%9D%82/"> 杂 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#先跑起来">先跑起来</a></li>
+<li><a href="#调试手段">调试手段</a></li>
+<li><a href="#使用顺手的工具">使用顺手的工具</a></li>
+<li><a href="#情景分析">情景分析</a></li>
+<li><a href="#利用好测试用例">利用好测试用例</a></li>
+<li><a href="#厘清核心数据结构之间的关系">厘清核心数据结构之间的关系</a></li>
+<li><a href="#多问自己几个问题">多问自己几个问题</a></li>
+<li><a href="#写自己的代码阅读笔记">写自己的代码阅读笔记</a></li>
+<li><a href="#总结">总结</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<p>阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于：</p>
+
+<ul>
+<li>不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，比如接手一个其他人的项目。</li>
+<li>阅读优秀的项目源码是学习他人优秀经验的重要途径之一，这一点我自己深有体会。</li>
+</ul>
+
+<p>然而，读代码比写代码还是更难一些，原因在于“<a href="https://www.zhihu.com/question/21820752/answer/19427754">写代码是在表达自己,读代码是在理解别人</a>”。因为面对的项目多，项目的作者有各自的风格，理解起来需要花费不少的精力。</p>
+
+<p>我从业这些年泛读、精读过的项目源码不算少了，陆陆续续的也写了一些代码分析的文章，本文中就简单总结一下我的方法。</p>
+
+<h1 id="先跑起来">先跑起来</h1>
+
+<p>开始阅读一份项目源码的第一步，是先让这个项目能够通过你自己编译通过并且顺利跑起来。这一点尤其重要。</p>
+
+<p>有的项目比较复杂，依赖的组件多，搭建起一个调试环境并不容易，所以并不见得是所有项目都能顺利的跑起来。如果能自己编译跑起来，那么后面讲到的情景分析、加上调试代码、调试等等才有展开的基础。</p>
+
+<p>就我的经验而言，一个项目代码，是否能顺利的搭建调试环境，效率大不一样。</p>
+
+<h1 id="调试手段">调试手段</h1>
+
+<p>调试手段，大体分为以下两种：</p>
+
+<ul>
+<li>加调试语句。为了做到这一点，你需要先了解项目如何加调试日志，可能需要修改项目的日志级别支持输出一些在调试级别的日志，等等。</li>
+<li>断点调试。并不是所有项目代码，跑起来之后都自带调试信息能够断点调试的。所以在自己的调试环境里需要先确定这一点。比如一些C相关的项目，基本都是&rdquo;./configure &amp; make&rdquo;来编译，但是makefile中的编译flags使用了O2之类的优化选项，此时需要自己先手动修改成&rdquo;-O0 -g&rdquo;，即编译生成的二进制中不优化且带上调试信息。</li>
+</ul>
+
+<p>总之，在能够搭建自己的调试环境之后，还需要想办法确定一下如何加上调试日志以及断点调试。</p>
+
+<h1 id="使用顺手的工具">使用顺手的工具</h1>
+
+<p>好的工具会让你事半功倍，这一点应该很多人都同意。</p>
+
+<p>我阅读Go代码的时候，喜欢使用IDEA，这个IDE工具可以完美的做到以下几点：</p>
+
+<ul>
+<li>符号的定位、跳转、查找符号被引用的地方。</li>
+<li>左边能够展开一个源码文件中的所有符号。</li>
+</ul>
+
+<p>反之，很多人推崇的VSCode，我几次尝试使用用来阅读Go和C类代码，都觉得不够顺手，查找符号能力不行、也没有地方可以看到一个文件中出现的符号。</p>
+
+<p>C\C++类的代码，在尝试各种工具之后，还是使用Vim+Ctags+Cscope来写C、C++代码。</p>
+
+<h1 id="情景分析">情景分析</h1>
+
+<p>假如有了前面的基础，已经能够让项目顺利在自己的调试环境跑起来了，那么就可以对项目代码进行情景分析了。</p>
+
+<p>所谓的“情景分析”，我的理解就是自己构造一些情景，然后通过加断点、调试语句等分析在这些场景下的行为。</p>
+
+<p>以我自己为例，在写<a href="https://book.douban.com/subject/27108476/">《Lua设计与实现》</a>时，讲解到Lua虚拟机指令的解释和执行过程中，需要针对每个指令做分析，此时用的就是情景分析的方法。我会模拟出来使用该指令的Lua脚本代码，然后在程序里断点调试这些场景下的行为。</p>
+
+<p>情景分析的好处在于：不会在一个项目中大海捞针似的查找，而是能够把问题缩小到一个范围内展开来理解。</p>
+
+<p>“情景分析”这一概念不是我想出来的名词，比如有这么几本分析代码的书籍，如：<a href="https://book.douban.com/subject/1231584/">《Linux内核源代码情景分析》</a>，<a href="https://book.douban.com/subject/3715700/">《Windows内核情景分析》</a>。</p>
+
+<h1 id="利用好测试用例">利用好测试用例</h1>
+
+<p>好的项目都会自带不少用例，这类型的例子有：etcd、google出品的几个开源项目。</p>
+
+<p>如果测试用例写的很仔细，那么很值得好好去研究一下。原因在于：测试用例往往是针对某个单一的场景，独自构造出一些数据来对程序的流程进行验证。所以，其实跟前面的“情景分析”一样，都是让你从大的项目转而关注具体某个场景的手段之一。</p>
+
+<h1 id="厘清核心数据结构之间的关系">厘清核心数据结构之间的关系</h1>
+
+<p>虽然说“程序设计=算法+数据结构”，然后我实际中的体会，数据结构更加重要。</p>
+
+<p>因为结构定义了一个程序的架构，结构定下来了才有才有具体的实现。</p>
+
+<p>Linus说： “烂程序员关心的是代码。好程序员关心的是数据结构和它们之间的关系。”</p>
+
+<p>因此，在阅读一份代码时，厘清核心的数据结构之间的关系尤其重要。这个时候，需要使用一些工具来画一下这些结构之间的关系，我的源码分析类博客中有很多这样的例子，比如<a href="https://www.codedump.info/post/20190215-leveldb/">《Leveldb代码阅读笔记》</a>、<a href="https://www.codedump.info/post/20181125-etcd-server/">《Etcd存储的实现》</a>等等。</p>
+
+<p>需要说明的是，情景分析、厘清核心数据结构这两步并没有严格的顺序关系，不见得是先做某事再做某事，而是交互进行的。</p>
+
+<p>比如，你如果现在刚接手某个项目，需要简单的了解一下项目，可以先阅读代码了解都有哪些核心数据结构。理解了之后，如果不清楚某些情景下的流程，可以使用情景分析法。总而言之，交替进行直到解答你的疑问为止。</p>
+
+<h1 id="多问自己几个问题">多问自己几个问题</h1>
+
+<p>学习的过程中离不开交互。</p>
+
+<p>如果阅读代码只是输入（Input），那么还需要有输出（Output）。只有简单的输入好比喂东西给你吃，而只有更好的消化才能变为自己的营养，而输出就是更好消化知识的重要手段。</p>
+
+<p>其实这个思想很常见，比如学生上课（Input）了需要做练习作业（Output），比如学了算法（Input）需要自己编码练习（Output），等等。简而言之，输出是学习过程中的一种及时反馈，质量越高学习效率越高。</p>
+
+<p>输出的手段有很多，在阅读代码时，比较建议的是自己能够多问自己一些问题，比如：</p>
+
+<ul>
+<li>为什么选择这个数据结构来描述这个问题？类似的场景下，其他项目是怎么设计的？都有哪些数据结构做这样的事情？</li>
+<li>如果由我来设计这样的项目，我会怎么做？</li>
+</ul>
+
+<p>等等等等。越是主动积极的思考，就越有更好的输出，输出质量与学习质量成正比关系。</p>
+
+<h1 id="写自己的代码阅读笔记">写自己的代码阅读笔记</h1>
+
+<p>我从开始写博客，就是写不少各种项目的代码解读类文章，网名“codedump”也源于想把“code内部的实现原理dump出来”之意。</p>
+
+<p>前面提到学习质量与输出质量成正比关系，这是我自己的深刻体会。也因为如此，所以才要坚持阅读源码之后写自己的分析类笔记。</p>
+
+<p>写这类笔记，有以下几个需要注意的地方。</p>
+
+<p>虽然是笔记，但是要想象着在向一个不太熟悉这个项目的人讲解原理，或者想象一下是几个月甚至几年后的自己回头来看这个文章。在这种情况下，会尽量的把语言组织好，循循善诱的解释。</p>
+
+<p>尽量避免大段的贴代码。我认为在这类文章中，大段贴上代码有点自欺欺人：就是看上去自己懂了，其实并不见得。如果真要解释某段代码，可以使用伪代码或者缩减代码的方式。记住：不要自欺欺人，要真的懂了。如果真的想在代码上加上自己的注释，我有一个建议是fork出来一份该项目某个版本的代码，提交到自己的github上，上面随时可以加上自己的注释并且保存提交。比如我自己注释的etcd 3.1.10代码：<a href="https://github.com/lichuang/etcd-3.1.10-codedump">etcd-3.1.10-codedump</a>，类似的我阅读的其他项目都会在github上fork出一个带上codedump后缀的项目。</p>
+
+<p>多画图，一图胜千言，使用图形展示代码流程、数据结构之间的关系。我最近才发现画图能力也是很重要的能力，自己在重头学习如何使用图像来表达自己的想法。</p>
+
+<p>写作是很重要的基础能力，我一个朋友最近教育我，大体的意思是说：如果你在某方面的能力很强，如果再加上写作好、英语好，那么将极大方法你在这方面的能力。而类似写作、英语这样的底层基础能力，不是一撮而就的，需要长时间保持练习才可以。而写博客，对于技术人员而言，就是一种很好的锻炼写作的手段。</p>
+
+<h1 id="总结">总结</h1>
+
+<p>以上是我简单总结的一些阅读源码时候的手段和注意方法，大体而言有那么几点吧：</p>
+
+<ul>
+<li>只有更好的输出才能更好的消化知识，所谓的搭建调试环境、情景分析、多问自己问题、写代码阅读笔记等都是围绕输出来展开的。总而言之，不能想一条死鱼一样指望着光靠看代码就能完全理解它的原理，需要想办法跟它互动起来。</li>
+<li>写作是人的基础硬实力之一，对程序员而言锻炼写作能力的手段之一就是写博客，越早开始锻炼越好。</li>
+</ul>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-03-24</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190227-tcp/">
+            <span class="next-text nav-default">TCP协议笔记</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript><div id="comments-gitment"></div>
+  <link rel="stylesheet" href="/lib/gitment/gitment-0.0.3.min.css">
+    <script src="/lib/gitment/gitment-0.0.3.min.js"></script>
+  <script type="text/javascript">
+  const gitment = new Gitment({
+    id: '2019-03-24 09:41:21 \x2b0800 CST',
+    title: '如何阅读一份源代码？',
+    link: decodeURI(location.href),
+    desc: '阅读源代码的能力算是程序员的一种底层基础能力之一，这个能力之所以重要，原因在于： 不可避免的需要阅读或者接手他人的项目。比如调研一个开源项目，',
+    owner: 'lichuang',
+    repo: 'https:\/\/github.com\/lichuang\/lichuang.github.io',
+    oauth: {
+      client_id: 'e98396afa55545008a36',
+      client_secret: 'f027055422756bbf5b98a6ab3d74603e7c3542e6'
+    }
+  })
+  gitment.render('comments-gitment')
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="https://github.com/imsun/gitment">comments powered by gitment.</a></noscript>
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+
+
+
+
+</body>
+</html>
