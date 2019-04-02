@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>《数据密集型应用系统设计》第六章数据分区笔记 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.53" />
+
+
+<link rel="canonical" href="https://codedump.info/post/20181124-ddia-chapter06-partitioning/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="《数据密集型应用系统设计》第六章数据分区笔记" />
+<meta property="og:description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://codedump.info/post/20181124-ddia-chapter06-partitioning/" /><meta property="article:published_time" content="2019-04-02T22:17:24&#43;08:00"/>
+<meta property="article:modified_time" content="2019-04-02T22:17:24&#43;08:00"/>
+
+<meta itemprop="name" content="《数据密集型应用系统设计》第六章数据分区笔记">
+<meta itemprop="description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分">
+
+
+<meta itemprop="datePublished" content="2019-04-02T22:17:24&#43;08:00" />
+<meta itemprop="dateModified" content="2019-04-02T22:17:24&#43;08:00" />
+<meta itemprop="wordCount" content="2235">
+
+
+
+<meta itemprop="keywords" content="读书笔记,分布式," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="《数据密集型应用系统设计》第六章数据分区笔记"/>
+<meta name="twitter:description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分"/>
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">《数据密集型应用系统设计》第六章数据分区笔记</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-04-02 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/"> 读书笔记 </a>
+            
+              <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"> 分布式 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#键值数据的分区">键值数据的分区</a>
+<ul>
+<li><a href="#基于关键字区间的分区">基于关键字区间的分区</a></li>
+<li><a href="#基于关键字hash值分区">基于关键字Hash值分区</a></li>
+<li><a href="#负载倾斜和热点">负载倾斜和热点</a></li>
+</ul></li>
+<li><a href="#分区与二级索引">分区与二级索引</a>
+<ul>
+<li><a href="#基于文档分区的二级索引">基于文档分区的二级索引</a></li>
+<li><a href="#基于词条的二级索引">基于词条的二级索引</a></li>
+</ul></li>
+<li><a href="#分区再平衡-rebalancing-partitions">分区再平衡（Rebalancing Partitions）</a>
+<ul>
+<li><a href="#为什么不能用取模">为什么不能用取模？</a></li>
+<li><a href="#固定数量的分区">固定数量的分区</a></li>
+<li><a href="#动态分区">动态分区</a></li>
+<li><a href="#按节点比例分区">按节点比例分区</a></li>
+</ul></li>
+<li><a href="#自动与手动再平衡操作">自动与手动再平衡操作</a></li>
+<li><a href="#请求路由">请求路由</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<h1 id="键值数据的分区">键值数据的分区</h1>
+
+<h2 id="基于关键字区间的分区">基于关键字区间的分区</h2>
+
+<p>给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些关键字。</p>
+
+<p>关键字的区间段不一定要均匀分布，这是因为数据本身可能就不是均匀的。比如，某些分区包含以A和B开头字母的键，而某些分区包含了T、U、V、X、Y和Z开始的单词。</p>
+
+<p>基于关键字的区间分区的缺点是某些访问模式会导致热点（hot spot）。比如关键字是时间戳，分区对应一个时间范围，那么可能会出现所有的写入操作都集中在同一个分区（比如当天的分区），而其他分区始终处于空闲状态。</p>
+
+<p>为了避免类似的问题，需要使用时间戳以外的其他内容作为关键字的第一项。</p>
+
+<h2 id="基于关键字hash值分区">基于关键字Hash值分区</h2>
+
+<p>基于关键字Hash值分区，可以解决上面提到的数据倾斜和热点问题，但是丧失了良好的区间查询特性。</p>
+
+<h2 id="负载倾斜和热点">负载倾斜和热点</h2>
+
+<p>基于关键字Hash值分区的办法，可以减轻数据热点问题，但是不能完全避免这类问题。一种常见的极端场景是，社交网络上某个名人有几百万的粉丝，当其发布一些热点事件时可能会引起访问风暴。此时，Hash起不到任何分流的作用。</p>
+
+<p>大部分系统解决不了这个问题，只能通过应用层来解决这类问题。比如某个关键字被确认是热点，一个简单的技术就是在关键字的开头或结尾处添加随机数，这样将访问分配到不同的分区上。但是随之而来的问题就是，之后的任何读取都需要额外的工作，必须将这些分区上的读取数据进行合并。</p>
+
+<h1 id="分区与二级索引">分区与二级索引</h1>
+
+<p>键值类数据库的分区相对还简单一些，但是如果涉及到二级索引就变得复杂了。二级索引主要的挑战在于：它们不能规整的映射到分区中。</p>
+
+<h2 id="基于文档分区的二级索引">基于文档分区的二级索引</h2>
+
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg" alt="figure 6-4" title="figure 6-4" /></p>
+
+<p>上图中，数据根据ID 进行分区，但是实际查询的时候，还可以按照颜色和厂商进行过滤，所以每个分区上面还创建了颜色和厂商的索引。每次往分区中写入新数据时，自动创建这些二级索引。</p>
+
+<p>在这种索引方式中，每个分区完全独立。各自维护自己的二级索引。因此文档索引也成为本地索引，而不是全局索引。</p>
+
+<p>但是读取的时候，需要查询所有的分区数据然后进行合并才返回给客户端，这种叫分散/聚集（scatter/gather）。</p>
+
+<h2 id="基于词条的二级索引">基于词条的二级索引</h2>
+
+<p>可以对所有的数据构建全局索引，而不是每个分区维护自己的本地索引。而且吧，为了避免成为瓶颈，不能将全局索引放在一个节点上，否则又破坏了分区均衡的目标，因此全局索引数据也需要进行分区。</p>
+
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg" alt="figure 6-5" title="figure 6-5" /></p>
+
+<p>上图中，所有数据分区中的颜色进行了分区，比如从a到r开始的颜色放在了分区0中，从s到z的颜色放在了分区1中，类似的，厂商索引也被分区。这种索引方式成为词条分区（term-partitioned）。</p>
+
+<ul>
+<li>优点：读取高效，不需要采用scatter/gather方式对所有分区都进行查询；</li>
+<li>缺点：写入速度慢并且非常复杂，主要是因为单个文档需要更新的时候，里面可能涉及多个二级索引，而二级索引又放在不同的节点上。</li>
+</ul>
+
+<p>在实践中，对全局二级索引数据的更新一般都是异步进行的。</p>
+
+<h1 id="分区再平衡-rebalancing-partitions">分区再平衡（Rebalancing Partitions）</h1>
+
+<p>实际中，数据会发生某些变化，这时候需要将数据和请求从一个节点转移到另一个节点。这样的一个迁移负载的过程称为再平衡（rebalance）。</p>
+
+<p>分区再平衡至少需要满足：</p>
+
+<ul>
+<li>平衡之后，负载、数据存储、读写请求能够在集群范围内更均匀分布。</li>
+<li>再平衡过程中，数据库可以继续处理客户端的读写请求。</li>
+<li>避免不必要的负载迁移。</li>
+</ul>
+
+<p>下面谈各种再平衡策略。</p>
+
+<h2 id="为什么不能用取模">为什么不能用取模？</h2>
+
+<p>对节点数进行取模的方式，最大的问题在于如果节点的数据发生了变化，会导致很多关键字从现有的节点迁移到另一个节点。</p>
+
+<h2 id="固定数量的分区">固定数量的分区</h2>
+
+<p>创建远超实际节点数的分区数，然后给每个节点分配多个分区。比如只有10个节点的集群，划分了1000个逻辑分区。</p>
+
+<p>如果集群中添加了一个新节点，该新节点就可以从每个现有节点上匀走几个分区，直到分区再次达到全局平衡。</p>
+
+<p>这个方式的优点在于，关键字与逻辑分区的映射关系一开始就固定下来了，节点数量的变更只是改变了逻辑分区分布在哪些节点上。节点间迁移分区数据需要时间，这个过程中，就分区依然可以处理客户端的读写请求。</p>
+
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg" alt="figure 6-6" title="figure 6-6" /></p>
+
+<h2 id="动态分区">动态分区</h2>
+
+<h2 id="按节点比例分区">按节点比例分区</h2>
+
+<h1 id="自动与手动再平衡操作">自动与手动再平衡操作</h1>
+
+<h1 id="请求路由">请求路由</h1>
+
+<p>当客户端需要发起请求时，如果知道应该连接哪个节点？如果发生了分区再平衡，分区与节点的对应关系发生了变化。</p>
+
+<p>这类问题属于典型的服务发现（service discover）问题。服务发现问题不限于数据库中，任何需要通过网络访问的系统都有这样的需求，尤其是服务目标需要支持高可用时。</p>
+
+<p>一般有以下三种处理策略。</p>
+
+<ul>
+<li>客户端可以发送请求给任意节点，如果节点不能处理请求则路由到可以处理该请求的分区，应答之后再回复客户端。</li>
+<li>所有客户端的请求发送到一个路由层，由该路由层决定请求应该转发到哪个分区。</li>
+<li>客户端需要感知分区与节点之间的映射关系。</li>
+</ul>
+
+<p>但是不管是上面的哪种方案，核心问题都是：做为路由决策的组件，如何知道分区与节点的对应关系以及其变化情况？</p>
+
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg" alt="figure 6-7" title="figure 6-7" /></p>
+
+<p>很多分布式系统依赖于独立的协调服务（比如zookeeper、etcd等）跟踪集群范围内的元数据（metadata）。如下图所示，每个节点都像zookeeper注册自己，zookeeper维护了分区到节点的最终映射关系。而其他参与者（比如路由层或者分区感知的客户端）向zookeeper订阅此信息。当分区信息发生了增删时，zookeeper会主动通知，这样就能够保持最新的状态。</p>
+
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg" alt="figure 6-8" title="figure 6-8" /></p>
+
+<p>还有另一种策略，在节点之间使用gossip协议来同步集群状态的变化，请求可以发送到任何节点，由该节点负责将其转发到正确的节点上。</p>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-04-02</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
+          
+          <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20181118-ddia-chapter05-replication/">
+            <span class="next-text nav-default">《数据密集型应用系统设计》第五章数据复制笔记</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript><div id="comments-gitment"></div>
+  <link rel="stylesheet" href="/lib/gitment/gitment-0.0.3.min.css">
+    <script src="/lib/gitment/gitment-0.0.3.min.js"></script>
+  <script type="text/javascript">
+  const gitment = new Gitment({
+    id: '2019-04-02 22:17:24 \x2b0800 CST',
+    title: '《数据密集型应用系统设计》第六章数据分区笔记',
+    link: decodeURI(location.href),
+    desc: '键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分',
+    owner: 'lichuang',
+    repo: 'https:\/\/github.com\/lichuang\/lichuang.github.io',
+    oauth: {
+      client_id: 'e98396afa55545008a36',
+      client_secret: 'f027055422756bbf5b98a6ab3d74603e7c3542e6'
+    }
+  })
+  gitment.render('comments-gitment')
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="https://github.com/imsun/gitment">comments powered by gitment.</a></noscript>
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+
+
+
+
+</body>
+</html>
