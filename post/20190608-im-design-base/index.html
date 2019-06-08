@@ -17,7 +17,7 @@
 
 
 <meta name="author" content="codedump" />
-  <meta name="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 整体架构 以上架构图中，分为几个部分： 客户端：支" />
+  <meta name="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端" />
 
   <meta name="keywords" content="Hugo, theme, even" />
 
@@ -50,26 +50,26 @@
 
 
 <meta property="og:title" content="IM服务器设计-基础" />
-<meta property="og:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 整体架构 以上架构图中，分为几个部分： 客户端：支" />
+<meta property="og:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190608-im-design-base/" />
 <meta property="article:published_time" content="2019-06-08T11:09:10&#43;08:00"/>
 <meta property="article:modified_time" content="2019-06-08T11:09:10&#43;08:00"/>
 
 <meta itemprop="name" content="IM服务器设计-基础">
-<meta itemprop="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 整体架构 以上架构图中，分为几个部分： 客户端：支">
+<meta itemprop="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端">
 
 
 <meta itemprop="datePublished" content="2019-06-08T11:09:10&#43;08:00" />
 <meta itemprop="dateModified" content="2019-06-08T11:09:10&#43;08:00" />
-<meta itemprop="wordCount" content="3111">
+<meta itemprop="wordCount" content="3179">
 
 
 
 <meta itemprop="keywords" content="" />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="IM服务器设计-基础"/>
-<meta name="twitter:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 整体架构 以上架构图中，分为几个部分： 客户端：支"/>
+<meta name="twitter:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -212,6 +212,8 @@ if (!doNotTrack) {
 
 <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
 
+<p>主要内容相当部分参考了 <a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a>一文，在此之上补充了更好的消息存储设计以及集群设计。</p>
+
 <h1 id="整体架构">整体架构</h1>
 
 <p><img src="/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch" /></p>
@@ -230,7 +232,7 @@ if (!doNotTrack) {
 <ul>
 <li>客户端通过gate接入IM服务器。在这里，客户端与gate之间保持TCP长连接，客户端使用DNS查询域名返回最近的gate地址进行连接。</li>
 <li>Gate的作用：保持与客户端之间的长连接，将请求数据转发给后面的逻辑服务LogicServer。LogicServer最上面是一个消息路由服务Router，根据请求的类型转发到后面具体的逻辑服务器。其中c代表客户端，s代表服务器，g代表群组，因此比如c2c服务就是处理客户端之间消息的服务器，而auth服务是处理客户端登录请求的服务器。</li>
-<li>逻辑类服务器与存储层服务打交道，其中：redis用于存储用户在线状态、用户路由数据（用户路由数据就是指用户在哪个gate服务上维护长连接），而Mysql用户存储用户的消息数据。</li>
+<li>逻辑类服务器与存储层服务打交道，其中：redis用于存储用户在线状态、用户路由数据（用户路由数据就是指用户在哪个gate服务上维护长连接），而DB用于存储用户的消息数据，这部分留待下一部分讲解。</li>
 <li>以上的接入层、逻辑层由于本身不存储状态，因此都可以进行横向扩展。看似Gate维护着长连接，但是即使一个Gate宕机，客户端检测到之后可以重新发起请求接入另一台Gate服务器。</li>
 </ul>
 
