@@ -62,7 +62,7 @@
 
 <meta itemprop="datePublished" content="2019-06-08T11:09:10&#43;08:00" />
 <meta itemprop="dateModified" content="2019-06-08T11:09:10&#43;08:00" />
-<meta itemprop="wordCount" content="3179">
+<meta itemprop="wordCount" content="3733">
 
 
 
@@ -185,6 +185,7 @@ if (!doNotTrack) {
 <li><a href="#应用服务器推送消息-s2c消息">应用服务器推送消息（s2c消息）</a></li>
 <li><a href="#单对单聊天-c2c消息">单对单聊天（c2c消息）</a></li>
 <li><a href="#群聊消息-c2g消息">群聊消息（c2g消息）</a></li>
+<li><a href="#登录后拉取离线消息流程">登录后拉取离线消息流程</a></li>
 </ul></li>
 <li><a href="#协议设计">协议设计</a>
 <ul>
@@ -353,6 +354,21 @@ if (!doNotTrack) {
 <li>gate应答逻辑服务器的c2g模块用户已经收到c2g消息。</li>
 <li>c2g模块修改发送消息库该消息已读。</li>
 </ol>
+
+<h2 id="登录后拉取离线消息流程">登录后拉取离线消息流程</h2>
+
+<p><img src="/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg" /></p>
+
+<ol>
+<li>客户端请求离线消息，其中会带上的字段是：客户端uid、当前客户端上保存的最大消息id（msgid）、每次最多获取多少离线消息（size）。当msgid为0的时候，由服务器自行查询当前的离线消息返回给客户端；否则服务器只会返回该消息id以后的消息。在这个例子中，假设第一次请求时，msgid为0，即由服务器查询需要给客户端返回哪些离线消息。</li>
+<li>im服务器查询uid为100的用户的前10（因为size=10）的离线消息，具体来说就是去消息接收表中查询uid=100且read flag为false的前10条消息。这里假设第一次查询返回的消息中，最大消息id为100。</li>
+<li>向客户端返回最新离线消息，同时带上最大离线消息id 100。</li>
+<li>客户端收到离线消息只会，由于收到的消息数量等于size，说明可能还有没有读取的离线消息，因此再次向服务器查询，这一次带上的消息id为100，表示请求该id之后的未读消息。</li>
+<li>IM服务器收到这一次拉取离线消息请求之后，由于msgid不为0，因此首先会将uid=100且msgid在100之前的未读消息全部置为已读。</li>
+<li>获取uid=100且msgid&gt;100的未读消息返回给客户端。</li>
+</ol>
+
+<p>如果每次拉取的离线消息都等于拉取离线消息数量，客户端会一直重复拉取离线消息流程，直到拉取完毕。</p>
 
 <h1 id="协议设计">协议设计</h1>
 
