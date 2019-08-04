@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>glog C&#43;&#43;版本代码分析 - codedump</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" />
+  <meta name="description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将" />
+
+  <meta name="keywords" content="Hugo, theme, even" />
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.55.5" />
+
+
+<link rel="canonical" href="https://codedump.info/post/20190729-glog/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="glog C&#43;&#43;版本代码分析" />
+<meta property="og:description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://codedump.info/post/20190729-glog/" />
+<meta property="article:published_time" content="2019-07-29T11:43:56&#43;08:00"/>
+<meta property="article:modified_time" content="2019-07-29T11:43:56&#43;08:00"/>
+
+<meta itemprop="name" content="glog C&#43;&#43;版本代码分析">
+<meta itemprop="description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将">
+
+
+<meta itemprop="datePublished" content="2019-07-29T11:43:56&#43;08:00" />
+<meta itemprop="dateModified" content="2019-07-29T11:43:56&#43;08:00" />
+<meta itemprop="wordCount" content="2639">
+
+
+
+<meta itemprop="keywords" content="网络编程," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="glog C&#43;&#43;版本代码分析"/>
+<meta name="twitter:description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将"/>
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">glog C&#43;&#43;版本代码分析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2019-07-29 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/"> 网络编程 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#概述">概述</a></li>
+<li><a href="#日志的生成">日志的生成</a></li>
+<li><a href="#输出日志">输出日志</a>
+<ul>
+<li><a href="#写到对应级别的日志中">写到对应级别的日志中</a></li>
+<li><a href="#写到用户自定义sink中">写到用户自定义sink中</a></li>
+</ul></li>
+<li><a href="#性能分析">性能分析</a>
+<ul>
+<li><a href="#localtime-r的调用">localtime_r的调用</a></li>
+<li><a href="#减少全局锁">减少全局锁</a></li>
+</ul></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<p>本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。</p>
+
+<h1 id="概述">概述</h1>
+
+<p>要记录一条日志，分为两个阶段：</p>
+
+<ul>
+<li>首先生成日志。</li>
+<li>然后将日志内容输出到相应的设备，如标准输出、文件等。</li>
+</ul>
+
+<p>以下就分两部分展开对glog的分析。</p>
+
+<h1 id="日志的生成">日志的生成</h1>
+
+<p>一般有两种生成日志数据的方式：</p>
+
+<ul>
+<li>类printf的方式，将需要输入的数据格式化。</li>
+<li>类C++ stream流的方式，提供出来operator &lt;&lt;操作符供输入数据。</li>
+</ul>
+
+<p>前者的好处在于可以对输入的数据格式进行严格检查，不匹配的情况下编译器会进行告警。缺点则是不够灵活。
+后者的好处是灵活，除了用了进行一般的日志输入，还可以写出类似</p>
+
+<pre><code>CHECK_IF(某条件不成立) &lt;&lt; 输出日志
+</code></pre>
+
+<p>的操作。</p>
+
+<p>glog中选择了第二种方式。</p>
+
+<p>首先来看glog对外暴露的用于日志输入的接口。其对应的宏是：</p>
+
+<pre><code>#define LOG(severity) COMPACT_GOOGLE_LOG_ ## severity.stream()
+
+#define COMPACT_GOOGLE_LOG_INFO google::LogMessage( \
+    __FILE__, __LINE__)
+#define COMPACT_GOOGLE_LOG_WARNING google::LogMessage( \
+    __FILE__, __LINE__, google::GLOG_WARNING)
+</code></pre>
+
+<p>从中可以看到glog中每一条日志，都对应一个LogMessage的类，然后将返回其中的stream()对象输入日志数据。</p>
+
+<p>每个LogMessage内部有一个名为LogMessageData的成员，用于保存这些数据，其中比较重要的成员有以下几个：</p>
+
+<pre><code>char message_text_[LogMessage::kMaxLogMessageLen+1]; // 用户存储日志的固定长度数组，大小为30KB。
+LogStream stream_; // 用于接收用户日志的C++stream，构造时传入上面的message_text_来构造，所以实际写数据会到message_text_中。
+void (LogMessage::*send_method_)(); // 用户最终发送日志数据的函数指针。
+timestamp_、tm_time_：保存日志时间相关的成员。
+</code></pre>
+
+<p>实际根据日志创建出一个LogMessage对象时，会根据不同类型的日志，传入不同的send_method函数指针，而每个不同的LogMessage构造时都会去调用其内部的Init函数完成LogMessageData的构造，Init函数主要做的事情有：</p>
+
+<ul>
+<li>存储send_method函数指针。</li>
+<li>获取当前的系统时间，存放到相应的成员中。</li>
+</ul>
+
+<p>而LOG之类的宏，实际返回的就是LogMessageData的stream指针，待到一切的输入完毕，这一条日志对应的LogMessage就会被析构，其析构函数内又会调用成员函数Flush，这个函数最终完成将日志输出的操作：</p>
+
+<pre><code>void LogMessage::Flush() {
+  // ...
+  {
+    MutexLock l(&amp;log_mutex);
+    (this-&gt;*(data_-&gt;send_method_))();
+    ++num_messages_[static_cast&lt;int&gt;(data_-&gt;severity_)];
+  }
+  // ...
+}
+</code></pre>
+
+<p>有了以上的准备，实际回头来看一个日志的输入</p>
+
+<p><img src="/media/imgs/20190729-glog/log-generate.png" alt="log-generate" title="log-generate" /></p>
+
+<h1 id="输出日志">输出日志</h1>
+
+<p>以上解决了生成日志的问题，继续往下看生成日志之后发到哪里去。</p>
+
+<p>日志的分发由类LogDestination来负责，其提供出去的接口多为静态函数。 以某个send_method函数的实现来看，如LogMessage::SendToLog，省略大部分细节，其内部实现为：</p>
+
+<pre><code>void LogMessage::SendToLog() EXCLUSIVE_LOCKS_REQUIRED(log_mutex) {
+    // ...
+
+    // log this message to all log files of severity &lt;= severity_
+    LogDestination::LogToAllLogfiles(data_-&gt;severity_, data_-&gt;timestamp_,
+                                     data_-&gt;message_text_,
+                                     data_-&gt;num_chars_to_log_);
+    LogDestination::LogToSinks(data_-&gt;severity_,
+                           data_-&gt;fullname_, data_-&gt;basename_,
+                           data_-&gt;line_, &amp;data_-&gt;tm_time_,
+                           data_-&gt;message_text_ + data_-&gt;num_prefix_chars_,
+                           (data_-&gt;num_chars_to_log_
+                            - data_-&gt;num_prefix_chars_ - 1));
+    // ...
+}
+</code></pre>
+
+<p>其中：</p>
+
+<ul>
+<li>LogDestination::LogToAllLogfiles：写日志到对应级别的日志文件中。</li>
+<li>LogDestination::LogToSinks：写到用户自定义的sink输出中，传递那么多参数是为了去掉添加进去的logprefix，包括severity，ts，线程id，文件basename等。</li>
+</ul>
+
+<p>接下来分别分析这两部分输出的操作。</p>
+
+<h2 id="写到对应级别的日志中">写到对应级别的日志中</h2>
+
+<p>LogDestination内部有一个与不同日志级别相关的LogDestination数组：</p>
+
+<pre><code>static LogDestination* log_destinations_[NUM_SEVERITIES];
+</code></pre>
+
+<p>首先来看LogToAllLogfiles函数的实现：</p>
+
+<pre><code>inline void LogDestination::LogToAllLogfiles(LogSeverity severity,
+                                             time_t timestamp,
+                                             const char* message,
+                                             size_t len) {
+
+  if ( FLAGS_logtostderr ) {           // global flag: never log to file
+    ColoredWriteToStderr(severity, message, len);
+  } else {
+    for (int i = severity; i &gt;= 0; --i)
+      LogDestination::MaybeLogToLogfile(i, timestamp, message, len);
+  }
+}
+</code></pre>
+
+<p>可以看到，对某个级别的日志而言，会依次调用级别值更小的日志输出，比如WARN级别的日志也会输出到INFO级别的日志文件中。</p>
+
+<p>接着看MaybeLogToLogfile函数的实现：</p>
+
+<pre><code>inline void LogDestination::MaybeLogToLogfile(LogSeverity severity,
+                                              time_t timestamp,
+					      const char* message,
+					      size_t len) {
+  const bool should_flush = severity &gt; FLAGS_logbuflevel;
+  LogDestination* destination = log_destination(severity);
+  destination-&gt;logger_-&gt;Write(should_flush, timestamp, message, len);
+}
+
+inline LogDestination* LogDestination::log_destination(LogSeverity severity) {
+  assert(severity &gt;=0 &amp;&amp; severity &lt; NUM_SEVERITIES);
+  if (!log_destinations_[severity]) {
+    log_destinations_[severity] = new LogDestination(severity, NULL);
+  }
+  return log_destinations_[severity];
+}
+</code></pre>
+
+<p>可以看到：</p>
+
+<ul>
+<li>首先会从log_destination中根据日志级别，得到对应的log_destinations_数组成员返回。</li>
+<li>然后调用destination-&gt;logger_成员的Write函数写日志，其中会传入一个叫should_flush的参数，仅在传入的日志级别大于FLAGS_logbuflevel才会为真，这样可以控制不同级别日志的flush到磁盘的行为。</li>
+</ul>
+
+<p>而logger_成员是一个Logger接口，本质上是一个纯虚类，因此glog也提供了接口给用户定制不同级别日志对应的Logger类：</p>
+
+<pre><code>// Set the logger for the specified severity level.  The logger
+// becomes the property of the logging module and should not
+// be deleted by the caller.  Thread-safe.
+extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
+</code></pre>
+
+<h2 id="写到用户自定义sink中">写到用户自定义sink中</h2>
+
+<p>接下来看看怎么将日志输出到用户自定义sink中的流程。</p>
+
+<p>而每个LogDestination内部又有一个叫LogSink的类来真正负责日志的输出，该类也是一个纯虚类，用户需要实现其中的send方法来完成日志的输出。对于每个级别的日志而言，会将同级别的LogSink一起放在一个向量中：</p>
+
+<pre><code>static vector&lt;LogSink*&gt;* sinks_
+</code></pre>
+
+<p>因此，当需要输出自定义的日志时，就遍历该向量进行调用：</p>
+
+<pre><code>inline void LogDestination::LogToSinks(LogSeverity severity,
+                                       const char *full_filename,
+                                       const char *base_filename,
+                                       int line,
+                                       const struct ::tm* tm_time,
+                                       const char* message,
+                                       size_t message_len) {
+  ReaderMutexLock l(&amp;sink_mutex_);
+  if (sinks_) {
+    for (int i = sinks_-&gt;size() - 1; i &gt;= 0; i--) {
+      (*sinks_)[i]-&gt;send(severity, full_filename, base_filename,
+                         line, tm_time, message, message_len);
+    }
+  }
+}
+</code></pre>
+
+<p><img src="/media/imgs/20190729-glog/log-output.png" alt="log-output" title="log-output" /></p>
+
+<h1 id="性能分析">性能分析</h1>
+
+<p>写了一个简单的测试程序，起多个线程同时一起使用glog写入日志，用火焰图分别分析它的on和off CPU消耗如下：</p>
+
+<p>on CPU：</p>
+
+<p><img src="/media/imgs/20190729-glog/on.svg" alt="on" title="on" /></p>
+
+<p>off CPU：</p>
+
+<p><img src="/media/imgs/20190729-glog/off.svg" alt="off" title="off" /></p>
+
+<p>从上面的火焰图可以看到几个优化点。</p>
+
+<h2 id="localtime-r的调用">localtime_r的调用</h2>
+
+<p>在前面分析到的LogMessage::Init函数中，会调用localtime_r函数获得当前时区的时间，但是该函数有几个大问题：</p>
+
+<ul>
+<li>本质上是一个传入当前秒数，然后根据时区将这个秒数转换成时区所在地时间的函数，然而由于需要加锁获取时区，所以每次调用该函数glibc内部的实现都需要加锁操作，表现在off CPU的火焰图中，就是__tz_convert这个函数的调用。</li>
+<li>由于加锁，导致这个函数如果被信号中断然后又在信号处理中继续被调用，可能会导致死锁现象。</li>
+</ul>
+
+<p>因此，优化的方式是自己实现一个完成相同功能的函数，而在传入参数中需要提供时区值，这样就变成了一个纯CPU肌酸而不需要加锁的操作。我单独把localtime和优化版本拿出来对比压测，能有很大的提升。</p>
+
+<p>参考：</p>
+
+<ul>
+<li><a href="https://www.bugwz.com/2019/01/12/localtime/">localtime函数死锁分析</a></li>
+</ul>
+
+<h2 id="减少全局锁">减少全局锁</h2>
+
+<p>前面分析到，在调用send_method之前需要全局加锁，从火焰图分析来看，确实也在这里耗费了相当的时间。</p>
+
+<p>有些人提出了一种异步日志数据的方式，即独立出来一个日志线程，将日志都发往这个线程里面，而发送的流程可以使用无锁队列等机制减少锁的消耗，见
+<a href="https://www.slideshare.net/chenshuo/efficient-logging-in-multithreaded-c-server">Efficient logging in multithreaded C++ server</a></p>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2019-07-29</span>
+  </p>
+  
+  
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+
+    <footer class="post-footer">
+      <div class="post-tags">
+          
+          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
+          
+        </div>
+
+      
+      <nav class="post-nav">
+        
+        
+          <a class="next" href="/post/20190629-service-history/">
+            <span class="next-text nav-default">服务调用的演进历史</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+  <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+	
+  <div class="post bg-white">
+    <script src="https://utteranc.es/client.js"
+          repo="lichuang/lichuang.github.io"
+          issue-term="pathname"
+          theme="github-light"
+          crossorigin="anonymous"
+          async>
+    </script>
+  </div>    
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2019
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+
+
+
+
+</body>
+</html>

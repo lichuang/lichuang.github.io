@@ -1,0 +1,705 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="294" onload="init(evt)" viewBox="0 0 1200 294" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+	}
+
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom();
+			zoom(target);
+		}
+		else if (e.target.id == "unzoom") unzoom();
+		else if (e.target.id == "search") search_prompt();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+	}, false)
+
+	// functions
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+		return;
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		// Fit in full text width
+		if (/^ *$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
+			return;
+
+		for (var x = txt.length - 2; x > 0; x--) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+	}
+	function unzoom() {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			update_text(el[i]);
+		}
+	}
+
+	// search
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)", "");
+			if (term != null) {
+				search(term)
+			}
+		} else {
+			reset_search();
+			searching = 0;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		var re = new RegExp(term);
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="294.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Flame Graph</text>
+<text id="details" x="10.00" y="277" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="matched" x="1090.00" y="277" > </text>
+<g id="frames">
+<g >
+<title>clone (1,953,196,590 samples, 99.99%)</title><rect x="10.1" y="229" width="1179.9" height="15.0" fill="rgb(244,1,18)" rx="2" ry="2" />
+<text  x="13.12" y="239.5" >clone</text>
+</g>
+<g >
+<title>_Znwm+0x18/0x60 [/usr/lib/x86_64-linux-gnu/libstdc+ (319,762 samples, 0.02%)</title><rect x="15.1" y="149" width="0.2" height="15.0" fill="rgb(218,200,0)" rx="2" ry="2" />
+<text  x="18.12" y="159.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage14LogMessageDataC1Ev (1,566,198 samples, 0.08%)</title><rect x="10.3" y="149" width="1.0" height="15.0" fill="rgb(216,24,54)" rx="2" ry="2" />
+<text  x="13.34" y="159.5" ></text>
+</g>
+<g >
+<title>0x0 (2,710,978 samples, 0.14%)</title><rect x="11.5" y="117" width="1.7" height="15.0" fill="rgb(222,35,9)" rx="2" ry="2" />
+<text  x="14.52" y="127.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (266,408,986 samples, 13.64%)</title><rect x="15.4" y="101" width="160.9" height="15.0" fill="rgb(216,163,49)" rx="2" ry="2" />
+<text  x="18.41" y="111.5" >finish_task_switch</text>
+</g>
+<g >
+<title>_ZN6google14LogDestination16LogToAllLogfilesEilPKcm (932,162 samples, 0.05%)</title><rect x="1188.7" y="133" width="0.5" height="15.0" fill="rgb(249,56,32)" rx="2" ry="2" />
+<text  x="1191.67" y="143.5" ></text>
+</g>
+<g >
+<title>syscall (2,710,978 samples, 0.14%)</title><rect x="11.5" y="133" width="1.7" height="15.0" fill="rgb(218,147,42)" rx="2" ry="2" />
+<text  x="14.52" y="143.5" ></text>
+</g>
+<g >
+<title>__tzfile_compute (395,038 samples, 0.02%)</title><rect x="179.0" y="133" width="0.2" height="15.0" fill="rgb(209,4,0)" rx="2" ry="2" />
+<text  x="181.99" y="143.5" ></text>
+</g>
+<g >
+<title>__lll_unlock_wake_private (4,294,754 samples, 0.22%)</title><rect x="176.3" y="133" width="2.6" height="15.0" fill="rgb(236,159,8)" rx="2" ry="2" />
+<text  x="179.34" y="143.5" ></text>
+</g>
+<g >
+<title>__tz_convert (271,291,846 samples, 13.89%)</title><rect x="15.3" y="149" width="163.9" height="15.0" fill="rgb(209,155,13)" rx="2" ry="2" />
+<text  x="18.34" y="159.5" >__tz_convert</text>
+</g>
+<g >
+<title>_ZN24glog_internal_namespace_5Mutex6UnlockEv (22,441,310 samples, 1.15%)</title><rect x="1175.1" y="133" width="13.5" height="15.0" fill="rgb(254,6,48)" rx="2" ry="2" />
+<text  x="1178.05" y="143.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (2,710,978 samples, 0.14%)</title><rect x="11.5" y="101" width="1.7" height="15.0" fill="rgb(249,97,26)" rx="2" ry="2" />
+<text  x="14.52" y="111.5" ></text>
+</g>
+<g >
+<title>__strlen_avx2 (179,166 samples, 0.01%)</title><rect x="1189.8" y="165" width="0.1" height="15.0" fill="rgb(218,109,31)" rx="2" ry="2" />
+<text  x="1192.83" y="175.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (4,294,754 samples, 0.22%)</title><rect x="176.3" y="101" width="2.6" height="15.0" fill="rgb(247,15,43)" rx="2" ry="2" />
+<text  x="179.34" y="111.5" ></text>
+</g>
+<g >
+<title>_ZN24glog_internal_namespace_5Mutex4LockEv (1,647,606,926 samples, 84.35%)</title><rect x="179.8" y="133" width="995.2" height="15.0" fill="rgb(250,13,41)" rx="2" ry="2" />
+<text  x="182.77" y="143.5" >_ZN24glog_internal_namespace_5Mutex4LockEv</text>
+</g>
+<g >
+<title>_ZN6google24glog_internal_namespace_6GetTIDEv (2,900,028 samples, 0.15%)</title><rect x="11.4" y="149" width="1.8" height="15.0" fill="rgb(251,138,34)" rx="2" ry="2" />
+<text  x="14.40" y="159.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage5FlushEv (1,671,643,288 samples, 85.58%)</title><rect x="179.6" y="165" width="1009.8" height="15.0" fill="rgb(216,121,18)" rx="2" ry="2" />
+<text  x="182.57" y="175.5" >_ZN6google10LogMessage5FlushEv</text>
+</g>
+<g >
+<title>0x0 (226,160 samples, 0.01%)</title><rect x="10.2" y="149" width="0.1" height="15.0" fill="rgb(236,156,44)" rx="2" ry="2" />
+<text  x="13.20" y="159.5" ></text>
+</g>
+<g >
+<title>__pthread_rwlock_unlock (22,381,434 samples, 1.15%)</title><rect x="1175.1" y="117" width="13.5" height="15.0" fill="rgb(235,195,18)" rx="2" ry="2" />
+<text  x="1178.09" y="127.5" ></text>
+</g>
+<g >
+<title>_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc+0x27/0x60 [/usr/lib/x86_64-linux-gnu/libstdc+ (202,834 samples, 0.01%)</title><rect x="14.6" y="149" width="0.1" height="15.0" fill="rgb(214,28,10)" rx="2" ry="2" />
+<text  x="17.57" y="159.5" ></text>
+</g>
+<g >
+<title>0x0 (266,408,986 samples, 13.64%)</title><rect x="15.4" y="117" width="160.9" height="15.0" fill="rgb(214,131,49)" rx="2" ry="2" />
+<text  x="18.41" y="127.5" >0x0</text>
+</g>
+<g >
+<title>_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc+0x19/0x60 [/usr/lib/x86_64-linux-gnu/libstdc+ (179,166 samples, 0.01%)</title><rect x="1189.8" y="181" width="0.1" height="15.0" fill="rgb(212,128,36)" rx="2" ry="2" />
+<text  x="1192.83" y="191.5" ></text>
+</g>
+<g >
+<title>_ZNKSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE13_M_insert_intIlEES3_S3_RSt8ios_basecT_+0x112/0x2a0 [/usr/lib/x86_64-linux-gnu/libstdc+ (292,642 samples, 0.01%)</title><rect x="13.3" y="133" width="0.2" height="15.0" fill="rgb(235,195,44)" rx="2" ry="2" />
+<text  x="16.34" y="143.5" ></text>
+</g>
+<g >
+<title>start_thread (1,953,196,590 samples, 99.99%)</title><rect x="10.1" y="213" width="1179.9" height="15.0" fill="rgb(250,139,19)" rx="2" ry="2" />
+<text  x="13.12" y="223.5" >start_thread</text>
+</g>
+<g >
+<title>0x0 (297,624 samples, 0.02%)</title><rect x="179.6" y="149" width="0.1" height="15.0" fill="rgb(218,222,21)" rx="2" ry="2" />
+<text  x="182.57" y="159.5" ></text>
+</g>
+<g >
+<title>0x0 (254,192 samples, 0.01%)</title><rect x="14.1" y="85" width="0.2" height="15.0" fill="rgb(205,17,26)" rx="2" ry="2" />
+<text  x="17.13" y="95.5" ></text>
+</g>
+<g >
+<title>_ZNSt9basic_iosIcSt11char_traitsIcEE4initEPSt15basic_streambufIcS1_E+0x20/0x60 [/usr/lib/x86_64-linux-gnu/libstdc+ (860,100 samples, 0.04%)</title><rect x="10.6" y="117" width="0.5" height="15.0" fill="rgb(218,179,10)" rx="2" ry="2" />
+<text  x="13.61" y="127.5" ></text>
+</g>
+<g >
+<title>__lll_lock_wait_private (266,408,986 samples, 13.64%)</title><rect x="15.4" y="133" width="160.9" height="15.0" fill="rgb(251,187,30)" rx="2" ry="2" />
+<text  x="18.41" y="143.5" >__lll_lock_wait_priv..</text>
+</g>
+<g >
+<title>_ZN6google10LogMessageC2EPKci (279,897,698 samples, 14.33%)</title><rect x="10.2" y="181" width="169.0" height="15.0" fill="rgb(206,132,48)" rx="2" ry="2" />
+<text  x="13.17" y="191.5" >_ZN6google10LogMessag..</text>
+</g>
+<g >
+<title>__vsscanf (301,718 samples, 0.02%)</title><rect x="179.0" y="85" width="0.2" height="15.0" fill="rgb(241,139,35)" rx="2" ry="2" />
+<text  x="182.04" y="95.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (201,026 samples, 0.01%)</title><rect x="1189.1" y="53" width="0.1" height="15.0" fill="rgb(227,203,47)" rx="2" ry="2" />
+<text  x="1192.11" y="63.5" ></text>
+</g>
+<g >
+<title>0x0 (234,592 samples, 0.01%)</title><rect x="179.1" y="53" width="0.1" height="15.0" fill="rgb(228,80,46)" rx="2" ry="2" />
+<text  x="182.06" y="63.5" ></text>
+</g>
+<g >
+<title>_IO_vfscanf (265,798 samples, 0.01%)</title><rect x="179.1" y="69" width="0.1" height="15.0" fill="rgb(251,166,0)" rx="2" ry="2" />
+<text  x="182.06" y="79.5" ></text>
+</g>
+<g >
+<title>__getpid (430,428 samples, 0.02%)</title><rect x="1188.7" y="69" width="0.3" height="15.0" fill="rgb(216,80,31)" rx="2" ry="2" />
+<text  x="1191.72" y="79.5" ></text>
+</g>
+<g >
+<title>_ZNSo9_M_insertImEERSoT_+0x85/0x1d0 [/usr/lib/x86_64-linux-gnu/libstdc+ (521,380 samples, 0.03%)</title><rect x="14.1" y="149" width="0.3" height="15.0" fill="rgb(228,89,50)" rx="2" ry="2" />
+<text  x="17.06" y="159.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (254,192 samples, 0.01%)</title><rect x="14.1" y="69" width="0.2" height="15.0" fill="rgb(246,125,27)" rx="2" ry="2" />
+<text  x="17.13" y="79.5" ></text>
+</g>
+<g >
+<title>__memmove_avx_unaligned (254,192 samples, 0.01%)</title><rect x="14.1" y="101" width="0.2" height="15.0" fill="rgb(230,199,24)" rx="2" ry="2" />
+<text  x="17.13" y="111.5" ></text>
+</g>
+<g >
+<title>__dynamic_cast+0x76/0x4d0 [/usr/lib/x86_64-linux-gnu/libstdc+ (241,158 samples, 0.01%)</title><rect x="10.7" y="69" width="0.1" height="15.0" fill="rgb(224,147,15)" rx="2" ry="2" />
+<text  x="13.68" y="79.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (226,160 samples, 0.01%)</title><rect x="10.2" y="133" width="0.1" height="15.0" fill="rgb(208,83,26)" rx="2" ry="2" />
+<text  x="13.20" y="143.5" ></text>
+</g>
+<g >
+<title>_ZNSo9_M_insertImEERSoT_+0x85/0x1d0 [/usr/lib/x86_64-linux-gnu/libstdc+ (207,578 samples, 0.01%)</title><rect x="1189.7" y="181" width="0.1" height="15.0" fill="rgb(245,10,44)" rx="2" ry="2" />
+<text  x="1192.65" y="191.5" ></text>
+</g>
+<g >
+<title>0x0 (1,647,604,076 samples, 84.35%)</title><rect x="179.8" y="101" width="995.2" height="15.0" fill="rgb(240,42,44)" rx="2" ry="2" />
+<text  x="182.77" y="111.5" >0x0</text>
+</g>
+<g >
+<title>__pthread_rwlock_wrlock (1,647,604,076 samples, 84.35%)</title><rect x="179.8" y="117" width="995.2" height="15.0" fill="rgb(229,215,14)" rx="2" ry="2" />
+<text  x="182.77" y="127.5" >__pthread_rwlock_wrlock</text>
+</g>
+<g >
+<title>_ZSt9has_facetISt5ctypeIcEEbRKSt6locale+0x40/0x50 [/usr/lib/x86_64-linux-gnu/libstdc+ (315,630 samples, 0.02%)</title><rect x="10.6" y="85" width="0.2" height="15.0" fill="rgb(246,42,31)" rx="2" ry="2" />
+<text  x="13.65" y="95.5" ></text>
+</g>
+<g >
+<title>_ZNKSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE13_M_insert_intIlEES3_S3_RSt8ios_basecT_+0x19f/0x2a0 [/usr/lib/x86_64-linux-gnu/libstdc+ (239,102 samples, 0.01%)</title><rect x="13.6" y="133" width="0.1" height="15.0" fill="rgb(252,79,30)" rx="2" ry="2" />
+<text  x="16.56" y="143.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (22,381,434 samples, 1.15%)</title><rect x="1175.1" y="85" width="13.5" height="15.0" fill="rgb(235,85,29)" rx="2" ry="2" />
+<text  x="1178.09" y="95.5" ></text>
+</g>
+<g >
+<title>_ZN6google14LogDestination17MaybeLogToLogfileEilPKcm (925,454 samples, 0.05%)</title><rect x="1188.7" y="117" width="0.5" height="15.0" fill="rgb(239,40,52)" rx="2" ry="2" />
+<text  x="1191.68" y="127.5" ></text>
+</g>
+<g >
+<title>0x0 (201,026 samples, 0.01%)</title><rect x="1189.1" y="69" width="0.1" height="15.0" fill="rgb(228,171,19)" rx="2" ry="2" />
+<text  x="1192.11" y="79.5" ></text>
+</g>
+<g >
+<title>all (1,953,398,210 samples, 100%)</title><rect x="10.0" y="245" width="1180.0" height="15.0" fill="rgb(234,193,13)" rx="2" ry="2" />
+<text  x="13.00" y="255.5" ></text>
+</g>
+<g >
+<title>fwrite (206,856 samples, 0.01%)</title><rect x="1189.0" y="85" width="0.1" height="15.0" fill="rgb(205,4,49)" rx="2" ry="2" />
+<text  x="1191.99" y="95.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage14LogMessageDataD1Ev (404,190 samples, 0.02%)</title><rect x="179.3" y="165" width="0.3" height="15.0" fill="rgb(251,205,17)" rx="2" ry="2" />
+<text  x="182.33" y="175.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage4InitEPKciiMS0_FvvE (279,842,652 samples, 14.33%)</title><rect x="10.2" y="165" width="169.0" height="15.0" fill="rgb(254,100,46)" rx="2" ry="2" />
+<text  x="13.20" y="175.5" >_ZN6google10LogMessag..</text>
+</g>
+<g >
+<title>0x0 (189,050 samples, 0.01%)</title><rect x="11.4" y="133" width="0.1" height="15.0" fill="rgb(208,60,30)" rx="2" ry="2" />
+<text  x="14.40" y="143.5" ></text>
+</g>
+<g >
+<title>0x0 (288,046 samples, 0.01%)</title><rect x="1189.4" y="149" width="0.2" height="15.0" fill="rgb(227,29,46)" rx="2" ry="2" />
+<text  x="1192.38" y="159.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage9LogStreamC1EPcii (1,566,198 samples, 0.08%)</title><rect x="10.3" y="133" width="1.0" height="15.0" fill="rgb(232,99,26)" rx="2" ry="2" />
+<text  x="13.34" y="143.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (194,640 samples, 0.01%)</title><rect x="15.1" y="101" width="0.1" height="15.0" fill="rgb(250,199,45)" rx="2" ry="2" />
+<text  x="18.12" y="111.5" ></text>
+</g>
+<g >
+<title>_Z6workerPv (1,953,196,590 samples, 99.99%)</title><rect x="10.1" y="197" width="1179.9" height="15.0" fill="rgb(212,51,48)" rx="2" ry="2" />
+<text  x="13.12" y="207.5" >_Z6workerPv</text>
+</g>
+<g >
+<title>finish_task_switch (179,166 samples, 0.01%)</title><rect x="1189.8" y="133" width="0.1" height="15.0" fill="rgb(231,144,3)" rx="2" ry="2" />
+<text  x="1192.83" y="143.5" ></text>
+</g>
+<g >
+<title>_ZNKSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE6_M_padEclRSt8ios_basePcPKcRi+0x26/0x4f0 [/usr/lib/x86_64-linux-gnu/libstdc+ (315,946 samples, 0.02%)</title><rect x="14.1" y="117" width="0.2" height="15.0" fill="rgb(228,71,19)" rx="2" ry="2" />
+<text  x="17.09" y="127.5" ></text>
+</g>
+<g >
+<title>0x0 (22,381,434 samples, 1.15%)</title><rect x="1175.1" y="101" width="13.5" height="15.0" fill="rgb(225,103,29)" rx="2" ry="2" />
+<text  x="1178.09" y="111.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (297,624 samples, 0.02%)</title><rect x="179.6" y="133" width="0.1" height="15.0" fill="rgb(205,102,9)" rx="2" ry="2" />
+<text  x="182.57" y="143.5" ></text>
+</g>
+<g >
+<title>0x0 (4,294,754 samples, 0.22%)</title><rect x="176.3" y="117" width="2.6" height="15.0" fill="rgb(239,47,12)" rx="2" ry="2" />
+<text  x="179.34" y="127.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessageD1Ev (1,672,479,032 samples, 85.62%)</title><rect x="179.2" y="181" width="1010.4" height="15.0" fill="rgb(222,152,1)" rx="2" ry="2" />
+<text  x="182.25" y="191.5" >_ZN6google10LogMessageD1Ev</text>
+</g>
+<g >
+<title>0x0 (430,428 samples, 0.02%)</title><rect x="1188.7" y="53" width="0.3" height="15.0" fill="rgb(241,192,32)" rx="2" ry="2" />
+<text  x="1191.72" y="63.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (189,050 samples, 0.01%)</title><rect x="11.4" y="117" width="0.1" height="15.0" fill="rgb(209,177,38)" rx="2" ry="2" />
+<text  x="14.40" y="127.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (430,428 samples, 0.02%)</title><rect x="1188.7" y="37" width="0.3" height="15.0" fill="rgb(244,182,1)" rx="2" ry="2" />
+<text  x="1191.72" y="47.5" ></text>
+</g>
+<g >
+<title>_ZNSt9basic_iosIcSt11char_traitsIcEEC2Ev+0x9/0x60 [/usr/lib/x86_64-linux-gnu/libstdc+ (244,248 samples, 0.01%)</title><rect x="11.1" y="117" width="0.2" height="15.0" fill="rgb(245,76,14)" rx="2" ry="2" />
+<text  x="14.14" y="127.5" ></text>
+</g>
+<g >
+<title>_ZN6google12base_logging12LogStreamBufC2EPci (227,382 samples, 0.01%)</title><rect x="10.4" y="117" width="0.1" height="15.0" fill="rgb(208,223,19)" rx="2" ry="2" />
+<text  x="13.39" y="127.5" ></text>
+</g>
+<g >
+<title>_ZN24glog_internal_namespace_9MutexLockD1Ev (22,448,326 samples, 1.15%)</title><rect x="1175.0" y="149" width="13.6" height="15.0" fill="rgb(241,209,35)" rx="2" ry="2" />
+<text  x="1178.05" y="159.5" ></text>
+</g>
+<g >
+<title>_ZN6google12_GLOBAL__N_113LogFileObject5WriteEblPKci (912,650 samples, 0.05%)</title><rect x="1188.7" y="101" width="0.5" height="15.0" fill="rgb(222,180,1)" rx="2" ry="2" />
+<text  x="1191.68" y="111.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (288,046 samples, 0.01%)</title><rect x="1189.4" y="133" width="0.2" height="15.0" fill="rgb(207,136,17)" rx="2" ry="2" />
+<text  x="1192.38" y="143.5" ></text>
+</g>
+<g >
+<title>sscanf (302,422 samples, 0.02%)</title><rect x="179.0" y="101" width="0.2" height="15.0" fill="rgb(213,106,2)" rx="2" ry="2" />
+<text  x="182.04" y="111.5" ></text>
+</g>
+<g >
+<title>__tzset_parse_tz (338,476 samples, 0.02%)</title><rect x="179.0" y="117" width="0.2" height="15.0" fill="rgb(232,180,17)" rx="2" ry="2" />
+<text  x="182.02" y="127.5" ></text>
+</g>
+<g >
+<title>0x0 (194,640 samples, 0.01%)</title><rect x="15.1" y="117" width="0.1" height="15.0" fill="rgb(253,24,50)" rx="2" ry="2" />
+<text  x="18.12" y="127.5" ></text>
+</g>
+<g >
+<title>_ZN24glog_internal_namespace_9MutexLockC2EPNS_5MutexE (1,647,639,070 samples, 84.35%)</title><rect x="179.7" y="149" width="995.3" height="15.0" fill="rgb(214,62,2)" rx="2" ry="2" />
+<text  x="182.75" y="159.5" >_ZN24glog_internal_namespace_9MutexLockC2EPNS_5MutexE</text>
+</g>
+<g >
+<title>0x0 (179,166 samples, 0.01%)</title><rect x="1189.8" y="149" width="0.1" height="15.0" fill="rgb(224,29,8)" rx="2" ry="2" />
+<text  x="1192.83" y="159.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (234,592 samples, 0.01%)</title><rect x="179.1" y="37" width="0.1" height="15.0" fill="rgb(251,152,31)" rx="2" ry="2" />
+<text  x="182.06" y="47.5" ></text>
+</g>
+<g >
+<title>_ZNSt9basic_iosIcSt11char_traitsIcEE15_M_cache_localeERKSt6locale+0x14/0xa0 [/usr/lib/x86_64-linux-gnu/libstdc+ (377,068 samples, 0.02%)</title><rect x="10.6" y="101" width="0.2" height="15.0" fill="rgb(241,88,22)" rx="2" ry="2" />
+<text  x="13.61" y="111.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage9LogStreamD1Ev (404,190 samples, 0.02%)</title><rect x="179.3" y="149" width="0.3" height="15.0" fill="rgb(214,62,3)" rx="2" ry="2" />
+<text  x="182.33" y="159.5" ></text>
+</g>
+<g >
+<title>_ZNKSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE13_M_insert_intImEES3_S3_RSt8ios_basecT_+0x210/0x240 [/usr/lib/x86_64-linux-gnu/libstdc+ (344,896 samples, 0.02%)</title><rect x="14.1" y="133" width="0.2" height="15.0" fill="rgb(247,184,44)" rx="2" ry="2" />
+<text  x="17.09" y="143.5" ></text>
+</g>
+<g >
+<title>_IO_file_xsputn@@GLIBC_2.2.5 (170,186 samples, 0.01%)</title><rect x="1189.0" y="69" width="0.1" height="15.0" fill="rgb(222,13,18)" rx="2" ry="2" />
+<text  x="1192.01" y="79.5" ></text>
+</g>
+<g >
+<title>_ZNSo9_M_insertIlEERSoT_+0x85/0x1d0 [/usr/lib/x86_64-linux-gnu/libstdc+ (1,035,292 samples, 0.05%)</title><rect x="13.3" y="149" width="0.7" height="15.0" fill="rgb(244,168,51)" rx="2" ry="2" />
+<text  x="16.33" y="159.5" ></text>
+</g>
+<g >
+<title>_ZN6google10LogMessage9SendToLogEv (1,060,726 samples, 0.05%)</title><rect x="1188.6" y="149" width="0.6" height="15.0" fill="rgb(249,159,38)" rx="2" ry="2" />
+<text  x="1191.61" y="159.5" ></text>
+</g>
+<g >
+<title>posix_fadvise64 (201,026 samples, 0.01%)</title><rect x="1189.1" y="85" width="0.1" height="15.0" fill="rgb(228,173,50)" rx="2" ry="2" />
+<text  x="1192.11" y="95.5" ></text>
+</g>
+<g >
+<title>_ZN6google14LogDestination12WaitForSinksEPNS_10LogMessage14LogMessageDataE (192,400 samples, 0.01%)</title><rect x="1189.2" y="149" width="0.2" height="15.0" fill="rgb(226,155,44)" rx="2" ry="2" />
+<text  x="1192.25" y="159.5" ></text>
+</g>
+<g >
+<title>finish_task_switch (1,647,604,076 samples, 84.35%)</title><rect x="179.8" y="85" width="995.2" height="15.0" fill="rgb(216,158,1)" rx="2" ry="2" />
+<text  x="182.77" y="95.5" >finish_task_switch</text>
+</g>
+<g >
+<title>_ZNSt9basic_iosIcSt11char_traitsIcEE15_M_cache_localeERKSt6locale+0x56/0xa0 [/usr/lib/x86_64-linux-gnu/libstdc+ (174,610 samples, 0.01%)</title><rect x="11.0" y="101" width="0.1" height="15.0" fill="rgb(207,151,8)" rx="2" ry="2" />
+<text  x="14.02" y="111.5" ></text>
+</g>
+<g >
+<title>_ZN6google24glog_internal_namespace_13PidHasChangedEv (443,500 samples, 0.02%)</title><rect x="1188.7" y="85" width="0.3" height="15.0" fill="rgb(253,103,35)" rx="2" ry="2" />
+<text  x="1191.71" y="95.5" ></text>
+</g>
+<g >
+<title>cfree@GLIBC_2.2.5 (288,046 samples, 0.01%)</title><rect x="1189.4" y="165" width="0.2" height="15.0" fill="rgb(216,67,2)" rx="2" ry="2" />
+<text  x="1192.38" y="175.5" ></text>
+</g>
+<g >
+<title>_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_c+0x18/0x20 [/usr/lib/x86_64-linux-gnu/libstdc+ (434,438 samples, 0.02%)</title><rect x="14.8" y="149" width="0.2" height="15.0" fill="rgb(239,191,19)" rx="2" ry="2" />
+<text  x="17.77" y="159.5" ></text>
+</g>
+<g >
+<title>__libc_malloc (319,762 samples, 0.02%)</title><rect x="15.1" y="133" width="0.2" height="15.0" fill="rgb(235,48,50)" rx="2" ry="2" />
+<text  x="18.12" y="143.5" ></text>
+</g>
+</g>
+</svg>
