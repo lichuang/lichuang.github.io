@@ -26,7 +26,7 @@
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.55.5" />
+<meta name="generator" content="Hugo 0.54.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20180922-etcd-raft/" />
@@ -1222,7 +1222,8 @@ raftNode结构体主循环：
 <p>来看看节点对于投票消息的处理，这些处理有两处，但是都在raft.Step函数中。</p>
 
 <ol>
-<li><p>首先该函数会判断msg.Term是否大于本节点的Term，如果消息的任期号更大则说明是一次新的选举。这种情况下将根据msg.Context是否等于“CampaignTransfer”字符串来确定是不是一次由于leader迁移导致的强制选举过程。同时也会根据当前的electionElapsed是否小于electionTimeout来确定是否还在租约期以内。如果既不是强制leader选举又在租约期以内，那么节点将忽略该消息的处理，在论文4.2.3部分论述这样做的原因，是为了避免已经离开集群的节点在不知道自己已经不在集群内的情况下，仍然频繁的向集群内节点发起选举导致耗时在这种无效的选举流程中。如果以上检查流程通过了，说明可以进行选举了，如果消息类型还不是MsgPreVote类型，那么此时节点会切换到follower状态且认为发送消息过来的节点msg.From是新的leader。</p>
+<li>首先该函数会判断msg.Term是否大于本节点的Term，如果消息的任期号更大则说明是一次新的选举。这种情况下将根据msg.Context是否等于“CampaignTransfer”字符串来确定是不是一次由于leader迁移导致的强制选举过程。同时也会根据当前的electionElapsed是否小于electionTimeout来确定是否还在租约期以内。如果既不是强制leader选举又在租约期以内，那么节点将忽略该消息的处理，在论文4.2.3部分论述这样做的原因，是为了避免已经离开集群的节点在不知道自己已经不在集群内的情况下，仍然频繁的向集群内节点发起选举导致耗时在这种无效的选举流程中。如果以上检查流程通过了，说明可以进行选举了，如果消息类型还不是MsgPreVote类型，那么此时节点会切换到follower状态且认为发送消息过来的节点msg.From是新的leader。</li>
+</ol>
 
 <pre><code>	case m.Term &gt; r.Term:
 		// 消息的Term大于节点当前的Term
@@ -1263,15 +1264,17 @@ raftNode结构体主循环：
 			// 变成follower状态
 			r.becomeFollower(m.Term, lead)
 		}
-</code></pre></li>
+</code></pre>
 
-<li><p>在raft.Step函数的后面，会判断消息类型是MsgVote或者MsgPreVote来进一步进行处理。其判断条件是以下两个条件同时成立：</p>
+<ol>
+<li>在raft.Step函数的后面，会判断消息类型是MsgVote或者MsgPreVote来进一步进行处理。其判断条件是以下两个条件同时成立：
 
 <ul>
 <li>当前没有给任何节点进行过投票（r.Vote == None ），或者消息的任期号更大（m.Term &gt; r.Term ），或者是之前已经投过票的节点（r.Vote == m.From)）。这个条件是检查是否可以还能给该节点投票。</li>
-
-<li><p>同时该节点的日志数据是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm) ）。这个条件是检查这个节点上的日志数据是否足够的新。
-只有在满足以上两个条件的情况下，节点才投票给这个消息节点，将修改raft.Vote为消息发送者ID。如果不满足条件，将应答msg.Reject=true，拒绝该节点的投票消息。</p>
+<li>同时该节点的日志数据是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm) ）。这个条件是检查这个节点上的日志数据是否足够的新。
+只有在满足以上两个条件的情况下，节点才投票给这个消息节点，将修改raft.Vote为消息发送者ID。如果不满足条件，将应答msg.Reject=true，拒绝该节点的投票消息。</li>
+</ul></li>
+</ol>
 
 <pre><code>	case pb.MsgVote, pb.MsgPreVote:
 		// 收到投票类的消息
@@ -1296,9 +1299,7 @@ raftNode结构体主循环：
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type), Reject: true})
 		}
-</code></pre></li>
-</ul></li>
-</ol>
+</code></pre>
 
 <h3 id="msgvoteresp-msgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
 
@@ -2028,7 +2029,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
   
   <p class="copyright-item">
     <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用OmniGraffle进行绘制。</span>
+    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
   </p>
 </div>
 
@@ -2141,7 +2142,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
     <span class="heart">
       <i class="iconfont icon-heart"></i>
     </span>
-    <span class="author">lichuang</span>
+    <span class="author">codedump</span>
   </span>
 </div>
     </footer>
