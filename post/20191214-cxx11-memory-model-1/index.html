@@ -62,7 +62,7 @@
 
 <meta itemprop="datePublished" content="2019-12-14T10:10:15&#43;08:00" />
 <meta itemprop="dateModified" content="2019-12-14T10:10:15&#43;08:00" />
-<meta itemprop="wordCount" content="4052">
+<meta itemprop="wordCount" content="4241">
 
 
 
@@ -493,6 +493,40 @@ int main() {
 <p><center>
 <img src="/media/imgs/20191214-cxx11-memory-model-1/memorybarrier.png" alt="memorybarrier" title="memorybarrier" />
 </center></p>
+
+<p>再次以前面的例子来说明这个指令，在X64下面，内存屏障指令使用汇编指令<code>asm volatile (&quot;pause&quot; ::: &quot;memory&quot;);</code>来实现，如果将这个指令放到两个赋值语句之间：</p>
+
+<pre><code class="language-C">int A, B;
+
+void foo()
+{
+    A = B + 1;
+    asm volatile (&quot;pause&quot; ::: &quot;memory&quot;);
+    B = 0;
+}
+
+int main() {
+  foo();
+  return 0;
+}
+</code></pre>
+
+<p>那么再次使用O2编译出来的汇编代码就变成了：</p>
+
+<pre><code>.LFB1:
+  .cfi_startproc
+  movl  B(%rip), %eax
+  addl  $1, %eax
+  movl  %eax, A(%rip)
+#APP
+# 6 &quot;foo.c&quot; 1
+  pause
+# 0 &quot;&quot; 2
+#NO_APP
+  movl  $0, B(%rip)
+</code></pre>
+
+<p>可以看到，插入内存屏障指令之后，生成的汇编代码顺序就不会乱序了。</p>
 
 <h1 id="小结">小结</h1>
 
