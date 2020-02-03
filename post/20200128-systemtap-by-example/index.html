@@ -17,7 +17,7 @@
 
 
 <meta name="author" content="codedump" />
-  <meta name="description" content="概述 systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病" />
+  <meta name="description" content="我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个awesome-" />
 
   <meta name="keywords" content="Hugo, theme, even" />
 
@@ -50,26 +50,26 @@
 
 
 <meta property="og:title" content="通过实例快速入门Systemtap" />
-<meta property="og:description" content="概述 systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病" />
+<meta property="og:description" content="我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个awesome-" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20200128-systemtap-by-example/" />
 <meta property="article:published_time" content="2020-01-28T11:56:56&#43;08:00"/>
 <meta property="article:modified_time" content="2020-01-28T11:56:56&#43;08:00"/>
 
 <meta itemprop="name" content="通过实例快速入门Systemtap">
-<meta itemprop="description" content="概述 systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病">
+<meta itemprop="description" content="我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个awesome-">
 
 
 <meta itemprop="datePublished" content="2020-01-28T11:56:56&#43;08:00" />
 <meta itemprop="dateModified" content="2020-01-28T11:56:56&#43;08:00" />
-<meta itemprop="wordCount" content="8061">
+<meta itemprop="wordCount" content="8389">
 
 
 
 <meta itemprop="keywords" content="Linux系统,动态跟踪,systemtap," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="通过实例快速入门Systemtap"/>
-<meta name="twitter:description" content="概述 systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病"/>
+<meta name="twitter:description" content="我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个awesome-"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -232,9 +232,11 @@ if (!doNotTrack) {
     <div class="post-content">
       
 
+<p>我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个<a href="https://github.com/lichuang/awesome-systemtap-cn">awesome-systemtap-cn</a>项目，收集systemtap相关的优秀学习资源，欢迎提供其他更好的参考资料。</p>
+
 <h1 id="概述">概述</h1>
 
-<p>systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病人就好比是在运行的系统，很多时候查看一些问题需要在系统在运行的时候来观察，这时候就需要这类动态跟踪工具。</p>
+<p>systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病人就好比是在运行的系统，很多时候查看一些问题需要在系统在运行的时候来观察，这时候就需要这类动态跟踪工具。与之对应的是，类似gdb这样的调试工具，其工作原理是让进程在某些断点暂停下来，查看进程的行为，这种技术称为“静态调试”。</p>
 
 <p>关于动态跟踪技术，推荐阅读<a href="https://openresty.org/posts/dynamic-tracing/">《动态追踪技术漫谈》</a>。</p>
 
@@ -463,6 +465,44 @@ process(&quot;/home/codedump/source/systemtap-examples/src/a.out&quot;).function
 process(&quot;/home/codedump/source/systemtap-examples/src/a.out&quot;).function(&quot;func@/home/codedump/source/systemtap-examples/src/test.c:7&quot;)
 </code></pre>
 
+<p>使用<code>statement</code>可以很方便定位到具体的某一行代码执行前后，变量的变化情况，比如下面这个最简单的C代码：</p>
+
+<pre><code class="language-C">#include &lt;stdio.h&gt;
+
+int main(int argc, char *argv[])
+{
+	int a;
+
+	a = 1;
+	printf(&quot;a:%d\n&quot;, a);
+	a = 2;
+	printf(&quot;a:%d\n&quot;, a);
+	return 0;
+}
+</code></pre>
+
+<p>使用下面这个systemtap脚本针对代码中的第8行和第10行打印当时变量a的值：</p>
+
+<pre><code>probe process(&quot;./a.out&quot;).statement(&quot;main@./cc_stap_test.c:8&quot;)
+{
+    printf(&quot;systemtap probe line 8 a:%d\n&quot;, $a);
+}
+
+probe process(&quot;./a.out&quot;).statement(&quot;main@./cc_stap_test.c:10&quot;)
+{
+    printf(&quot;systemtap probe line 10 a:%d\n&quot;, $a);
+}
+</code></pre>
+
+<p>输出如下：</p>
+
+<pre><code>$ sudo stap cc_stap_test.stp -c ./a.out
+a:1
+a:2
+systemtap probe line 8 a:1
+systemtap probe line 10 a:2
+</code></pre>
+
 <h3 id="调用时机">调用时机</h3>
 
 <p>有了以上两个要素，已经可以在具体的函数、文件行中定义探测点了，但是有时候针对某一个具体函数，想在不同的时机定义探测点，比如函数被调用和调用返回的时候，那么可以在后面以后缀的方式定义出来：</p>
@@ -483,7 +523,7 @@ probe kernel.function(&quot;*@net/socket.c&quot;).return {
 
 <ul>
 <li>begin、end分别在脚本开始执行以及结束执行的时候被调用。</li>
-<li>thread_indenttimers用于定义定时器探测点，常见的格式timer.s(1)来定义每秒触发的探测点。</li>
+<li>timers用于定义定时器探测点，常见的格式timer.s(1)来定义每秒触发的探测点。</li>
 <li>never定义的探测点不会被调用到，很多时候加这个探测点只是为了检查一些语法错误。</li>
 </ul>
 
