@@ -214,7 +214,7 @@ if (!doNotTrack) {
 <li>etcd raft：etcd的raft库，前面的文章已经具体分析过这部分代码。除了与本节点的etcd server通信之外，还与集群中的其他etcd server进行交互做一致性数据同步的工作（在图中集群中其他etcd服务用橙色的椭圆表示）。</li>
 </ul>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-server.png" alt="etcd server" title="etcd server" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-server.png" alt="etcd server" title="etcd server" /></p>
 
 <p>在上图中，一个请求与一个etcd集群交互的主要流程分为两大部分：</p>
 
@@ -262,7 +262,7 @@ if (!doNotTrack) {
 
 <p>etcd V3版本的API，通过GRPC协议与客户端进行交互，其相关代码在etcdserver/v3_server.go中。以一次Put请求为例，最后将会调用的代码在函数EtcdServer::processInternalRaftRequestOnce中，代码的主要流程分析如下。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-flowchart.png" alt="etcd flowchart" title="etcd flowchart" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-flowchart.png" alt="etcd flowchart" title="etcd flowchart" /></p>
 
 <ol>
 <li>拿到当前raft中的apply和commit索引，如果commit索引比apply索引超出太多，说明当前有很多数据都没有apply，返回ErrTooManyRequests错误。</li>
@@ -326,17 +326,17 @@ b.  如果channel返回，说明已经提交成功。</li>
 
 <p>比如当前etcd中有三个WAL文件，可以从这些文件的文件名知道其中存放数据的索引范围。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-wal1.png" alt="etcd wal1" title="etcd wal1" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-wal1.png" alt="etcd wal1" title="etcd wal1" /></p>
 
 <p>在生成快照文件之后，此时就只剩一个WAL文件和一个快照文件了：</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-wal2.png" alt="etcd wal2" title="etcd wal2" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-wal2.png" alt="etcd wal2" title="etcd wal2" /></p>
 
 <p>那么，又是在什么情况下生成快照文件呢？Etcdserver在主循环中通过监听channel获知当前raft协议返回的Ready数据，此时会做判断如果当前保存的快照数据索引距离上一次已经超过一个阈值（EtcdServer.snapCount），此时就从raft的存储中生成一份当前的快照数据，写入快照文件成功之后，就可以将这之前的WAL文件释放了。</p>
 
 <p>以上流程和对应的具体函数见下面的流程图。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-snapshot.png" alt="etcd snapshot" title="etcd snapshot" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-snapshot.png" alt="etcd snapshot" title="etcd snapshot" /></p>
 
 <h1 id="backend-store的实现">backend store的实现</h1>
 
@@ -359,11 +359,11 @@ b.  如果channel返回，说明已经提交成功。</li>
 <p>其中revision有两部分组成，第一部分成为main revision，每次事务递增1；第二部分称为sub revision，一个事务内的一次操作递增1。
 两者结合，就能保证每次key唯一而且是递增的。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-revision.png" alt="etcd revision" title="etcd revision" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-revision.png" alt="etcd revision" title="etcd revision" /></p>
 
 <p>但是，就客户端看来，每次操作的时候是根据Key来进行操作的，所以这里就需要一个Key映射到当前revision的操作了，为了做到这个映射关系，Etcd引入了一个内存中的Btree索引，整个操作过程如下面的流程所示。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex.png" alt="etcd keyindex" title="etcd keyindex" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-keyindex.png" alt="etcd keyindex" title="etcd keyindex" /></p>
 
 <p>查询时，先通过内存中的btree索引来查询该key对应的keyIndex结构体，然后再根据这个结构体才能去boltdb中查询真实的数据返回。</p>
 
@@ -391,7 +391,7 @@ b.  如果channel返回，说明已经提交成功。</li>
 
 <p>以下图来说明keyIndex结构体：</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" alt="etcd keyindex struct" title="etcd keyindex struct" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" alt="etcd keyindex struct" title="etcd keyindex struct" /></p>
 
 <p>如上图所示，存放的键为test的keyIndex结构。</p>
 
@@ -401,7 +401,7 @@ b.  如果channel返回，说明已经提交成功。</li>
 
 <p>一个已经被tombstone的generation是可以被删除的，如果整个generations数组都已经被删除空了，那么整个keyIndex记录也可以被删除了。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-generation-compact.png" alt="etcd generation_compact" title="etcd generation compact" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-generation-compact.png" alt="etcd generation_compact" title="etcd generation compact" /></p>
 
 <p>如上图所示，keyIndex.compact(n)函数可以对keyIndex数据进行压缩操作，将删除满足main revision &lt; n的数据。</p>
 
@@ -468,7 +468,7 @@ etcdctl put --lease=694d67ed2bfbea03 a b
 
 <p>即：Lease这边需要持久化的数据只有Lease ID与TTL值，而键值对这边会持久化所绑定的Lease ID，这样在启动恢复的时候可以将两者对应的关系恢复到内存中。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-lease-store.png" alt="etcd lease_store" title="etcd lease store" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-lease-store.png" alt="etcd lease_store" title="etcd lease store" /></p>
 
 <p>明白了以上关系再来理解Lessor的实现就很简单了。</p>
 
@@ -505,7 +505,7 @@ etcdctl put --lease=694d67ed2bfbea03 a b
 
 <p>其实有了前面的准备，理解store结构做的事情已经不难，以一次Put操作为例，其流程主要如下图所示：</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-store-put.png" alt="etcd store_put" title="etcd store put" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-store-put.png" alt="etcd store_put" title="etcd store put" /></p>
 
 <h1 id="applierv3">applierV3</h1>
 
@@ -526,7 +526,7 @@ etcdctl put --lease=694d67ed2bfbea03 a b
 
 <p>下图将上面涉及到的关键数据结构串联在一起，看看EtcdServer在收到Raft库通过Ready channel通知的可以持久化数据之后，都做了什么操作。</p>
 
-<p><img src="/media/imgs/20181125-etcd-server/etcd-raft-flow.png" alt="etcd raft_flow" title="etcd raft flow" /></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-raft-flow.png" alt="etcd raft_flow" title="etcd raft flow" /></p>
 
 <ol>
 <li>raft库通过Ready Channel通知上层的raftNode哪些数据可以进行持久化。</li>
@@ -565,7 +565,7 @@ etcdctl put --lease=694d67ed2bfbea03 a b
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="/media/imgs/reward/wechat.png">
+        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -804,7 +804,7 @@ etcdctl put --lease=694d67ed2bfbea03 a b
 
 <h1>微信公众号</h1>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">
