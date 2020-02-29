@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="概述 内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是" />
+<meta name="author" content="codedump" /><meta name="description" content="Systemtap中内核trace事件的实现" />
+<meta name="keywords" content="linux, systemtap, trace event" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="Systemtap中内核trace事件的实现 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="Systemtap中内核trace事件的实现 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20200218-linux-traceevent/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="Systemtap中内核trace事件的实现" />
-<meta property="og:description" content="概述 内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是" />
+<meta property="og:description" content="Systemtap中内核trace事件的实现" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20200218-linux-traceevent/" />
-<meta property="article:published_time" content="2020-02-18T17:37:01&#43;08:00"/>
-<meta property="article:modified_time" content="2020-02-18T17:37:01&#43;08:00"/>
-
+<meta property="article:published_time" content="2020-02-18T17:37:01+08:00" />
+<meta property="article:modified_time" content="2020-02-18T17:37:01+08:00" />
 <meta itemprop="name" content="Systemtap中内核trace事件的实现">
-<meta itemprop="description" content="概述 内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是">
+<meta itemprop="description" content="Systemtap中内核trace事件的实现">
 
 
 <meta itemprop="datePublished" content="2020-02-18T17:37:01&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="Linux系统,动态跟踪,systemtap," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Systemtap中内核trace事件的实现"/>
-<meta name="twitter:description" content="概述 内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是"/>
+<meta name="twitter:description" content="Systemtap中内核trace事件的实现"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -446,7 +496,7 @@ kernel.trace(&quot;irq:softirq_entry&quot;) $vec_nr:unsigned int
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -457,7 +507,7 @@ kernel.trace(&quot;irq:softirq_entry&quot;) $vec_nr:unsigned int
       <h1>相关文章</h1><li><strong> 2020-01-28: </strong> <a href="https://codedump.info/post/20200128-systemtap-by-example/">通过实例快速入门Systemtap</a>  </li>
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

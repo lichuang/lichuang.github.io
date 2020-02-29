@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内" />
+<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-内存池的设计" />
+<meta name="keywords" content="Nginx, 内存池" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="Nginx源码阅读笔记-内存池的设计 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-内存池的设计 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190214-nginx-memory-pool/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="Nginx源码阅读笔记-内存池的设计" />
-<meta property="og:description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内" />
+<meta property="og:description" content="Nginx源码阅读笔记-内存池的设计" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190214-nginx-memory-pool/" />
-<meta property="article:published_time" content="2019-02-14T14:48:24&#43;08:00"/>
-<meta property="article:modified_time" content="2019-02-14T14:48:24&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-02-14T14:48:24+08:00" />
+<meta property="article:modified_time" content="2019-02-14T14:48:24+08:00" />
 <meta itemprop="name" content="Nginx源码阅读笔记-内存池的设计">
-<meta itemprop="description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内">
+<meta itemprop="description" content="Nginx源码阅读笔记-内存池的设计">
 
 
 <meta itemprop="datePublished" content="2019-02-14T14:48:24&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="nginx," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-内存池的设计"/>
-<meta name="twitter:description" content="nginx中所有请求都单独对应一个内存池，在这个请求的过程中，所有涉及到内存分配的地方，都到该请求相关的内存池中处理，而中间不会去释放回收内"/>
+<meta name="twitter:description" content="Nginx源码阅读笔记-内存池的设计"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -210,7 +260,7 @@ if (!doNotTrack) {
 <li>ngx_uint_t failed：存储本ngx_pool_t结构体分配失败次数。</li>
 </ul>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190214-nginx-memory-pool/ngx_pool_data_t.png" alt="ngx_pool_data_t" title="ngx_pool_data_t" /></p>
+<p><img src="/media/imgs/20190214-nginx-memory-pool/ngx_pool_data_t.png" alt="ngx_pool_data_t" title="ngx_pool_data_t" /></p>
 
 <p>failed成员的引入是为了避免某个pool虽然还有可用的空间，但是由于空间很小了所以经常性的分配空间失败，当累计失败的次数达到某个阈值时，下一次再次查找内存就直接跳过这个pool，而去寻找内存池链表中的下一个pool。</p>
 
@@ -231,7 +281,7 @@ struct ngx_pool_large_s {
 
 <p>再来看ngx_pool_t结构体，该数据结构用于表示一个内存池，内存池内部以链表形式来组织数据。如下图：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190214-nginx-memory-pool/ngx_pool_t.png" alt="ngx_pool_t" title="ngx_pool_t" /></p>
+<p><img src="/media/imgs/20190214-nginx-memory-pool/ngx_pool_t.png" alt="ngx_pool_t" title="ngx_pool_t" /></p>
 
 <p>需要说明的是：</p>
 
@@ -243,7 +293,7 @@ struct ngx_pool_large_s {
 
 <p>有了以上数据结构的了解，从内存池分配内存的流程就很简单了：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190214-nginx-memory-pool/memory-pool.png" alt="memory-pool" title="memory-pool" /></p>
+<p><img src="/media/imgs/20190214-nginx-memory-pool/memory-pool.png" alt="memory-pool" title="memory-pool" /></p>
 
     </div>
 
@@ -273,7 +323,7 @@ struct ngx_pool_large_s {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -284,7 +334,7 @@ struct ngx_pool_large_s {
       <h1>相关文章</h1>
 <li><strong> 2019-05-01: </strong> <a href="https://codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-13: </strong> <a href="https://codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li><li><strong> 2019-01-31: </strong> <a href="https://codedump.info/post/20190131-nginx-event/">Nginx源码阅读笔记-事件处理模块</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

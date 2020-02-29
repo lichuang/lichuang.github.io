@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将" />
+<meta name="author" content="codedump" /><meta name="description" content="glog C&#43;&#43;版本代码分析" />
+<meta name="keywords" content="glog, 网络编程" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="glog C&#43;&#43;版本代码分析 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="glog C&#43;&#43;版本代码分析 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190729-glog/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="glog C&#43;&#43;版本代码分析" />
-<meta property="og:description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将" />
+<meta property="og:description" content="glog C&#43;&#43;版本代码分析" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190729-glog/" />
-<meta property="article:published_time" content="2019-07-29T11:43:56&#43;08:00"/>
-<meta property="article:modified_time" content="2019-07-29T11:43:56&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-07-29T11:43:56+08:00" />
+<meta property="article:modified_time" content="2019-07-29T11:43:56+08:00" />
 <meta itemprop="name" content="glog C&#43;&#43;版本代码分析">
-<meta itemprop="description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将">
+<meta itemprop="description" content="glog C&#43;&#43;版本代码分析">
 
 
 <meta itemprop="datePublished" content="2019-07-29T11:43:56&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="网络编程," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="glog C&#43;&#43;版本代码分析"/>
-<meta name="twitter:description" content="本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将"/>
+<meta name="twitter:description" content="glog C&#43;&#43;版本代码分析"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -273,7 +323,7 @@ timestamp_、tm_time_：保存日志时间相关的成员。
 
 <p>有了以上的准备，实际回头来看一个日志的输入</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190729-glog/log-generate.png" alt="log-generate" title="log-generate" /></p>
+<p><img src="/media/imgs/20190729-glog/log-generate.png" alt="log-generate" title="log-generate" /></p>
 
 <h1 id="输出日志">输出日志</h1>
 
@@ -395,7 +445,7 @@ extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
 }
 </code></pre>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190729-glog/log-output.png" alt="log-output" title="log-output" /></p>
+<p><img src="/media/imgs/20190729-glog/log-output.png" alt="log-output" title="log-output" /></p>
 
 <h1 id="性能分析">性能分析</h1>
 
@@ -403,11 +453,11 @@ extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
 
 <p>on CPU：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190729-glog/on.svg" alt="on" title="on" /></p>
+<p><img src="/media/imgs/20190729-glog/on.svg" alt="on" title="on" /></p>
 
 <p>off CPU：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190729-glog/off.svg" alt="off" title="off" /></p>
+<p><img src="/media/imgs/20190729-glog/off.svg" alt="off" title="off" /></p>
 
 <p>从上面的火焰图可以看到几个优化点。</p>
 
@@ -463,7 +513,7 @@ extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -474,7 +524,7 @@ extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
       <h1>相关文章</h1>
 <li><strong> 2019-04-13: </strong> <a href="https://codedump.info/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a>  </li><li><strong> 2019-02-27: </strong> <a href="https://codedump.info/post/20190227-tcp/">TCP协议笔记</a>  </li><li><strong> 2019-02-09: </strong> <a href="https://codedump.info/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a>  </li><li><strong> 2019-01-23: </strong> <a href="https://codedump.info/post/20190123-libuv/">Libuv代码简单分析</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

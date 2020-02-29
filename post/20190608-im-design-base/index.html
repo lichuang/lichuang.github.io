@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端" />
+<meta name="author" content="codedump" /><meta name="description" content="IM服务器设计-消息存储" />
+<meta name="keywords" content="IM, 服务器架构, 系统设计" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="IM服务器设计-基础 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="IM服务器设计-基础 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190608-im-design-base/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="IM服务器设计-基础" />
-<meta property="og:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端" />
+<meta property="og:description" content="IM服务器设计-消息存储" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190608-im-design-base/" />
-<meta property="article:published_time" content="2019-06-08T11:09:10&#43;08:00"/>
-<meta property="article:modified_time" content="2019-06-08T11:09:10&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-06-08T11:09:10+08:00" />
+<meta property="article:modified_time" content="2019-06-08T11:09:10+08:00" />
 <meta itemprop="name" content="IM服务器设计-基础">
-<meta itemprop="description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端">
+<meta itemprop="description" content="IM服务器设计-消息存储">
 
 
 <meta itemprop="datePublished" content="2019-06-08T11:09:10&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="系统设计," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="IM服务器设计-基础"/>
-<meta name="twitter:description" content="IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。 主要内容相当部分参考了 一套海量在线用户的移动端"/>
+<meta name="twitter:description" content="IM服务器设计-消息存储"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -221,7 +271,7 @@ if (!doNotTrack) {
 
 <h1 id="整体架构">整体架构</h1>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch" /></p>
 
 <p>以上架构图中，分为几个部分：</p>
 
@@ -254,7 +304,7 @@ if (!doNotTrack) {
 
 <h2 id="登录授权-auth">登录授权（auth）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-login.png" alt="im-login" title="im login" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-login.png" alt="im-login" title="im login" /></p>
 
 <ol>
 <li>客户端通过统一登录系统验证登录密码等。</li>
@@ -273,7 +323,7 @@ if (!doNotTrack) {
 
 <h2 id="登出-logout">登出（logout）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-logout.png" alt="im-logout" title="im logout" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-logout.png" alt="im-logout" title="im logout" /></p>
 
 <ol>
 <li>客户端向gate发出logout请求。</li>
@@ -286,7 +336,7 @@ if (!doNotTrack) {
 
 <p>用户请求授权时，可能在另一个设备（同类型设备，比如一台苹果手机登录时发现一台安卓手机也在登录这个账号）开着软件处于登录状态。这种情况需要系统将那个设备踢下线。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-kickout.png" alt="im-kickout" title="im kickout" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-kickout.png" alt="im-kickout" title="im kickout" /></p>
 
 <p>新的客户端登陆流程同上面的登陆认证流程，只不过在auth模块完成认证之后，会做如下的操作：</p>
 
@@ -298,7 +348,7 @@ if (!doNotTrack) {
 
 <h2 id="客户端上报消息-c2s消息">客户端上报消息（c2s消息）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2smsg.png" alt="im-c2smsg" title="im c2s msg" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-c2smsg.png" alt="im-c2smsg" title="im c2s msg" /></p>
 
 <ol>
 <li>客户端向gate发送c2s消息数据。</li>
@@ -310,7 +360,7 @@ if (!doNotTrack) {
 
 <h2 id="应用服务器推送消息-s2c消息">应用服务器推送消息（s2c消息）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-s2cmsg.png" alt="im-s2cmsg" title="im s2c msg" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-s2cmsg.png" alt="im-s2cmsg" title="im s2c msg" /></p>
 
 <ol>
 <li>业务服务器向逻辑服务器发送s2c消息。</li>
@@ -323,7 +373,7 @@ if (!doNotTrack) {
 
 <h2 id="单对单聊天-c2c消息">单对单聊天（c2c消息）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2cmsg.png" alt="im-c2cmsg" title="im c2c msg" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-c2cmsg.png" alt="im-c2cmsg" title="im c2c msg" /></p>
 
 <ol>
 <li>客户端向gate发送c2c消息。</li>
@@ -343,7 +393,7 @@ if (!doNotTrack) {
 
 <h2 id="群聊消息-c2g消息">群聊消息（c2g消息）</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2gmsg.png" alt="im-c2gmsg" title="im c2g msg" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-c2gmsg.png" alt="im-c2gmsg" title="im c2g msg" /></p>
 
 <ol>
 <li>客户端A向gate发送c2g消息。</li>
@@ -361,7 +411,7 @@ if (!doNotTrack) {
 
 <h2 id="登录后拉取离线消息流程">登录后拉取离线消息流程</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg" /></p>
 
 <ol>
 <li>客户端请求离线消息，其中会带上的字段是：客户端uid、当前客户端上保存的最大消息id（msgid）、每次最多获取多少离线消息（size）。当msgid为0的时候，由服务器自行查询当前的离线消息返回给客户端；否则服务器只会返回该消息id以后的消息。在这个例子中，假设第一次请求时，msgid为0，即由服务器查询需要给客户端返回哪些离线消息。</li>
@@ -378,7 +428,7 @@ if (!doNotTrack) {
 
 <h2 id="协议格式">协议格式</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-protocol-format.png" alt="im-protocol-format" title="im protocol format" /></p>
+<p><img src="/media/imgs/20190608-im-design-base/im-protocol-format.png" alt="im-protocol-format" title="im protocol format" /></p>
 
 <p>协议分为包头和包体两部分，其中包体为固定的大小，包括：</p>
 
@@ -538,7 +588,7 @@ message C2SPullMessageResponse {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -549,7 +599,7 @@ message C2SPullMessageResponse {
       <h1>相关文章</h1>
 <li><strong> 2019-12-14: </strong> <a href="https://codedump.info/post/20191214-cxx11-memory-model-2/">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a>  </li><li><strong> 2019-12-14: </strong> <a href="https://codedump.info/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>  </li><li><strong> 2019-12-06: </strong> <a href="https://codedump.info/post/20191206-gameserver-hot-refresh/">对比脚本型和编译型游戏服务器的热更新方案</a>  </li><li><strong> 2019-10-13: </strong> <a href="https://codedump.info/post/20191013-im-msg-out-of-order/">IM服务器设计-如何解决消息的乱序</a>  </li><li><strong> 2019-08-18: </strong> <a href="https://codedump.info/post/20190818-im-msg-gate/">IM服务器设计-网关接入层</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

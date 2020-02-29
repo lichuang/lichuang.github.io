@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析" />
+<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-配置解析流程" />
+<meta name="keywords" content="Nginx, 网络编程" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="Nginx源码阅读笔记-配置解析流程 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-配置解析流程 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190103-nginx-config-parse/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="Nginx源码阅读笔记-配置解析流程" />
-<meta property="og:description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析" />
+<meta property="og:description" content="Nginx源码阅读笔记-配置解析流程" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190103-nginx-config-parse/" />
-<meta property="article:published_time" content="2019-01-03T08:41:44&#43;08:00"/>
-<meta property="article:modified_time" content="2019-01-03T08:41:44&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-01-03T08:41:44+08:00" />
+<meta property="article:modified_time" content="2019-01-03T08:41:44+08:00" />
 <meta itemprop="name" content="Nginx源码阅读笔记-配置解析流程">
-<meta itemprop="description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析">
+<meta itemprop="description" content="Nginx源码阅读笔记-配置解析流程">
 
 
 <meta itemprop="datePublished" content="2019-01-03T08:41:44&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="nginx," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-配置解析流程"/>
-<meta name="twitter:description" content="本系列文章基于openresty-1.13.6.1版本的代码做的笔记，其对应的nginx源码版本是nginx-1.13.6。 模块与配置值解析"/>
+<meta name="twitter:description" content="Nginx源码阅读笔记-配置解析流程"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -230,7 +280,7 @@ if (!doNotTrack) {
 
 <p>下图中给出一个简单的nginx配置文件的作用域示意图：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/ngx-conf-scope.png" alt="ngx-conf-scope" title="ngx-conf-scope" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/ngx-conf-scope.png" alt="ngx-conf-scope" title="ngx-conf-scope" /></p>
 
 <p>有了以上两个核心数据结构，可以知道每个nginx模块注册时的方式：</p>
 
@@ -242,7 +292,7 @@ if (!doNotTrack) {
 
 <p>以epoll模块来说，其ngx_module_t结构体是如下组织的。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/epoll-module.png" alt="epoll-module" title="epoll-module" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/epoll-module.png" alt="epoll-module" title="epoll-module" /></p>
 
 <p>根据上面的图示，不难想象，nginx在配置解析的时候是如何解析epoll相关的配置的：</p>
 
@@ -259,7 +309,7 @@ if (!doNotTrack) {
 
 <p>实际上，nginx的模块类型是一个树形结构，最顶层的是NGX_CORE_MODULE，它下面的子类型是NGX_HTTP_MODULE、NGX_EVENT_MODULE等。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/module-tree.png" alt="module-tree" title="module-tree" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/module-tree.png" alt="module-tree" title="module-tree" /></p>
 
 <p>如果一个结构体是使用树形结构来进行组织的，那么首先会想到的是“递归算法”。</p>
 
@@ -462,7 +512,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
 
 <p>把以上的分析总结下来就是下图所示的结构：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/core-daemon.png" alt="core-daemon" title="core-daemon" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/core-daemon.png" alt="core-daemon" title="core-daemon" /></p>
 
 <h2 id="解析ngx-main-conf类型指令的例子">解析NGX_MAIN_CONF类型指令的例子</h2>
 
@@ -543,7 +593,7 @@ ngx_events_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 </ol>
 
 <p>同样的，将以上分析event模块的流程总结下来，形成的就是下面的数据结构图：
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/event-module.png" alt="event-module" title="event-module" /></p>
+<img src="/media/imgs/20190103-nginx-config-parse/event-module.png" alt="event-module" title="event-module" /></p>
 
 <p>可以看到event模块的context最终是一个存储void*数据的指针。原因在于：event模块中又会存储一些不同的数据类型，这些数据最终都保存在这个数组中。</p>
 
@@ -609,11 +659,11 @@ ngx_module_t  ngx_epoll_module = {
 </ol>
 
 <p>同样的，将以上分析epoll模块的流程总结下来，形成的就是下面的数据结构图：
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/epoll-module-struct.png" alt="epoll-module-struct" title="epoll-module-struct" /></p>
+<img src="/media/imgs/20190103-nginx-config-parse/epoll-module-struct.png" alt="epoll-module-struct" title="epoll-module-struct" /></p>
 
 <p>而在最顶层，开始从NGX_CORE_MODULE类型模块进行解析的解析配置入口函数则是core/ngx_cycle.c中的ngx_init_cycle函数，其做的事情最核心的就是初始化ngx_conf_t结构体，将module_type设置为最顶层的模块NGX_CORE_MODULE，cmd_type设置为NGX_MAIN_CONF，接着就调用ngx_conf_parse函数进行配置解析了，这就开启了整个解析Nginx配置的流程。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/config-parse.png" alt="config-parse" title="config-parse" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/config-parse.png" alt="config-parse" title="config-parse" /></p>
 
 <p>从上图中可以看到：</p>
 
@@ -626,7 +676,7 @@ ngx_module_t  ngx_epoll_module = {
 
 <p>所有的模块信息，保存在ngx_cycle_t结构体的conf_ctx中，从类型来看是一个void****的四级指针，如果解析到的模块又有自己内部的子模块ctx数据，那么就会继续存放到这个模块之中，比如epoll模块就是event模块的子模块。总体来看结构图如下：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190103-nginx-config-parse/ngx-conf-chart.png" alt="ngx-conf-chart" title="ngx-conf-chart" /></p>
+<p><img src="/media/imgs/20190103-nginx-config-parse/ngx-conf-chart.png" alt="ngx-conf-chart" title="ngx-conf-chart" /></p>
 
 <h1 id="参考资料">参考资料</h1>
 
@@ -662,7 +712,7 @@ ngx_module_t  ngx_epoll_module = {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -673,7 +723,7 @@ ngx_module_t  ngx_epoll_module = {
       <h1>相关文章</h1>
 <li><strong> 2019-05-01: </strong> <a href="https://codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-14: </strong> <a href="https://codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 2019-02-13: </strong> <a href="https://codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进" />
+<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-Master Woker进程模型" />
+<meta name="keywords" content="Nginx, 进程模型" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190131-nginx-master-worker/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型" />
-<meta property="og:description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进" />
+<meta property="og:description" content="Nginx源码阅读笔记-Master Woker进程模型" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190131-nginx-master-worker/" />
-<meta property="article:published_time" content="2019-01-31T09:53:57&#43;08:00"/>
-<meta property="article:modified_time" content="2019-01-31T09:53:57&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-01-31T09:53:57+08:00" />
+<meta property="article:modified_time" content="2019-01-31T09:53:57+08:00" />
 <meta itemprop="name" content="Nginx源码阅读笔记-Master Woker进程模型">
-<meta itemprop="description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进">
+<meta itemprop="description" content="Nginx源码阅读笔记-Master Woker进程模型">
 
 
 <meta itemprop="datePublished" content="2019-01-31T09:53:57&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="nginx," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-Master Woker进程模型"/>
-<meta name="twitter:description" content="master进程 Nginx采用的模型是master-worker模型，即： 由master进程负责创建worker进程，以及监控worker进"/>
+<meta name="twitter:description" content="Nginx源码阅读笔记-Master Woker进程模型"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -200,7 +250,7 @@ if (!doNotTrack) {
 
 <p>将里面核心的流程和函数抽取出来，如下图所示：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190131-nginx-master-worker/master-worker.png" alt="master-worker" title="master-worker" /></p>
+<p><img src="/media/imgs/20190131-nginx-master-worker/master-worker.png" alt="master-worker" title="master-worker" /></p>
 
 <ul>
 <li>master进程的主循环在函数ngx_master_process_cycle中，主要负责：
@@ -355,7 +405,7 @@ if (!doNotTrack) {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -366,7 +416,7 @@ if (!doNotTrack) {
       <h1>相关文章</h1>
 <li><strong> 2019-05-01: </strong> <a href="https://codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-14: </strong> <a href="https://codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 2019-02-13: </strong> <a href="https://codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

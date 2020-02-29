@@ -21,12 +21,15 @@
 
   <meta name="keywords" content="Hugo, theme, even" />
 
+<meta property="og:title" content="《数据密集型应用系统设计》第六章数据分区笔记 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="《数据密集型应用系统设计》第六章数据分区笔记 - codedump的网络日志">
+
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20181124-ddia-chapter06-partitioning/" />
@@ -53,9 +56,8 @@
 <meta property="og:description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20181124-ddia-chapter06-partitioning/" />
-<meta property="article:published_time" content="2019-04-02T22:17:24&#43;08:00"/>
-<meta property="article:modified_time" content="2019-04-02T22:17:24&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-04-02T22:17:24+08:00" />
+<meta property="article:modified_time" content="2019-04-02T22:17:24+08:00" />
 <meta itemprop="name" content="《数据密集型应用系统设计》第六章数据分区笔记">
 <meta itemprop="description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分">
 
@@ -100,7 +102,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +162,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +187,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -237,7 +288,7 @@ if (!doNotTrack) {
 
 <h2 id="基于文档分区的二级索引">基于文档分区的二级索引</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg" alt="figure 6-4" title="figure 6-4" /></p>
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg" alt="figure 6-4" title="figure 6-4" /></p>
 
 <p>上图中，数据根据ID 进行分区，但是实际查询的时候，还可以按照颜色和厂商进行过滤，所以每个分区上面还创建了颜色和厂商的索引。每次往分区中写入新数据时，自动创建这些二级索引。</p>
 
@@ -249,7 +300,7 @@ if (!doNotTrack) {
 
 <p>可以对所有的数据构建全局索引，而不是每个分区维护自己的本地索引。而且吧，为了避免成为瓶颈，不能将全局索引放在一个节点上，否则又破坏了分区均衡的目标，因此全局索引数据也需要进行分区。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg" alt="figure 6-5" title="figure 6-5" /></p>
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg" alt="figure 6-5" title="figure 6-5" /></p>
 
 <p>上图中，所有数据分区中的颜色进行了分区，比如从a到r开始的颜色放在了分区0中，从s到z的颜色放在了分区1中，类似的，厂商索引也被分区。这种索引方式成为词条分区（term-partitioned）。</p>
 
@@ -286,7 +337,7 @@ if (!doNotTrack) {
 
 <p>这个方式的优点在于，关键字与逻辑分区的映射关系一开始就固定下来了，节点数量的变更只是改变了逻辑分区分布在哪些节点上。节点间迁移分区数据需要时间，这个过程中，就分区依然可以处理客户端的读写请求。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg" alt="figure 6-6" title="figure 6-6" /></p>
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg" alt="figure 6-6" title="figure 6-6" /></p>
 
 <h2 id="动态分区">动态分区</h2>
 
@@ -310,11 +361,11 @@ if (!doNotTrack) {
 
 <p>但是不管是上面的哪种方案，核心问题都是：做为路由决策的组件，如何知道分区与节点的对应关系以及其变化情况？</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg" alt="figure 6-7" title="figure 6-7" /></p>
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg" alt="figure 6-7" title="figure 6-7" /></p>
 
 <p>很多分布式系统依赖于独立的协调服务（比如zookeeper、etcd等）跟踪集群范围内的元数据（metadata）。如下图所示，每个节点都像zookeeper注册自己，zookeeper维护了分区到节点的最终映射关系。而其他参与者（比如路由层或者分区感知的客户端）向zookeeper订阅此信息。当分区信息发生了增删时，zookeeper会主动通知，这样就能够保持最新的状态。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg" alt="figure 6-8" title="figure 6-8" /></p>
+<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg" alt="figure 6-8" title="figure 6-8" /></p>
 
 <p>还有另一种策略，在节点之间使用gossip协议来同步集群状态的变化，请求可以发送到任何节点，由该节点负责将其转发到正确的节点上。</p>
 
@@ -346,7 +397,7 @@ if (!doNotTrack) {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -357,7 +408,7 @@ if (!doNotTrack) {
       <h1>相关文章</h1><li><strong> 2019-04-18: </strong> <a href="https://codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/">《数据密集型应用系统设计》第九章《一致性与共识》笔记</a>  </li><li><strong> 2019-04-16: </strong> <a href="https://codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>  </li><li><strong> 2019-04-03: </strong> <a href="https://codedump.info/post/20190403-ddia-chapter07-transaction/">《数据密集型应用系统设计》第七章《事务》笔记</a>  </li><li><strong> 2019-04-01: </strong> <a href="https://codedump.info/post/20181118-ddia-chapter05-replication/">《数据密集型应用系统设计》第五章数据复制笔记</a>  </li>
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

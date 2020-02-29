@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应" />
+<meta name="author" content="codedump" /><meta name="description" content="TCP协议笔记" />
+<meta name="keywords" content="TCP" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="TCP协议笔记 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="TCP协议笔记 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190227-tcp/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="TCP协议笔记" />
-<meta property="og:description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应" />
+<meta property="og:description" content="TCP协议笔记" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190227-tcp/" />
-<meta property="article:published_time" content="2019-02-27T21:01:43&#43;08:00"/>
-<meta property="article:modified_time" content="2019-02-27T21:01:43&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-02-27T21:01:43+08:00" />
+<meta property="article:modified_time" content="2019-02-27T21:01:43+08:00" />
 <meta itemprop="name" content="TCP协议笔记">
-<meta itemprop="description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应">
+<meta itemprop="description" content="TCP协议笔记">
 
 
 <meta itemprop="datePublished" content="2019-02-27T21:01:43&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="网络编程," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="TCP协议笔记"/>
-<meta name="twitter:description" content="概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应"/>
+<meta name="twitter:description" content="TCP协议笔记"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -228,7 +278,7 @@ if (!doNotTrack) {
 
 <h1 id="概述">概述</h1>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcpip.png" alt="tcpip" title="tcpip" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcpip.png" alt="tcpip" title="tcpip" /></p>
 
 <ul>
 <li>应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应用层的信息是通过端口号，即不同的端口号提供不同的服务。</li>
@@ -239,7 +289,7 @@ if (!doNotTrack) {
 
 <h1 id="tcp协议格式">TCP协议格式</h1>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-header.jpg" alt="tcp-header" title="tcp-header" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-header.jpg" alt="tcp-header" title="tcp-header" /></p>
 
 <ul>
 <li>端口号：tcp使用端口号来标记目标和源端口，tcp头中并没有ip地址信息，根据前面的tcp/ip模型，ip地址这是三层做的事情。</li>
@@ -265,7 +315,7 @@ if (!doNotTrack) {
 
 <h2 id="连接建立">连接建立</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-connect.png" alt="tcp-connect" title="tcp-connect" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-connect.png" alt="tcp-connect" title="tcp-connect" /></p>
 
 <p>以上图说明建立TCP连接的过程，其中左边的A为客户端，右边的B为服务器：</p>
 
@@ -303,7 +353,7 @@ SOMAXCONN, with the value 128.
 
 <p>上面提到的“未完成连接”，其实就是处于SYN-RCVD状态的连接，即只收到了客户端的SYN报文的连接。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-sync-queue-and-accept-queue-small.jpg" alt="tcp-sync-queue-and-accept-queue-small" title="tcp-sync-queue-and-accept-queue-small" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-sync-queue-and-accept-queue-small.jpg" alt="tcp-sync-queue-and-accept-queue-small" title="tcp-sync-queue-and-accept-queue-small" /></p>
 
 <p>Linux服务器内部，会维护一个半连接队列，即处于SYN-RCVD状态的连接都维护在这个队列中。同时还会维护一个完全连接队列，即处于ESTABLISH状态的队列。当连接从SYN-RCVD切换到ESTABLISH状态时，连接将从半连接队列转移到全连接队列中。</p>
 
@@ -318,7 +368,7 @@ net.ipv4.tcp_syn_retries #内核放弃建立连接之前发送SYN包的数量
 
 <h2 id="连接结束">连接结束</h2>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-finish.jpg" alt="tcp-finish" title="tcp-finish" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-finish.jpg" alt="tcp-finish" title="tcp-finish" /></p>
 
 <p>以上图来说明TCP连接释放的过程：</p>
 
@@ -360,7 +410,7 @@ net.ipv4.tcp_syn_retries #内核放弃建立连接之前发送SYN包的数量
 
 <p>下图给出了TCP协议状态机与系统调用之间的对应关系。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-statemachine.png" alt="tcp-statemachine" title="tcp-statemachine" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-statemachine.png" alt="tcp-statemachine" title="tcp-statemachine" /></p>
 
 <h1 id="tcp重传机制">TCP重传机制</h1>
 
@@ -488,7 +538,7 @@ SendBase = InitialSeqNumber
 
 <p>从以上可以看出，TCP协议通过TCP头部的window字段来解决流量控制问题。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcpswwindows.png" alt="tcpswwindows" title="tcpswwindows" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcpswwindows.png" alt="tcpswwindows" title="tcpswwindows" /></p>
 
 <p>如上图中，分成了四个部分，其中黑色框住的部分是滑动窗口：</p>
 
@@ -501,11 +551,11 @@ SendBase = InitialSeqNumber
 
 <p>当收到对端确认一部分数据的ACK之后，滑动窗口将向右边移动，如下图中，收到36的ACK，并且发出了46-51字节的数据之后，滑动窗口变化成了：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcpswslide.png" alt="tcpswslide" title="tcpswslide" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcpswslide.png" alt="tcpswslide" title="tcpswslide" /></p>
 
 <p>以下图为例来解释滑动窗口变化的流程：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcpswflow.png" alt="tcpswflow" title="tcpswflow" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcpswflow.png" alt="tcpswflow" title="tcpswflow" /></p>
 
 <ol>
 <li>client端的可用窗口大小为360字节。client发送140字节数据到server，其中seq=1，length=140；发送之后，client的可用窗口向右移动140字节，窗口总大小还是360字节。</li>
@@ -553,7 +603,7 @@ SendBase = InitialSeqNumber
 
 <p>可以看到，慢启动算法通过对对端应答报文的RTT时间探测，来修改cwnd值。而这个修改，在不超过ssthresh的情况下，是指数增长的。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/slow-start.png" alt="slow-start" title="slow-start" /></p>
+<p><img src="/media/imgs/20190227-tcp/slow-start.png" alt="slow-start" title="slow-start" /></p>
 
 <p>何时结束这种指数增长呢？有如下三种情况：</p>
 
@@ -602,7 +652,7 @@ SendBase = InitialSeqNumber
 
 <p>以下图来解释上面三种状态的处理：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-congestion-avoidance-example.png" alt="tcp-congestion-avoidance-example" title="tcp-congestion-avoidance-example" /></p>
+<p><img src="/media/imgs/20190227-tcp/tcp-congestion-avoidance-example.png" alt="tcp-congestion-avoidance-example" title="tcp-congestion-avoidance-example" /></p>
 
 <p>上图中，横轴为传输轮次，纵轴为cwnd大小，按照时间顺序，其过程如下：</p>
 
@@ -639,7 +689,7 @@ SendBase = InitialSeqNumber
 <li>如果收到新的ACK，表明重传的报文已经收到。此时将cwnd设置为ssthresh值，进入拥塞避免状态。</li>
 </ul>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/fast-recovery-example.png" alt="fast-recovery-example" title="fast-recovery-example" /></p>
+<p><img src="/media/imgs/20190227-tcp/fast-recovery-example.png" alt="fast-recovery-example" title="fast-recovery-example" /></p>
 
 <p>如上图中：发送端的第五个包丢失，导致发送端收到三个重复的针对第五个包的ACK。此时将ssthresh值设置为当时cwnd的一半，即6/2=3，而cwnd设置为3+3=6。然后重传第五个包。当收到最新的ACK时，即ACK 11，此时将cnwd设置为当前的ssthresh，即3，然后退出快速恢复而进入拥塞避免状态。</p>
 
@@ -647,7 +697,7 @@ SendBase = InitialSeqNumber
 
 <p>有了前面的解释，理解TCP拥塞控制算法的FSM就容易了：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/congestion-flow-algo-fsm.png" alt="congestion-flow-algo-fsm" title="congestion-flow-algo-fsm" /></p>
+<p><img src="/media/imgs/20190227-tcp/congestion-flow-algo-fsm.png" alt="congestion-flow-algo-fsm" title="congestion-flow-algo-fsm" /></p>
 
 <p>下面对以上FSM进行简单的总结，每个状态转换箭头都做了数字标记，以数字标记为序来分别做解释：</p>
 
@@ -759,7 +809,7 @@ SendBase = InitialSeqNumber
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -770,7 +820,7 @@ SendBase = InitialSeqNumber
       <h1>相关文章</h1>
 <li><strong> 2019-07-29: </strong> <a href="https://codedump.info/post/20190729-glog/">glog C&#43;&#43;版本代码分析</a>  </li><li><strong> 2019-04-13: </strong> <a href="https://codedump.info/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a>  </li><li><strong> 2019-02-09: </strong> <a href="https://codedump.info/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a>  </li><li><strong> 2019-01-23: </strong> <a href="https://codedump.info/post/20190123-libuv/">Libuv代码简单分析</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

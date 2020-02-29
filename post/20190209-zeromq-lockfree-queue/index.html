@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变" />
+<meta name="author" content="codedump" /><meta name="description" content="zeromq所谓的“无锁消息队列”" />
+<meta name="keywords" content="ZeroMQ, 无锁队列" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="zeromq所谓的“无锁消息队列” - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="zeromq所谓的“无锁消息队列” - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190209-zeromq-lockfree-queue/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="zeromq所谓的“无锁消息队列”" />
-<meta property="og:description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变" />
+<meta property="og:description" content="zeromq所谓的“无锁消息队列”" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190209-zeromq-lockfree-queue/" />
-<meta property="article:published_time" content="2019-02-09T20:10:13&#43;08:00"/>
-<meta property="article:modified_time" content="2019-02-09T20:10:13&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-02-09T20:10:13+08:00" />
+<meta property="article:modified_time" content="2019-02-09T20:10:13+08:00" />
 <meta itemprop="name" content="zeromq所谓的“无锁消息队列”">
-<meta itemprop="description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变">
+<meta itemprop="description" content="zeromq所谓的“无锁消息队列”">
 
 
 <meta itemprop="datePublished" content="2019-02-09T20:10:13&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="网络编程,zeromq," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="zeromq所谓的“无锁消息队列”"/>
-<meta name="twitter:description" content="本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变"/>
+<meta name="twitter:description" content="zeromq所谓的“无锁消息队列”"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -271,7 +321,7 @@ private:
 
 <p>负责收发消息的类是mailbox_t，内部实现使用了ypipe_t来实现无锁消息队列，而ypipe_t内部又使用了yqueue_t来实现队列，这个实现的目的是为了减少内部的分配。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190209-zeromq-lockfree-queue/mailbox_t.png" alt="mailbox_t" title="mailbox_t" /></p>
+<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/mailbox_t.png" alt="mailbox_t" title="mailbox_t" /></p>
 
 <p>下面根据上面这个图，自上而下分析邮箱的实现。</p>
 
@@ -281,7 +331,7 @@ private:
 
 <p>yqueue_t内部由一个一个chunk组成，每个chunk保存N个元素，如下图：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190209-zeromq-lockfree-queue/yqueue_t.png" alt="yqueue_t" title="yqueue_t" /></p>
+<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/yqueue_t.png" alt="yqueue_t" title="yqueue_t" /></p>
 
 <p>有了chunk_t来管理数据，这样每次需要新分配元素的时候，如果当前已经没有可用元素，可以一次性分配一个chunk_t，这里面有N个元素；另外在回收的时候，也不是马上被释放，根据局部性原理可以先回收到spare_chunk里面，当再次需要分配chunk_t的时候从spare_chunk中获取。</p>
 
@@ -295,7 +345,7 @@ private:
 
 <p>注意不要混淆了back和end的作用，<strong>back_chunk/back_pos负责的是元素的存储，而end_chunk/end_pos负责的是chunk的分配</strong>，yqueue_t的back函数返回的是back_pos，而对外部而言，end相关的数据不可见。</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190209-zeromq-lockfree-queue/chunk.png" alt="chunk" title="chunk" /></p>
+<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/chunk.png" alt="chunk" title="chunk" /></p>
 
 <p>如上图中：</p>
 
@@ -334,7 +384,7 @@ private:
 
 <p>以下面的场景来解释这个无锁队列相关的流程：</p>
 
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190209-zeromq-lockfree-queue/ypipe_t.png" alt="ypipe_t" title="ypipe_t" /></p>
+<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/ypipe_t.png" alt="ypipe_t" title="ypipe_t" /></p>
 
 <p>说明：以下场景忽略begin、back、end在不同chunk的情况，假设都在一个chunk完成的操作。</p>
 
@@ -393,44 +443,46 @@ inline void write (const T &amp;value_, bool incomplete_)
 
 <ul>
 <li>NULL：读线程设置，此时意味着已经没有数据可读，读线程在休眠。</li>
-<li>非零：写线程设置，这里又区分两种情况：
+
+<li><p>非零：写线程设置，这里又区分两种情况：</p>
 
 <ul>
 <li>旧值为_w的情况下，cas(_w,_f)操作修改为_f，意味着如果原先的值为_w，则原子性的修改为_f，表示有更多已被刷新的数据可读。</li>
-<li>在旧值为NULL的情况下，此时读线程休眠，因此可以安全的设置为当前_f指针的位置。</li>
-</ul></li>
-</ul>
+
+<li><p>在旧值为NULL的情况下，此时读线程休眠，因此可以安全的设置为当前_f指针的位置。</p>
 
 <pre><code class="language-C">inline bool flush ()
 {
-  //  If there are no un-flushed items, do nothing.
-  //  _w等于_f，意味着没有需要刷新的元素了，直接返回
-  if (_w == _f)
-    return true;
+//  If there are no un-flushed items, do nothing.
+//  _w等于_f，意味着没有需要刷新的元素了，直接返回
+if (_w == _f)
+return true;
 
-  //  Try to set 'c' to 'f'.
-  //  如果c原来是_w，切换为_f，同时返回旧的值
-  //  如果返回值不是_w，意味着旧的值不是_w
-  if (_c.cas (_w, _f) != _w) {
-    //  Compare-and-swap was unseccessful because 'c' is NULL.
-    //  This means that the reader is asleep. Therefore we don't
-    //  care about thread-safeness and update c in non-atomic
-    //  manner. We'll return false to let the caller know
-    //  that reader is sleeping.
-    //  cas操作返回不是_w，意味着_c指针为NULL
-    //  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
-    _c.set (_f);
-    _w = _f;
-    return false;
-  }
-
-  //  Reader is alive. Nothing special to do now. Just move
-  //  the 'first un-flushed item' pointer to 'f'.
-  //  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
-  _w = _f;
-  return true;
+//  Try to set 'c' to 'f'.
+//  如果c原来是_w，切换为_f，同时返回旧的值
+//  如果返回值不是_w，意味着旧的值不是_w
+if (_c.cas (_w, _f) != _w) {
+//  Compare-and-swap was unseccessful because 'c' is NULL.
+//  This means that the reader is asleep. Therefore we don't
+//  care about thread-safeness and update c in non-atomic
+//  manner. We'll return false to let the caller know
+//  that reader is sleeping.
+//  cas操作返回不是_w，意味着_c指针为NULL
+//  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
+_c.set (_f);
+_w = _f;
+return false;
 }
-</code></pre>
+
+//  Reader is alive. Nothing special to do now. Just move
+//  the 'first un-flushed item' pointer to 'f'.
+//  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
+_w = _f;
+return true;
+}
+</code></pre></li>
+</ul></li>
+</ul>
 
 <h3 id="5-read-ret">5、read(&amp;ret)</h3>
 
@@ -575,7 +627,7 @@ inline bool read (T *value_)
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -586,7 +638,7 @@ inline bool read (T *value_)
       <h1>相关文章</h1>
 <li><strong> 2019-07-29: </strong> <a href="https://codedump.info/post/20190729-glog/">glog C&#43;&#43;版本代码分析</a>  </li><li><strong> 2019-04-13: </strong> <a href="https://codedump.info/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a>  </li><li><strong> 2019-02-27: </strong> <a href="https://codedump.info/post/20190227-tcp/">TCP协议笔记</a>  </li><li><strong> 2019-01-23: </strong> <a href="https://codedump.info/post/20190123-libuv/">Libuv代码简单分析</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

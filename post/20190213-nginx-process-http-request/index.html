@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="前面分析了nginx如何读取一个HTTP请求、如何查询到HTTP对应的配置，本节分析如何处理HTTP请求。 处理HTTP请求的11个阶段 ngi" />
+<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-处理HTTP请求" />
+<meta name="keywords" content="Nginx, HTTP" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="Nginx源码阅读笔记-处理HTTP请求 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-处理HTTP请求 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20190213-nginx-process-http-request/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="Nginx源码阅读笔记-处理HTTP请求" />
-<meta property="og:description" content="前面分析了nginx如何读取一个HTTP请求、如何查询到HTTP对应的配置，本节分析如何处理HTTP请求。 处理HTTP请求的11个阶段 ngi" />
+<meta property="og:description" content="Nginx源码阅读笔记-处理HTTP请求" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20190213-nginx-process-http-request/" />
-<meta property="article:published_time" content="2019-02-13T09:09:19&#43;08:00"/>
-<meta property="article:modified_time" content="2019-02-13T09:09:19&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-02-13T09:09:19+08:00" />
+<meta property="article:modified_time" content="2019-02-13T09:09:19+08:00" />
 <meta itemprop="name" content="Nginx源码阅读笔记-处理HTTP请求">
-<meta itemprop="description" content="前面分析了nginx如何读取一个HTTP请求、如何查询到HTTP对应的配置，本节分析如何处理HTTP请求。 处理HTTP请求的11个阶段 ngi">
+<meta itemprop="description" content="Nginx源码阅读笔记-处理HTTP请求">
 
 
 <meta itemprop="datePublished" content="2019-02-13T09:09:19&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="nginx," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-处理HTTP请求"/>
-<meta name="twitter:description" content="前面分析了nginx如何读取一个HTTP请求、如何查询到HTTP对应的配置，本节分析如何处理HTTP请求。 处理HTTP请求的11个阶段 ngi"/>
+<meta name="twitter:description" content="Nginx源码阅读笔记-处理HTTP请求"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -496,89 +546,90 @@ checker函数同上面的NGX_HTTP_SERVER_REWRITE_PHASE阶段。</p>
 <li>NGX_OK：如果在配置文件中配置了satisfy all，那么将按照顺序执行下一个ngx_http_handler_pt方法；如果配置了satisfy any，那么将会执行下一个ngx_http_phase阶段的第一个ngx_http_handler_pt方法。</li>
 <li>NGX_DECLINED：按照顺序执行下一个ngx_http_handler_pt方法。</li>
 <li>NGX_AGAIN, NGX_DONE：当前的ngx_http_handler_pt方法尚未结束，当前方法有机会被再次调用。</li>
-<li>NGX_HTTP_FORBIDDEN: 如果在配置文件中配置了satisfy any，那么将ngx_http_request_t中的access_code成员设置为返回值。按照顺序执行下一个ngx_http_handler_pt处理方法；如果是satisfy all，那么调用ngx_http_finalize_request结束请求。</li>
-</ul>
+
+<li><p>NGX_HTTP_FORBIDDEN: 如果在配置文件中配置了satisfy any，那么将ngx_http_request_t中的access_code成员设置为返回值。按照顺序执行下一个ngx_http_handler_pt处理方法；如果是satisfy all，那么调用ngx_http_finalize_request结束请求。</p>
 
 <pre><code class="language-C">// NGX_HTTP_ACCESS_PHASE阶段的处理函数，用于控制用户发起的请求是否合法，
 // 如检测客户端的IP地址是否允许被访问
 ngx_int_t
 ngx_http_core_access_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
 {
-  ngx_int_t                  rc;
-  ngx_http_core_loc_conf_t  *clcf;
+ngx_int_t                  rc;
+ngx_http_core_loc_conf_t  *clcf;
 
-  // r != r-&gt;main表示当前请求只是派生出来的子请求，子请求不需要执行
-  // NGX_HTTP_ACCESS_PHASE阶段的处理
-  if (r != r-&gt;main) {
-    r-&gt;phase_handler = ph-&gt;next;
-    return NGX_AGAIN;
+// r != r-&gt;main表示当前请求只是派生出来的子请求，子请求不需要执行
+// NGX_HTTP_ACCESS_PHASE阶段的处理
+if (r != r-&gt;main) {
+r-&gt;phase_handler = ph-&gt;next;
+return NGX_AGAIN;
+}
+
+ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,
+&quot;access phase: %ui&quot;, r-&gt;phase_handler);
+
+rc = ph-&gt;handler(r);
+
+// 返回NGX_DECLINED意味着希望立刻执行下一个handler，
+// 无论是否属于NGX_HTTP_ACCESS_PHASE
+if (rc == NGX_DECLINED) {
+r-&gt;phase_handler++;
+return NGX_AGAIN;
+}
+
+// 返回AGAIN或者DONE意味着当前的NGX_HTTP_ACCESS_PHASE没有一次性执行完毕
+if (rc == NGX_AGAIN || rc == NGX_DONE) {
+return NGX_OK;
+}
+
+// 以下是返回值不是 NGX_DECLINED、NGX_AGAIN、NGX_DONE的情况
+
+// 由于NGX_HTTP_ACCESS_PHASE阶段在NGX_HTTP_FIND_CONFIG_PHASE阶段后面，
+// 因此此时请求已经找到了匹配的的location模块
+clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+
+if (clcf-&gt;satisfy == NGX_HTTP_SATISFY_ALL) { // NGX_HTTP_SATISFY_ALL表示nginx配置文件中配置了satisfy all参数
+// satisfy all要求所有NGX_HTTP_ACCESS_PHASE阶段的handler方法共同作用于该请求
+
+if (rc == NGX_OK) { // 该模块返回NGX_OK，意味着该模块认为满足访问要求，需要继续调用下一个模块查询是否满足要求
+  r-&gt;phase_handler++;
+  return NGX_AGAIN;
+}
+
+// 如果返回值不是NGX_OK，则调用ngx_http_finalize_request结束请求
+} else {  // 这里是配置中配置了satisfy any的情况
+// satisfy any不要求所有NGX_HTTP_ACCESS_PHASE阶段的模块都通过请求，只要有一个同意就可以放行
+
+// 返回NGX_OK，表示该模块认为有权限访问，因此phase_handler指向下一个handler
+// 并且access_code置为0
+if (rc == NGX_OK) {
+  r-&gt;access_code = 0;
+
+  if (r-&gt;headers_out.www_authenticate) {
+    r-&gt;headers_out.www_authenticate-&gt;hash = 0;
   }
 
-  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,
-    &quot;access phase: %ui&quot;, r-&gt;phase_handler);
+  r-&gt;phase_handler = ph-&gt;next;
+  return NGX_AGAIN;
+}
 
-  rc = ph-&gt;handler(r);
-
-  // 返回NGX_DECLINED意味着希望立刻执行下一个handler，
-  // 无论是否属于NGX_HTTP_ACCESS_PHASE
-  if (rc == NGX_DECLINED) {
-    r-&gt;phase_handler++;
-    return NGX_AGAIN;
+// NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED表示该模块不同意访问
+if (rc == NGX_HTTP_FORBIDDEN || rc == NGX_HTTP_UNAUTHORIZED) {
+  if (r-&gt;access_code != NGX_HTTP_UNAUTHORIZED) {
+    r-&gt;access_code = rc;
   }
 
-  // 返回AGAIN或者DONE意味着当前的NGX_HTTP_ACCESS_PHASE没有一次性执行完毕
-  if (rc == NGX_AGAIN || rc == NGX_DONE) {
-    return NGX_OK;
-  }
+  r-&gt;phase_handler++;
+  return NGX_AGAIN;
+}
+}
 
-  // 以下是返回值不是 NGX_DECLINED、NGX_AGAIN、NGX_DONE的情况
-
-  // 由于NGX_HTTP_ACCESS_PHASE阶段在NGX_HTTP_FIND_CONFIG_PHASE阶段后面，
-  // 因此此时请求已经找到了匹配的的location模块
-  clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-
-  if (clcf-&gt;satisfy == NGX_HTTP_SATISFY_ALL) { // NGX_HTTP_SATISFY_ALL表示nginx配置文件中配置了satisfy all参数
-    // satisfy all要求所有NGX_HTTP_ACCESS_PHASE阶段的handler方法共同作用于该请求
-
-    if (rc == NGX_OK) { // 该模块返回NGX_OK，意味着该模块认为满足访问要求，需要继续调用下一个模块查询是否满足要求
-      r-&gt;phase_handler++;
-      return NGX_AGAIN;
-    }
-
-    // 如果返回值不是NGX_OK，则调用ngx_http_finalize_request结束请求
-  } else {  // 这里是配置中配置了satisfy any的情况
-    // satisfy any不要求所有NGX_HTTP_ACCESS_PHASE阶段的模块都通过请求，只要有一个同意就可以放行
-
-    // 返回NGX_OK，表示该模块认为有权限访问，因此phase_handler指向下一个handler
-    // 并且access_code置为0
-    if (rc == NGX_OK) {
-      r-&gt;access_code = 0;
-
-      if (r-&gt;headers_out.www_authenticate) {
-        r-&gt;headers_out.www_authenticate-&gt;hash = 0;
-      }
-
-      r-&gt;phase_handler = ph-&gt;next;
-      return NGX_AGAIN;
-    }
-
-    // NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED表示该模块不同意访问
-    if (rc == NGX_HTTP_FORBIDDEN || rc == NGX_HTTP_UNAUTHORIZED) {
-      if (r-&gt;access_code != NGX_HTTP_UNAUTHORIZED) {
-        r-&gt;access_code = rc;
-      }
-
-      r-&gt;phase_handler++;
-      return NGX_AGAIN;
-    }
-  }
-
-  /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
-  // 到这里是请求出错的情况，结束这次请求
-  ngx_http_finalize_request(r, rc);
-  return NGX_OK;
+/* rc == NGX_ERROR || rc == NGX_HTTP_...  */
+// 到这里是请求出错的情况，结束这次请求
+ngx_http_finalize_request(r, rc);
+return NGX_OK;
 }              
-</code></pre>
+</code></pre></li>
+</ul>
 
 <h3 id="ngx-http-post-access-phase-不可添加自定义http模块">NGX_HTTP_POST_ACCESS_PHASE（不可添加自定义HTTP模块）</h3>
 
@@ -697,7 +748,7 @@ ngx_http_core_content_phase(ngx_http_request_t *r,
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -708,7 +759,7 @@ ngx_http_core_content_phase(ngx_http_request_t *r,
       <h1>相关文章</h1>
 <li><strong> 2019-05-01: </strong> <a href="https://codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-14: </strong> <a href="https://codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li><li><strong> 2019-01-31: </strong> <a href="https://codedump.info/post/20190131-nginx-event/">Nginx源码阅读笔记-事件处理模块</a>  </li><h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

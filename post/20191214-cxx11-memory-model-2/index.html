@@ -16,17 +16,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="codedump" />
-  <meta name="description" content="在本系列的上篇，介绍了内存模型的基本概念，接下来看C&#43;&#43;11中支持的几种内存模型。 几种关系术语 在接着继续解释之前，先了解一下几种关系术语。 sequenced-before" />
+<meta name="author" content="codedump" /><meta name="description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型" />
+<meta name="keywords" content="C&#43;&#43;, 内存模型" />
 
-  <meta name="keywords" content="Hugo, theme, even" />
+
+<meta property="og:title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型 - codedump的网络日志">
 
 
 
 <meta name="google-site-verification" content="UA-126255685-1" />
 
 
-<meta name="generator" content="Hugo 0.54.0" />
+<meta name="generator" content="Hugo 0.56.0" />
 
 
 <link rel="canonical" href="https://codedump.info/post/20191214-cxx11-memory-model-2/" />
@@ -50,14 +52,13 @@
 
 
 <meta property="og:title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型" />
-<meta property="og:description" content="在本系列的上篇，介绍了内存模型的基本概念，接下来看C&#43;&#43;11中支持的几种内存模型。 几种关系术语 在接着继续解释之前，先了解一下几种关系术语。 sequenced-before" />
+<meta property="og:description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://codedump.info/post/20191214-cxx11-memory-model-2/" />
-<meta property="article:published_time" content="2019-12-14T22:41:22&#43;08:00"/>
-<meta property="article:modified_time" content="2019-12-14T22:41:22&#43;08:00"/>
-
+<meta property="article:published_time" content="2019-12-14T22:41:22+08:00" />
+<meta property="article:modified_time" content="2019-12-14T22:41:22+08:00" />
 <meta itemprop="name" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型">
-<meta itemprop="description" content="在本系列的上篇，介绍了内存模型的基本概念，接下来看C&#43;&#43;11中支持的几种内存模型。 几种关系术语 在接着继续解释之前，先了解一下几种关系术语。 sequenced-before">
+<meta itemprop="description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型">
 
 
 <meta itemprop="datePublished" content="2019-12-14T22:41:22&#43;08:00" />
@@ -69,7 +70,7 @@
 <meta itemprop="keywords" content="多核,系统编程,系统设计," />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型"/>
-<meta name="twitter:description" content="在本系列的上篇，介绍了内存模型的基本概念，接下来看C&#43;&#43;11中支持的几种内存模型。 几种关系术语 在接着继续解释之前，先了解一下几种关系术语。 sequenced-before"/>
+<meta name="twitter:description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型"/>
 
 <script type="application/javascript">
 var doNotTrack = false;
@@ -100,7 +101,52 @@ if (!doNotTrack) {
     <a href="/" class="logo">codedump的网络日志</a>
   </div>
   <div class="mobile-navbar-icon">
-    <span></span>
+    <span> <li>
+  <div class="column">
+      <div id="sb-search" class="sb-search">
+          <form>
+              <input class="sb-search-input" placeholder="Enter your search term..." type="text" value="" name="search" id="search" autocomplete="off">
+              <input class="sb-search-submit" type="text" value="" autocomplete="off">
+              <span  class="sb-icon-search "></span>
+          </form>
+          <ul class="sb-option">
+          </ul>
+      </div>
+  </div>
+</li>
+
+<script src="https://codedump.info/js/algoliasearch.min.js"></script>
+
+<script src="https://codedump.info/js/classie.js"></script>
+<script src="https://codedump.info/js/uisearch.js"></script>
+
+
+<script>
+ var client = algoliasearch("X4YB3WOBNV", "");
+ var index = client.initIndex('xxxx');
+
+ $(document).ready(function(){
+     new UISearch( document.getElementById( 'sb-search' ) );
+ })
+ .on('input propertychange', '.sb-search-input', function() {
+     var search_str = $(this).val()
+     if (search_str == "") {
+         $(".sb-option").empty()
+     } else {
+         index.search(search_str, function (err, contacts){
+             $(".sb-option").empty()
+             for (var i = 0; i < contacts.hits.length; i++) {
+                 var _li = '<li>' +
+                               '<a href="/' + contacts.hits[i].uri  + '">'+
+                                   '<span>' + contacts.hits[i].title  + '</span>'+
+                               '</a>'+
+                           '</li>'
+                 $(".sb-option").append(_li)
+             }
+         });
+     }
+ })
+</script> </span>
     <span></span>
     <span></span>
   </div>
@@ -115,6 +161,8 @@ if (!doNotTrack) {
         <li class="mobile-menu-item">标签</li>
       </a><a href="/categories/">
         <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列</li>
       </a><a href="/page/about">
         <li class="mobile-menu-item">关于</li>
       </a><a href="https://www.codedump.info/index.xml">
@@ -138,6 +186,8 @@ if (!doNotTrack) {
         <a class="menu-item-link" href="/tags/">标签</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列</a>
       </li><li class="menu-item">
         <a class="menu-item-link" href="/page/about">关于</a>
       </li><li class="menu-item">
@@ -244,7 +294,7 @@ if (!doNotTrack) {
 <p>与内存模型相关的枚举类型有以上六种，但是其实分为四类，如下图所示，其中对一致性的要求逐渐减弱，以下来分别讲解。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191214-cxx11-memory-model-2/c++model.png" alt="c++model" title="c++model" />
+<img src="/media/imgs/20191214-cxx11-memory-model-2/c++model.png" alt="c++model" title="c++model" />
 </center></p>
 
 <h1 id="memory-order-seq-cst">memory_order_seq_cst</h1>
@@ -307,8 +357,8 @@ int main()
 
 <ul>
 <li>针对一个变量的读写操作是原子操作；</li>
-<li>不同线程之间针对该变量的访问操作先后顺序不能得到保证，即有可能乱序。</li>
-</ul>
+
+<li><p>不同线程之间针对该变量的访问操作先后顺序不能得到保证，即有可能乱序。</p>
 
 <pre><code>#include &lt;atomic&gt;
 #include &lt;thread&gt;
@@ -319,29 +369,30 @@ std::atomic&lt;int&gt; z;
 
 void write_x_then_y()
 {
-    x.store(true,std::memory_order_relaxed);
-    y.store(true,std::memory_order_relaxed);
+x.store(true,std::memory_order_relaxed);
+y.store(true,std::memory_order_relaxed);
 }
 
 void read_y_then_x()
 {
-    while(!y.load(std::memory_order_relaxed));
-    if(x.load(std::memory_order_relaxed))
-        ++z;
+while(!y.load(std::memory_order_relaxed));
+if(x.load(std::memory_order_relaxed))
+    ++z;
 }
 
 int main()
 {
-    x=false;
-    y=false;
-    z=0;
-    std::thread a(write_x_then_y);
-    std::thread b(read_y_then_x);
-    a.join();
-    b.join();
-    assert(z.load()!=0);
+x=false;
+y=false;
+z=0;
+std::thread a(write_x_then_y);
+std::thread b(read_y_then_x);
+a.join();
+b.join();
+assert(z.load()!=0);
 }
-</code></pre>
+</code></pre></li>
+</ul>
 
 <p>在上面的代码中，对原子变量的访问都使用memory_order_relaxed模型，导致了最后的断言可能失败，即在程序结束时z可能为0。</p>
 
@@ -352,7 +403,7 @@ int main()
 </ul>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191214-cxx11-memory-model-2/read-acquire.png" alt="read-acquire" title="read-acquire" />
+<img src="/media/imgs/20191214-cxx11-memory-model-2/read-acquire.png" alt="read-acquire" title="read-acquire" />
 </center></p>
 
 <ul>
@@ -360,12 +411,11 @@ int main()
 </ul>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191214-cxx11-memory-model-2/write-release.png" alt="write-release" title="write-release" />
+<img src="/media/imgs/20191214-cxx11-memory-model-2/write-release.png" alt="write-release" title="write-release" />
 </center></p>
 
 <ul>
-<li>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</li>
-</ul>
+<li><p>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</p>
 
 <pre><code>// 5.7.cpp
 #include &lt;atomic&gt;
@@ -377,44 +427,45 @@ std::atomic&lt;int&gt; z;
 
 void write_x()
 {
-    x.store(true,std::memory_order_release);
+x.store(true,std::memory_order_release);
 }
 
 void write_y()
 {
-    y.store(true,std::memory_order_release);
+y.store(true,std::memory_order_release);
 }
 
 void read_x_then_y()
 {
-    while(!x.load(std::memory_order_acquire));
-    if(y.load(std::memory_order_acquire))
-        ++z;
+while(!x.load(std::memory_order_acquire));
+if(y.load(std::memory_order_acquire))
+    ++z;
 }
 
 void read_y_then_x()
 {
-    while(!y.load(std::memory_order_acquire));
-    if(x.load(std::memory_order_acquire))
-        ++z;
+while(!y.load(std::memory_order_acquire));
+if(x.load(std::memory_order_acquire))
+    ++z;
 }
 
 int main()
 {
-    x=false;
-    y=false;
-    z=0;
-    std::thread a(write_x);
-    std::thread b(write_y);
-    std::thread c(read_x_then_y);
-    std::thread d(read_y_then_x);
-    a.join();
-    b.join();
-    c.join();
-    d.join();
-    assert(z.load()!=0);
+x=false;
+y=false;
+z=0;
+std::thread a(write_x);
+std::thread b(write_y);
+std::thread c(read_x_then_y);
+std::thread d(read_y_then_x);
+a.join();
+b.join();
+c.join();
+d.join();
+assert(z.load()!=0);
 }
-</code></pre>
+</code></pre></li>
+</ul>
 
 <p>上面这个例子中，并不能保证程序最后的断言即z!=0为真，其原因在于：在不同的线程中分别针对x、y两个变量进行了同步操作并不能保证x、y变量的读取操作。</p>
 
@@ -423,7 +474,7 @@ int main()
 <p>然而即便是这样，仍然可能出现以下类似的情况：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191214-cxx11-memory-model-2/5.7.png" alt="5.7" title="5.7" />
+<img src="/media/imgs/20191214-cxx11-memory-model-2/5.7.png" alt="5.7" title="5.7" />
 </center></p>
 
 <p>如上图所示：</p>
@@ -471,7 +522,7 @@ int main()
 </code></pre>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191214-cxx11-memory-model-2/5.8.png" alt="5.8" title="5.8" />
+<img src="/media/imgs/20191214-cxx11-memory-model-2/5.8.png" alt="5.8" title="5.8" />
 </center></p>
 
 <p>如上图所示：</p>
@@ -591,7 +642,7 @@ int main()
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -602,7 +653,7 @@ int main()
       <h1>相关文章</h1><li><strong> 2019-12-14: </strong> <a href="https://codedump.info/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>  </li>
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode_codedumpnote_513x148.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">
