@@ -64,7 +64,7 @@
 
 <meta itemprop="datePublished" content="2020-05-02T14:41:22&#43;08:00" />
 <meta itemprop="dateModified" content="2020-05-02T14:41:22&#43;08:00" />
-<meta itemprop="wordCount" content="5996">
+<meta itemprop="wordCount" content="6139">
 
 
 
@@ -382,6 +382,12 @@ if (!doNotTrack) {
 <p>前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。</p>
 
 <p>因此，Linux内核在实现时，使用了写时复制的技术（Copy On Write，简称COW），子进程在刚开始创建时与父进程共享同样的地址空间，仅当子进程要修改父进程地址空间的内容时才创建新的地址空间，从而使父子进程有各自的拷贝。</p>
+
+<p>Redis在生成RDB快照文件时，就利用了Linux写时复制机制。生成快照文件时，Redis主进程<code>fork</code>创建一个子进程，根据这里的解释，此时子进程的内存地址就是共享的父进程的空间。这样，父进程可以继续服务请求，而子进程跟进进程创建时候的内存信息，生成快照文件，结束了之后自行退出即可。</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/redis.png" alt="redis" title="redis" />
+</center></p>
 
 <h2 id="fork的实现">fork的实现</h2>
 
