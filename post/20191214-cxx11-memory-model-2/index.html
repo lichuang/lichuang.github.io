@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2019-12-14T22:41:22&#43;08:00" />
 <meta itemprop="dateModified" content="2019-12-14T22:41:22&#43;08:00" />
-<meta itemprop="wordCount" content="3249">
+<meta itemprop="wordCount" content="3299">
 
 
 
@@ -241,6 +241,7 @@ if (!doNotTrack) {
 <li><a href="#acquire-release">Acquire-Release</a></li>
 <li><a href="#release-consume">Release-Consume</a></li>
 <li><a href="#参考资料">参考资料</a></li>
+<li><a href="#修改历史">修改历史</a></li>
 </ul>
 </nav>
   </div>
@@ -261,13 +262,13 @@ if (!doNotTrack) {
 
 <h2 id="sequenced-before">sequenced-before</h2>
 
-<p>sequenced-before用于表示单线程之间，两个操作上的先后顺序，这个顺序是非对称、可以进行传递的关系。</p>
+<p>sequenced-before用于表示<strong>单线程</strong>之间，两个操作上的先后顺序，这个顺序是非对称、可以进行传递的关系。</p>
 
 <p>它不仅仅表示两个操作之间的先后顺序，还表示了操作结果之间的可见性关系。两个操作A和操作B，如果有A sequenced-before B，除了表示操作A的顺序在B之前，还表示了操作A的结果操作B可见。</p>
 
 <h2 id="happens-before">happens-before</h2>
 
-<p>与sequenced-before不同的是，happens-before关系表示的不同线程之间的操作先后顺序，同样的也是非对称、可传递的关系。</p>
+<p>与sequenced-before不同的是，happens-before关系表示的<strong>不同线程</strong>之间的操作先后顺序，同样的也是非对称、可传递的关系。</p>
 
 <p>如果A happens-before B，则A的内存状态将在B操作执行之前就可见。在上一篇文章中，某些情况下一个写操作只是简单的写入内存就返回了，其他核心上的操作不一定能马上见到操作的结果，这样的关系是不满足happens-before的。</p>
 
@@ -357,8 +358,10 @@ int main()
 
 <ul>
 <li>针对一个变量的读写操作是原子操作；</li>
+<li>不同线程之间针对该变量的访问操作先后顺序不能得到保证，即有可能乱序。</li>
+</ul>
 
-<li><p>不同线程之间针对该变量的访问操作先后顺序不能得到保证，即有可能乱序。</p>
+<p>来看示例代码：</p>
 
 <pre><code>#include &lt;atomic&gt;
 #include &lt;thread&gt;
@@ -369,30 +372,29 @@ std::atomic&lt;int&gt; z;
 
 void write_x_then_y()
 {
-x.store(true,std::memory_order_relaxed);
-y.store(true,std::memory_order_relaxed);
+    x.store(true,std::memory_order_relaxed);
+    y.store(true,std::memory_order_relaxed);
 }
 
 void read_y_then_x()
 {
-while(!y.load(std::memory_order_relaxed));
-if(x.load(std::memory_order_relaxed))
-    ++z;
+    while(!y.load(std::memory_order_relaxed));
+    if(x.load(std::memory_order_relaxed))
+        ++z;
 }
 
 int main()
 {
-x=false;
-y=false;
-z=0;
-std::thread a(write_x_then_y);
-std::thread b(read_y_then_x);
-a.join();
-b.join();
-assert(z.load()!=0);
+    x=false;
+    y=false;
+    z=0;
+    std::thread a(write_x_then_y);
+    std::thread b(read_y_then_x);
+    a.join();
+    b.join();
+    assert(z.load()!=0);
 }
-</code></pre></li>
-</ul>
+</code></pre>
 
 <p>在上面的代码中，对原子变量的访问都使用memory_order_relaxed模型，导致了最后的断言可能失败，即在程序结束时z可能为0。</p>
 
@@ -415,7 +417,10 @@ assert(z.load()!=0);
 </center></p>
 
 <ul>
-<li><p>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</p>
+<li>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</li>
+</ul>
+
+<p>来看示例代码：</p>
 
 <pre><code>// 5.7.cpp
 #include &lt;atomic&gt;
@@ -427,45 +432,44 @@ std::atomic&lt;int&gt; z;
 
 void write_x()
 {
-x.store(true,std::memory_order_release);
+    x.store(true,std::memory_order_release);
 }
 
 void write_y()
 {
-y.store(true,std::memory_order_release);
+    y.store(true,std::memory_order_release);
 }
 
 void read_x_then_y()
 {
-while(!x.load(std::memory_order_acquire));
-if(y.load(std::memory_order_acquire))
-    ++z;
+    while(!x.load(std::memory_order_acquire));
+    if(y.load(std::memory_order_acquire))
+        ++z;
 }
 
 void read_y_then_x()
 {
-while(!y.load(std::memory_order_acquire));
-if(x.load(std::memory_order_acquire))
-    ++z;
+    while(!y.load(std::memory_order_acquire));
+    if(x.load(std::memory_order_acquire))
+        ++z;
 }
 
 int main()
 {
-x=false;
-y=false;
-z=0;
-std::thread a(write_x);
-std::thread b(write_y);
-std::thread c(read_x_then_y);
-std::thread d(read_y_then_x);
-a.join();
-b.join();
-c.join();
-d.join();
-assert(z.load()!=0);
+    x=false;
+    y=false;
+    z=0;
+    std::thread a(write_x);
+    std::thread b(write_y);
+    std::thread c(read_x_then_y);
+    std::thread d(read_y_then_x);
+    a.join();
+    b.join();
+    c.join();
+    d.join();
+    assert(z.load()!=0);
 }
-</code></pre></li>
-</ul>
+</code></pre>
 
 <p>上面这个例子中，并不能保证程序最后的断言即z!=0为真，其原因在于：在不同的线程中分别针对x、y两个变量进行了同步操作并不能保证x、y变量的读取操作。</p>
 
@@ -612,6 +616,13 @@ int main()
 <li>《C++  Concurrency In Action》</li>
 <li><a href="https://preshing.com/20140709/the-purpose-of-memory_order_consume-in-cpp11/">《The Purpose of memory_order_consume in C++11》</a></li>
 <li><a href="https://preshing.com/20130823/the-synchronizes-with-relation/">《The Synchronizes-With Relation》</a></li>
+</ul>
+
+<h1 id="修改历史">修改历史</h1>
+
+<ul>
+<li>2019-12-14：初稿。</li>
+<li>2020-04-11：修改代码显示。</li>
 </ul>
 
     </div>
