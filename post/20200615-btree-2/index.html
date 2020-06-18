@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>B树、B&#43;树索引算法原理（下） - codedump的网络日志</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" /><meta name="description" content="B树、B&#43;树索引算法原理（下）" />
+<meta name="keywords" content="BTree, 存储引擎, 算法与数据结构" />
+
+
+<meta property="og:title" content="B树、B&#43;树索引算法原理（下） - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="B树、B&#43;树索引算法原理（下） - codedump的网络日志">
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.56.0" />
+
+
+<link rel="canonical" href="https://codedump.info/post/20200615-btree-2/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="B树、B&#43;树索引算法原理（下）" />
+<meta property="og:description" content="B树、B&#43;树索引算法原理（下）" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://codedump.info/post/20200615-btree-2/" />
+<meta property="article:published_time" content="2020-06-15T22:44:21+08:00" />
+<meta property="article:modified_time" content="2020-06-15T22:44:21+08:00" />
+<meta itemprop="name" content="B树、B&#43;树索引算法原理（下）">
+<meta itemprop="description" content="B树、B&#43;树索引算法原理（下）">
+
+
+<meta itemprop="datePublished" content="2020-06-15T22:44:21&#43;08:00" />
+<meta itemprop="dateModified" content="2020-06-15T22:44:21&#43;08:00" />
+<meta itemprop="wordCount" content="2772">
+
+
+
+<meta itemprop="keywords" content="存储,存储引擎,算法与数据结构," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="B树、B&#43;树索引算法原理（下）"/>
+<meta name="twitter:description" content="B树、B&#43;树索引算法原理（下）"/>
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump的网络日志</a>
+  </div>
+  <div class="mobile-navbar-icon">    
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">主页</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">归档</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">标签</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列文章索引</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">关于</li>
+      </a><a href="https://www.codedump.info/index.xml">
+        <li class="mobile-menu-item">订阅</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump的网络日志</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">主页</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">归档</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">标签</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">关于</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">B树、B&#43;树索引算法原理（下）</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-06-15 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E5%AD%98%E5%82%A8/"> 存储 </a>
+            
+              <a href="/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/"> 存储引擎 </a>
+            
+              <a href="/categories/%E7%AE%97%E6%B3%95%E4%B8%8E%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/"> 算法与数据结构 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#b-树的定义及性质">B+树的定义及性质</a></li>
+<li><a href="#核心算法">核心算法</a>
+<ul>
+<li><a href="#插入算法">插入算法</a></li>
+<li><a href="#删除算法">删除算法</a>
+<ul>
+<li><a href="#从叶子节点中删除数据">从叶子节点中删除数据</a>
+<ul>
+<li><a href="#借用兄弟节点数据进行重平衡操作">借用兄弟节点数据进行重平衡操作</a></li>
+<li><a href="#与兄弟节点进行合并">与兄弟节点进行合并</a></li>
+</ul></li>
+<li><a href="#内部节点节点的重平衡">内部节点节点的重平衡</a>
+<ul>
+<li><a href="#借用兄弟节点数据进行重平衡操作-1">借用兄弟节点数据进行重平衡操作</a></li>
+<li><a href="#与兄弟节点进行合并-1">与兄弟节点进行合并</a></li>
+</ul></li>
+</ul></li>
+</ul></li>
+<li><a href="#总结">总结</a></li>
+<li><a href="#参考资料">参考资料</a></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<blockquote>
+<p>这一段时间由于在阅读boltdb代码的缘故，找机会学习了B树及B+树的算法原理，这个系列会花两个篇幅分别介绍这两种数据结构的实现，其用于数据库索引中的基本原理。</p>
+</blockquote>
+
+<p>在<a href="https://www.codedump.info/post/20200609-btree-1/">上一篇文章</a>中，介绍了数据库索引的简单概念，以及B树的结构及核心算法，这一篇将继续介绍B树的变形B+树。</p>
+
+<h1 id="b-树的定义及性质">B+树的定义及性质</h1>
+
+<p>B+树之于B树，最大的不同在于：</p>
+
+<ul>
+<li>B树的数据可以存储在内部节点上，也可以存储在叶子节点上。</li>
+<li>而在B+树中，内部节点上仅存放数据的索引，数据只存储在叶子节点上。在内部节点中的键值，被称为“索引”，由于是数据索引，因此可能出现同一个键值，既出现在内部节点，也出现在叶子节点中的情况。</li>
+</ul>
+
+<p>内部节点的“索引”，应该满足以下条件：</p>
+
+<ul>
+<li>大于左边子树的最大键值；</li>
+<li>小于等于右边子树的最小键值。</li>
+</ul>
+
+<p>同时，B+树为了方便范围查询，叶子节点之间还用指针串联起来。</p>
+
+<p>以下是一颗B+树的典型结构：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/b+tree.png" alt="b+tree" title="b+tree" />
+</center></p>
+
+<p>由于采用了这样的结构，B+树对比B树有以下优点：</p>
+
+<ul>
+<li>索引节点上由于只有索引而没有数据，所以索引节点上能存储比B树更多的索引，这样树的高度就会更矮。按照我们上一篇中介绍数据库索引的内容，这种面向磁盘的数据结构，树的高度越矮，磁盘寻道的次数就会越少。</li>
+<li>因为数据都集中在叶子节点了，而所有叶子节点的高度相同，那么可以在叶子节点中增加前后指针，指向同一个父节点的相邻兄弟节点，给范围查询提供遍历。比如这样的SQL语句：<code>select * from tbl where t &gt; 10</code>，如果使用B+树存储数据的话，可以首先定位到数据为10的节点，再沿着它的next指针一路找到所有在该叶子节点右边的叶子节点数据返回。而如果使用B树结构，由于数据既可以存储在内部节点也可以存储在叶子节点，范围查询可想而知是很繁琐的。</li>
+</ul>
+
+<h1 id="核心算法">核心算法</h1>
+
+<h2 id="插入算法">插入算法</h2>
+
+<p>B+树的插入算法与B树的很相近，都是：</p>
+
+<ul>
+<li>首先判断待插入数据节点是否已经溢出，如果是就首先拆分成两个节点，然后再插入数据。</li>
+<li>由于内部节点上的数据是索引，所以在插入完成之后调整父节点指针。</li>
+</ul>
+
+<p>比如在下图的B+树中，向这里插入新的数据<code>10</code>：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/slide01b.gif" alt="slide01b" title="slide01b" />
+</center></p>
+
+<p>由于插入节点<code>[7,11]</code>在插入之后并没有溢出，所以可以直接变成<code>[7,10,11]</code>：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/slide01c.gif" alt="slide01c" title="slide01c" />
+</center></p>
+
+<p>而如下图的B+树中，插入数据<code>4</code>：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/slide02b.gif" alt="slide02b" title="slide02b" />
+</center></p>
+
+<p>由于所在节点<code>[2,3,5]</code>在插入之后数据溢出，因此需要分裂为两个新的节点，同时调整父节点的索引数据：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/slide02g.gif" alt="slide02g" title="slide02g" />
+</center></p>
+
+<p><code>[2,3,4,5]</code>分裂成了<code>[2,3]</code>和<code>[4,5]</code>，因此需要在这两个节点之间新增一个索引值，这个值应该满足：</p>
+
+<ul>
+<li>大于左子树的最大值。</li>
+<li>小于等于右子树的最小值。</li>
+</ul>
+
+<p>综上，需要在父节点中新增索引<code>4</code>和两个指向新节点的指针。</p>
+
+<h2 id="删除算法">删除算法</h2>
+
+<p>B+树的删除算法，与B树类似，分为以下几步：</p>
+
+<ul>
+<li>首先查询到键值所在的叶子节点，删除该叶子节点的数据。</li>
+<li>如果删除叶子节点之后的数据数量，满足B+树的平衡条件，则直接返回不用往下走了。</li>
+<li>否则，就需要做平衡操作：
+
+<ul>
+<li>如果该叶子节点的左右兄弟节点的数据量可以借用，就借用过来满足平衡条件。</li>
+<li>否则，就只能与相邻的兄弟节点合并成一个新的子节点了。</li>
+</ul></li>
+<li>在上面平衡操作中，如果是进行了合并操作，就需要向上修正父节点的指针：删除被合并节点的键值以及指针。由于做了删除操作，可能父节点也会不平衡，那么就按照前面的步骤也对父节点进行重新平衡操作，这样一直到某个节点平衡为止。</li>
+</ul>
+
+<p>下面结合<a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/B-tree=delete1.html">B-tree=delete1</a>、<a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/B-tree=delete2.html">B-tree=delete2</a> 的图示对删除算法展开具体的分析。</p>
+
+<h3 id="从叶子节点中删除数据">从叶子节点中删除数据</h3>
+
+<p>从叶子节点中删除数据分为三种情况：</p>
+
+<ul>
+<li>删除之后的数据量足够，不需要进行重平衡操作；</li>
+<li>删除之后的数据量不够，但是可以从兄弟节点那里借用数据，重新达到平衡；</li>
+<li>删除之后的数据量不够，兄弟节点的数据也不够，那么需要合并成一个新的节点，同时在父节点中删除索引和指针。</li>
+</ul>
+
+<p>以下针对后面两种需要做重平衡的操作展开分析。</p>
+
+<h4 id="借用兄弟节点数据进行重平衡操作">借用兄弟节点数据进行重平衡操作</h4>
+
+<p>在下图中，从叶子节点中删除数据之后，只剩下数据<code>[11]</code>：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/transfer-leaf01.gif" alt="transfer-leaf01" title="transfer-leaf01" />
+</center></p>
+
+<p>由于此时其左兄弟节点<code>[2,3,5]</code>有足够的数据可以借用，于是：</p>
+
+<ul>
+<li>将数据<code>5</code>移动到<code>[11]</code>中，成为新的叶子节点<code>[5,11]</code>。</li>
+<li>由于该叶子节点数据发生了变化，因此需要同时修正父节点中的索引数据<code>7</code>为<code>5</code>。为什么是<code>5</code>？因为修改的是该索引的右边子树数据，所以要取右子树数据中的最小值<code>5</code>。</li>
+</ul>
+
+<p>类似的，也有从右边兄弟节点借用数据的情况，如下：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/transfer-leaf02.gif" alt="transfer-leaf02" title="transfer-leaf02" />
+</center></p>
+
+<h4 id="与兄弟节点进行合并">与兄弟节点进行合并</h4>
+
+<p>当左右兄弟节点数据都不够借用的时候，那就只能进行合并，此时会有一个节点要从父节点中删除其索引数据以及子节点指针。</p>
+
+<p>在下图中，从叶子节点中删除数据之后，只剩下数据<code>[5]</code>：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/merge-leaf01a.gif" alt="merge-leaf01a" title="merge-leaf01a" />
+</center></p>
+
+<p>而左边兄弟节点<code>[2,3]</code>的数据也不够用，于是两个节点进行了合并，形成新的节点<code>[2,3,5]</code>，这样节点<code>[5]</code>就要在父节点中被删除。</p>
+
+<p>类似的，也有合并到右边的情况：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/merge-leaf02a.gif" alt="merge-leaf02a" title="merge-leaf02a" />
+</center></p>
+
+<p>上面从叶子节点中删除数据的操作，一共分为以下三种情况：</p>
+
+<ul>
+<li>被删除节点的数据量足够，不需要做重新平衡操作。</li>
+<li>被删除节点的数据量不够，但是可以借用兄弟节点数据达到重平衡。</li>
+<li>被删除节点的数据量不够，兄弟节点的数据也不够，只能把两者合并成新的节点。</li>
+</ul>
+
+<p>这三种情况中，前面两种由于并没有调整父节点，删除其中的索引和子节点指针，因此不需要继续在父节点中做重平衡操作，而第三种情况由于合并节点导致父节点需要删除数据，所以需要进一步在父节点中进行重平衡操作。以下继续以例子展开说明。</p>
+
+<h3 id="内部节点节点的重平衡">内部节点节点的重平衡</h3>
+
+<p>在删除父节点中的索引和子节点指针之后，如果父节点中的数据足够，同样也是不需要进行调整的，下面讨论的是内部节点需要进行重平衡的两种情况。</p>
+
+<h4 id="借用兄弟节点数据进行重平衡操作-1">借用兄弟节点数据进行重平衡操作</h4>
+
+<p>如果兄弟节点数据足够，那么同样可以从兄弟节点借用数据进行重平衡操作。</p>
+
+<p>以下图为例，假设内部节点<code>[11]</code>在删除索引和指针之后，需要从兄弟节点<code>[2,3,5]</code>借用数据：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/transfer-internal01.gif" alt="transfer-internal01" title="transfer-internal01" />
+</center></p>
+
+<p>大体的流程其实与叶子节点的借用数据挑战差不多，只是内部节点有指向子节点的指针，也要随着一起调整。</p>
+
+<p>同样的，也有从右边兄弟节点借用数据的情况：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/transfer-internal02.gif" alt="transfer-internal02" title="transfer-internal02" />
+</center></p>
+
+<h4 id="与兄弟节点进行合并-1">与兄弟节点进行合并</h4>
+
+<p>当兄弟节点数据不足时，内部节点也是进行合并操作。</p>
+
+<p>下图中，节点<code>[10]</code>的数据量不足，而兄弟节点<code>[2,5]</code>也不够数据借用，只能将两者合并，同时调整父节点指针：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/merge-internal01a.gif" alt="merge-internal01a" title="merge-internal01a" />
+</center></p>
+
+<p>合并之后的图示：</p>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200615-btree-2/merge-internal01b.gif" alt="merge-internal01b" title="merge-internal01b" />
+</center></p>
+
+<h1 id="总结">总结</h1>
+
+<p>相比B树的算法，B+树算法更简单一些，删除节点后的节点分为三种情况：</p>
+
+<ul>
+<li>数据量足够，不需要进行重平衡操作，这种情况不用继续到父节点中进行调整；</li>
+<li>数据量不够，但是可以从兄弟节点借用数据重新满足平衡条件，这种情况不用继续到父节点中进行调整；</li>
+<li>数据量不够，同时兄弟节点的数据也不够，此时只能将两者合并成一个新的节点，而由于两个节点变成了一个节点，所以要对应的从父节点中删除索引和子节点指针，这样继续往上看看是否需要对父节点进行重平衡操作，一直到满足平衡条件位置。</li>
+</ul>
+
+<p>我同样将B+树算法写了一个python的实现，参见：<a href="https://github.com/lichuang/algorithm_notes/blob/master/bplustree/bplustree.py">bplustree.py</a></p>
+
+<h1 id="参考资料">参考资料</h1>
+
+<ul>
+<li>emory大学的B+树算法讲解，是我能找到的最好的B+树算法讲解：
+
+<ul>
+<li><a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/B-tree=delete1.html">delete1</a></li>
+<li><a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/B-tree=delete2.html">delete2</a><br /></li>
+<li><a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/B-tree=delete3.html">delete3</a></li>
+</ul></li>
+</ul>
+
+<p>在<a href="http://www.mathcs.emory.edu/~cheung/Courses/554/Syllabus/3-index/">这里</a>能找到该课程更多关于B+树的课件索引。</p>
+
+<ul>
+<li><a href="https://www.cs.usfca.edu/~galles/visualization/BPlusTree.html">B+树的动画演示</a></li>
+</ul>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2020-06-15</span>
+  </p>
+  
+  <p class="copyright-item">
+    <span class="item-title">License</span>
+    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
+  </p>
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+        
+      
+      <h1>相关文章</h1><li><strong> 2020-06-09: </strong> <a href="https://codedump.info/post/20200609-btree-1/">B树、B&#43;树索引算法原理（上）</a>  </li><li><strong> 2019-02-15: </strong> <a href="https://codedump.info/post/20190215-leveldb/">Leveldb代码阅读笔记</a>  </li>
+<h1>微信公众号</h1>
+
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+
+<footer class="post-footer">
+  <div class="post-tags">
+      
+      <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>
+      
+      <a href="/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">存储引擎</a>
+      
+      <a href="/tags/%E7%AE%97%E6%B3%95%E4%B8%8E%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">算法与数据结构</a>
+      
+    </div>
+
+
+
+      
+      <nav class="post-nav">
+        
+          <a class="prev" href="/post/20200122-series-pages/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">博客系列文章索引</span>
+            <span class="prev-text nav-mobile">Prev</span>
+          </a>
+        
+          <a class="next" href="/post/20200609-btree-1/">
+            <span class="next-text nav-default">B树、B&#43;树索引算法原理（上）</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+
+
+  </article>
+        </div>
+        
+  <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+	
+  <div class="post bg-white">
+    <script src="https://utteranc.es/client.js"
+          repo="lichuang/lichuang.github.io"
+          issue-term="pathname"
+          theme="github-light"
+          crossorigin="anonymous"
+          async>
+    </script>
+  </div>    
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+<script id="baidu_analytics">
+  var _hmt = _hmt || [];
+  (function() {
+    if (window.location.hostname === 'localhost') return;
+    var hm = document.createElement("script"); hm.async = true;
+    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+
+
+
+
+
+
+</body>
+</html>
