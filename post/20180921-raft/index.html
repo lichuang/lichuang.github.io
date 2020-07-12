@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2018-09-21T20:15:32&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-21T20:15:32&#43;08:00" />
-<meta itemprop="wordCount" content="11934">
+<meta itemprop="wordCount" content="11567">
 
 
 
@@ -234,7 +234,7 @@ if (!doNotTrack) {
 
 <h1 id="简介">简介</h1>
 
-<p>关于Raft算法，有两篇经典的论文，一篇是《In search of an Understandable Consensus Algorithm》，这是作者最开始讲述Raft算法原理的论文，但是这篇论文太简单了，很多算法的细节没有涉及到。更详细的论文是《CONSENSUS: BRIDGING THEORY AND PRACTICE》，除了包括第一篇论文的内容以外，还加上了很多细节的描述。在我阅读完etcd raft算法库的实现之后，发现这个库的代码基本就是按照后一篇论文来写的，甚至有部分测试用例的注释里也写明了是针对这篇论文的某一个小节的情况做验证。</p>
+<p>关于Raft算法，有两篇经典的论文，一篇是《In search of an Understandable Consensus Algorithm》，这是作者最开始讲述Raft算法原理的论文，但是这篇论文太简单了，很多算法的细节没有涉及到。更详细的论文是《Consensus: Bridging Theory and Practice》，除了包括第一篇论文的内容以外，还加上了很多细节的描述。在我阅读完etcd raft算法库的实现之后，发现这个库的代码基本就是按照后一篇论文来写的，甚至有部分测试用例的注释里也写明了是针对这篇论文的某一个小节的情况做验证。</p>
 
 <p>这篇文章做为我后续分析etcd raft算法的前导文章，将结合后一篇论文加上一些自己的演绎和理解来讲解Raft算法的原理。</p>
 
@@ -451,19 +451,61 @@ candidate状态节点主循环：
 
 <p>从以上两个索引的定义可知，在follower与leader节点之间日志复制正常的情况下，nextIndex = matchIndex + 1。但是如果出现不一致的情况，则这个等式可能不成立。每个leader节点被选举出来时，将初始化nextIndex为leader节点最后一条日志，而matchIndex为0，这么做的原因在于：leader节点将从后往前探索follower节点当前存储的日志位置，而在不知道follower节点日志位置的情况下只能置空matchIndex了。</p>
 
-<p>leader节点通过AppendEntries消息来与follower之间进行日志同步的，每次给follower带过去的日志就是以nextIndex来决定，如果follower节点的日志与这个值匹配，将返回成功；否则将返回失败，同时带上本节点当前的最大日志ID，方便leader节点快速定位到follower的日志位置以下一次同步正确的日志数据，而leader节点在收到返回失败的情况下，将置nextIndex = matchIndex + 1。从上面的分析可知，在leader当前之后第一次向follower同步日志失败时，nextIndex = matchIndex + 1 = 1。</p>
+<p>leader节点通过AppendEntries消息来与follower之间进行日志同步的，每次给follower带过去的日志就是以nextIndex来决定，如果follower节点的日志与这个值匹配，将返回成功；否则将返回失败，同时带上本节点当前的最大日志ID（假设这个索引为hintIndex），方便leader节点快速定位到follower的日志位置以下一次同步正确的日志数据。</p>
+
+<p>而leader节点在收到返回失败的情况下，将置nextIndex = min(hintIndex+1,上一次append消息的索引)，再次发出添加日志请求。</p>
 
 <p>以上图的几个节点为例来说明情况。</p>
 
 <ul>
-<li>初始状态下，leader节点将存储每个folower节点的nextIndex为10，matchIndex为0。因此在成为leader节点之后首次向follower节点同步日志数据时，将复制索引位置在10以后的日志数据，同时带上日志二元组<6,10>告知follower节点当前leader保存的follower日志状态。</li>
-<li>a节点：由于节点的最大日志数据二元组是<6,9>，正好与leader发过来的日志<6,10>紧挨着，因此返回复制成功。</li>
-<li>b节点：由于节点的最大日志数据二元组是<4,4>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索引4，leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为matchIndex + 1即1，所以下一次leader节点将同步从索引1到10的数据给b节点。</li>
-<li>c节点：由于节点的最大日志数据二元组是<6,11>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索 引11，leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为matchIndex + 1即1，所以下一次leader节点将同步从索引1到10的数据给c节点，由于c节点上有未提交的数据，所以在第二次与leader同步完成之后，这些未提交的数据被清除。</li>
-<li>d节点：由于节点的最大日志数据二元组是<7,12>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索 引11，leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为matchIndex + 1即1，所以下一次leader节点将同步从索引1到10的数据给d节点，由于d节点上有未提交的数据，所以在第二次与leader同步完成之后，这些未提交的数据被清除。</li>
-<li>e节点：由于节点的最大日志数据二元组是<4,7>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索 引11，leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为matchIndex + 1即1，所以下一次leader节点将同步从索引1到10的数据给e节点，由于e节点上缺少的日志数据将被补齐，而多出来的未提交数据将被清除。</li>
-<li>f节点：由于节点的最大日志数据二元组是<4,7>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索 引11，leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为matchIndex + 1即1，所以下一次leader节点将同步从索引1到10的数据给f节点，由于f节点上缺少的日志数据将被补齐，而多出来的未提交数据将被清除。</li>
+<li><p>初始状态下，leader节点将存储每个folower节点的nextIndex为10，matchIndex为0。因此在成为leader节点之后首次向follower节点同步日志数据时，将复制索引位置在10以后的日志数据，同时带上日志二元组<6,10>告知follower节点当前leader保存的follower日志状态。</p></li>
+
+<li><p>a节点：由于节点的最大日志数据二元组是<6,9>，正好与leader发过来的日志<6,10>紧挨着，因此返回复制成功。</p></li>
 </ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-a.png" alt="leader-to-a" title="leader-to-a" />
+</center></p>
+
+<ul>
+<li>b节点：由于节点的最大日志数据二元组是<4,4>，与leader发送过来的日志数据<6,10>不匹配，将返回失败同时带上自己最后的日志索引4（即hintIndex=4），leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为min(10,4+1)=5，所以下一次leader节点将同步从索引5到10的数据给b节点。</li>
+</ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-b.png" alt="leader-to-b" title="leader-to-b" />
+</center></p>
+
+<ul>
+<li>c节点：由于节点的最大日志数据二元组是<6,11>，与leader发送过来的日志数据<6,10>不匹配，由于两者任期号相同，节点C知道自己的索引11的数据需要删除。</li>
+</ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-c.png" alt="leader-to-c" title="leader-to-c" />
+</center></p>
+
+<ul>
+<li>d节点：由于节点的最大日志数据二元组是<7,12>，与leader发送过来的日志数据<6,10>不匹配，索引11、12的数据将被删除。</li>
+</ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-d.png" alt="leader-to-d" title="leader-to-d" />
+</center></p>
+
+<ul>
+<li>e节点：由于节点的最大日志数据二元组是<4,7>，与leader发送过来的日志数据<6,10>不匹配，将返回最后一个与节点数据一致的索引5给leader，于是leader从min(5+1,10)=6开始同步数据给节点e，最终e节点上索引7的数据被覆盖。</li>
+</ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-e.png" alt="leader-to-e" title="leader-to-e" />
+</center></p>
+
+<ul>
+<li>f节点：由于节点的最大日志数据二元组是<3,11>，与leader发送过来的日志数据<6,10>不匹配，将返回最后一个与节点数据一致的索引3给leader，于是leader从min(3+1,10)=4开始同步数据给节点f，最终f节点上索引4之后的数据被覆盖。</li>
+</ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/leader-to-f.png" alt="leader-to-f" title="leader-to-f" />
+</center></p>
 
 <h2 id="安全性">安全性</h2>
 
