@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2019-04-03T22:33:58&#43;08:00" />
 <meta itemprop="dateModified" content="2019-04-03T22:33:58&#43;08:00" />
-<meta itemprop="wordCount" content="3959">
+<meta itemprop="wordCount" content="4264">
 
 
 
@@ -244,6 +244,8 @@ if (!doNotTrack) {
 
 <h1 id="深入理解事务">深入理解事务</h1>
 
+<p>事务提供的安全性保证即所谓的<code>ACID</code>，它包括以下四个要求：</p>
+
 <h2 id="acid">ACID</h2>
 
 <h3 id="原子性-atomicity">原子性（Atomicity）</h3>
@@ -319,6 +321,8 @@ if (!doNotTrack) {
 
 <p>上图中，alice有两个账号，但是如果alice在转账过程中去查看账户，会发现少了100美元。</p>
 
+<p>原因在于：alice对两个账户的两次读操作是同一个事务，而在这两次读操作之间，还有两次写操作，在这两次写操作完成之后才进行的第二次读操作，这样读出来的数据就不一致了。</p>
+
 <p>这种异常现象称为”不可重复读取（nonrepeatable read）“或者”读倾斜（read skew）“问题。</p>
 
 <p>以上问题，并不是一个永久性问题，因为alice的账号最终会一致，然而某些场景下这种过程中的不一致现象不能接受，比如：</p>
@@ -341,6 +345,8 @@ if (!doNotTrack) {
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-7.jpg" alt="7-7" title="7-7" /></p>
 
 <p>给每个事务一个唯一的、单调递增的事务ID（txid），每当事务写入新数据的时候，所写的数据都会带上写入者的事务ID。表中的每一行的created_by字段，用于保存创建该行的事务ID；deleted_by初始为空，用于保存请求删除该行的事务ID，仅用于标记为删除。事后，仅当确认没有其他事务引用该删除行的时候，才执行真正的删除操作。</p>
+
+<p>上图中，账号1的最后一次写操作由事务ID 3完成，账号2的最后一次写操作由事务ID 5完成。事务ID 13的操作修改两个账号数据的时候，会同时设置上这一行的旧数据被事务13删除，同时新的数据由事务13创建。这样，事务12的针对账号2的读操作，返回的就是两个版本的数据：由事务5创建而由事务13删除的数据500，和由事务13创建的数据400，这样修改和未完成的读事务两者就被隔离而不会互相影响。</p>
 
 <h3 id="一致性快照的可见性原则">一致性快照的可见性原则</h3>
 
