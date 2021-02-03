@@ -1,234 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-cn">
+
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志</title>
-  <meta name="renderer" content="webkit" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
-
-<meta http-equiv="Cache-Control" content="no-transform" />
-<meta http-equiv="Cache-Control" content="no-siteapp" />
-
-<meta name="theme-color" content="#f8f5ec" />
-<meta name="msapplication-navbutton-color" content="#f8f5ec">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
 
 
-<meta name="author" content="codedump" /><meta name="description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记" />
-<meta name="keywords" content="DDIA, 分布式, 读书笔记, 数据密集型应用系统设计" />
-
-
-<meta property="og:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志">
-<meta name="apple-mobile-web-app-title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志">
+<meta name="author" content="codedump">
 
 
 
-<meta name="google-site-verification" content="UA-126255685-1" />
+<meta name="description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
 
 
-<meta name="generator" content="Hugo 0.56.0" />
 
 
-<link rel="canonical" href="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/" />
+<meta name="keywords" content=" DDIA  分布式  读书笔记  数据密集型应用系统设计 ">
 
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/manifest.json">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记" />
+<meta name="twitter:description" content="一致性保证 最终一致性（eventual consistency）：如果停止更新数据，等待一段时间（时间长度未知），则最终所有读请求将返回相同的" />
+
+
+<link rel="canonical" href="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/">
+
+
+<link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+<link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+<link media="screen" rel="stylesheet" href='https://www.codedump.info/css/highlight.css'>
+
+
+
+<title>《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志</title>
 
 
 
 
 
-
-
-<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
-<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
-
-
-
-
-<meta property="og:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记" />
-<meta property="og:description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记" />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/" />
-<meta property="article:published_time" content="2019-04-18T08:40:34+08:00" />
-<meta property="article:modified_time" content="2019-04-18T08:40:34+08:00" />
-<meta itemprop="name" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
-<meta itemprop="description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
-
-
-<meta itemprop="datePublished" content="2019-04-18T08:40:34&#43;08:00" />
-<meta itemprop="dateModified" content="2019-04-18T08:40:34&#43;08:00" />
-<meta itemprop="wordCount" content="6981">
-
-
-
-<meta itemprop="keywords" content="读书笔记,分布式," />
-<meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记"/>
-<meta name="twitter:description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记"/>
-
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-<!--[if lte IE 9]>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
-<![endif]-->
-
-<!--[if lt IE 9]>
-  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
-<![endif]-->
-
+  <link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 </head>
+
 <body>
-  <div id="mobile-navbar" class="mobile-navbar">
-  <div class="mobile-header-logo">
-    <a href="/" class="logo">codedump的网络日志</a>
-  </div>
-  <div class="mobile-navbar-icon">    
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<nav id="mobile-menu" class="mobile-menu slideout-menu">
-  <ul class="mobile-menu-list">
-    <a href="/">
-        <li class="mobile-menu-item">主页</li>
-      </a><a href="/post/">
-        <li class="mobile-menu-item">归档</li>
-      </a><a href="/tags/">
-        <li class="mobile-menu-item">标签</li>
-      </a><a href="/categories/">
-        <li class="mobile-menu-item">分类</li>
-      </a><a href="/post/20200122-series-pages/">
-        <li class="mobile-menu-item">系列文章索引</li>
-      </a><a href="/page/about">
-        <li class="mobile-menu-item">关于</li>
-      </a><a href="https://www.codedump.info/index.xml">
-        <li class="mobile-menu-item">订阅</li>
-      </a>
-  </ul>
-</nav>
-  <div class="container" id="mobile-panel">
-    <header id="header" class="header">
-        <div class="logo-wrapper">
-  <a href="/" class="logo">codedump的网络日志</a>
-</div>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
 
-<nav class="site-navbar">
-  <ul id="menu" class="menu">
-    <li class="menu-item">
-        <a class="menu-item-link" href="/">主页</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/">归档</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/tags/">标签</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/categories/">分类</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/about">关于</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
-      </li>
-  </ul>
-</nav>
-    </header>
-
-    <main id="main" class="main">
-      <div class="content-wrapper">
-        <div id="content" class="content">
-          <article class="post">
+  <nav>
     
-    <header class="post-header">
-      <h1 class="post-title">《数据密集型应用系统设计》第九章《一致性与共识》笔记</h1>
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
 
-      <div class="post-meta">
-        <span class="post-time"> 2019-04-18 </span>
-        <div class="post-category">
-            
-              <a href="/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/"> 读书笔记 </a>
-            
-              <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"> 分布式 </a>
-            
-          </div>
+    <main id="main" class="post">
+      
+      
+      
+      <h1>《数据密集型应用系统设计》第九章《一致性与共识》笔记</h1>
+      
+      <div>
+        <b>Keywords: </b>
         
+        <a class="link" href='https://www.codedump.info/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0'>#读书笔记</a>
+        
+        <a class="link" href='https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F'>#分布式</a>
         
       </div>
-    </header>
-
-    
-    
-<div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title">Contents</h2>
-  
-  <div class="post-toc-content always-active">
-    <nav id="TableOfContents">
-<ul>
-<li><a href="#一致性保证">一致性保证</a></li>
-<li><a href="#可线性化-linearizability">可线性化（Linearizability）</a>
-<ul>
-<li><a href="#如何实现可线性化">如何实现可线性化？</a></li>
-<li><a href="#线性化的依赖条件">线性化的依赖条件</a></li>
-</ul></li>
-<li><a href="#实现线性化系统">实现线性化系统</a>
-<ul>
-<li><a href="#线性化与quorum">线性化与quorum</a></li>
-<li><a href="#线性化的代价">线性化的代价</a>
-<ul>
-<li><a href="#cap理论">CAP理论</a></li>
-</ul></li>
-</ul></li>
-<li><a href="#顺序保证">顺序保证</a>
-<ul>
-<li><a href="#因果顺序并非全序">因果顺序并非全序</a></li>
-<li><a href="#可线性化强于因果一致性">可线性化强于因果一致性</a></li>
-<li><a href="#序列号排序">序列号排序</a></li>
-<li><a href="#lamport时间戳">Lamport时间戳</a></li>
-<li><a href="#全序关系广播-total-oder-broadcast">全序关系广播（Total Oder Broadcast）</a></li>
-</ul></li>
-<li><a href="#分布式事务与共识">分布式事务与共识</a>
-<ul>
-<li>
-<ul>
-<li><a href="#两阶段提交-two-phase-commit-简称2pc">两阶段提交（two-phase commit，简称2PC）</a></li>
-<li><a href="#2pc的原理">2PC的原理</a></li>
-<li><a href="#协调者发生故障">协调者发生故障</a></li>
-</ul></li>
-</ul></li>
-<li><a href="#支持容错的共识算法">支持容错的共识算法</a>
-<ul>
-<li><a href="#共识算法与全序广播">共识算法与全序广播</a></li>
-<li><a href="#主从复制与共识">主从复制与共识</a></li>
-<li><a href="#epoch和quorum">epoch和quorum</a></li>
-</ul></li>
-</ul>
-</nav>
-  </div>
-</div>
-
-    
-    
-
-    
-    <div class="post-content">
       
+      <div class="content">
+        
 
 <h1 id="一致性保证">一致性保证</h1>
 
@@ -512,160 +383,60 @@ if (!doNotTrack) {
 
 <p>投票过程看起来像2PC，区别在于：2PC的协调者不是依靠选举产生；另外共识算法只需要收到quorum节点的应答就可以通过决议，而2PC需要所有参与者都通过才能通过决议。</p>
 
-    </div>
-
-    
-    <div class="post-copyright">
-  <p class="copyright-item">
-    <span class="item-title">Author</span>
-    <span class="item-content">codedump</span>
-  </p>
-  <p class="copyright-item">
-    <span class="item-title">LastMod</span>
-    <span class="item-content">2019-04-18</span>
-  </p>
-  
-  <p class="copyright-item">
-    <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
-  </p>
-</div>
-
-    
-    
-<div class="post-reward">
-  <input type="checkbox" name="reward" id="reward" hidden />
-  <label class="reward-button" for="reward">打赏</label>
-  <div class="qr-code">
-    
-    
-      <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
-        <span>微信支付</span>
-      </label>
-    
-  </div>
-</div>
-        
-      
-      <h1>相关文章</h1><li><strong> 2019-04-16: </strong> <a href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>  </li><li><strong> 2019-04-03: </strong> <a href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/">《数据密集型应用系统设计》第七章《事务》笔记</a>  </li><li><strong> 2019-04-02: </strong> <a href="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/">《数据密集型应用系统设计》第六章数据分区笔记</a>  </li><li><strong> 2019-04-01: </strong> <a href="https://www.codedump.info/post/20181118-ddia-chapter05-replication/">《数据密集型应用系统设计》第五章数据复制笔记</a>  </li>
-<h1>微信公众号</h1>
-
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-
-<footer class="post-footer">
-  <div class="post-tags">
-      
-      <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>
-      
-      <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
-      
-    </div>
-
-
-
-      
-      <nav class="post-nav">
-        
-          <a class="prev" href="/post/20190409-redis-sentinel/">
-            <i class="iconfont icon-left"></i>
-            <span class="prev-text nav-default">redis高可用原理</span>
-            <span class="prev-text nav-mobile">Prev</span>
-          </a>
-        
-          <a class="next" href="/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/">
-            <span class="next-text nav-default">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</span>
-            <span class="next-text nav-mobile">Next</span>
-            <i class="iconfont icon-right"></i>
-          </a>
-      </nav>
-    </footer>
-
-
-  </article>
-        </div>
-        
-  <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
-      
-      
-      if (window.location.hostname === 'localhost') return;
-
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-
-  
-
-	
-  <div class="post bg-white">
-    <script src="https://utteranc.es/client.js"
-          repo="lichuang/lichuang.github.io"
-          issue-term="pathname"
-          theme="github-light"
-          crossorigin="anonymous"
-          async>
-    </script>
-  </div>    
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
-
-  
-
       </div>
-    </main>
-
-    <footer id="footer" class="footer">
-      <div class="social-links">
-      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
-      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
-      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
-      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
-</div>
-
-<div class="copyright">
-  <span class="power-by">
-    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
-  </span>
-  <span class="division">|</span>
-  <span class="theme-info">
-    Theme - 
-    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
-  </span>
-
-  
-
-  <span class="copyright-year">
-    &copy; 
+      <div class="paginator">
+        
+        <a class="link" href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/">← prev</a>
+        
+        
+        <a class="link" href="https://www.codedump.info/post/20190409-redis-sentinel/">next →</a>
+        
+      </div>
+      <div class="comment">
+        <div id="disqus_thread"></div>
+<script type="application/javascript">
+    var disqus_config = function () {
     
-      2018 - 
-    2021
-    <span class="heart">
-      <i class="iconfont icon-heart"></i>
-    </span>
-    <span class="author">codedump</span>
-  </span>
-</div>
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+      </div>
+      
+    </main>
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2021</span>
+  </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
-    </footer>
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
 
-    <div class="back-to-top" id="back-to-top">
-      <i class="iconfont icon-up"></i>
-    </div>
+  <div class="footnote">
+    <span></span>
+  </div>
+</footer>
+
   </div>
   
-<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
-  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
 
 
-<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
 
 
 <script type="application/javascript">
@@ -678,21 +449,8 @@ if (!doNotTrack) {
 }
 </script>
 <script async src='https://www.google-analytics.com/analytics.js'></script>
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-
-
-
 
 
 </body>
+
 </html>
