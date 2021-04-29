@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2018-09-21T20:15:32&#43;08:00" />
 <meta itemprop="dateModified" content="2018-09-21T20:15:32&#43;08:00" />
-<meta itemprop="wordCount" content="11695">
+<meta itemprop="wordCount" content="11792">
 
 
 
@@ -254,15 +254,17 @@ if (!doNotTrack) {
 的另一条日志数据输入到raft状态机中执行。</li>
 </ul>
 
-<p>Raft算法需要一直保持的三个属性。</p>
+<p>Raft算法需要一直保持的几个属性。</p>
 
 <ul>
 <li>选举安全性（Election Safety）：在一个任期内只能存在最多一个leader节点。</li>
-<li>Leader节点上的日志为只添加（Leader Append-Only）：leader节点永远不会删除或者覆盖本节点上面的日志数据。</li>
+<li>Leader节点上的日志为只添加（Leader Append-Only）：leader节点永远不会删除或者覆盖本节点上面的日志数据，leader节点上写日志的操作只可能是添加操作。</li>
 <li>日志匹配性（Log Matching）：如果两个节点上的日志，在日志的某个索引上的日志数据其对应的任期号相同，那么在两个节点在这条日志之前的日志数据完全匹配。</li>
 <li>leader完备性（Leader Completeness）：如果一条日志在某个任期被提交，那么这条日志数据在leader节点上更高任期号的日志数据中都存在。</li>
 <li>状态机安全性（State Machine Safety）：如果某个节点已经将一条提交过的数据输入raft状态机执行了，那么其它节点不可能再将相同索引的另一条日志数据输入到raft状态机中执行。</li>
 </ul>
+
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180921-raft/raft-propertities.png" alt="raft-propertities" title="raft-propertities" /></p>
 
 <h2 id="raft算法基础">Raft算法基础</h2>
 
@@ -381,7 +383,7 @@ candidate状态节点主循环：
 <li>command：日志条目中对数据进行修改的操作。</li>
 </ol>
 
-<p>一条日志如果被leader同步到集群中超过半数的节点，那么被称为“成功复制”，这个日志条目就是“已被提交（committed）”。如果一条日志已被提交，那么在这条日志之前的所有日志条目也是被提交的，包括之前其他任期内的leader提交的日志。如上图中索引为7的日志条目之前的所有日志都是已被提交的日志。</p>
+<p>一条日志如果被leader同步到集群中超过半数的节点，那么被称为“成功复制”，leader节点在收到半数以上的节点应答某条日志之后，就会提交该日志，此时日志这个日志条目就是“已被提交（committed）”。如果一条日志已被提交，那么在这条日志之前的所有日志条目也是被提交的，包括之前其他任期内的leader提交的日志。如上图中索引为7的日志条目之前的所有日志都是已被提交的日志。</p>
 
 <p>以下面的图示来说明日志复制的流程。</p>
 
@@ -416,7 +418,7 @@ candidate状态节点主循环：
 
 <p>需要说明的是，7和8这两个操作并没有严格的先后顺序，谁在前在后都没关系。</p>
 
-<p>leader上保存着已被提交的最大日志索引信息，在每次向follower节点发送的AppendEntries RPC请求中都会带上这个索引信息，这样follower节点就知道哪个日志已经被提交了，被提交的日志将会输入Raft状态机中执行。</p>
+<p>leader上保存着已被提交的最大日志索引信息，这个索引值被称为“nextIndex”，在每次向follower节点发送的AppendEntries RPC请求中都会带上这个索引信息，这样follower节点就知道哪个日志已经被提交了，被提交的日志将会输入Raft状态机中执行。</p>
 
 <p>Raft算法保持着以下两个属性，这两个属性共同作用满足前面提到的日志匹配（LogMatch）属性：</p>
 
@@ -452,11 +454,23 @@ candidate状态节点主循环：
 <li>matchIndex存储的是该节点的最大日志索引。</li>
 </ul>
 
-<p>从以上两个索引的定义可知，在follower与leader节点之间日志复制正常的情况下，nextIndex = matchIndex + 1。但是如果出现不一致的情况，则这个等式可能不成立。每个leader节点被选举出来时，将初始化nextIndex为leader节点最后一条日志，而matchIndex为0，这么做的原因在于：leader节点将从后往前探索follower节点当前存储的日志位置，而在不知道follower节点日志位置的情况下只能置空matchIndex了。</p>
+<p>从以上两个索引的定义可知，在follower与leader节点之间日志复制正常的情况下，nextIndex = matchIndex + 1。但是如果出现不一致的情况，则这个等式可能不成立。每个leader节点被选举出来时，将做如下初始化操作：</p>
 
-<p>leader节点通过AppendEntries消息来与follower之间进行日志同步的，每次给follower带过去的日志就是以nextIndex来决定，如果follower节点的日志与这个值匹配，将返回成功；否则将返回失败，同时带上本节点当前的最大日志ID（假设这个索引为hintIndex），方便leader节点快速定位到follower的日志位置以下一次同步正确的日志数据。</p>
+<ul>
+<li>nextIndex为leader节点最后一条日志。</li>
+<li>matchIndex为0。</li>
+</ul>
 
-<p>而leader节点在收到返回失败的情况下，将置nextIndex = min(hintIndex+1,上一次append消息的索引)，再次发出添加日志请求。</p>
+<p>这么做的原因在于：leader节点将从后往前探索follower节点当前存储的日志位置，而在不知道follower节点日志位置的情况下只能置空matchIndex了。</p>
+
+<p>leader节点通过AppendEntries消息来与follower之间进行日志同步的，每次给follower带过去的日志就是以nextIndex来决定，其可能有两种结果：</p>
+
+<ul>
+<li>如果follower节点的日志与这个值匹配，将返回成功；</li>
+<li>否则将返回失败，同时带上本节点当前的最大日志ID（假设这个索引为hintIndex），方便leader节点快速定位到follower的日志位置以下一次同步正确的日志数据。</li>
+</ul>
+
+<p>而leader节点在收到返回失败的情况下，将置<code>nextIndex = min(hintIndex+1,上一次append消息的索引)</code>，再次发出添加日志请求。</p>
 
 <p>以上图的几个节点为例来说明情况。</p>
 
