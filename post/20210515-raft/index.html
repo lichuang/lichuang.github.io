@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2021-05-15T13:52:08&#43;08:00" />
 <meta itemprop="dateModified" content="2021-05-15T13:52:08&#43;08:00" />
-<meta itemprop="wordCount" content="8013">
+<meta itemprop="wordCount" content="9784">
 
 
 
@@ -188,6 +188,12 @@ if (!doNotTrack) {
 <ul>
 <li><a href="#未持久化数据缓冲区">未持久化数据缓冲区</a></li>
 <li><a href="#持久化数据内存映像">持久化数据内存映像</a></li>
+<li><a href="#数据的持久化">数据的持久化</a></li>
+<li><a href="#数据流动的全流程">数据流动的全流程</a>
+<ul>
+<li><a href="#客户端提交数据的流程">客户端提交数据的流程</a></li>
+<li><a href="#启动时使用快照数据恢复流程">启动时使用快照数据恢复流程</a></li>
+</ul></li>
 <li><a href="#节点进度的管理">节点进度的管理</a></li>
 </ul></li>
 <li><a href="#网络数据的收发以及日志的持久化">网络数据的收发以及日志的持久化</a></li>
@@ -218,13 +224,13 @@ if (!doNotTrack) {
 <p>在开始展开讨论前，先介绍这个Raft论文中的示意图，我认为能理解这幅图才能对一致性算法有个全貌的了解：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/statemachine.png" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互" />
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/statemachine.jpeg" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互" />
 </center></p>
 
 <p>图中分为两种进程：</p>
 
 <ul>
-<li>server进程：server进程中运行着：一致性算法模块、持久化保存的日志、以及按照日志提交的顺序来进行顺序操作的状态机。</li>
+<li>server进程：server进程中运行着一致性算法模块、持久化保存的日志、以及按照日志提交的顺序来进行顺序操作的状态机。</li>
 <li>client进程：用于向server提交日志的进程。</li>
 </ul>
 
@@ -234,9 +240,9 @@ if (!doNotTrack) {
 
 <p>1、client进程提交数据到server进程，server进程将收到的日志数据灌入一致性模块。</p>
 
-<p>2、一致性模块将日志同步给集群中其他server进程，只有在达成一致后，才将日志落盘进行持久化。</p>
+<p>2、一致性模块将日志写入本地WAL，然后同步给集群中其他server进程。</p>
 
-<p>3、落盘后的日志按照顺序灌入状态机，只要保证所有server进程上的日志顺序，那么最后状态机的状态肯定就是一致的了。</p>
+<p>3、多个节点对某条日志达成一致之后，将修改本地的提交日志索引（commit index）；落盘后的日志按照顺序灌入状态机，只要保证所有server进程上的日志顺序，那么最后状态机的状态肯定就是一致的了。</p>
 
 <p>4、灌入状态机之后，server进程可以应答客户端。</p>
 
@@ -247,7 +253,7 @@ if (!doNotTrack) {
 
 <ul>
 <li>用户输入库中日志（log），由库根据各自的算法来检测日志的正确性，并且通知上层的应用层。</li>
-<li>由于输入到库中的日志，并不能马上达成一致，也有可能发生回滚（rollback），比如上一个leader在达成一致但还没有落盘之前宕机，那么这些未落盘的日志就可能在下一个leader到来的时候不认可，以致于会发生回滚的情况，下面细说。由于上面的这些原因，一致性算法库内部还需要维护一个日志缓冲区（log buffer），维护着还未达成一致能够落盘的日志，这个缓冲区还需要支持回滚操作。</li>
+<li>输入到库中的日志维护和管理，算法库中需要知道哪些日志提交、提交成功、以及上层的应用层已经applied过的。当发生错误的时候，某些日志还会进行回滚（rollback）操作。</li>
 <li>日志的网络收发，这部分属于可选功能。有一些库，比如braft把这个事情也揽过来自己做了，优点是使用者不需要关注这部分功能，缺点是braft和它自带的网络库brpc耦合的很紧密，不可能拆开来使用；另一些raft实现，比如这里重点提到etcd raft实现，并不自己完成网络数据收发的工作，而是通知应用层，由应用层自己实现。</li>
 <li>日志的持久化存储：这部分也属于可选功能。前面说过，一致性算法库中维护了未达成一致的日志缓冲区，达成一致的日志才通知应用层，因此在这里不同的算法库又有了分歧，braft也是自己完成了日志持久化的工作，etcd raft则是将这部分工作交给了应用层。</li>
 </ul></li>
@@ -258,7 +264,7 @@ if (!doNotTrack) {
 
 <ul>
 <li>输入日志进行处理的算法（必选）。</li>
-<li>维护日志的缓冲区（必选）。</li>
+<li>日志的维护和管理（必选）。</li>
 <li>日志（包括快照）数据的网络收发（可选）。</li>
 <li>日志（包括快照）的持久化存储（可选）。</li>
 </ul>
@@ -284,7 +290,7 @@ if (!doNotTrack) {
 </tr>
 
 <tr>
-<td>日志缓冲区</td>
+<td>日志的维护和管理</td>
 <td>实现</td>
 <td>实现</td>
 </tr>
@@ -300,12 +306,18 @@ if (!doNotTrack) {
 <td>交由应用层</td>
 <td>自己实现</td>
 </tr>
+
+<tr>
+<td>优缺点</td>
+<td>松耦合，易于验证、测试；需要应用者做更多的事情</td>
+<td>与其rpc库紧耦合，难拆分；应用层做的事情不多，易于用来做服务</td>
+</tr>
 </tbody>
 </table>
 
 <p>两种实现各有自己的优缺点，braft类实现更适合提供一个需要集成raft的服务时，可以直接用来实现服务；etcd raft类的实现，由于与网络、存储层耦合不紧密，易于进行测试，更适合拿来做为库使用。</p>
 
-<p>如果把前面的一致性算法的几个特性做一个抽象，我认为一致性算法库本质上就是一个“维护缓冲区的算法库，只要大家都按照相同的顺序将日志灌入应用层”就好，其工作原理大体如下图：</p>
+<p>如果把前面的一致性算法的几个特性做一个抽象，我认为一致性算法库本质上就是一个“维护操作日志的算法库，只要大家都按照相同的顺序将日志灌入应用层”就好，其工作原理大体如下图：</p>
 
 <p><center>
 <img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/co-algo.png" alt="一致性算法的本质" title="一致性算法的本质" />
@@ -314,11 +326,23 @@ if (!doNotTrack) {
 <p>如果把问题抽象成这样的话，那么本质上，所谓的“一致性算法库”跟一个经常看到的tcp、kcp甚至是一个应用层的协议栈也就没有什么区别了：</p>
 
 <ul>
-<li>大家都要维护一个数据的缓冲区，只有确认过正确的，才会抛给上一层。以TCP协议算法来说，比如发送但未确认的数据由协议栈的缓冲区维护，如果超时还未等到对端的确认，将发起超时重传等，这些都是每种协议算法的具体细节，但是本质上这些协议都要维护一个未确认数据的缓冲区。</li>
-<li>与其他“协议栈”不同的是，一致性算法的确认流程会更复杂一些，因为比如tcp协议栈的“确认正确”流程只需要通信的两端确认就可以了，而一致性算法常常参与者很多，需要集群超过半数的节点都确认了某个消息才能认为提交成功。但是这些都不重要，属于具体算法的范畴，这里需要明确的是：本质上都是一个确认缓冲区中缓存的数据是否正确的流程。</li>
-<li>确认的流程是可以pipeline化的，如raft算法而言，某一次输入的日志索引是6，这时候可能就能一次性将这个索引之前的日志全部确认成功，即这里的确认流程不是走一步看一步的串行流程，否则的话算法效率就太低了。</li>
+<li>大家都要维护一个数据区：只有确认过正确的，才会抛给上一层。以TCP协议算法来说，比如发送但未确认的数据由协议栈的缓冲区维护，如果超时还未等到对端的确认，将发起超时重传等，这些都是每种协议算法的具体细节，但是本质上这些协议都要维护一个未确认数据的缓冲区。一致性算法在数据的维护上会更复杂一些，一是参与确认的节点不止通信的C/S两端，需要集群中半数以上节点的确认；同时，在未确认之前日志需要首先落盘，在提交成功之后再抛给应用层。</li>
 <li>只要保证所有参与的节点，都以相同的数据灌入日志给应用层，那么得到的结果将最终一致。</li>
+<li>确认的流程是可以pipeline异步化的，提交日志的进程并不需要一直等待日志被提交成功，而是提交之后等待。不妨以下面的流程来做解释：</li>
 </ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/pipeline.png" alt="流水线异步化的日志提交流程" title="流水线异步化的日志提交流程" />
+</center></p>
+
+<p>其中：</p>
+
+<ul>
+<li>clientA和clientB分别提交了两条日志数据，但是并没有阻塞等待日志提交成功，而是提交之后就继续别的操作了。</li>
+<li>server将两条日志数据同步出去，达成一致之后再分别通知两个client日志提交成功。</li>
+</ul>
+
+<p>在这里，client上通知日志提交成功的机制可以有很多，以etcd来说，会给每个提交的日志对应一个channel，提交成功之后会通过这个channel进行通知，也会给这个日志加一个定时器，超过时间仍未收到通知则认为提交失败。</p>
 
 <h1 id="etcd-raft的实现">etcd raft的实现</h1>
 
@@ -453,6 +477,8 @@ if (!doNotTrack) {
 <ul>
 <li>未持久化数据缓冲区</li>
 <li>持久化数据内存映像</li>
+<li>数据的持久化</li>
+<li>数据流动的全流程</li>
 <li>节点进度的管理</li>
 </ul>
 
@@ -536,6 +562,98 @@ if (!doNotTrack) {
 <p><center>
 <img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/raftlog.png" alt="不同视角下的raftlog" title="不同视角下的raftlog" />
 </center></p>
+
+<h3 id="数据的持久化">数据的持久化</h3>
+
+<p>以上解释两种缓冲区的作用，数据最终还是需要持久化到磁盘上的，那么，这个持久化数据的时机在哪里？</p>
+
+<p>答案：当客户端提交数据时，etcd Raft库就通过<code>Ready</code>结构体的<code>Entries</code>成员通知应用层，将这些提交的数据进行持久化了。</p>
+
+<p>有代码为证。</p>
+
+<p>首先来看<code>raft</code>中如何生成<code>Ready</code>数据：</p>
+
+<pre><code>func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
+	rd := Ready{
+		// entries保存的是没有持久化的数据数组
+		Entries:          r.raftLog.unstableEntries(),
+		// 保存committed但是还没有applied的数据数组
+		CommittedEntries: r.raftLog.nextEnts(),
+		// 保存待发送的消息
+		Messages:         r.msgs,
+	}
+	// ...
+}
+</code></pre>
+
+<p>可以看到，<code>raft</code>库中将未持久化数据塞到了<code>Entries</code>数组中，而已经达成一致可以提交的日志数据放入到<code>CommittedEntries</code>数组中。</p>
+
+<p>以<code>etcd</code>代码中自带的<code>raftexample</code>目录中的例子代码来看应用层在收到<code>Ready</code>数据后的做法：</p>
+
+<pre><code>func (rc *raftNode) serveChannels() {
+		case rd := &lt;-rc.node.Ready():
+			// 将HardState，entries写入持久化存储中
+			rc.wal.Save(rd.HardState, rd.Entries)
+			if !raft.IsEmptySnap(rd.Snapshot) {
+				// 如果快照数据不为空，也需要保存快照数据到持久化存储中
+				rc.saveSnap(rd.Snapshot)
+				rc.raftStorage.ApplySnapshot(rd.Snapshot)
+				rc.publishSnapshot(rd.Snapshot)
+			}
+			rc.raftStorage.Append(rd.Entries)
+			rc.transport.Send(rd.Messages)
+			if ok := rc.publishEntries(rc.entriesToApply(rd.CommittedEntries)); !ok {
+				rc.stop()
+				return
+			}
+			rc.maybeTriggerSnapshot()
+			rc.node.Advance()
+	// ....
+}
+</code></pre>
+
+<p>其中：</p>
+
+<ul>
+<li>rc.wal.Save(rd.HardState, rd.Entries)：将客户端提交数据的数据写入wal中。</li>
+<li>rc.raftStorage.Append(rd.Entries)：这里的<code>raftStorage</code>即前面提到的持久化数据缓冲区的<code>Storage</code>接口，由<code>MemoryStorage</code>接口实现，这一步将这些客户端提交的数据也写入持久化缓冲区的内部映像。</li>
+<li>rc.publishEntries(rc.entriesToApply(rd.CommittedEntries))：这个调用分为两步，第一步调用<code>entriesToApply</code>是要从已达成一致的日志数据中过滤出真正可以进行apply的日志，因为里面的一些日志可能已经被应用层apply过，第二步将第一步过滤出来的日志数据通知给应用层。在<code>raftexample</code>这个示例代码中，最终这些已经达成一致的数据，会被遍历生成KV内存数据。</li>
+</ul>
+
+<p>这里有一个问题：客户端提交过来的数据，还未达成集群内半数节点的一致，这时候就去做落盘操作，如果提交过程中发现出了问题，实际这条数据并不能最终达成一致，那么已落盘的数据怎么办？</p>
+
+<p>在这里，<code>etcd</code>落盘客户端提交的数据时，是写入到WAL文件中的，后面发生了错误日志进行了回滚操作等，也还是将那些正确的日志继续添加到WAL日志后面，服务如果重启，就是把这些日志按照顺序重放（replay）一遍，会有一些冗余的操作，但是随着快照文件的产生，这个问题已经不大了。</p>
+
+<p>其次，不论是前面提到的<code>未持久化数据缓冲区</code>，还是<code>持久化数据缓冲区</code>，在往缓冲区中添加日志的函数实现中，都会去判断日志是否发生了回滚，会将当前传入的日志按照正确的日志索引放到缓冲区合适的位置。<code>未持久化数据缓冲区</code>这部分操作在函数<code>unstable.truncateAndAppend</code>中，<code>持久化数据缓冲区</code>这部分操作在函数<code>MemoryStorage.Append</code>中，感兴趣的可以去看看具体的实现，在这里就不再展开了。</p>
+
+<h3 id="数据流动的全流程">数据流动的全流程</h3>
+
+<p>以上解释了客户端提交的数据在两个缓冲区、持久化存储、以及最终达成一致之后给应用层的过程，下面以例子分别来解释客户端提交数据的流程以及快照数据恢复的流程。</p>
+
+<h4 id="客户端提交数据的流程">客户端提交数据的流程</h4>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/wal.png" alt="客户端提交数据的流动" title="客户端提交数据的流动" />
+</center></p>
+
+<p>1、客户端提交数据给服务器。</p>
+
+<p>2、接着看这条数据走过的”存储“路径：</p>
+
+<pre><code>1、首先，`raft`库会首先将日志数据写入`未持久化数据缓冲区`。
+
+2、由于`未持久化数据缓冲区`中有新增的数据，会通过`Ready`结构体通知给应用层。
+
+3、应用层收到`Ready`结构体之后，将其中的数据写入WAL持久化存储，然后更新这块数据到`已持久化数据缓冲区`。
+
+4.1、持久化完毕后，应用层通过`Advance`接口通知`Raft`库这些数据已经持久化，于是raft库修改`未持久化数据缓冲区`将客户端刚提交的数据从这个缓冲区中删除。
+
+4.2、持久化完毕之后，除了通知删除`未持久化数据缓冲区`，还讲数据通过网络同步给集群中其他节点。
+</code></pre>
+
+<p>3、集群中半数节点对该提交数据达成了一致，可以应答给客户端了。</p>
+
+<h4 id="启动时使用快照数据恢复流程">启动时使用快照数据恢复流程</h4>
 
 <p>下面以例子来实际解释etcd raft中数据在未持久化缓存、wal日志、持久化数据内容映像中的流动：</p>
 
