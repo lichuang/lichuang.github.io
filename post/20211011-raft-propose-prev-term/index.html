@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2021-10-11T23:14:01&#43;08:00" />
 <meta itemprop="dateModified" content="2021-10-11T23:14:01&#43;08:00" />
-<meta itemprop="wordCount" content="1568">
+<meta itemprop="wordCount" content="2547">
 
 
 
@@ -181,6 +181,11 @@ if (!doNotTrack) {
 <ul>
 <li><a href="#概述">概述</a></li>
 <li><a href="#问题">问题</a></li>
+<li><a href="#其他疑问">其他疑问</a>
+<ul>
+<li><a href="#c-和-d2-有什么区别">(c)和(d2) 有什么区别？</a></li>
+<li><a href="#如何理解-d2-中-本任期的日志4提交成功-那么它前面的日志2也能提交成功了">如何理解(d2)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？</a></li>
+</ul></li>
 </ul>
 </nav>
   </div>
@@ -241,6 +246,46 @@ if (!doNotTrack) {
 <p>可是，新的问题又出现了，如果在(d2)中，S1重新当选之后，客户端写入没有这条新的日志4，那么前面的日志2是不是永远无法提交了？为了解决这个问题，raft要求每个leader新当选之后，马上写入一条只有任期号和索引、而没有内容的所谓“no-op”日志，以这条日志来驱动在它之前的日志达成一致。</p>
 
 <p>这就是论文中这部分内容想要表达的。这部分内容之所以比较难理解，是因为经常忽略了这个图示展示的是错误的情况，允许“提交之前任期的日志”可能导致的问题。</p>
+
+<h1 id="其他疑问">其他疑问</h1>
+
+<h2 id="c-和-d2-有什么区别">(c)和(d2) 有什么区别？</h2>
+
+<p>看起来，(c)和(d2)一样，S1当选后都提交了日志1、2、4，那么两者的区别在哪里？</p>
+
+<p>虽然两个场景中，提交的日志都是一样的，但是日志达成一致的顺序并不一致：</p>
+
+<ul>
+<li>(c)：S1成为leader之后，先提交过往任期、本地的日志2，再提交日志4。这就是“提交之前任期日志”的情况。</li>
+<li>(d2)：S1成为leader之后，先提交本次任期的日志4，如果日志4能提交成功，那么它前面的日志2就能提交成功了。</li>
+</ul>
+
+<p>关于(d2)的这个场景，有可能又存在着下一个疑问：</p>
+
+<h2 id="如何理解-d2-中-本任期的日志4提交成功-那么它前面的日志2也能提交成功了">如何理解(d2)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？</h2>
+
+<p>这是由raft日志的<code>Log Matching Property</code>决定的:</p>
+
+<ul>
+<li>If two entries in different logs have the same index and term, then they store the same command.
+If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.</li>
+<li>If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.</li>
+</ul>
+
+<p>第一条性质，保证了在不同节点上的已提交的日志，如果任期号、索引一样，那么它们的内容肯定一样。这是由leader节点的安全性和leader上的日志只能添加不能覆盖来保证的，这样leader就永远不会在同一个任期，创建两个相同索引的日志。</p>
+
+<p>第二条性质，保证了在不同节点上的日志中，如果其中有同样的一条日志（即相同任期和索引）已经达成了一致，那么在这不同节点上在这条日志之前的所有日志都是一样的。</p>
+
+<p>第二条性质是由leader节点向follower节点上根据<code>AppendEntries</code>消息同步日志上保证的。leader在<code>AppendEntries</code>消息中会携带新的新添加entries之前日志的term和index，follower会判断在log中是否存在拥有此term和index的消息，如果没有就会拒绝。</p>
+
+<ul>
+<li>leader为每一个follower维护一个nextIndex，表示待发送的下一个日志的index。初始化为日志长度。</li>
+<li>leader在follower拒绝<code>AppendEntries</code>之后会对nextIndex减一，然后继续重试AppendEntries直到两者一致。</li>
+</ul>
+
+<p>于是，回到我们开始的问题，(d2)场景中，在添加本任期日志4的时候，会发现有一些节点上并不存在过往任期的日志2，这时候就会相应地计算不同节点的nextIndex索引，来驱动同步日志2到这些节点上。</p>
+
+<p>总而言之，根据日志的性质，只要本任期的日志4能达成一致，上一条日志2就能达成一致。</p>
 
     </div>
 
