@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2021-12-17T14:22:06&#43;08:00" />
 <meta itemprop="dateModified" content="2021-12-17T14:22:06&#43;08:00" />
-<meta itemprop="wordCount" content="6282">
+<meta itemprop="wordCount" content="6291">
 
 
 
@@ -181,14 +181,14 @@ if (!doNotTrack) {
   <div class="post-toc-content always-active">
     <nav id="TableOfContents">
 <ul>
-<li><a href="#概述">概述</a>
+<li><a href="#概述">概述</a></li>
+<li><a href="#管理页面">管理页面</a>
 <ul>
 <li><a href="#页面相关的数据数据结构">页面相关的数据数据结构</a>
 <ul>
 <li><a href="#sqlite3-pcache-page数据结构">sqlite3_pcache_page数据结构</a></li>
 </ul></li>
-</ul></li>
-<li><a href="#管理页面">管理页面</a>
+<li><a href="#页面所在的数据结构">页面所在的数据结构</a>
 <ul>
 <li><a href="#脏页面链表">脏页面链表</a></li>
 <li><a href="#hash数组">hash数组</a></li>
@@ -199,7 +199,8 @@ if (!doNotTrack) {
 <ul>
 <li><a href="#页面缓存管理器的数据结构">页面缓存管理器的数据结构</a></li>
 </ul></li>
-<li><a href="#默认的页面缓存算法">默认的页面缓存算法</a></li>
+<li><a href="#页面缓存算法结构体">页面缓存算法结构体</a></li>
+</ul></li>
 </ul>
 </nav>
   </div>
@@ -262,6 +263,8 @@ if (!doNotTrack) {
 </ul>
 
 <p>下面，就开始“页面缓存”这几部分功能的具体讲解。</p>
+
+<h1 id="管理页面">管理页面</h1>
 
 <h2 id="页面相关的数据数据结构">页面相关的数据数据结构</h2>
 
@@ -420,7 +423,7 @@ struct sqlite3_pcache_page {
 <img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/sqlite3_pcache_page.png" alt="sqlite3_pcache_page" title="sqlite3_pcache_page" />
 </center></p>
 
-<h1 id="管理页面">管理页面</h1>
+<h2 id="页面所在的数据结构">页面所在的数据结构</h2>
 
 <p>缓存中的页面，可能存在于以下三种数据结构中：</p>
 
@@ -434,7 +437,7 @@ struct sqlite3_pcache_page {
 <img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/page_ds.png" alt="页面所在的三种数据结构" title="页面所在的三种数据结构" />
 </center></p>
 
-<h2 id="脏页面链表">脏页面链表</h2>
+<h3 id="脏页面链表">脏页面链表</h3>
 
 <p>这个页面链表叫“脏页面（dirty page）链表”实际上并不十分准确，这会让人误以为这个链表上的页面全都是脏页面，实际上是可能存在干净的页面的。更准确的说法，是当前系统在使用的页面，都维护在这个页面链表中。</p>
 
@@ -467,7 +470,7 @@ struct sqlite3_pcache_page {
 }; 
 </code></pre>
 
-<h2 id="hash数组">hash数组</h2>
+<h3 id="hash数组">hash数组</h3>
 
 <p>为了快速根据页面编号，查找到该编号的页面是否已经加载到页面中，每个页面的数据还存在于一个hash数组中。</p>
 
@@ -481,7 +484,7 @@ struct sqlite3_pcache_page {
 
 <p>hash数组的实现，与一般的实现并没有太大区别，这里就不展开说了。</p>
 
-<h2 id="lru链表">LRU链表</h2>
+<h3 id="lru链表">LRU链表</h3>
 
 <p>当需要加载当前还不在内存中的页面时，需要首先分配出一块空间，用于保存从文件中加载的页面数据。如前所述，“页面缓存管理器”管理的是还在使用的页面，而“页面缓存算法”管理的是当前没有被使用的页面，所以这部分功能也是由默认的“页面缓存算法”来实现的，与之相关的数据结构，和hash数组的实现一样，也在结构体<code>PgHdr1</code>上：</p>
 
@@ -497,7 +500,7 @@ struct sqlite3_pcache_page {
 
 <p>维护这些信息的数据结构，就是LRU链表：在链表中越往前的数据，意味着被访问的越频繁；反之，淘汰都是从链表尾部开始。</p>
 
-<h2 id="pin和unpin操作">pin和unpin操作</h2>
+<h3 id="pin和unpin操作">pin和unpin操作</h3>
 
 <p><code>pin</code>和<code>unpin</code>操作，在默认的缓存算法中，是针对LRU链表而言的：一个页面数据，如果执行了<code>pin</code>操作，就是将这个页面从LRU链表上摘下来。而<code>unpin</code>操作则反之，将页面放入LRU链表。</p>
 
@@ -518,9 +521,9 @@ struct sqlite3_pcache_page {
 
 <p>于是，对于那些经常被访问的页面，即便当前没有被使用，真正到需要它的时候，只要没有被淘汰出去分配给其他页面，就不再需要再次从文件中加载出来。</p>
 
-<h1 id="页面缓存管理器">页面缓存管理器</h1>
+<h2 id="页面缓存管理器">页面缓存管理器</h2>
 
-<h2 id="页面缓存管理器的数据结构">页面缓存管理器的数据结构</h2>
+<h3 id="页面缓存管理器的数据结构">页面缓存管理器的数据结构</h3>
 
 <p>页面缓存管理器，核心功能就是维护脏页面链表，页面缓存管理器的数据结构中最重要的莫过于以下几个成员：</p>
 
@@ -557,7 +560,7 @@ struct sqlite3_pcache_page {
 <li>sqlite3_pcache：下面会提到，实现“页面缓存算法”的<code>sqlite3_pcache_methods2</code>结构体，其内部的<code>xCreate</code>函数指针最终会创建出一个<code>sqlite3_pcache</code>返回，后续调用<code>页面缓存算法</code>时，传入的都是这个返回的指针。</li>
 </ul>
 
-<h1 id="默认的页面缓存算法">默认的页面缓存算法</h1>
+<h2 id="页面缓存算法结构体">页面缓存算法结构体</h2>
 
 <p>页面缓存算法，需要实现<code>sqlite3_pcache_methods2</code>接口并且注册到系统中，来看<code>sqlite3_pcache_methods2</code>的定义：</p>
 
