@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2022-01-01T15:02:50&#43;08:00" />
 <meta itemprop="dateModified" content="2022-01-01T15:02:50&#43;08:00" />
-<meta itemprop="wordCount" content="6042">
+<meta itemprop="wordCount" content="6154">
 
 
 
@@ -204,6 +204,7 @@ if (!doNotTrack) {
 </ul></li>
 <li><a href="#自动提交">自动提交</a></li>
 </ul></li>
+<li><a href="#参考资料">参考资料</a></li>
 </ul>
 </nav>
   </div>
@@ -222,10 +223,10 @@ if (!doNotTrack) {
 
 <h1 id="原理">原理</h1>
 
-<p>Raft论文中，支持两种集群变更方式：</p>
+<p>Raft论文《CONSENSUS: BRIDGING THEORY AND PRACTICE》的第四章”集群成员变更“中，支持两种集群变更方式：</p>
 
 <ul>
-<li>每次变更单节点，即“One Server ConfChange”。</li>
+<li>每次变更单节点，即“One Server Config Change”。</li>
 <li>多节点联合共识，即“Joint Consensus”。</li>
 </ul>
 
@@ -362,7 +363,7 @@ if (!doNotTrack) {
 
 <ul>
 <li>[0]：<code>incoming</code>配置，新的集群配置。</li>
-<li>[1]：<code>outgoing</code>配置，旧的集群配置，这个集合不为空时，表示当前有未提交的<code>joint consensus</code>。</li>
+<li>[1]：<code>outgoing</code>配置，旧的集群配置。一般这个集合为空，这个集合不为空时，存储的是变更之前旧的集群配置，因此不为空时表示当前有未提交的<code>joint consensus</code>。</li>
 </ul></li>
 <li>Learners：当前的learner集合，learner集合和前面的所有节点集合交集必须为空集。</li>
 <li>LearnersNext：集群配置提交后，从原集群的<code>voter</code>降级为<code>learner</code>的节点集合。</li>
@@ -374,9 +375,13 @@ if (!doNotTrack) {
 <p>如果一个节点要在新的集群配置中变成<code>Learner</code>，需要区分两种情况：</p>
 
 <ul>
-<li>该节点原先是集群的<code>voter</code>：并不是直接加入到<code>Learner</code>集合的，而是首先提交到<code>LearnersNext</code>集合中，同样也是等待这个新的集群配置被成功之后，才移动到<code>Learner</code>集合中。否则，如果直接修改加入到<code>Learner</code>集合中，可能导致集群的安全性收到影响。比如一个三节点{a,b,c}的集群，原先有只挂了一个节点还能继续工作；现在由于各种原因，想将节点c降级为<code>learner</code>，将节点d加入到集群中，如果直接将c节点降级为<code>learner</code>，就会导致在这个流程里一旦一个节点不可用，整个集群就不可用了。</li>
+<li>该节点原先是集群的<code>voter</code>：并不是直接加入到<code>Learner</code>集合的，而是首先提交到<code>LearnersNext</code>集合中，同样也是等待这个新的集群配置被成功之后，才移动到<code>Learner</code>集合中。否则，如果直接修改加入到<code>Learner</code>集合中，可能导致集群的安全性受到影响。比如一个三节点{a,b,c}的集群，原先有只挂了一个节点还能继续工作；现在由于各种原因，想将节点c降级为<code>learner</code>，将节点d加入到集群中，如果直接将c节点降级为<code>learner</code>，就会导致在这个流程里一旦一个节点不可用，整个集群就不可用了。</li>
 <li>该节点原先不是集群中的成员：这种节点由于之前并不存在，并不影响集群的安全性，这时候可以直接移动到<code>Learner</code>中。</li>
 </ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220101-etcd3.5-joint-Consensus/add-learner.png" alt="单节点成员变更" title="单节点成员变更" />
+</center></p>
 
 <p>所以：<code>Voters</code>两个配置，与两种<code>Learner</code>集合，必须满足以下的关系（见函数<code>checkInvariants</code>）：</p>
 
@@ -390,8 +395,7 @@ if (!doNotTrack) {
 <li>在<code>Learners</code>中的节点，表示当前集群的<code>learner</code>节点集合：
 
 <ul>
-<li>不能出现在<code>outgoing</code>中，即不能出现在旧的集群配置中。</li>
-<li>不能出现在<code>incoming</code>中，即不能出现在新的集群配置中。</li>
+<li>不能出现在任一个<code>voter</code>集合中（<code>incoming</code>和<code>outgoing</code>）中，即不能出现在新、旧的集群配置中。</li>
 <li>该节点的进度数据中，<code>IsLearner</code>为True。</li>
 </ul></li>
 </ul>
@@ -569,6 +573,13 @@ if (!doNotTrack) {
 </ul>
 
 <p>（见函数<code>ConfChangeV2::EnterJoint</code>的实现。）</p>
+
+<h1 id="参考资料">参考资料</h1>
+
+<ul>
+<li>《CONSENSUS: BRIDGING THEORY AND PRACTICE》chapter4”Cluster membership changes“</li>
+<li><a href="https://etcd.io/docs/v3.3/learning/learner/">Learner | etcd</a></li>
+</ul>
 
     </div>
 
