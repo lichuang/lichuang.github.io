@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2021-12-17T10:19:05&#43;08:00" />
 <meta itemprop="dateModified" content="2021-12-17T10:19:05&#43;08:00" />
-<meta itemprop="wordCount" content="4265">
+<meta itemprop="wordCount" content="4260">
 
 
 
@@ -307,44 +307,49 @@ if (!doNotTrack) {
 
 <h2 id="ba0tiao的回复">ba0tiao的回复</h2>
 
-<pre><code>做InnoDB 这块挺久了, 我试试说说 InnoDB 是怎么做的吧..
+<blockquote>
+<p>做InnoDB 这块挺久了, 我试试说说 InnoDB 是怎么做的吧..</p>
 
-其实你这里应该细分成两个问题
+<p>其实你这里应该细分成两个问题</p>
 
-1. 16kb 的page 写入的原子性该如何保证
-2. Btree 结构的完整性如何保证, 也就是你说的修改了n个页面以后如果修改了父子, 兄弟关系以后, 如果解决中间的crash 的问题
+<ol>
+<li>16kb 的page 写入的原子性该如何保证</li>
+<li>Btree 结构的完整性如何保证, 也就是你说的修改了n个页面以后如果修改了父子, 兄弟关系以后, 如果解决中间的crash 的问题</li>
+</ol>
 
-问题1 是通过double write buffer 来解决的, 因为InnoDB 的page 大小是16kb, 很多文件系统只能保证4kb 大小写入的原子性, 因此需要写入前先将page 的内容写入到double write buffer 来保证, 如果写入失败也不会将原有page 的内容覆盖.
+<p>问题1 是通过double write buffer 来解决的, 因为InnoDB 的page 大小是16kb, 很多文件系统只能保证4kb 大小写入的原子性, 因此需要写入前先将page 的内容写入到double write buffer 来保证, 如果写入失败也不会将原有page 的内容覆盖.</p>
 
-问题2 是通过redo log + mtr(mini transaction) 进行保证.
+<p>问题2 是通过redo log + mtr(mini transaction) 进行保证.</p>
 
-InnoDB 里面的redo log 是由mtr 组成, mtr 是修改btree 的最小单位. 每次写入redo log 的时候必须是一个完整的mtr 的内容, 具体实现方式是mtr 会有MULTI_REC_END 标记, 在crash recovery 的时候, 如果读取到mtr 的内容没有MULTI_REC_END 标记, 那么则会认为这个mtr 不完整, 就会把这段mtr 抛弃.
+<p>InnoDB 里面的redo log 是由mtr 组成, mtr 是修改btree 的最小单位. 每次写入redo log 的时候必须是一个完整的mtr 的内容, 具体实现方式是mtr 会有MULTI_REC_END 标记, 在crash recovery 的时候, 如果读取到mtr 的内容没有MULTI_REC_END 标记, 那么则会认为这个mtr 不完整, 就会把这段mtr 抛弃.</p>
 
-那么是不是一次insert 操作产生的redo log 都包含在一个mtr 里面呢?
+<p>那么是不是一次insert 操作产生的redo log 都包含在一个mtr 里面呢?</p>
 
-不是的.
+<p>不是的.</p>
 
-我们知道在btree 里面对page 的修改都需要对page 加锁, 从fsp 模块分配一个new page 也需要对root page 进行加锁等等. 所以InnoDB 的mtr 里面自然就包含对锁的操作, 因此要修改某一个page 的时候, mtr begin 的时候会对该page 加锁, 然后写入修改的内容, 然后mtr commit 的时候, 对于修改的page 的锁就可以释放了.
+<p>我们知道在btree 里面对page 的修改都需要对page 加锁, 从fsp 模块分配一个new page 也需要对root page 进行加锁等等. 所以InnoDB 的mtr 里面自然就包含对锁的操作, 因此要修改某一个page 的时候, mtr begin 的时候会对该page 加锁, 然后写入修改的内容, 然后mtr commit 的时候, 对于修改的page 的锁就可以释放了.</p>
 
-如果整个insert 的过程都放在一个mtr 里面做, 那也是可以的, 也就是对于所有page 的latch 都是一开始持有, 最后的时候在释放, 就算后续这个page 已经不再修改了, 也依然要一直持有. 很容易理解这样并发自然就降低下来的, 因此在InnoDB 设计里面, mtr 的粒度是尽可能小的. 修改完page 就应该尽快的commit, 然后将page lock 释放. 但是又需要保证每一次的mtr 操作前和操作后btree 的完整性.
+<p>如果整个insert 的过程都放在一个mtr 里面做, 那也是可以的, 也就是对于所有page 的latch 都是一开始持有, 最后的时候在释放, 就算后续这个page 已经不再修改了, 也依然要一直持有. 很容易理解这样并发自然就降低下来的, 因此在InnoDB 设计里面, mtr 的粒度是尽可能小的. 修改完page 就应该尽快的commit, 然后将page lock 释放. 但是又需要保证每一次的mtr 操作前和操作后btree 的完整性.</p>
 
-体现具体的例子就是, InnoDB里面对于一个简单的insert 操作, 其实是有非常多个mtr 组成, 尽可能减少持有锁的时间.
+<p>体现具体的例子就是, InnoDB里面对于一个简单的insert 操作, 其实是有非常多个mtr 组成, 尽可能减少持有锁的时间.</p>
 
-但是在做btree 分裂操作的时候, 分配新的page, 将之前page一半的数据迁移到new page 是在一个mtr 里面完成, 但是后续具体的insert 操作是在另外一个mtr 里面完成的. 那么如果在做分裂操作过程中crash, 那么这个分裂操作是不会完成的, 如果在分裂操作完成以后, insert 之前crash, 那么btree 是已经分裂过的, 只是数据没有插入了.
+<p>但是在做btree 分裂操作的时候, 分配新的page, 将之前page一半的数据迁移到new page 是在一个mtr 里面完成, 但是后续具体的insert 操作是在另外一个mtr 里面完成的. 那么如果在做分裂操作过程中crash, 那么这个分裂操作是不会完成的, 如果在分裂操作完成以后, insert 之前crash, 那么btree 是已经分裂过的, 只是数据没有插入了.</p>
 
-当然这里会有你说的更复杂的设计的父节点 and 父节点的父节点的分裂, 那么自然持有锁的时间就更长了, 但是在我们在这里是做的一些优化.
+<p>当然这里会有你说的更复杂的设计的父节点 and 父节点的父节点的分裂, 那么自然持有锁的时间就更长了, 但是在我们在这里是做的一些优化.</p>
 
-还有一些比如InnoDB redo log 是&quot;physical to a page, logical within a page&quot; 就是解决我们上面说的如果分裂操作成功了, 但是这个事务要回滚, 这个时候该如何处理等等..
+<p>还有一些比如InnoDB redo log 是&rdquo;physical to a page, logical within a page&rdquo; 就是解决我们上面说的如果分裂操作成功了, 但是这个事务要回滚, 这个时候该如何处理等等..</p>
 
-具体的内容其实这些文章里面都有
+<p>具体的内容其实这些文章里面都有</p>
 
-1. C. Mohan, Don Handerle. ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging.
-2. C. Mohan, Frank Levine. ARIES/lM: An Efficient and High Concurrency index Management Method Using Write-Ahead Logging.
-3. Goetz Graefe. A Survey of B-Tree Logging and Recovery Techniques.
-4. Goetz Graefe. A Survey of B-Tree Locking Techniques.
+<ol>
+<li>C. Mohan, Don Handerle. ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging.</li>
+<li>C. Mohan, Frank Levine. ARIES/lM: An Efficient and High Concurrency index Management Method Using Write-Ahead Logging.</li>
+<li>Goetz Graefe. A Survey of B-Tree Logging and Recovery Techniques.</li>
+<li>Goetz Graefe. A Survey of B-Tree Locking Techniques.</li>
+</ol>
 
-对了Goetz Graefe 号称Btree 守护神
-</code></pre>
+<p>对了Goetz Graefe 号称Btree 守护神</p>
+</blockquote>
 
 <p>（见：<a href="https://weibo.com/1832563813/KwRpIxunM">做InnoDB 这块&hellip; - @ba0tiao的微博 - 微博</a>）</p>
 
@@ -358,15 +363,17 @@ InnoDB 里面的redo log 是由mtr 组成, mtr 是修改btree 的最小单位. �
 
 <h2 id="bohutang的回复">BohuTANG的回复</h2>
 
-<pre><code>可以深入一点：如果每次写的log都在，怎么做到基于这些log做回放的问题？其实就是redo-log +checkpoint+ LSM的机制。redo解决数据不丢，checkpoint解决recovery的时候扫描的redo尽量少，LSM解决每次写入后新的page不会覆盖老的数据，这类实现是比较简单可行，也是目前的主流做法
-</code></pre>
+<blockquote>
+<p>可以深入一点：如果每次写的log都在，怎么做到基于这些log做回放的问题？其实就是redo-log +checkpoint+ LSM的机制。redo解决数据不丢，checkpoint解决recovery的时候扫描的redo尽量少，LSM解决每次写入后新的page不会覆盖老的数据，这类实现是比较简单可行，也是目前的主流做法</p>
+</blockquote>
 
 <p>（见：<a href="https://weibo.com/1691468715/KwT2GdDfu">可以深入一点：如果每&hellip; - @BohuTANG的微博 - 微博</a>）</p>
 
 <p>以及：</p>
 
-<pre><code>目前大部分理论都参考于这篇 ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging – Mohan et al. 1992
-</code></pre>
+<blockquote>
+<p>目前大部分理论都参考于这篇 ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging – Mohan et al. 1992</p>
+</blockquote>
 
 <p>（见：<a href="https://weibo.com/1691468715/Kx3yAhFKj">目前大部分理论都参考&hellip; - @BohuTANG的微博 - 微博</a>）</p>
 
