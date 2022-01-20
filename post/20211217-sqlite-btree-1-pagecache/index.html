@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2021-12-17T14:22:06&#43;08:00" />
 <meta itemprop="dateModified" content="2021-12-17T14:22:06&#43;08:00" />
-<meta itemprop="wordCount" content="6512">
+<meta itemprop="wordCount" content="6830">
 
 
 
@@ -205,6 +205,7 @@ if (!doNotTrack) {
 </ul></li>
 <li><a href="#页面缓存算法结构体">页面缓存算法结构体</a></li>
 </ul></li>
+<li><a href="#总结">总结</a></li>
 </ul>
 </nav>
   </div>
@@ -252,11 +253,11 @@ if (!doNotTrack) {
 
 <ul>
 <li>“页面缓存管理器”：定义了管理页面缓存的接口、总体流程，维护管理目前在用的脏页面。</li>
-<li>“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。</li>
+<li>“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。当内存不足以分配时，需要淘汰不常用的页面，这时候需要使用“页面缓存管理器”注册的回调函数来淘汰页面。</li>
 </ul>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png" alt="两种页面的划分" title="两种页面的划分" />
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache_module.png" alt="页面缓存两个模块的功能划分" title="页面缓存两个模块的功能划分" />
 </center></p>
 
 <p>简而言之，如果把当前在内存中的页面划分为以下两类，那么：</p>
@@ -265,6 +266,10 @@ if (!doNotTrack) {
 <li>当前在使用的页面：即与页面编号对应的页面，由“页面缓存管理器”维护。</li>
 <li>当前还未使用、但也在内存中的页面：即随时准备拿出来存储从磁盘中读出来的数据的页面，由“页面缓存算法”维护，比如淘汰、回收、复用等。</li>
 </ul>
+
+<p><center>
+<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png" alt="两种页面的划分" title="两种页面的划分" />
+</center></p>
 
 <p>下面，就开始“页面缓存”这几部分功能的具体讲解。</p>
 
@@ -627,6 +632,23 @@ struct sqlite3_pcache_methods2 {
 */
 typedef struct sqlite3_pcache sqlite3_pcache;
 </code></pre>
+
+<h1 id="总结">总结</h1>
+
+<p><code>sqlite</code>里的页面缓存，分为两个大的模块：</p>
+
+<ul>
+<li>页面缓存管理器：主要任务是管理脏页面，以及对外提供根据页面编号查询页面的接口，当某个页面不在内存时，自动将其加载到内存中。</li>
+<li>页面缓存算法：负责实现页面的缓存、淘汰、查询。这是可以由用户自己实现的模块，需要实现对应的<code>sqlite3_pcache_methods2</code>结构体即可，也提供了默认的实现。</li>
+</ul>
+
+<p>在内存中的页面，在以下几个数据结构中：</p>
+
+<ul>
+<li>脏页面链表，由<code>页面缓存管理器</code>维护。</li>
+<li>Hash数组：根据页面编号查询到页面数据的指针，由默认的<code>页面缓存算法</code>维护。</li>
+<li>LRU链表：负责淘汰页面，由默认的<code>页面缓存算法</code>维护。</li>
+</ul>
 
     </div>
 

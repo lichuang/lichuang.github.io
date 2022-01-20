@@ -1182,11 +1182,11 @@
 
 &lt;ul&gt;
 &lt;li&gt;“页面缓存管理器”：定义了管理页面缓存的接口、总体流程，维护管理目前在用的脏页面。&lt;/li&gt;
-&lt;li&gt;“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。&lt;/li&gt;
+&lt;li&gt;“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。当内存不足以分配时，需要淘汰不常用的页面，这时候需要使用“页面缓存管理器”注册的回调函数来淘汰页面。&lt;/li&gt;
 &lt;/ul&gt;
 
 &lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png&#34; alt=&#34;两种页面的划分&#34; title=&#34;两种页面的划分&#34; /&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache_module.png&#34; alt=&#34;页面缓存两个模块的功能划分&#34; title=&#34;页面缓存两个模块的功能划分&#34; /&gt;
 &lt;/center&gt;&lt;/p&gt;
 
 &lt;p&gt;简而言之，如果把当前在内存中的页面划分为以下两类，那么：&lt;/p&gt;
@@ -1195,6 +1195,10 @@
 &lt;li&gt;当前在使用的页面：即与页面编号对应的页面，由“页面缓存管理器”维护。&lt;/li&gt;
 &lt;li&gt;当前还未使用、但也在内存中的页面：即随时准备拿出来存储从磁盘中读出来的数据的页面，由“页面缓存算法”维护，比如淘汰、回收、复用等。&lt;/li&gt;
 &lt;/ul&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png&#34; alt=&#34;两种页面的划分&#34; title=&#34;两种页面的划分&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
 
 &lt;p&gt;下面，就开始“页面缓存”这几部分功能的具体讲解。&lt;/p&gt;
 
@@ -1557,6 +1561,23 @@ struct sqlite3_pcache_methods2 {
 */
 typedef struct sqlite3_pcache sqlite3_pcache;
 &lt;/code&gt;&lt;/pre&gt;
+
+&lt;h1 id=&#34;总结&#34;&gt;总结&lt;/h1&gt;
+
+&lt;p&gt;&lt;code&gt;sqlite&lt;/code&gt;里的页面缓存，分为两个大的模块：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;页面缓存管理器：主要任务是管理脏页面，以及对外提供根据页面编号查询页面的接口，当某个页面不在内存时，自动将其加载到内存中。&lt;/li&gt;
+&lt;li&gt;页面缓存算法：负责实现页面的缓存、淘汰、查询。这是可以由用户自己实现的模块，需要实现对应的&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体即可，也提供了默认的实现。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;在内存中的页面，在以下几个数据结构中：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;脏页面链表，由&lt;code&gt;页面缓存管理器&lt;/code&gt;维护。&lt;/li&gt;
+&lt;li&gt;Hash数组：根据页面编号查询到页面数据的指针，由默认的&lt;code&gt;页面缓存算法&lt;/code&gt;维护。&lt;/li&gt;
+&lt;li&gt;LRU链表：负责淘汰页面，由默认的&lt;code&gt;页面缓存算法&lt;/code&gt;维护。&lt;/li&gt;
+&lt;/ul&gt;
 </description>
     </item>
     
