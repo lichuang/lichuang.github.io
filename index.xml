@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 23 Jan 2022 15:38:31 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 29 Jan 2022 14:21:20 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -189,6 +189,269 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>周刊（第3期）：一个前游戏开发者眼中的游戏后端技术</title>
+      <link>https://www.codedump.info/post/20220129-weekly-3/</link>
+      <pubDate>Sat, 29 Jan 2022 14:21:20 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220129-weekly-3/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：在我之前的工作里，因为各种原因，断续在游戏行业里有过总共大概四年左右的从业时间，今天想从我的视角聊聊游戏行业后端开发相关的技术，供那些想在这个行业从业，尤其是后端开发从业人员一些参考。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;一个前游戏开发者眼中的游戏后端技术&#34;&gt;一个前游戏开发者眼中的游戏后端技术&lt;/h1&gt;
+
+&lt;p&gt;由于我从业的方向都是后端开发，所以这里仅谈论游戏开发后端的技术。&lt;/p&gt;
+
+&lt;p&gt;游戏本质是个内容行业，所以游戏开发时相当一部分工作内容，就是不停的更新新的内容出来给玩家消费。这些内容包括但不限于：新的英雄、技能、玩法，等等。&lt;/p&gt;
+
+&lt;p&gt;而要支撑这些玩法，相当一部分是策划的配表数据，即：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;程序员把玩法的框架、逻辑搭建好，留出读玩法数据的接口来。&lt;/li&gt;
+&lt;li&gt;玩法数据由负责该玩法的策划来配表实现。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这其实就是很朴素的“表驱动”的编程方式。&lt;/p&gt;
+
+&lt;p&gt;因为这个原因，所以游戏服务器启动时，要加载相当多的数据，主要有：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;玩家的数据，包括账号、角色、帮派、金钱等数据。&lt;/li&gt;
+&lt;li&gt;玩法相关的策划配表数据。比如一个场景的坐标位置、NPC的坐标位置、任务，等等。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;由于需要在启动的时候要加载很多数据，游戏服务器才能完成初始化，所以“编译型”语言在游戏开发里并不适用来编写游戏玩法逻辑，试想下面的开发场景：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;策划提出了新的玩法需求。&lt;/li&gt;
+&lt;li&gt;开发使用如C++这样的编译型语言编码实现玩法。&lt;/li&gt;
+&lt;li&gt;编译新修改的代码：这里面有包括了编译、修改编译不通过时候的报错，等等。&lt;/li&gt;
+&lt;li&gt;停止服务器，重启服务器来验证玩法的逻辑。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;可以看到，姑且不论其他因素，单是每次验证代码修改时需要停服、重启服务器的流程，而重启时又要加载一堆数据才能完成初始化，这个过程就严重影响开发效率。&lt;/p&gt;
+
+&lt;p&gt;换言之，“编译型”语言并不适合于用来编码在游戏开发里需要经常变更的玩法逻辑。&lt;/p&gt;
+
+&lt;p&gt;于是，一种新的开发架构出现了，见下图。&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220129-weekly-3/game-server-arch.png&#34; alt=&#34;游戏后端的架构分层&#34; title=&#34;游戏后端的架构分层&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;在图中，将游戏服务器架构分为了两层：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;引擎层：这部分由C++编码，实现了游戏开发中与具体逻辑关系不大、且不太会变更的部分，如网络数据收发、数据库访问，等等。&lt;/li&gt;
+&lt;li&gt;脚本层：这部分由Python、Lua这样的脚本语言实现，主要就是各种玩法。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;采用这样的架构最主要的优点，就是解决前面提到的开发效率问题。由于Python、Lua这样的脚本语言，支持热更新，即“不需要重启进程也能更新最新的代码”，这样开发模式就变成了：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;策划提出了新的玩法需求。&lt;/li&gt;
+&lt;li&gt;开发使用如Python、Lua这样的脚本型语言编码实现玩法。&lt;/li&gt;
+&lt;li&gt;热更新脚本代码，调试玩法。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;可以看到，由于支持“热更新”，省去了停服、重启、加载数据的步骤，一下子开发效率就提升了很多。&lt;/p&gt;
+
+&lt;p&gt;多说一句，”热更新“还有一个优点：假如线上出问题时，总不可能停服下来修复，热更新不需要重启就能更新最新代码的特点在这里又发挥了作用。&lt;/p&gt;
+
+&lt;p&gt;从这个开发架构里，也可以看到游戏服务器人员的构成：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;引擎层只有少数人能够去维护，要求稳定、高效。&lt;/li&gt;
+&lt;li&gt;绝大部分人，都在脚本层用脚本语言来写各种玩法逻辑，类似于web开发中的CRUD。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这个架构已经很久没变化了，而且每个公司都有自己一套（甚至几套）维护得较为稳定的服务器引擎，这会有一个问题：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;技术演进慢。当然，这还是由游戏开发的特点决定的。&lt;/li&gt;
+&lt;li&gt;由于演进慢，而且对稳定性的要求高，实际上新人也很难找到机会在引擎层发挥作用，引擎层的代码通常也不会让脚本层工作的人看到，这样就进入不到这一层的开发，而且引擎层绝大部分的问题已经被前人解决了，用现在的话来说，这部分技术“固化”了。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;为了证实我的观点，我找来了去年刚出版的&lt;a href=&#34;https://book.douban.com/subject/35669430/&#34;&gt;《腾讯游戏开发精粹Ⅱ 》&lt;/a&gt;这本书，来看看书里关于游戏服务器都有哪些内容。全书一共21章，与游戏服务器相关的只有三章：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;部分Ⅴ 服务端架构和技术&lt;/p&gt;
+
+&lt;p&gt;第15章 面向游戏的高性能服务网格TbusppMesh 304&lt;/p&gt;
+
+&lt;p&gt;15.1　TbusppMesh摘要 304&lt;/p&gt;
+
+&lt;p&gt;15.2　TbusppMesh数据通信 305&lt;/p&gt;
+
+&lt;p&gt;15.3　TbusppMesh组网策略 309&lt;/p&gt;
+
+&lt;p&gt;15.4　TbusppMesh有状态服务 315&lt;/p&gt;
+
+&lt;p&gt;15.5　总结 321&lt;/p&gt;
+
+&lt;p&gt;第16章 游戏配置系统设计 322&lt;/p&gt;
+
+&lt;p&gt;16.1　游戏配置系统概述 322&lt;/p&gt;
+
+&lt;p&gt;16.2　游戏配置简介 322&lt;/p&gt;
+
+&lt;p&gt;16.3　游戏配置系统 323&lt;/p&gt;
+
+&lt;p&gt;16.4　配置设计与发布 324&lt;/p&gt;
+
+&lt;p&gt;16.5　配置Web管理系统 328&lt;/p&gt;
+
+&lt;p&gt;16.6　总结 330&lt;/p&gt;
+
+&lt;p&gt;第17章 游戏敏捷运营体系技术 331&lt;/p&gt;
+
+&lt;p&gt;17.1　游戏运营概况 331&lt;/p&gt;
+
+&lt;p&gt;17.2　DataMore大数据计算体系建设 335&lt;/p&gt;
+
+&lt;p&gt;17.3　基础平台 343&lt;/p&gt;
+
+&lt;p&gt;17.4　总结 360&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;而且，其中一章还是讲的偏运营体系、大数据方面的内容，这部分内容跟“游戏开发”本身相关性不大。造成这样的原因，是因为游戏服务器用脚本写玩法逻辑，这实在没有太多可以说的:)。&lt;/p&gt;
+
+&lt;p&gt;在这样一个演进慢、技术固化的领域里，新人大部分时候都挤在了写玩法逻辑的脚本层里。这是游戏行业新人需要考虑的问题：一旦落到脚本层开发，技术积累很慢很少，也会很累、加班很多。这还是由于前面讲述的游戏行业的特点导致的：游戏本质是个内容行业，而“内容”落到开发分工上，主要就是由脚本层的开发来完成。&lt;/p&gt;
+
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;总结一下我的观点：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;游戏本质是个内容行业，游戏开发大部分时候都是生产“内容”给玩家消费。&lt;/li&gt;
+&lt;li&gt;由于生产游戏内容的过程繁杂，且启动游戏服务器时需要加载大量数据，编译型语言并不适合来写游戏玩法逻辑。&lt;/li&gt;
+&lt;li&gt;于是产生了编译型语言编写引擎+脚本型语言编写玩法逻辑的架构。&lt;/li&gt;
+&lt;li&gt;而这种架构已经沿用了很多年，游戏服务器后端技术领域，技术演进慢、固化严重。&lt;/li&gt;
+&lt;li&gt;在一个固化严重的技术领域，新人很难找到机会。这个结论不仅适用于游戏行业的开发。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;番外&#34;&gt;番外&lt;/h1&gt;
+
+&lt;h2 id=&#34;lua的兴起&#34;&gt;Lua的兴起&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.lua.org/&#34;&gt;Lua&lt;/a&gt;是一门发源于巴西的脚本语言，我之前深入研究过Lua 5.1.4版本的代码，写过其分析的文档，后续被出版为正式出版物&lt;a href=&#34;https://book.douban.com/subject/27108476/&#34;&gt;《Lua设计与实现》&lt;/a&gt;。我在写作本书的时候，研究过一些Lua的发展历史。可以说，Lua在游戏行业开始流行起来就是源自上面的脚本+引擎这样的架构体系，能够提高游戏开发者的开发效率。这部分内容参见&lt;a href=&#34;https://www.lua.org/history.html&#34;&gt;The evolution of an extension language: a history of Lua&lt;/a&gt;：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;It turned out that Bret Mogilefsky was the lead programmer on Grim Fandango, the main adventure game LucasArts released in 1997. In another message he told us that &amp;ldquo;A TREMENDOUS amount of this game is written in Lua&amp;rdquo; (his emphasis). This first use of Lua in a game attracted the attention of many game developers around the world to the language. Soon after, Lua started to appear frequently in game newsgroups, such as &lt;code&gt;rec.games.programmer&lt;/code&gt; and &lt;code&gt;comp.ai.games&lt;/code&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h2 id=&#34;人们为什么需要游戏&#34;&gt;人们为什么需要游戏？&lt;/h2&gt;
+
+&lt;p&gt;游戏一直是个有很大争议的行业：杀戮、利用人性阴暗面、未成年人沉迷导致的各种问题，等等。&lt;/p&gt;
+
+&lt;p&gt;我在从业的时候，也会纠结在这些问题里。&lt;/p&gt;
+
+&lt;p&gt;再后来，我找到一个解释给自己的理由：由于人们的肉身，受时空范围的限制，所以需要游戏来帮助人们扩展人生体验的范围。&lt;/p&gt;
+
+&lt;p&gt;比如，如果没有&lt;code&gt;FootballManager&lt;/code&gt;这款游戏，我如何都体会不到执教、管理一个球队的体验。&lt;/p&gt;
+
+&lt;p&gt;《庄子》里有所谓“庄周梦蝶”的故事，其大意是：庄子一天做梦，梦见自己变成了一只蝴蝶。醒来之后他发现自己还是庄子，于是他不知道自己到底是变成庄子的蝴蝶呢，还是梦中变成蝴蝶的庄子。庄子认为人不能确切的区分“真实”和“虚幻”，游戏某种程度上以构建在数字上的“虚幻”，来给了我们不同时空上的“真实”体验。&lt;/p&gt;
+
+&lt;p&gt;从这一点看，游戏的内容，和书籍、影视剧，其实没有太多的区别：载体不同，但都让人扩展了体验的范围。&lt;/p&gt;
+
+&lt;p&gt;也因为这样，大家都是”内容消费行业“，所以游戏的竞争对手，除了游戏行业以内，还有各种能够消费时间的产品：视频、书籍、电视，等等。&lt;/p&gt;
+
+&lt;p&gt;在人口增速放缓之后，换算成能用来消费这些内容的总时间也放缓了，再加上前面提到各种消费时间的产品越来越多，各种游戏也越来越多，所以这个领域是很难的（当然大家都难）。&lt;/p&gt;
+
+&lt;p&gt;关于”游戏是内容行业“这个话题，最近看到一篇不错的文章：&lt;a href=&#34;https://mp.weixin.qq.com/s/NkNLbkRG26M8dqt5t8hvxA&#34;&gt;科技巨头的游戏野心为何经常以失败告终？&lt;/a&gt;，有兴趣的可以参考一起看看。&lt;/p&gt;
+
+&lt;h2 id=&#34;我为什么离开游戏行业&#34;&gt;我为什么离开游戏行业？&lt;/h2&gt;
+
+&lt;p&gt;总结起来有以下的原因：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;太累：每周都有版本更新（注意是每周），每到版本更新的日子，全组都要一起待到版本发布，经常就搞到了晚上十点后，打车回家只能洗洗睡了。第二天还要早早起来，赶版本更新之后、还未外放前的验证工作，如果有问题要马上线上修复。除此以外，其他时候有严重的线上问题，还要马上更新修复（热更新性质再次救了游戏开发者）。这一算下来，每周五个工作日，至少有两天是在快节奏下工作的。这样的工作节奏，对年纪大的人太不友好了。&lt;/li&gt;
+&lt;li&gt;学不到什么技术：就是我上面说的技术固化、演进慢等因素。天天用脚本写各种玩法，积累不出什么个人技术壁垒来。我一直对”被平台、工作所体制化“的事情保持着警惕，见我之前的周刊：&lt;a href=&#34;https://www.codedump.info/post/20220123-weekly-2/&#34;&gt;周刊（第2期）：从笔记软件谈被体制化 - codedump的网络日志&lt;/a&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;推荐&#34;&gt;推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;游戏服务器和普通服务器有什么区别&#34;&gt;游戏服务器和普通服务器有什么区别？&lt;/h2&gt;
+
+&lt;p&gt;这是知乎上的一个问题：&lt;a href=&#34;https://www.zhihu.com/question/23508968&#34;&gt;游戏服务器与普通服务器有什么区别? - 知乎&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;总结前面分析的游戏行业的特点、开发架构，我做一个简短的回答：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;游戏要模拟各种虚拟世界的场景，包括但不限于：社交、战斗、玩家可见性（比如买了一个装备，什么样的玩家能看到，涉及到这个属性的广播范围等问题）。简而言之，游戏开发有时候在游戏里就是造世主一般的存在。&lt;/li&gt;
+&lt;li&gt;所以，大部分时候，游戏服务是“有状态的”服务。这点是跟一般的web服务最大的区别：web服务通常一个短链接请求过来，查询一段数据，完事了可能就断开了；而游戏服务器，由于要维持状态，大部分时候都是长连接，一个连接对应一个玩家角色。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;科普游戏服务端技术的资料&#34;&gt;科普游戏服务端技术的资料&lt;/h2&gt;
+
+&lt;p&gt;如果觉得前面的讲解太过粗糙，还想多了解这方面的技术，推荐以下几篇文章：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.cnblogs.com/fingerpass/p/game-server-programming-paradigm.html&#34;&gt;游戏服务端究竟解决了什么问题？ - fingerpass - 博客园&lt;/a&gt;是看到讲解游戏&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.skywind.me/blog/archives/1265&#34;&gt;游戏服务端架构发展史（上） - Skywind Inside&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.skywind.me/blog/archives/1301&#34;&gt;游戏服务端架构发展史（中） - Skywind Inside&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;上面两部曲没有下篇了，作者已经鸽了。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;skywind&#34;&gt;skywind&lt;/h2&gt;
+
+&lt;p&gt;这是我推荐的一位前游戏行业从业者、知乎答主、博客作者、以及开源项目作者。&lt;/p&gt;
+
+&lt;p&gt;他主要的领域有：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;游戏（引擎）开发。&lt;/li&gt;
+&lt;li&gt;网络传输、音视频开发。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这几个方面，他是既有理论技术文章的输出、也有开源项目的，最出名的开源项目当属&lt;a href=&#34;https://github.com/skywind3000/kcp&#34;&gt;KCP - A Fast and Reliable ARQ Protocol&lt;/a&gt;。（我曾经写过一篇不太好的、个人不甚满意的KCP分析文章，见：&lt;a href=&#34;https://www.codedump.info/post/20201105-kcp/&#34;&gt;KCP 1.4源码分析 - codedump的网络日志&lt;/a&gt;）&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;知乎：&lt;a href=&#34;https://www.zhihu.com/people/skywind3000&#34;&gt;https://www.zhihu.com/people/skywind3000&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;github：&lt;a href=&#34;https://github.com/skywind3000&#34;&gt;https://github.com/skywind3000&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;博客：&lt;a href=&#34;http://www.skywind.me/blog/&#34;&gt;http://www.skywind.me/blog/&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;推特：&lt;a href=&#34;https://twitter.com/skywind3000&#34;&gt;https://twitter.com/skywind3000&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;由于他之前也是游戏行业的从业者，所以也对游戏领域有自己的见解，见：&lt;a href=&#34;http://www.skywind.me/blog/archives/1259&#34;&gt;你为什么会离开游戏行业？ - Skywind Inside&lt;/a&gt;，也是难得一见的好文。另外，知乎上有很多他有趣的回答。&lt;/p&gt;
+
+&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;无穷之路-https-zh-wikipedia-org-wiki-e7-84-a1-e7-aa-ae-e4-b9-8b-e8-b7-af&#34;&gt;&lt;a href=&#34;https://zh.wikipedia.org/wiki/%E7%84%A1%E7%AA%AE%E4%B9%8B%E8%B7%AF&#34;&gt;无穷之路&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;香港TVB电视台在内地拍摄的一部讲述内地扶贫情况的纪录片。我觉得这类型的片，由内地媒体拍出来，和香港媒体拍出来，感觉还是不一样的，香港媒体的视角更像第三方的视角。在拍摄时，有时候主持人也会切换到自己用自拍杆的视角来拍摄，又多了一些亲切的感觉，不会那么高高在上。&lt;/p&gt;
+
+&lt;p&gt;”无穷之路“这个名字也很好：”穷“既代表脱离贫穷，也寓意着内地有很多素材可供香港媒体拍摄记录。&lt;/p&gt;
+
+&lt;p&gt;这里面让我印象最深刻的，就是第一集的”&lt;a href=&#34;https://baike.baidu.com/item/%E9%98%BF%E5%9C%9F%E5%88%97%E5%B0%94%E6%9D%91/13981071&#34;&gt;悬崖村&lt;/a&gt;“，万万没想到就是在最近，还有人居住在这种天险之地。&lt;/p&gt;
+
+&lt;p&gt;B站有视频全集&lt;a href=&#34;https://www.bilibili.com/bangumi/play/ss40050&#34;&gt;无穷之路-纪录片-全集-高清独家在线观看-bilibili-哔哩哔哩&lt;/a&gt;，如果能听懂粤语也可以选择听粤语原版。&lt;/p&gt;
+
+&lt;h2 id=&#34;deepl&#34;&gt;DeepL&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://www.deepl.com/zh/translator&#34;&gt;DeepL翻译&lt;/a&gt;是由德国一家AI创业公司的推出的翻译服务，主打使用人工智能、深度学习技术来进行翻译服务，支持 简体中文、英语、德语、法语、日语、西班牙语、意大利语、荷兰语及波兰语之间的翻译。&lt;/p&gt;
+
+&lt;p&gt;我自己尝试了一下这个翻译工具，将我博客的一篇中文博文翻译成英文，几乎不加修改就能比较顺畅了，读者可以自行对比一下效果：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版） - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20210215-how-to-read-code-en/&#34;&gt;How to Read Code(En Version) - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;感觉对于技术类文章的翻译来说，这个工具的表现已经很好了。&lt;/p&gt;
+
+&lt;p&gt;Mac、Win桌面版可以免费下载，也有网页版本，但是免费版本有每次翻译的字数限制，文章长了需要自己多倒腾几次。&lt;/p&gt;
 </description>
     </item>
     
@@ -1086,7 +1349,7 @@
 
 &lt;ul&gt;
 &lt;li&gt;页面缓存管理。&lt;/li&gt;
-&lt;li&gt;崩溃恢复，又分为以下两种实现：
+&lt;li&gt;页面备份，又分为以下两种实现：
 
 &lt;ul&gt;
 &lt;li&gt;journal文件。&lt;/li&gt;
@@ -1095,11 +1358,11 @@
 &lt;li&gt;页面管理模块。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;前面一节讲完了“页面缓存管理”的实现，按照自下往上的顺序，就应该到“崩溃恢复”了。“崩溃恢复”核心的工作是：在真正修改页面内容之前，将还未修改的页面内容备份，这样一旦系统在事务过程中宕机崩溃，就可以用这部分内容回滚还未落盘的事务修改，让系统回到一个正确的状态。&lt;/p&gt;
+&lt;p&gt;前面一节讲完了“页面缓存管理”的实现，按照自下往上的顺序，就应该到“页面备份”了。“页面备份”核心的工作是：在真正修改页面内容之前，将还未修改的页面内容备份，这样一旦系统在事务过程中宕机崩溃，就可以用这部分内容回滚还未落盘的事务修改，让系统回到一个正确的状态。&lt;/p&gt;
 
-&lt;p&gt;“崩溃恢复”有两种实现方式，在早期使用的journal文件，这种方式性能不高；在3.7版本之后，sqlite引入了WAL文件来保存页面内容，这样做的效率更高。&lt;/p&gt;
+&lt;p&gt;“页面备份”有两种实现方式，在早期使用的journal文件，这种方式性能不高；在3.7版本之后，sqlite引入了WAL文件来保存页面内容，这样做的效率更高。&lt;/p&gt;
 
-&lt;p&gt;本节就讲解这部分内容，在对这部分内容有一个总体的了解之后，继续讲解崩溃恢复的总体流程。后面的章节再具体分析journal以及WAL的实现。&lt;/p&gt;
+&lt;p&gt;本节就讲解这部分内容，在对这部分内容有一个总体的了解之后，继续讲解页面备份的总体流程。后面的章节再具体分析journal以及WAL的实现。&lt;/p&gt;
 
 &lt;h1 id=&#34;写事务的流程&#34;&gt;写事务的流程&lt;/h1&gt;
 
@@ -3740,223 +4003,6 @@ type Progress struct {
 &lt;p&gt;&lt;center&gt;
 &lt;img src=&#34;https://www.codedump.info/media/imgs/20210515-raft/summary.png&#34; alt=&#34;Raft算法几要素在etcd raft中的实现&#34; title=&#34;Raft算法几要素在etcd raft中的实现&#34; /&gt;
 &lt;/center&gt;&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>How to Read Code(En Version)</title>
-      <link>https://www.codedump.info/post/20210215-how-to-read-code-en/</link>
-      <pubDate>Mon, 15 Feb 2021 09:46:47 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20210215-how-to-read-code-en/</guid>
-      <description>
-
-&lt;blockquote&gt;
-&lt;p&gt;I wrote a document in 2019 &lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;&amp;ldquo;How to read a source code?&amp;rdquo;&lt;/a&gt;, and now looking back, there is room for improvement in this document,so I have reorganized it on top of that.&lt;/p&gt;
-&lt;/blockquote&gt;
-
-&lt;p&gt;The ability to read source code is considered to be one of the underlying fundamental programmer skills, and the reason why this ability is important is that&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;inevitably need to read or take over other people&amp;rsquo;s projects. For example, researching an open source project, such as taking over a project from someone else.&lt;/li&gt;
-&lt;li&gt;Reading good project source code is one of the important ways to learn from other people&amp;rsquo;s good experience, which I know myself.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Reading code and writing code are two not quite the same skills, the reason is that &amp;ldquo;&lt;a href=&#34;https://www.zhihu.com/question/21820752/answer/19427754&#34;&gt;writing code is expressing yourself, reading code is understanding others&lt;/a&gt;&amp;rdquo;. Because of the many projects, the authors of the project have their own style, it takes a lot of energy to understand.&lt;/p&gt;
-
-&lt;p&gt;I&amp;rsquo;ve been in the business for years reading the project source code in general and in detail, and have written some code analysis articles one after another, so I&amp;rsquo;ll briefly summarize my approach in this article.&lt;/p&gt;
-
-&lt;h1 id=&#34;the-first-thing-run-it&#34;&gt;the first thing:run it!&lt;/h1&gt;
-
-&lt;p&gt;The first step to start reading a project source code, is to let the project through your own compilation and run smoothly. This is especially important.&lt;/p&gt;
-
-&lt;p&gt;Some projects are complex and depend on many components, so it is not easy to set up a debugging environment, so it is not always possible for all projects to run smoothly. If you can compile and run it yourself, then the scenario analysis, plus debugging code, debugging, and so on will have the basis to unfold.&lt;/p&gt;
-
-&lt;p&gt;In my experience, a project code, whether the debugging environment can be built smoothly, the efficiency is very different.&lt;/p&gt;
-
-&lt;p&gt;After running, and to try to streamline their environment to reduce the debugging process of interference information. For example, Nginx uses multiple processes to process requests. In order to debug the behavior of Nginx, I often set the number of workers to 1, so that when debugging you know which process is to be tracked.&lt;/p&gt;
-
-&lt;p&gt;For example, many projects are compiled with optimization options or without debugging information by default, which can be a problem when debugging, so I modify the makefile to compile to &lt;code&gt;-O0 -g&lt;/code&gt;, which is compiled to generate a version with debugging information and no optimization.&lt;/p&gt;
-
-&lt;p&gt;All in all, the debugging efficiency can be improved a lot after running, but under the premise of running and trying to streamline the environment to exclude the disturbing factors.&lt;/p&gt;
-
-&lt;h1 id=&#34;clearly-define-your-purpose&#34;&gt;Clearly define your purpose&lt;/h1&gt;
-
-&lt;p&gt;Although it is important to read the project source code, not all projects need to be read from start to finish. Before you start reading, you need to be clear about your purpose: whether you need to understand the implementation of one of the modules, the general structure of the framework, the implementation of one of the algorithms, and so on.&lt;/p&gt;
-
-&lt;p&gt;For example, many people look at the code of Nginx, and the project has many modules, including the basic core modules (epoll, network sending and receiving, memory pooling, etc.) and modules that extend a specific function, and not all of these modules need to be understood very clearly.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Understanding the underlying processes at the core of Nginx and the data structures.&lt;/li&gt;
-&lt;li&gt;Understanding how Nginx implements a module.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;With this general understanding of the project, all that remains is to look at the specific code implementation when you encounter a specific problem.&lt;/p&gt;
-
-&lt;p&gt;All in all, it is not recommended to start reading the code of a project without a purpose, as looking at it headlessly will only consume your time and enthusiasm.&lt;/p&gt;
-
-&lt;h1 id=&#34;distinguish-between-main-and-branch-storylines&#34;&gt;Distinguish between main and branch storylines&lt;/h1&gt;
-
-&lt;p&gt;With a clear purpose in mind, you can distinguish between main and subplots in the reading process. For example.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;For example, if you want to understand the implementation of a business logic that uses a dictionary to store data in a function, here, &amp;ldquo;how the dictionary data structure is implemented&amp;rdquo; is a side plot, and you don&amp;rsquo;t need to look deeper into its implementation.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Guided by this principle, the reader only needs to understand the external interfaces to the code of the stems, such as a class that does not need to understand its implementation, and to understand the entry and exit parameters and the role of these interfaces, treating this part as a &amp;ldquo;black box&amp;rdquo;.&lt;/p&gt;
-
-&lt;p&gt;By the way, in the early years, I saw a way of writing C++ in which the header file contains only the external interface declaration of a class, and the implementation is transferred to the C++ file through an internal impl class, for example.&lt;/p&gt;
-
-&lt;p&gt;Header file.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;// test.h
-class Test {
-public:
-  void fun();
-
-private:
-  class Impl;
-  Impl *impl_;
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;C++ file.&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;void Test::fun() {
-  impl_-&amp;gt;fun()
-}
-
-class Test::Impl {
-public:
-  void fun() {
-    // Concrete implementation
-  }
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;This way of writing makes the header file a lot cleaner: there are no private members or functions associated with the implementation, only the exposed interface, so the user can know at a glance what the class offers to the public.&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-! &lt;a href=&#34;https://www.codedump.info/media/imgs/20200605-how-to-read-code-v2020/impl.png&#34; title=&#34;impl&#34;&gt;impl&lt;/a&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;The &amp;ldquo;main&amp;rdquo; and &amp;ldquo;branch&amp;rdquo; storylines switch frequently throughout the code reading process, requiring the reader to have some experience in knowing which part of the code they are reading is the main storyline.&lt;/p&gt;
-
-&lt;h1 id=&#34;vertical-and-horizontal&#34;&gt;Vertical and horizontal&lt;/h1&gt;
-
-&lt;p&gt;The code reading process is divided into two different directions.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Vertical: Read in the order of the code. Vertical reading is often required when a specific understanding of a process or algorithm is needed.&lt;/li&gt;
-&lt;li&gt;Horizontal: Read different modules, and often when you need to first figure out the overall framework, you need to read horizontally.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;The two directions of reading, should alternate, which requires the code reader to have some experience and be able to grasp the current direction of code reading. My advice is: the process still puts the whole first, and do not go too deep into a particular detail without understanding the overall premise. Consider a function or data structure as a black box, know their input and output, as long as it does not affect the understanding of the whole, then put it aside and move on.&lt;/p&gt;
-
-&lt;h1 id=&#34;scenario-analysis&#34;&gt;Scenario analysis&lt;/h1&gt;
-
-&lt;p&gt;If you have the previous foundation, you have been able to make the project run smoothly in your own debugging environment, and you have clarified the functions you want to understand, then you can do a scenario analysis of the project code.&lt;/p&gt;
-
-&lt;p&gt;The so-called &amp;ldquo;scenario analysis&amp;rdquo; is to construct some scenarios by yourself, and then analyze the behavior in these scenarios by adding breakpoints and debugging statements.&lt;/p&gt;
-
-&lt;p&gt;For example, when I wrote &lt;a href=&#34;https://book.douban.com/subject/27108476/&#34;&gt;Lua Design and Implementation&lt;/a&gt;, I explained the process of interpreting and executing Lua virtual machine instructions, and needed to analyze each instruction, so I used scenario analysis. I would simulate the Lua script code that uses the instruction, and then breakpoint in the program to debug the behavior in these scenarios.&lt;/p&gt;
-
-&lt;p&gt;My usual approach is to add a breakpoint to an important entry function, then construct debugging code that triggers the scenario, and when the code stops at the breakpoint, observe the behavior of the code by looking at the stack, variable values, and so on.&lt;/p&gt;
-
-&lt;p&gt;For example, in Lua interpreter code, generating Opcode will eventually call the function luaK_code, so I&amp;rsquo;ll add a breakpoint above this function and construct the scene I want to debug, and as soon as I break at the breakpoint, I&amp;rsquo;ll see the complete call flow through the function stack: ``C&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;(lldb) bt
-* thread #1: tid = 0xb1dd2, 0x00000001000071b0 lua`luaK_code, queue = &#39;com.apple.main-thread&#39;, stop reason = breakpoint 1.1
-* frame #0: 0x00000001000071b0 lua`luaK_code
-frame #1: 0x000000010000753e lua`discharge2reg + 238
-frame #2: 0x000000010000588f lua`exp2reg + 31
-frame #3: 0x000000010000f15b lua`statement + 3131
-frame #4: 0x000000010000e0b6 lua`luaY_parser + 182
-frame #5: 0x0000000100009de9 lua`f_parser + 89
-frame #6: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
-frame #7: 0x0000000100009bf4 lua`luaD_pcall + 68
-frame #8: 0x0000000100009d65 lua`luaD_protectedparser + 69
-frame #9: 0x00000001000047e1 lua`lua_load + 65
-frame #10: 0x0000000100018071 lua`luaL_loadfile + 433
-frame #11: 0x0000000100000eb9 lua`pmain + 1545
-frame #12: 0x00000001000090cd lua`luaD_precall + 589
-frame #13: 0x00000001000098c1 lua`luaD_call + 81
-frame #14: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
-frame #15: 0x0000000100009bf4 lua`luaD_pcall + 68
-frame #16: 0x00000001000046fb lua`lua_cpcall + 43
-frame #17: 0x00000001000007af lua`main + 63
-frame #18: 0x00007fff6468708d libdyld.dylib`start + 1
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;The advantage of scenario analysis is that instead of looking for a needle in a haystack, you can narrow down the problem to a scope and understand it.&lt;/p&gt;
-
-&lt;p&gt;The concept of &amp;ldquo;scenario analysis&amp;rdquo; is not a term I came up with. For example, there are several books that analyze code, such as &lt;a href=&#34;https://book.douban.com/subject/1231584/&#34;&gt;Linux Kernel Source Code Scenario Analysis&lt;/a&gt;, &lt;a href=&#34;https://book.douban.com/subject/1231584/&#34;&gt;Windows Kernel Scenario Analysis&lt;/a&gt;, and &lt;a href=&#34;https://book.douban.com/subject/1231584/&#34;&gt;Windows Kernel Scenario Analysis&lt;/a&gt;. Windows Kernel Scenario Analysis&amp;rdquo;](&lt;a href=&#34;https://book.douban.com/subject/3715700/&#34;&gt;https://book.douban.com/subject/3715700/&lt;/a&gt;).&lt;/p&gt;
-
-&lt;h1 id=&#34;make-use-of-good-test-cases&#34;&gt;Make use of good test cases&lt;/h1&gt;
-
-&lt;p&gt;Good projects come with a lot of use cases, examples of this type are: etcd, a few open source projects produced by google.&lt;/p&gt;
-
-&lt;p&gt;If the test cases are written very carefully, then it is worthwhile to study them. The reason is: test cases are often for a single scenario, alone to construct some data to verify the process of the program. So, like the previous &amp;ldquo;scenario analysis&amp;rdquo;, it&amp;rsquo;s a way to move you from a big project to a specific scenario.&lt;/p&gt;
-
-&lt;h1 id=&#34;clarify-the-relationship-between-core-data-structures&#34;&gt;Clarify the relationship between core data structures&lt;/h1&gt;
-
-&lt;p&gt;Although it is said that &amp;ldquo;programming = algorithm + data structure&amp;rdquo;, my experience in practice is that data structure is more important.&lt;/p&gt;
-
-&lt;p&gt;Because the structure defines the architecture of a program, there is no concrete implementation until the structure is set. Like building a house, the data structure is the framework structure of the house, if a house is very large, and you do not know the structure of the house, will be lost in it. As for the algorithm, if it is a part of the details that you do not need to delve into for the time being, you can refer to the previous section &amp;ldquo;Distinguishing the main and branch storylines&amp;rdquo; to understand the entrance and exit parameters and their roles first.&lt;/p&gt;
-
-&lt;p&gt;Linus says: &amp;ldquo;Bad programmers care about code. Good programmers care about data structures and how they relate to each other.&amp;rdquo;&lt;/p&gt;
-
-&lt;p&gt;Therefore, when reading a piece of code, it is especially important to clarify the relationships between the core data structures. At this time, it is necessary to use some tools to draw the relationship between these structures. There are many such examples in my source code analysis class blogs, such as &lt;a href=&#34;https://www.codedump.info/post/20190215-leveldb/&#34;&gt;Notes on Reading Leveldb Code&lt;/a&gt;, &lt;a href=&#34;https://www.codedump.info/post/20181125-etcd-server/&#34;&gt;Implementation of Etcd Storage&lt;/a&gt;, and so on.&lt;/p&gt;
-
-&lt;p&gt;It should be noted that there is no strict sequential relationship between the two steps of scenario analysis and clarifying the core data structure; it does not have to be something first and then something else, but rather interactively.&lt;/p&gt;
-
-&lt;p&gt;For example, if you have just taken over a project and need to understand the project briefly, you can first read the code to understand what core data structures are available. Once you understand it, if you are not sure about the process in certain scenarios, you can use scenario analysis. In short, alternate until your questions are answered.&lt;/p&gt;
-
-&lt;h1 id=&#34;ask-yourself-more-questions&#34;&gt;Ask yourself more questions&lt;/h1&gt;
-
-&lt;p&gt;The learning process cannot be separated from the interaction.&lt;/p&gt;
-
-&lt;p&gt;If reading code is just an input, then there needs to be an output. Only simple input is like feeding something to you, and only better digestion can become your own nutrition, and output is an important means to better digest knowledge.&lt;/p&gt;
-
-&lt;p&gt;In fact, this idea is very common, for example, students need to do practice assignments (Output) in class (Input), such as learning algorithms (Input) need to practice their own coding (Output), and so on. In short, output is a kind of timely feedback in the learning process, and the higher the quality, the more efficient the learning.&lt;/p&gt;
-
-&lt;p&gt;There are many means of output, and when reading the code, it is more recommended to be able to ask yourself more questions, such as.&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Why did you choose this data structure to describe this problem? How are other projects designed in similar scenarios? What data structures are there to do such a thing?&lt;/li&gt;
-&lt;li&gt;If I were to design such a project, what would I do?&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;And so on and so forth. The more active and positive thinking you do, the better output you will have, and the quality of output is directly proportional to the quality of learning.&lt;/p&gt;
-
-&lt;h1 id=&#34;write-your-own-code-reading-notes&#34;&gt;Write your own code reading notes&lt;/h1&gt;
-
-&lt;p&gt;Since I started blogging, I have been writing code reading articles for various projects, and my screen name &amp;ldquo;codedump&amp;rdquo; also comes from the idea of trying to &amp;ldquo;dump the code internal implementation principle&amp;rdquo;.&lt;/p&gt;
-
-&lt;p&gt;As mentioned earlier, the quality of learning is directly proportional to the quality of output, which is my own deep experience. Because of this, I insist on writing my own analysis notes after reading the source code.&lt;/p&gt;
-
-&lt;p&gt;Here are a few things to keep in mind when writing these kinds of notes.&lt;/p&gt;
-
-&lt;p&gt;Although they are notes, imagine that you are explaining the principles to someone who is less familiar with the project, or imagine that you are looking back at the article months or even years later. In this case, try to organize the language as well as possible and explain it in a step-by-step manner.&lt;/p&gt;
-
-&lt;p&gt;Try to avoid posting large paragraphs of code. I think it&amp;rsquo;s a bit self-defeating to post large paragraphs of code in such articles: it just looks like you understand it, but you don&amp;rsquo;t. If you really want to explain a piece of code, you can use pseudo-code or reduced code. Remember: don&amp;rsquo;t kid yourself, really get it. If you really want to add your own comments to the code, one suggestion I have is to fork a copy of some version of the project and commit it to your own github, where you can always add your own comments and save the commit. For example, my own commented code for etcd 3.1.10: &lt;a href=&#34;https://github.com/lichuang/etcd-3.1.10-codedump&#34;&gt;etcd-3.1.10-codedump&lt;/a&gt;, similarly other projects I read will fork a project on github with codedump suffix of the project.&lt;/p&gt;
-
-&lt;p&gt;Draw more diagrams, a picture is worth a thousand words, use graphics to show the relationship between the code flow, data structures. I just recently discovered that the ability to draw diagrams is also an important ability, and I&amp;rsquo;m learning how to use images to express my ideas from scratch.&lt;/p&gt;
-
-&lt;p&gt;Writing is an important foundational ability, and a friend of mine recently educated me to the effect that if you are strong in something, if you add good writing and good English, then it will greatly amplify your ability in that area. And similar to writing, English such as the underlying basic ability, not a handful, need to keep practicing for a long time to be able to. And writing a blog, for technical staff, is a good means to exercise writing.&lt;/p&gt;
-
-&lt;p&gt;PS: If many things, you then do when you can think of the future to face the output of the person is your own, such as their own written code to maintain the back of their own articles written for their own eyes, and so on, the world will be much better. For example, writing a technical blog about these things, because I am writing when I consider that the person who will look at this document may be myself, so when writing will try to be clear and easy to understand, trying to see myself after a period of time when I see their own document, I can immediately recall the details of the time, but also because of this, I rarely post large sections of code in the blog, as far as possible to supplement the legend.&lt;/p&gt;
-
-&lt;h1 id=&#34;summary&#34;&gt;Summary&lt;/h1&gt;
-
-&lt;p&gt;The above is my brief summary of some of the means and methods of attention when reading source code, in general there are so many points, right?&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Only better output can better digest the knowledge, the so-called build debugging environment, scenario analysis, ask yourself more questions, write code reading notes, etc. are all around the output to start. In short, you can&amp;rsquo;t be like a dead fish and expect to fully understand its principles just by reading the code, you need to find ways to interact with it.&lt;/li&gt;
-&lt;li&gt;Writing is one of the basic hard skills of a person, not only to exercise their ability to express themselves, but also to help organize their thoughts. One means of exercising writing skills for programmers is to write a blog, and the sooner you start exercising, the better.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Finally, as with any skill that can be acquired, the ability to read code requires long hours and lots of repetition, so next time start working on a project that interests you.&lt;/p&gt;
 </description>
     </item>
     
