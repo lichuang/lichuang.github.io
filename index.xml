@@ -1291,27 +1291,39 @@
 &lt;p&gt;我们以一个例子来说明备份页面的流程，假设写事务执行时，情况如下：&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;当时数据库的页面数量为100，即有100个页面。&lt;/li&gt;
-&lt;li&gt;写事务执行时，依次做了如下的修改：
+&lt;li&gt;&lt;p&gt;当时数据库的页面数量为2，即有2个页面，其中页面的内容如下：&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;修改页面10的一处内容。&lt;/li&gt;
-&lt;li&gt;修改页面20的一处内容。&lt;/li&gt;
-&lt;li&gt;修改页面10的一处内容，注意这里跟第一次修改属于同一个页面的不同位置。&lt;/li&gt;
-&lt;li&gt;新增页面101。&lt;/li&gt;
+&lt;li&gt;页面一：保存了&lt;code&gt;x=0&lt;/code&gt;和&lt;code&gt;y=1&lt;/code&gt;的数据。&lt;/li&gt;
+&lt;li&gt;页面二：保存了&lt;code&gt;z=2&lt;/code&gt;的数据。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;p&gt;写事务执行时，依次做了如下的修改：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;修改页面1的一处内容：&lt;code&gt;x=1&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;修改页面2的一处内容：&lt;code&gt;z=3&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;修改页面1的一处内容：&lt;code&gt;y=2&lt;/code&gt;，注意这里跟第一次修改属于同一个页面的不同位置。&lt;/li&gt;
+&lt;li&gt;新增页面3：&lt;code&gt;p=4&lt;/code&gt;。&lt;/li&gt;
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
 &lt;p&gt;那么，对照上面的流程，这四次页面修改在调用函数&lt;code&gt;pager_write&lt;/code&gt;时，情况是这样的：&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;修改页面10的一处内容：由于在备份页面位图中查不到页面编号为10的页面，且页面10小于当前数据库文件的页面数量100，属于修改当前已有页面，于是将这个页面备份到journal文件，完事了之后将这个页面编号10加入位图。&lt;/li&gt;
-&lt;li&gt;修改页面20的一处内容：类似的，也是备份了页面20的内容，同时将20加入位图。&lt;/li&gt;
-&lt;li&gt;修改页面10的一处内容：这一次虽然也是要修改已有页面，但是由于在位图中找到这个页面编号，说明在这一次事务中已经备份过这个页面了，于是不再需要备份操作，直接返回。&lt;/li&gt;
-&lt;li&gt;新增页面101：发现该页面的编号101，大于当前数据库页面数量100，属于新增页面，于是不进行备份，只是加入到脏页面链表中同时标记需要落盘。&lt;/li&gt;
+&lt;li&gt;修改页面1的一处内容&lt;code&gt;x=1&lt;/code&gt;：由于在备份页面位图中查不到页面编号为1的页面，且页面1小于当前数据库文件的页面数量2，因此属于修改当前已有页面，于是将这个页面备份到journal文件，即将页面一的未修改之前的内容&lt;code&gt;x=0,y=1&lt;/code&gt;写入journal备份文件中，完事了之后将这个页面编号1加入位图，表示已经备份了这个页面的未修改之前的内容。&lt;/li&gt;
+&lt;li&gt;修改页面2的一处内容：类似的，也是备份了页面2的内容&lt;code&gt;z=2&lt;/code&gt;，同时将页面2加入位图，表示已经备份了这个页面的未修改之前的内容。&lt;/li&gt;
+&lt;li&gt;修改页面1的一处内容&lt;code&gt;y=2&lt;/code&gt;：这一次虽然也是要修改已有页面，但是由于在位图中找到这个页面编号，说明在这一次事务中已经备份过这个页面了，于是不再需要备份操作，直接返回。&lt;/li&gt;
+&lt;li&gt;新增页面3&lt;code&gt;p=4&lt;/code&gt;：发现该页面的编号3，大于当前数据库页面数量2，属于新增页面，于是不进行备份，只是加入到脏页面链表中同时标记需要落盘。&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;p&gt;即：在这一次写事务执行的过程中，虽然需要修改4处内容，实际备份文件两次，新增页面一次。&lt;/p&gt;
+&lt;p&gt;即：在这一次写事务执行的过程中，虽然需要修改4处内容，实际修改备份文件两次，新增数据库页面页面一次。&lt;/p&gt;
+
+&lt;p&gt;这个例子前后数据库文件以及备份文件内容的对比见下图：&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20211222-sqlite-btree-3-journal/journal-example.png&#34; alt=&#34;journal备份页面例子&#34; title=&#34;journal备份页面例子&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
 
 &lt;h2 id=&#34;何时落盘&#34;&gt;何时落盘&lt;/h2&gt;
 
