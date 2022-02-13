@@ -63,7 +63,7 @@
 
 <meta itemprop="datePublished" content="2022-01-06T21:48:18&#43;08:00" />
 <meta itemprop="dateModified" content="2022-01-06T21:48:18&#43;08:00" />
-<meta itemprop="wordCount" content="16078">
+<meta itemprop="wordCount" content="16214">
 
 
 
@@ -1525,6 +1525,8 @@ static void walUnlockExclusive(Wal *pWal, int lockIdx, int n);
 <li>于是，wal中可能存储了同一个页面的多次修改结果，因为不同的事务、甚至相同的事务，都有可能修改了同一个页面，而每一次修改都要将修改结果存储wal文件。</li>
 <li>wal文件中，存储一个页面内容的单位是”帧（frame）“，一帧存储一个页面，而反过来一个页面可能先后被存储在不同帧的内容中。于是就需要wal索引数据：</li>
 <li>wal索引需要存储两类数据：一个帧存储的是哪个页面的数据，以及某个页面最新的数据存储在哪一帧。</li>
+<li>完成一次写操作，wal只需一次sync操作（sync wal文件），journal需要两次（sync journal文件一次，将页面缓存写入数据库文件之后sync数据库文件一次），因此wal的写性能更高。</li>
+<li>wal支持一写多读的并发，但是journal在写的时候不支持同时读数据。</li>
 <li>有两个重要的变量来保证并发读时不会读到读操作开始之后的修改：<code>mxFrame</code>保存的是当前最提交的写事务写的最大帧数；每个读操作还保存了一个<code>readMark</code>值，存储的是读操作开始时的<code>mxFrame</code>值。</li>
 <li><code>checkpoint</code>操作，又称为<code>回填（backfill）</code>操作，用于将wal文件的内容同步到数据库文件中，它需要前面的<code>mxFrame</code>和<code>readMark</code>来保证回填操作的正确性。回填操作会影响同时在进行的读、写操作。</li>
 </ul>

@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 04 Feb 2022 21:55:23 +0800</lastBuildDate>
+    <lastBuildDate>Fri, 11 Feb 2022 22:27:57 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -189,6 +189,154 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>周刊（第5期）：从存储模型聊一聊时序数据库的应用场景</title>
+      <link>https://www.codedump.info/post/20220211-weekly-5/</link>
+      <pubDate>Fri, 11 Feb 2022 22:27:57 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220211-weekly-5/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：本期介绍时序数据库的存储模型，只有理解了时序数据的存储模型，才能更好的了解时序数据库的优缺点以及其适用场景。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;从存储模型聊一聊时序数据库的应用场景&#34;&gt;从存储模型聊一聊时序数据库的应用场景&lt;/h1&gt;
+
+&lt;p&gt;想写本文，是因为看到了知乎上的一篇文章：&lt;a href=&#34;https://zhuanlan.zhihu.com/p/453556881&#34;&gt;投资数据库领域：2021年总结（NoSQL、图、时序） - 知乎&lt;/a&gt;，里面谈到了时序数据库：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;但缺陷是实际的市场空间较小。跟通用型数据库，尤其是OLAP数据库相比，时序数据库最大的差异点在于对于时间维度建立了独特的索引与优化，而其他所谓schemaless等特性在OLAP数据库上都能做到，不存在技术障碍。这也就是为什么其实在公司做时序场景的数据库选型的时候会直接将时序数据库与一些OLAP数据库（比如ClickHouse）做比较。如果要把时序数据库往更宽的场景发展，那就是想好如何与那么多的通用型数据库做竞争了。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;由于之前有过短暂一段时间的时序数据库从业经历，所以想从我的理解聊聊时序数据库的应用场景。&lt;/p&gt;
+
+&lt;p&gt;要了解应用场景，需要首先对时序数据库的存储模型有个大概的了解，在下文中我尽量不涉及到太艰深的技术术语来描述我的理解。由于我从业时序数据库的时间并不长，所以有可能理解会有偏差。&lt;/p&gt;
+
+&lt;p&gt;何谓“时序数据（time-series data）”？就我个人粗浅的理解，就是任何一定会带上时间戳（timestamp）维度的数据。日常生活里，在微博、微信等社交媒体的发现就可以理解时序数据，因为它们肯定都有一个发言时间，所以有时候会把个人看到的微博等称为“时间线（timeline）”。对应到工业领域，比如一个电表每小时上报的用电量也是时序数据，比如服务器监控时每隔15分钟采集的性能数据也是时序数据。&lt;/p&gt;
+
+&lt;p&gt;由于时序数据天然有“时间“这个维度，为了更好的优化其写入性能，通常专门存储时序数据的存储引擎会按照时间分块、按列来存储数据，如下图：&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220211-weekly-5/time-series-model.png&#34; alt=&#34;数据库文件的物理页面组织和逻辑页面结构&#34; title=&#34;数据库文件的物理页面组织和逻辑页面结构&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;上图中，演示用的数据格式有三列：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;时间戳。&lt;/li&gt;
+&lt;li&gt;A指标。&lt;/li&gt;
+&lt;li&gt;B指标。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;通常，时序数据库存储时，会按照时间来划分块（block）：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;块的大小固定。&lt;/li&gt;
+&lt;li&gt;在同一个块时间区的数据，会存储到同一个块中。&lt;/li&gt;
+&lt;li&gt;而块内部，将除了时间维度之外的其他的列，将其中相同列的数据存储在一起。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这样做的好处是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;由于时序数据的特点，写入的数据也是在时间上连续的，因此通常写入的时候按照上面的设计就能落在同一个块中。&lt;/li&gt;
+&lt;li&gt;不同行但是同一列的数据，都是相同类型的，将相同类型的数据紧邻放在一起，更容易进行压缩。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;换言之，这样做换来的好处是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;在时序数据的写入场景下，写入速度很快。&lt;/li&gt;
+&lt;li&gt;由于同类型数据放在一起，压缩性能也很好。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这些都是相对于传统BTree类存储引擎而言的，因为这类型的数据写入更像append操作，这是必然会更快的。&lt;/p&gt;
+
+&lt;p&gt;但是注意到没有，这样存储数据之后，最大的问题是：查询时只有时间这个维度做了索引，而除去时间维度之外的其他列都没有做索引。&lt;/p&gt;
+
+&lt;p&gt;这样导致的问题是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;任何查询都要带上时间参数才能管用。比如：“请查询过去一个小时里哪五分钟的CPU最高”这样的查询是可以的，但是更多其他的查询是不知道时间维度，或者说查询者就是不知道具体时间才想来查询的，比如“我是什么时候达成了累计跑步100公里成就的？”这类探索型、且没有时间维度的查询。&lt;/li&gt;
+&lt;li&gt;即便是带上了时间维度的查询可行，由于没有对其他维度做索引，所以查询时的处理，更多的是按照时间维度查询出数据、再进行聚合计算，比如上面的“请查询过去一个小时里哪五分钟的CPU最高”这个查询，只能先把过去一小时的CPU数据全部查出来，然后逐个计算才能算出哪5分钟的CPU最高了。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;总结下来：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;时序数据库根据时序数据的特点设计和优化了时序数据库的存储模型，对比传统的关系数据库存储模型来说，优势是写入速度快、压缩比高。&lt;/li&gt;
+&lt;li&gt;但这样的存储只有时间这个维度，换言之由于没有其他维度的索引数据，导致对不带有时间维度或者时间跨度大的查询支持的不够友好。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;回到最开始引用的文章，了解了时序数据库的存储特点，也就能解释为何作者认为纯粹的时序数据库场景不大了。&lt;/p&gt;
+
+&lt;p&gt;好像大部分时候，事情也是这样的：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;在一个维度优化到极致，可能其他维度就做的不够好，不存在各个维度都能做得很好的产品，因为不同维度之间也会彼此有制约，更多时候要看使用者自己的场景取舍，并不存在适用于一切场景的产品。&lt;/li&gt;
+&lt;li&gt;所谓”优势“，在换了上下文和场景之后，也可能会变成劣势。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;相关推荐&#34;&gt;相关推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;writing-a-time-series-database-from-scratch-fabian-reinartz-https-fabxc-org-tsdb&#34;&gt;&lt;a href=&#34;https://fabxc.org/tsdb/&#34;&gt;Writing a Time Series Database from Scratch | Fabian Reinartz&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://prometheus.io/&#34;&gt;Prometheus&lt;/a&gt;项目的核心开发者写的文章，介绍了如何从头实现一个时序数据库的存储引擎，可做为上面文章更深入的补充。&lt;/p&gt;
+
+&lt;h2 id=&#34;阿里云数据库内核月报分类整理-https-github-com-tangwz-db-monthly&#34;&gt;&lt;a href=&#34;https://github.com/tangwz/db-monthly&#34;&gt;阿里云数据库内核月报分类整理&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;阿里云数据库内核团队的月报提供了很多学习数据库技术的资料、文章，这个github将每个月的月报进行了分类整理，推荐收藏。&lt;/p&gt;
+
+&lt;h2 id=&#34;how-does-a-database-work-let-s-build-a-simple-database-https-cstack-github-io-db-tutorial&#34;&gt;&lt;a href=&#34;https://cstack.github.io/db_tutorial/&#34;&gt;How Does a Database Work? | Let’s Build a Simple Database&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;自己动手打造一个简单的数据库，应该有很多地方参考了&lt;a href=&#34;https://sqlite.org/index.html&#34;&gt;SQLite&lt;/a&gt;的实现，本博客也深度解析了sqlite的btree实现，见：&lt;a href=&#34;https://www.codedump.info/post/20211217-sqlite-btree-0/&#34;&gt;sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志&lt;/a&gt;。&lt;/p&gt;
+
+&lt;p&gt;上面这个项目是使用C语言实现的，类似的打造简易数据库来学习原理的项目还有其他语言的版本：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Java版本：&lt;a href=&#34;https://github.com/awelm/simpledb&#34;&gt;awelm/simpledb: A simple database built from scratch that has some the basic RDBMS features (SQL query parser, transactions, query optimizer)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Rust版本：&lt;a href=&#34;https://github.com/erikgrinaker/toydb&#34;&gt;erikgrinaker/toydb: Distributed SQL database in Rust, written as a learning project&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;河西走廊-https-movie-douban-com-subject-24736278&#34;&gt;&lt;a href=&#34;https://movie.douban.com/subject/24736278/&#34;&gt;《河西走廊 》&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;非常棒的介绍河西走廊的历史纪录片，2017年在甘肃旅游，就是一路沿着河西走廊过来的，一边旅游一边看这部纪录片。&lt;/p&gt;
+
+&lt;h2 id=&#34;浮生一日-https-space-bilibili-com-110930331&#34;&gt;&lt;a href=&#34;https://space.bilibili.com/110930331&#34;&gt;《浮生一日》&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;B站上纯纯甘的节目《浮生一日》是我每期都会看的节目，主题是每次采访跟踪一个不同行业素人的生活。&lt;/p&gt;
+
+&lt;p&gt;最开始知道这个栏目是看了&lt;a href=&#34;https://www.bilibili.com/video/BV1V54y1h7Zr?spm_id_from=333.999.0.0&#34;&gt;【浮生一日】北京国企外卖小哥的真实一天&lt;/a&gt;，背景是这位小哥由于疫情原因失业，所以找了一份国企的工作；媳妇买P2P赔光了积蓄，赶上老人得病要治疗，所以晚上得出来兼职跑跑外卖。&lt;/p&gt;
+
+&lt;p&gt;里面有句话让我感动：“结婚时面对自己媳妇儿最漂亮的时候，你说我愿意和你同甘共苦，然后现在又开始责怪她，那当初又何必说这四个字呢？”&lt;/p&gt;
+
+&lt;p&gt;这个栏目里还有各色不同职业的人：程序员、投资者、早餐摊位主人&amp;hellip;等等。&lt;/p&gt;
+
+&lt;p&gt;不同的职业，都有各自不同的生活轨道和选择。&lt;/p&gt;
+
+&lt;p&gt;油管上有&lt;a href=&#34;https://www.youtube.com/channel/UCIs3-LcOCdpiGve6yu1-Fug&#34;&gt;同名频道&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&#34;porter-io-porter-io&#34;&gt;&lt;a href=&#34;porter.io&#34;&gt;porter.io&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;porter.io是基于Github关注项目推荐相关文章发送邮件通知的应用：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;“We analyse your Github footprint, filter Hacker News items according to your taste, and deliver them to your mailbox.”&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;我听过这个应用，还是被推荐才看到了不少有价值的文章的的。&lt;/p&gt;
+
+&lt;h2 id=&#34;独立开发变现周刊-https-www-ezindie-com-weekly&#34;&gt;&lt;a href=&#34;https://www.ezindie.com/weekly&#34;&gt;独立开发变现周刊&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;每周更新推荐一些独立开发变现的产品。&lt;/p&gt;
 </description>
     </item>
     
@@ -2164,6 +2312,8 @@ static void walUnlockExclusive(Wal *pWal, int lockIdx, int n);
 &lt;li&gt;于是，wal中可能存储了同一个页面的多次修改结果，因为不同的事务、甚至相同的事务，都有可能修改了同一个页面，而每一次修改都要将修改结果存储wal文件。&lt;/li&gt;
 &lt;li&gt;wal文件中，存储一个页面内容的单位是”帧（frame）“，一帧存储一个页面，而反过来一个页面可能先后被存储在不同帧的内容中。于是就需要wal索引数据：&lt;/li&gt;
 &lt;li&gt;wal索引需要存储两类数据：一个帧存储的是哪个页面的数据，以及某个页面最新的数据存储在哪一帧。&lt;/li&gt;
+&lt;li&gt;完成一次写操作，wal只需一次sync操作（sync wal文件），journal需要两次（sync journal文件一次，将页面缓存写入数据库文件之后sync数据库文件一次），因此wal的写性能更高。&lt;/li&gt;
+&lt;li&gt;wal支持一写多读的并发，但是journal在写的时候不支持同时读数据。&lt;/li&gt;
 &lt;li&gt;有两个重要的变量来保证并发读时不会读到读操作开始之后的修改：&lt;code&gt;mxFrame&lt;/code&gt;保存的是当前最提交的写事务写的最大帧数；每个读操作还保存了一个&lt;code&gt;readMark&lt;/code&gt;值，存储的是读操作开始时的&lt;code&gt;mxFrame&lt;/code&gt;值。&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;checkpoint&lt;/code&gt;操作，又称为&lt;code&gt;回填（backfill）&lt;/code&gt;操作，用于将wal文件的内容同步到数据库文件中，它需要前面的&lt;code&gt;mxFrame&lt;/code&gt;和&lt;code&gt;readMark&lt;/code&gt;来保证回填操作的正确性。回填操作会影响同时在进行的读、写操作。&lt;/li&gt;
 &lt;/ul&gt;
@@ -4179,232 +4329,6 @@ static item *tails[LARGEST_ID];
 &lt;p&gt;&lt;center&gt;
 &lt;img src=&#34;https://www.codedump.info/media/imgs/20210803-choice-dimension/Visualization-of-CAP-theorem.png&#34; alt=&#34;CAP不可能三角&#34; title=&#34;CAP不可能三角&#34; /&gt;
 &lt;/center&gt;&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Memcached的存储原理解析</title>
-      <link>https://www.codedump.info/post/20210701-memcached/</link>
-      <pubDate>Thu, 01 Jul 2021 14:00:22 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20210701-memcached/</guid>
-      <description>
-
-&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
-
-&lt;p&gt;最近工作上的需要，需要做一个LRU形式管理内存的分配器，首先想到的就是Memcached这个项目。早些年粗略的看过一些，有个大体的了解，这一次看下来发现其LRU算法做了不少的改动。&lt;/p&gt;
-
-&lt;p&gt;本文解析Memcached内存管理这部分的内容，基于Memcached 1.6.9版本。&lt;/p&gt;
-
-&lt;p&gt;Memcached将单个KV数据的存储，都放在&lt;code&gt;item&lt;/code&gt;这个结构体中，每个&lt;code&gt;item&lt;/code&gt;数据同时存在于这几个数据结构之中：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;slabclass_t：以分级存储机制来提供内存的数据结构（下面展开详细讨论slabclass）。&lt;/li&gt;
-&lt;li&gt;链表：当&lt;code&gt;item&lt;/code&gt;被使用时，存储在LRU链表中（下面详细讨论LRU链表）；当&lt;code&gt;item&lt;/code&gt;被释放之后，空闲的&lt;code&gt;item&lt;/code&gt;形成一个链表以备再次使用。&lt;/li&gt;
-&lt;li&gt;hash表：用于根据键值查找数据的数据结构。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;hash表自不必多说，Memcached中将&lt;code&gt;item&lt;/code&gt;组织成一个名为&lt;code&gt;primary_hashtable&lt;/code&gt;的hash数组，根据键值查找元素时，首先计算出键值的hash值，再到对应的数组元素中遍历查找数据。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;slabclass_t&lt;/code&gt;结构体以分级的方式分配内存给&lt;code&gt;item&lt;/code&gt;，这样做有以下几个好处：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;统一了内存的管理，避免了内存的碎片化。&lt;/li&gt;
-&lt;li&gt;分配、释放内存时都能到对应的slab中。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;slabclass-t&#34;&gt;slabclass_t&lt;/h1&gt;
-
-&lt;h2 id=&#34;定义&#34;&gt;定义&lt;/h2&gt;
-
-&lt;p&gt;slabs.c中定义了类型为&lt;code&gt;slabclass_t&lt;/code&gt;、大小为&lt;code&gt;MAX_NUMBER_OF_SLAB_CLASSES&lt;/code&gt;的数组&lt;code&gt;slabclass&lt;/code&gt;，用于分级存储。&lt;/p&gt;
-
-&lt;p&gt;数组中的每个&lt;code&gt;slabclass_t&lt;/code&gt;元素，其能分配出去的内存大小递增，由如下的规则决定：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;每个数组可分配的内存大小都要8字节对齐（&lt;code&gt;CHUNK_ALIGN_BYTES&lt;/code&gt;）,这个大小保存在&lt;code&gt;slabclass_t&lt;/code&gt;的&lt;code&gt;size&lt;/code&gt;成员中。&lt;/li&gt;
-&lt;li&gt;数组的第一个&lt;code&gt;slabclass_t&lt;/code&gt;元素的可分配内存大小为&lt;code&gt;sizeof(item) + settings.chunk_size&lt;/code&gt;。这之后的&lt;code&gt;slabclass_t&lt;/code&gt;可分配内存大小，都在上一个的元素的基础上放大&lt;code&gt;factor&lt;/code&gt;倍，同时还要8字节对齐。&lt;/li&gt;
-&lt;li&gt;每次分配一个页面的大小由配置项&lt;code&gt;settings.slab_page_size&lt;/code&gt;来决定，因此每一个&lt;code&gt;slabclass_t&lt;/code&gt;元素的一个页面能容纳的&lt;code&gt;item&lt;/code&gt;数量为&lt;code&gt;settings.slab_page_size / slabclass[i].size&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/slabclass.png&#34; alt=&#34;slabclass的分级存储&#34; title=&#34;slabclass的分级存储&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;当需要分配一块大小的内存时，首先需要根据其大小，计算出该尺寸最终对应到上面的哪个元素，这个数组索引在Memcached中被称为&lt;code&gt;clsid&lt;/code&gt;，这个计算索引的过程参见函数&lt;code&gt;slabs_clsid&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;比如：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;slabclass[0].size = 56，fator参数为1.2，那么slabclass[1].size = (56 * 1.25)向上对齐8位 = 72，以此类推。&lt;/li&gt;
-&lt;li&gt;假设需要分配的内存大小为60，就会去找&lt;code&gt;slabclass_t.size &amp;gt;= 60&lt;/code&gt;的第一个slabclass，在这个例子中返回的&lt;code&gt;clsid&lt;/code&gt;是1，也就是&lt;code&gt;slabclass[1]&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;内存分配时根据大小向上取满足条件的第一个slab的做法，优点在于方便了内存的分配管理，缺陷是会浪费掉部分空间，比如上面的例子中，将大小为72的slab用于60的内存，那么12字节的空间就被浪费掉了。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;每一个slab中，需要维持两类空间：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;按照页面大小来分配的一整页空间，每个页面又按照该slab的大小划分成了多个不同的chunk。&lt;/li&gt;
-&lt;li&gt;管理使用已被释放的item。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;在&lt;code&gt;slabclass_t&lt;/code&gt;结构体中，以下几个成员用来维护该class的内存信息：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;slab_list：保存页面的数组，其大小保存在&lt;code&gt;slabs&lt;/code&gt;成员中。&lt;/li&gt;
-&lt;li&gt;sl_curr：可用的&lt;code&gt;item&lt;/code&gt;数量。&lt;/li&gt;
-&lt;li&gt;slots：保存在该&lt;code&gt;slabclass_t&lt;/code&gt;中空闲&lt;code&gt;item&lt;/code&gt;的链表头。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/slabclass-structure.png&#34; alt=&#34;slabclass结构体示意图&#34; title=&#34;slabclass结构体示意图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;即：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;在Memcached的这一套内存管理体系中，一个页面被称为一个&lt;code&gt;slab&lt;/code&gt;，其大小为&lt;code&gt;settings.slab_page_size&lt;/code&gt;；页面中可以分割成多个&lt;code&gt;slot&lt;/code&gt;用来分配内存，一个&lt;code&gt;slot&lt;/code&gt;的大小由该&lt;code&gt;slabclass&lt;/code&gt;的初始大小及&lt;code&gt;factor&lt;/code&gt;来决定，但是需要向上补齐为8位对齐的大小。&lt;/li&gt;
-&lt;li&gt;一个&lt;code&gt;slabclass&lt;/code&gt;中，有预分配好的页面数组，也有被回收的元素组成的空闲slot链表，分配元素时优先从空闲链表中分配（见函数&lt;code&gt;do_slabs_alloc&lt;/code&gt;）。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;内存分配&#34;&gt;内存分配&lt;/h2&gt;
-
-&lt;p&gt;既然Memcached是一个LRU形式的内存分配器，所以其内存是有限制的，系统中定义了如下几个全局变量来保存当前系统的内存分配信息：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;static size_t mem_limit：内存分配的上限。&lt;/li&gt;
-&lt;li&gt;static size_t mem_malloced：当前分配的内存大小。&lt;/li&gt;
-&lt;li&gt;static void *mem_base：保存内存的起始地址。&lt;/li&gt;
-&lt;li&gt;static void *mem_current：保存内存分配的当前地址。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;在初始化时，系统首先会根据&lt;code&gt;mem_limit&lt;/code&gt;分配一大块内存出来。&lt;/p&gt;
-
-&lt;p&gt;后续各个&lt;code&gt;slabclass&lt;/code&gt;需要内存时，如下操作：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;就从这一大块内存中每次分配一个页面（大小为&lt;code&gt;settings.slab_page_size&lt;/code&gt;）出去用。&lt;/li&gt;
-&lt;li&gt;将分配好的内存按照每个slab中容纳的&lt;code&gt;slot&lt;/code&gt;大小切分成多个&lt;code&gt;slot&lt;/code&gt;。（见函数&lt;code&gt;split_slab_page_into_freelist&lt;/code&gt;）。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;lru算法&#34;&gt;LRU算法&lt;/h1&gt;
-
-&lt;h2 id=&#34;旧的lru算法及其问题&#34;&gt;旧的LRU算法及其问题&lt;/h2&gt;
-
-&lt;p&gt;以往的LRU算法，基本做法都是这样的：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;创建一个LRU链表，每次新加入的元素都放在链表头。&lt;/li&gt;
-&lt;li&gt;如果元素被访问了一次，同样从当前链表中摘除放到链表头。&lt;/li&gt;
-&lt;li&gt;需要淘汰元素时，从链表尾开始找可以淘汰的元素出来淘汰。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;这个算法有如下几个问题：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;元素被访问一次就会被放到LRU链表的头部，这样即便这个元素可以被淘汰，也会需要很久才会淘汰掉这个元素。&lt;/li&gt;
-&lt;li&gt;由于上面的原因，从链表尾部开始找可以淘汰的元素时，实际可能访问到的是一些虽然不常被访问，但是还没到淘汰时间（即有效时间TTL还未过期）的数据，这样会一直沿着链表往前找很久才能找到适合淘汰的元素。由于这个查找被淘汰元素的过程是需要加锁保护的，加锁时间一长影响了系统的并发。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/old-lru-list.png&#34; alt=&#34;经典的LRU链表实现&#34; title=&#34;经典的LRU链表实现&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;综上，经典的LRU链表问题的核心在于：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;只需要一次被访问就能让元素远离被淘汰的地方。&lt;/li&gt;
-&lt;li&gt;以及如何高效定位到更可能被淘汰的元素。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;从Memcached 1.5版本开始，引入了所谓的分段LRU算法（Segmented LRU）来解决这些问题。&lt;/p&gt;
-
-&lt;h2 id=&#34;改进的分段lru算法-segmented-lru&#34;&gt;改进的分段LRU算法（Segmented LRU）&lt;/h2&gt;
-
-&lt;p&gt;分段LRU算法中将LRU链表根据&lt;code&gt;活跃度&lt;/code&gt;分成了三类：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;HOT_LRU：存储热数据的LRU链表。&lt;/li&gt;
-&lt;li&gt;WARM_LRU：存储温数据（即活跃度不如热数据）的LRU链表。&lt;/li&gt;
-&lt;li&gt;COLD_LRU：存储冷数据的LRU链表。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;需要说明的是：热（参数&lt;code&gt;settings.hot_lru_pct&lt;/code&gt;）和暖（参数&lt;code&gt;settings.warm_lru_pct&lt;/code&gt;）数据的占总体内存的比例有限制，而冷数据则无限。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;#define HOT_LRU 0
-#define WARM_LRU 64
-#define COLD_LRU 128
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;同时，使用了&lt;code&gt;heads&lt;/code&gt;和&lt;code&gt;tails&lt;/code&gt;两个数组用来保存LRU链表：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;#define POWER_LARGEST  256 /* actual cap is 255 */
-
-#define LARGEST_ID POWER_LARGEST
-
-static item *heads[LARGEST_ID];
-static item *tails[LARGEST_ID];
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;上面分析&lt;code&gt;slabclass&lt;/code&gt;的时候提到过，首先会根据被分配内存大小计算出来一个&lt;code&gt;slabclass&lt;/code&gt;数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次&lt;code&gt;slabid | lru id&lt;/code&gt;计算（其实就是&lt;code&gt;slabid + lru id&lt;/code&gt;），到对应的LRU链表中查找元素：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/slabclass-lru.png&#34; alt=&#34;将slabclass数组索引映射到LRU队列数组&#34; title=&#34;将slabclass数组索引映射到LRU队列数组&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。&lt;/p&gt;
-
-&lt;p&gt;前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。&lt;/p&gt;
-
-&lt;p&gt;首先，改进的算法中，加入了一个机制：只有当元素被访问两次以后，才会标记成&lt;code&gt;活跃&lt;/code&gt;元素。&lt;/p&gt;
-
-&lt;p&gt;代码中引入了两个标志位，其置位的规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;ITEM_FETCHED：第一次被访问时置位该标志位。&lt;/li&gt;
-&lt;li&gt;ITEM_ACTIVE：第二次被访问时（即&lt;code&gt;it-&amp;gt;it_flags &amp;amp; ITEM_FETCHED&lt;/code&gt;为true的情况下）置位该标志位。&lt;/li&gt;
-&lt;li&gt;INACTIVE：不活跃状态。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;ITEM_ACTIVE标志位清除的规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;如果从链表尾遍历到某一个LRU链表时，该元素是链表的最后一个元素，则认为是不活跃的元素，即可以清除ITEM_ACTIVE标志位；&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;这样，有效避免了只访问一次就变成&lt;code&gt;活跃&lt;/code&gt;元素的问题（见函数&lt;code&gt;do_item_bump&lt;/code&gt;）。&lt;/p&gt;
-
-&lt;p&gt;以下的讨论中，元素变成&lt;code&gt;活跃&lt;/code&gt;就意指“至少被访问两次以上”。&lt;/p&gt;
-
-&lt;p&gt;其次，由于从链表尾部往前查找可以淘汰的元素，中间可能会经历很多不能被淘汰的元素，影响了淘汰的速度，因此前面的分级LRU链表就能帮助程序快速识别出哪些元素可以被淘汰。三个分级的LRU链表之间的转换规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;HOT_LRU：在HOT LRU队列中的数据绝不会到HOT_LRU队列的前面，只会往更冷的队列中放。规则是：如果元素变得活跃，就放到WARM队列中；否则如果不活跃，就直接放到COLD队列中。&lt;/li&gt;
-&lt;li&gt;WARM_LRU：如果WARM队列的元素变的&lt;code&gt;活跃&lt;/code&gt;，就会移动到WARM队列头；否则往COLD队列移动。&lt;/li&gt;
-&lt;li&gt;COLD_LRU：从上面可知，COLD队列中的元素，都是不太活跃的了，所以当需要淘汰元素时都会首先到COLD LRU队列中找可以淘汰的数据。当一个在COLD队列的元素重新变成&lt;code&gt;活跃&lt;/code&gt;元素时，并不会移动到COLD队列的头部，而是直接移动回去WARM队列。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;以上需要注意的是：任何操作都不能将一个元素从WARM和COLD队列中移动回去HOT队列了，也就是从HOT队列中移动元素出去的操作是单向操作。&lt;/p&gt;
-
-&lt;p&gt;上述算法的状态机转换过程，可以参考下图。使用了这些规则来维护着三个队列之后，基本能保证COLD队列中的元素是不活跃的，这样查找起被淘汰元素也更快了。&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/lru.png&#34; alt=&#34;三级LRU队列转换状态图&#34; title=&#34;三级LRU队列转换状态图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;综述起来，改进的分段LRU算法做了如下的优化：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;需要至少两次被访问，才能变成&lt;code&gt;活跃&lt;/code&gt;元素。&lt;/li&gt;
-&lt;li&gt;将元素按照被访问频率的&lt;code&gt;冷热程度&lt;/code&gt;，划分为三种LRU链表来分段管理，加速了查找被淘汰元素的流程。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://memcached.org/blog/modern-lru/&#34;&gt;Replacing the cache replacement algorithm in memcached&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/memcached/memcached/blob/master/doc/new_lru.txt&#34;&gt;memcached/new_lru.txt&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
 </description>
     </item>
     
