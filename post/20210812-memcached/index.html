@@ -219,7 +219,7 @@ if (!doNotTrack) {
 <p>memcached是根据slab为基础单位来管理空闲空间的。slab的大体原理如下图：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储" />
+<img src="/media/imgs/20210812-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储" />
 </center></p>
 
 <p>slabs.c中定义了类型为<code>slabclass_t</code>、大小为<code>MAX_NUMBER_OF_SLAB_CLASSES</code>的数组<code>slabclass</code>，用于分级存储。</p>
@@ -283,7 +283,7 @@ if (!doNotTrack) {
 </ul>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现" />
+<img src="/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现" />
 </center></p>
 
 <p>综上，经典的LRU链表问题的核心在于：</p>
@@ -325,7 +325,7 @@ static item *tails[LARGEST_ID];
 <p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组" />
+<img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组" />
 </center></p>
 
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
@@ -365,7 +365,7 @@ static item *tails[LARGEST_ID];
 <p>上述算法的状态机转换过程，可以参考下图。使用了这些规则来维护着三个队列之后，基本能保证COLD队列中的元素是不活跃的，这样查找起被淘汰元素也更快了。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图" />
+<img src="/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图" />
 </center></p>
 
 <p>综述起来，改进的分段LRU算法做了如下的优化：</p>
@@ -394,7 +394,7 @@ static item *tails[LARGEST_ID];
 </ul>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/in-use-item.png" alt="使用中的item数据组织结构" title="使用中的item数据组织结构" />
+<img src="/media/imgs/20210812-memcached/in-use-item.png" alt="使用中的item数据组织结构" title="使用中的item数据组织结构" />
 </center></p>
 
 <p>对item的数据组织有了大体的概念之后，下面展开来说读写操作的具体实现。</p>
@@ -416,7 +416,7 @@ static item *tails[LARGEST_ID];
 <p>在这里，加的锁是首先根据所查询数据的键进行hash计算，再得到对应的锁，在memcached里被称为“item lock”（见全局变量<code>static pthread_mutex_t *item_locks</code>）。这个锁虽然与数据的键值相关，但是如果hash数组数量与item_locks不相等，那么就不是一一对应的关系，所以才说不是针对hash桶进行加锁。如果hash桶的数量大于item lock的数量，那么这就是一对多的关系，也就是对一个item lock加锁之后，获得锁的线程可以访问多个hash桶。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/item-lock.png" alt="item锁与hash桶的对应关系" title="item锁与hash桶的对应关系" />
+<img src="/media/imgs/20210812-memcached/item-lock.png" alt="item锁与hash桶的对应关系" title="item锁与hash桶的对应关系" />
 </center></p>
 
 <p>上图中，索引为N的item锁，管理着索引为M、P这两个hash桶，因此拿到该item锁的线程可以同时访问这两个hash桶。</p>
@@ -504,7 +504,7 @@ static item *tails[LARGEST_ID];
 <p>以上的整个流程如下图所示：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/item-recycle.png" alt="需淘汰item时的写入数据流程图" title="需淘汰item时的写入数据流程图" />
+<img src="/media/imgs/20210812-memcached/item-recycle.png" alt="需淘汰item时的写入数据流程图" title="需淘汰item时的写入数据流程图" />
 </center></p>
 
 <p>解释完毕了读写操作流程之后，需要回答这个问题：为什么针对键值的锁加在了item锁上，而不是hash桶？</p>
@@ -518,7 +518,7 @@ static item *tails[LARGEST_ID];
 <p>扩容流程示意图如下：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/expand-hashtable.png" alt="hashtable扩容示意图" title="hashtable扩容示意图" />
+<img src="/media/imgs/20210812-memcached/expand-hashtable.png" alt="hashtable扩容示意图" title="hashtable扩容示意图" />
 </center></p>
 
 <p>扩容步骤为：</p>
@@ -576,7 +576,7 @@ static item *tails[LARGEST_ID];
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -592,7 +592,7 @@ static item *tails[LARGEST_ID];
 
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

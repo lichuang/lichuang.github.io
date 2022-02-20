@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇 - codedump的网络日志</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="codedump" /><meta name="description" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇" />
+<meta name="keywords" content="周刊, 数据库, sqlite, 操作系统, 分布式, Linux, 数据库" />
+
+
+<meta property="og:title" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇 - codedump的网络日志">
+<meta name="apple-mobile-web-app-title" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇 - codedump的网络日志">
+
+
+
+<meta name="google-site-verification" content="UA-126255685-1" />
+
+
+<meta name="generator" content="Hugo 0.56.0" />
+
+
+<link rel="canonical" href="https://www.codedump.info/post/20220220-weekly-6/" />
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+
+
+
+
+<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
+<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
+
+
+
+
+<meta property="og:title" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇" />
+<meta property="og:description" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://www.codedump.info/post/20220220-weekly-6/" />
+<meta property="article:published_time" content="2022-02-20T10:53:41+08:00" />
+<meta property="article:modified_time" content="2022-02-20T10:53:41+08:00" />
+<meta itemprop="name" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇">
+<meta itemprop="description" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇">
+
+
+<meta itemprop="datePublished" content="2022-02-20T10:53:41&#43;08:00" />
+<meta itemprop="dateModified" content="2022-02-20T10:53:41&#43;08:00" />
+<meta itemprop="wordCount" content="2850">
+
+
+
+<meta itemprop="keywords" content="周刊," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇"/>
+<meta name="twitter:description" content="周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇"/>
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">codedump的网络日志</a>
+  </div>
+  <div class="mobile-navbar-icon">    
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">主页</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">归档</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">标签</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">分类</li>
+      </a><a href="/post/20200122-series-pages/">
+        <li class="mobile-menu-item">系列文章索引</li>
+      </a><a href="/page/about">
+        <li class="mobile-menu-item">关于</li>
+      </a><a href="/page/weekly">
+        <li class="mobile-menu-item">周刊</li>
+      </a><a href="https://www.codedump.info/index.xml">
+        <li class="mobile-menu-item">订阅</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">codedump的网络日志</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">主页</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">归档</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">标签</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">分类</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/about">关于</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/page/weekly">周刊</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2022-02-20 </span>
+        <div class="post-category">
+            
+              <a href="/categories/%E5%91%A8%E5%88%8A/"> 周刊 </a>
+            
+          </div>
+        
+        
+      </div>
+    </header>
+
+    
+    
+<div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">Contents</h2>
+  
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+<ul>
+<li><a href="#sqlite-3-36-btree实现解析-番外篇">《sqlite 3.36 btree实现解析》番外篇</a></li>
+<li><a href="#这篇番外篇的番外篇">这篇番外篇的番外篇</a>
+<ul>
+<li><a href="#sqlite的注释">sqlite的注释</a></li>
+<li><a href="#sqlite几个相关的链接">sqlite几个相关的链接</a></li>
+<li><a href="#sqlite的箴言">sqlite的箴言</a></li>
+<li><a href="#破解神秘感的项目">破解神秘感的项目</a>
+<ul>
+<li><a href="#操作系统">操作系统</a></li>
+<li><a href="#数据库">数据库</a></li>
+<li><a href="#分布式系统">分布式系统</a></li>
+<li><a href="#linux早期内核实现解析">Linux早期内核实现解析</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+  </div>
+</div>
+
+    
+    
+
+    
+    <div class="post-content">
+      
+
+<hr />
+
+<p>引言：从2021年9月份开始要探索生产级btree存储引擎的实现，到2022年2月整理完毕发布《sqlite 3.36 btree实现解析》的系列文章，我花费了小半年的时间，本期会聊聊整个过程下来我的一些想法。</p>
+
+<hr />
+
+<h1 id="sqlite-3-36-btree实现解析-番外篇">《sqlite 3.36 btree实现解析》番外篇</h1>
+
+<p>时间回到2021年9月份。彼时，因为工作的关系，要研究一下生产级btree存储引擎的实现，在此之前我大体对btree、b+tree的数据结构和算法有个了解，见：</p>
+
+<ul>
+<li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上） - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下） - codedump的网络日志</a></li>
+</ul>
+
+<p>但是，一个生产级的产品，对比教科书的示范型代码，还是有很大的区别的，具体来说，我当时不明白以下这些生产级存储引擎的问题如何解决：</p>
+
+<ul>
+<li>如何存储变长的数据？</li>
+<li>如何存储数据大小超过一个物理页面的数据？</li>
+<li>如何利用被回收的空间？</li>
+<li>如何处理崩溃恢复？</li>
+<li>读写并发如何处理？</li>
+<li>&hellip;</li>
+</ul>
+
+<p>为了解答这些疑问，先后去翻阅InnodDB、WiredTiger、sqlite的文档，但是这些项目代码量都太大了，以我当时的程度，无法马上找到很具体的解答。</p>
+
+<p>事情的突破在从网上查找文章时看到的这一篇文章：<a href="https://dzone.com/articles/database-btree-indexing-in-sqlite">How Database B-Tree Indexing Works - DZone Database</a>，这是一篇解释btree工作原理的文章，这篇文章同时还列出了一个项目：<a href="https://github.com/madushadhanushka/simple-sqlite">madushadhanushka/simple-sqlite: Code reading for sqlite backend</a>，这个项目的作者，将sqlite2.5版本中btree的实现，单独抽取出来形成了一个独立的KV库，可以编译通过使用。</p>
+
+<p>看到这个项目的时候，我的感觉就是如获至宝，因为虽然只有几千行的代码量，但是解答了很多上面提到的疑问，“麻雀虽小五脏俱全”，我花了几天的时间整体阅读了解了原理，这个项目给我打开了研究生产级btree存储引擎的突破口。</p>
+
+<p>在这以后，考虑到2.5版本的sqlite已经是2002年的作品，距离现在时间太久了，还想接着了解后面做了那些改进，又接着阅读了3.6.10版本的实现，找这个版本的原因，是因为这是sqlite官方在github上同步的第一个版本，那时候仍然步子不敢迈得太大。</p>
+
+<p>又花了一个多月把这个版本的btree实现了解以后，我了解到在这之后的版本里，sqlite做了另一个重大的更新：在页面管理部分引入了WAL机制，加上前面两个版本阅读下来累积的信心，就接着找当时还是最新的3.36版本的实现来阅读，这又花了一个多月的时间。</p>
+
+<p>这以后，就是逐步将整理的笔记写成文档了，后续的事情不表，都在这几篇文档里。</p>
+
+<p>回头看这整个流程，我自己的感受是：</p>
+
+<ul>
+<li>“问题驱动”可能是效率更高的学习方式，带着问题出发、找到自己疑问的答案，能更快的学习某个知识。</li>
+<li>生产级的实现和教科书的区别很大，后者更多的是讲解原理，而生产级实现考虑更多的是各种实际生产中的边际情况。如果只了解原理，而不去具体做实现，对事情的理解最后只能浮于表面。</li>
+<li>找到那个精简实现是这个过程里的“突破口”，原因在于：如果一上来看的很成熟的版本，而且你在这个领域积累的不深，那么很可能会导致丢失了很多“上下文（context）”情景，给阅读、理解带来很大困难。下次再遇到类似的问题，我会按照这次的经验，先尝试回退到之前的更简单的版本，看看在那里能不能跟上作者的思路，攻克简单的实现之后，再尝试最新的版本。</li>
+<li>除了数据库领域以外，有一些别的领域，在教学的时候会让学生参与实现一个简单的项目。这类型的项目虽然简单，但是五脏俱全，能够让学生了解这个领域的概貌，我把这种流程称为“破解神秘感”。如我最开始提到的那些疑问，如果在这之前做过数据库相关的作业，应该会有个大体的想法。</li>
+</ul>
+
+<h1 id="这篇番外篇的番外篇">这篇番外篇的番外篇</h1>
+
+<h2 id="sqlite的注释">sqlite的注释</h2>
+
+<p>除了这些以外，sqlite的代码风格也很好，尤其是注释写的非常详尽。</p>
+
+<p>有一种说法，“好的代码都是自解释的，无需多做注释”。我对这句话有一些不太一样的看法，因为即便再好的代码，如果只看代码的话，对整个的架构、结构很难了解。这一点sqlite就做的很好，在代码中会写上类似文档一样的注释来解释结构，比如有这么一段解释btree内部结构的注释文档：</p>
+
+<pre><code class="language-c">/
+** This file implements an external (disk-based) database using BTrees.
+** For a detailed discussion of BTrees, refer to
+**
+**     Donald E. Knuth, THE ART OF COMPUTER PROGRAMMING, Volume 3:
+**     &quot;Sorting And Searching&quot;, pages 473-480. Addison-Wesley
+**     Publishing Company, Reading, Massachusetts.
+**
+** The basic idea is that each page of the file contains N database
+** entries and N+1 pointers to subpages.
+**
+**   ----------------------------------------------------------------
+**   |  Ptr(0) | Key(0) | Ptr(1) | Key(1) | ... | Key(N-1) | Ptr(N) |
+**   ----------------------------------------------------------------
+**
+** All of the keys on the page that Ptr(0) points to have values less
+** than Key(0).  All of the keys on page Ptr(1) and its subpages have
+** values greater than Key(0) and less than Key(1).  All of the keys
+** on Ptr(N) and its subpages have values greater than Key(N-1).  And
+** so forth.
+*/
+</code></pre>
+
+<p>如果不写这些注释，读者想要理解作者的思路的话，仅凭代码是很困难的。</p>
+
+<p>这里只是抽取了sqlite代码注释中的一小部分，我读代码下来的感觉，sqlite的注释可以说是“保姆级别”的。“写代码是表达自己，读代码是去理解别人”（见<a href="https://www.zhihu.com/question/21820752/answer/19427754">为什么说读代码比写代码难？ - 知乎</a>），可以说sqlite的作者为了让别人更好的理解自己，尽力了。</p>
+
+<p>对应的，我也看过那种几乎没有注释、变量函数名都是缩写的代码，这样的代码作者，可能就不是很像让别人读懂ta。</p>
+
+<h2 id="sqlite几个相关的链接">sqlite几个相关的链接</h2>
+
+<p>可以在这里（<a href="https://sqlite.org/chronology.html">History Of SQLite Releases</a>）找到sqlite的release历史，进而下载到对应版本的代码。以2.5版本为例，发布于<a href="https://www.sqlite.org/src/timeline?c=9baef3e240&amp;y=ci">2002-06-17</a>这一天，我用代码统计工具统计了一下，代码量仅有31188行（包括注释）：</p>
+
+<p><center>
+<img src="/media/imgs/20220220-weekly-6/2.5.png" alt="sqlite2.5的代码统计" title="sqlite2.5的代码统计" />
+</center></p>
+
+<p>BTW：不知道sqlite 2.5版本，对比一些数据库实验课程的大作业，复杂度如何，感觉以早期sqlite代码来入门数据库学习也是足够的，前提是有足够的耐心和时间。</p>
+
+<p>而3.36版本发布于<a href="https://www.sqlite.org/src/timeline?c=5c9a6c0687&amp;y=ci">2021-06-18</a>这一天，代码量已经到了21W行，前后相隔19年：</p>
+
+<p><center>
+<img src="/media/imgs/20220220-weekly-6/3.36.png" alt="sqlite3.36的代码统计" title="sqlite3.36的代码统计" />
+</center></p>
+
+<p>还可以在<a href="https://www.sqlite.org/changes.html">Release History Of SQLite</a>看到不同版本新增的特性、bug fix等，比如可以看到WAL是在3.7.0版本引入的特性：</p>
+
+<blockquote>
+<p>2010-07-21 (3.7.0)</p>
+
+<ol>
+<li>Added support for write-ahead logging.</li>
+</ol>
+</blockquote>
+
+<h2 id="sqlite的箴言">sqlite的箴言</h2>
+
+<p>在每个sqlite代码文件中，开头都有这么一段注释：</p>
+
+<blockquote>
+<p>**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.</p>
+</blockquote>
+
+<h2 id="破解神秘感的项目">破解神秘感的项目</h2>
+
+<p>前面提到过要破解神秘感，列举几个计算机相关课程的实验大作业或项目。</p>
+
+<h3 id="操作系统">操作系统</h3>
+
+<ul>
+<li>哈佛大学的Xv6：<a href="https://pdos.csail.mit.edu/6.828/2012/xv6.html">Xv6, a simple Unix-like teaching operating system</a>， 对应的课程：<a href="https://pdos.csail.mit.edu/6.828/2021/">6.S081 / Fall 2021</a>。</li>
+<li>清华的uCore：<a href="https://github.com/kiukotsu/ucore">kiukotsu/ucore: 清华大学操作系统课程实验 (OS Kernel Labs)</a>，实验指导书：<a href="https://chyyuu.gitbooks.io/ucore_os_docs/content/">Introduction · ucore_os_docs</a></li>
+</ul>
+
+<h3 id="数据库">数据库</h3>
+
+<ul>
+<li>CMU的15445：<a href="https://15445.courses.cs.cmu.edu/fall2021/">CMU 15-<sup>445</sup>&frasl;<sub>645</sub> :: Intro to Database Systems (Fall 2021)</a>，随课程要完成一个大作业项目，之前没有做过，否则应该不至于不了解生产级实现的原理。</li>
+</ul>
+
+<h3 id="分布式系统">分布式系统</h3>
+
+<ul>
+<li>MIT的6.824：<a href="https://pdos.csail.mit.edu/6.824/schedule.html">6.824 Schedule: Spring 2022</a>，也是有随课程要完成的大作业，以前使用C++实现Paxos，后面改成了Go实现Raft。</li>
+</ul>
+
+<h3 id="linux早期内核实现解析">Linux早期内核实现解析</h3>
+
+<p>许多年以前，赵炯博士在网上公开过一份文档，基本上<strong>逐行</strong>讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，但是还能搜索下载《linux内核完全剖析基于linux0.11》，也有对应的公开发行物：<a href="https://book.douban.com/subject/3229243/">Linux内核完全剖析 (豆瓣)</a>。</p>
+
+    </div>
+
+    
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">Author</span>
+    <span class="item-content">codedump</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">LastMod</span>
+    <span class="item-content">2022-02-20</span>
+  </p>
+  
+  <p class="copyright-item">
+    <span class="item-title">License</span>
+    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
+  </p>
+</div>
+
+    
+    
+<div class="post-reward">
+  <input type="checkbox" name="reward" id="reward" hidden />
+  <label class="reward-button" for="reward">打赏</label>
+  <div class="qr-code">
+    
+    
+      <label class="qr-code-image" for="reward">
+        <img class="image" src="/media/imgs/reward/wechat.png">
+        <span>微信支付</span>
+      </label>
+    
+  </div>
+</div>
+        
+      
+      <h1>相关文章</h1>
+<li><strong> 2022-02-11: </strong> <a href="https://www.codedump.info/post/20220211-weekly-5/">周刊（第5期）：从存储模型聊一聊时序数据库的应用场景</a>  </li><li><strong> 2022-02-04: </strong> <a href="https://www.codedump.info/post/20220204-weekly-4/">周刊（第4期）：为什么我还在看中国足球</a>  </li><li><strong> 2022-01-29: </strong> <a href="https://www.codedump.info/post/20220129-weekly-3/">周刊（第3期）：一个前游戏开发者眼中的游戏后端技术</a>  </li><li><strong> 2022-01-23: </strong> <a href="https://www.codedump.info/post/20220123-weekly-2/">周刊（第2期）：从笔记软件谈被体制化</a>  </li><li><strong> 2022-01-16: </strong> <a href="https://www.codedump.info/post/20220116-weekly-1/">周刊(第1期)：开刊，数字化生活数据</a>  </li><h2 id="邮件订阅">邮件订阅</h2>
+
+    <form style="border:1px solid #ccc;padding:3px;text-align:center;" action="https://tinyletter.com/codedump" method="post" target="popupwindow" onsubmit="window.open('https://tinyletter.com/codedump', 'popupwindow', 'scrollbars=yes,width=800,height=600');return true"><p><label for="tlemail">邮件订阅本站更新通知</label></p><p><input type="text" style="width:140px" name="email" id="tlemail" placeholder="Email"/></p><input type="hidden" value="1" name="embed"/><input type="submit" value="点击订阅" /><p><a href="https://tinyletter.com" target="_blank">powered by TinyLetter</a></p></form>
+
+
+<h1>微信公众号</h1>
+
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+
+<footer class="post-footer">
+  <div class="post-tags">
+      
+      <a href="/tags/%E5%91%A8%E5%88%8A/">周刊</a>
+      
+    </div>
+
+
+
+      
+      <nav class="post-nav">
+        
+          <a class="prev" href="/post/20200122-series-pages/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">博客系列文章索引</span>
+            <span class="prev-text nav-mobile">Prev</span>
+          </a>
+        
+          <a class="next" href="/post/20220211-weekly-5/">
+            <span class="next-text nav-default">周刊（第5期）：从存储模型聊一聊时序数据库的应用场景</span>
+            <span class="next-text nav-mobile">Next</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+
+
+
+  </article>
+        </div>
+        
+  <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+	
+  <div class="post bg-white">
+    <script src="https://utteranc.es/client.js"
+          repo="lichuang/lichuang.github.io"
+          issue-term="pathname"
+          theme="github-light"
+          crossorigin="anonymous"
+          async>
+    </script>
+  </div>    
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
+      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
+      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
+  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    Theme - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    
+      2018 - 
+    2022
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">codedump</span>
+  </span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
+  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+
+
+<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+<script id="baidu_analytics">
+  var _hmt = _hmt || [];
+  (function() {
+    if (window.location.hostname === 'localhost') return;
+    var hm = document.createElement("script"); hm.async = true;
+    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+
+
+
+
+
+
+</body>
+</html>

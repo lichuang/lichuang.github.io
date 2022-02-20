@@ -262,7 +262,7 @@ if (!doNotTrack) {
 <h2 id="1-初始化阶段-initial-state">1、初始化阶段（Initial State）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" alt="初始化" title="初始化" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" alt="初始化" title="初始化" />
 </center></p>
 
 <p>如上图中，从右到左即是系统的磁盘、操作系统缓冲区、用户空间三部分，其中磁盘和操作系统缓冲区有划分为多块的空间，每一块在sqlite里被称为一个<code>sector</code>，蓝色部分表示是修改之前的数据。</p>
@@ -272,7 +272,7 @@ if (!doNotTrack) {
 <h2 id="2-拿到读锁-acquiring-a-read-lock">2、拿到读锁（Acquiring A Read Lock）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" alt="拿到读锁" title="拿到读锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" alt="拿到读锁" title="拿到读锁" />
 </center></p>
 
 <p>在开始进行写操作之前，sqlite必须先把待修改的页面加载内存中（这就是上一节“页面缓存管理器”做的事情），后续的修改其实也是首先修改这部分加载到内存中的页面内容，因为可能一次提交会修改同一个页面中的多处内容，最后才把页面内容落盘。</p>
@@ -282,7 +282,7 @@ if (!doNotTrack) {
 <h2 id="3-读出页面的内容到页面缓存">3、读出页面的内容到页面缓存</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" alt="读出页面内容" title="读出页面内容" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" alt="读出页面内容" title="读出页面内容" />
 </center></p>
 
 <p>拿到读锁之后，就可以把需要进行修改的页面读出来到用户空间的页面缓存了。从上图来看，读了三个页面的内容出来，也就是例子中的写操作要修改三个页面的内容。</p>
@@ -290,7 +290,7 @@ if (!doNotTrack) {
 <h2 id="4-拿到保留锁-obtaining-a-reserved-lock">4、拿到保留锁（Obtaining A Reserved Lock）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" alt="拿到保留锁" title="拿到保留锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" alt="拿到保留锁" title="拿到保留锁" />
 </center></p>
 
 <p>在进行修改之前，还需要首先将前面拿到的读锁（shared lock）升级为保留锁（reserved lock）。同一时间，系统中保留锁可以和多个读锁并存，但是只能存在最多一个保留锁。这个机制，保证了同一时间只能有一个进程对数据库进行写操作。</p>
@@ -300,7 +300,7 @@ if (!doNotTrack) {
 <h2 id="5-创建回滚用的备份文件-creating-a-rollback-journal-file">5、创建回滚用的备份文件（Creating A Rollback Journal File）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" alt="创建回滚用的备份文件" title="创建回滚用的备份文件" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" alt="创建回滚用的备份文件" title="创建回滚用的备份文件" />
 </center></p>
 
 <p>到了这一步，首先将待修改的页面内容备份。官网原文写的是备份到回滚用的journal文件中，我们上面提到备份机制除了journal文件还有wal文件，所以这里的“journal文件”应该更泛化的理解为“保存到备份文件中”，这种备份文件可能是journal文件，也可能是wal文件，视机制而定。</p>
@@ -312,7 +312,7 @@ if (!doNotTrack) {
 <h2 id="6-修改用户空间的页面内容-changing-database-pages-in-user-space">6、修改用户空间的页面内容（Changing Database Pages In User Space）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" alt="修改用户空间的页面内容" title="修改用户空间的页面内容" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" alt="修改用户空间的页面内容" title="修改用户空间的页面内容" />
 </center></p>
 
 <p>到了这一步，修改进程用户空间的页面内容，即上图中的橙色部分，就是修改后的用户空间数据。由于每个进程都有自己的用户空间（即便是同一个进程下的不同线程，对sqlite而言，只要使用的是不同的连接（connection），那么连接背后的页面缓冲区就不一样），所以这些修改并不被其它进程所见。这样，写进程做自己的修改，其它读进程读到的还是修改之前的页面数据。</p>
@@ -320,7 +320,7 @@ if (!doNotTrack) {
 <h2 id="7-将备份文件的内容落盘-flushing-the-rollback-journal-file-to-mass-storage">7、将备份文件的内容落盘（Flushing The Rollback Journal File To Mass Storage）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" alt="将备份文件的内容落盘" title="将备份文件的内容落盘" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" alt="将备份文件的内容落盘" title="将备份文件的内容落盘" />
 </center></p>
 
 <p>上面的第5步提到，当时还只是写页面内容到备份文件中，这一步接在修改页面内容之后，将修改之前的页面内容sync到磁盘中。</p>
@@ -328,7 +328,7 @@ if (!doNotTrack) {
 <h2 id="8-拿到排他锁-obtaining-an-exclusive-lock">8、拿到排他锁（Obtaining An Exclusive Lock）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" alt="拿到排他锁" title="拿到排他锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" alt="拿到排他锁" title="拿到排他锁" />
 </center></p>
 
 <p>前面的步骤做完，达到了这样的效果：</p>
@@ -352,7 +352,7 @@ if (!doNotTrack) {
 <h2 id="9-保存修改到数据库文件中-writing-changes-to-the-database-file">9、保存修改到数据库文件中（Writing Changes To The Database File）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" alt="拿到排他锁" title="拿到排他锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" alt="拿到排他锁" title="拿到排他锁" />
 </center></p>
 
 <p>拿到了排他锁之后，意味着此时系统中没有读操作、没有其他写操作，这时候可以放心将页面缓存中的内容落盘到数据库文件中了。</p>
@@ -362,7 +362,7 @@ if (!doNotTrack) {
 <h2 id="10-落盘数据库文件修改-flushing-changes-to-mass-storage">10、落盘数据库文件修改（Flushing Changes To Mass Storage）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" alt="落盘数据库文件修改" title="落盘数据库文件修改" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" alt="落盘数据库文件修改" title="落盘数据库文件修改" />
 </center></p>
 
 <p>这一步，将对数据库文件的修改落盘。</p>
@@ -370,7 +370,7 @@ if (!doNotTrack) {
 <h2 id="11-删除备份文件-deleting-the-rollback-journal">11、删除备份文件（Deleting The Rollback Journal）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" alt="删除备份文件" title="删除备份文件" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" alt="删除备份文件" title="删除备份文件" />
 </center></p>
 
 <p>至此，这一次写操作已经落盘到了数据库文件中，前面保存到备份文件中的数据可以清除了。清除备份文件内容，是一个比较费时的操作，具体实现由不同的机制去优化，后面讲到journal文件以及wal的实现时再展开描述。</p>
@@ -378,7 +378,7 @@ if (!doNotTrack) {
 <h2 id="12-释放锁-releasing-the-lock">12、释放锁（Releasing The Lock）</h2>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" alt="释放锁" title="释放锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" alt="释放锁" title="释放锁" />
 </center></p>
 
 <p>写操作全部完成，备份文件也清除了，到了这一步就可以释放锁，以便后面其他的读写操作进来。</p>
@@ -388,7 +388,7 @@ if (!doNotTrack) {
 <p>上面写事务流程中，依次会拿到以下类型的锁，下图中做一个简单的总结：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" alt="写操作中涉及到的锁" title="写操作中涉及到的锁" />
+<img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" alt="写操作中涉及到的锁" title="写操作中涉及到的锁" />
 </center></p>
 
 <h1 id="崩溃恢复流程">崩溃恢复流程</h1>
@@ -467,7 +467,7 @@ if (!doNotTrack) {
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -483,7 +483,7 @@ if (!doNotTrack) {
 
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">

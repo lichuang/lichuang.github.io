@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 11 Feb 2022 22:27:57 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 20 Feb 2022 10:53:41 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -191,6 +191,163 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇</title>
+      <link>https://www.codedump.info/post/20220220-weekly-6/</link>
+      <pubDate>Sun, 20 Feb 2022 10:53:41 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220220-weekly-6/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：从2021年9月份开始要探索生产级btree存储引擎的实现，到2022年2月整理完毕发布《sqlite 3.36 btree实现解析》的系列文章，我花费了小半年的时间，本期会聊聊整个过程下来我的一些想法。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;sqlite-3-36-btree实现解析-番外篇&#34;&gt;《sqlite 3.36 btree实现解析》番外篇&lt;/h1&gt;
+
+&lt;p&gt;时间回到2021年9月份。彼时，因为工作的关系，要研究一下生产级btree存储引擎的实现，在此之前我大体对btree、b+tree的数据结构和算法有个了解，见：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200609-btree-1/&#34;&gt;B树、B+树索引算法原理（上） - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200615-btree-2/&#34;&gt;B树、B+树索引算法原理（下） - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;但是，一个生产级的产品，对比教科书的示范型代码，还是有很大的区别的，具体来说，我当时不明白以下这些生产级存储引擎的问题如何解决：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;如何存储变长的数据？&lt;/li&gt;
+&lt;li&gt;如何存储数据大小超过一个物理页面的数据？&lt;/li&gt;
+&lt;li&gt;如何利用被回收的空间？&lt;/li&gt;
+&lt;li&gt;如何处理崩溃恢复？&lt;/li&gt;
+&lt;li&gt;读写并发如何处理？&lt;/li&gt;
+&lt;li&gt;&amp;hellip;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;为了解答这些疑问，先后去翻阅InnodDB、WiredTiger、sqlite的文档，但是这些项目代码量都太大了，以我当时的程度，无法马上找到很具体的解答。&lt;/p&gt;
+
+&lt;p&gt;事情的突破在从网上查找文章时看到的这一篇文章：&lt;a href=&#34;https://dzone.com/articles/database-btree-indexing-in-sqlite&#34;&gt;How Database B-Tree Indexing Works - DZone Database&lt;/a&gt;，这是一篇解释btree工作原理的文章，这篇文章同时还列出了一个项目：&lt;a href=&#34;https://github.com/madushadhanushka/simple-sqlite&#34;&gt;madushadhanushka/simple-sqlite: Code reading for sqlite backend&lt;/a&gt;，这个项目的作者，将sqlite2.5版本中btree的实现，单独抽取出来形成了一个独立的KV库，可以编译通过使用。&lt;/p&gt;
+
+&lt;p&gt;看到这个项目的时候，我的感觉就是如获至宝，因为虽然只有几千行的代码量，但是解答了很多上面提到的疑问，“麻雀虽小五脏俱全”，我花了几天的时间整体阅读了解了原理，这个项目给我打开了研究生产级btree存储引擎的突破口。&lt;/p&gt;
+
+&lt;p&gt;在这以后，考虑到2.5版本的sqlite已经是2002年的作品，距离现在时间太久了，还想接着了解后面做了那些改进，又接着阅读了3.6.10版本的实现，找这个版本的原因，是因为这是sqlite官方在github上同步的第一个版本，那时候仍然步子不敢迈得太大。&lt;/p&gt;
+
+&lt;p&gt;又花了一个多月把这个版本的btree实现了解以后，我了解到在这之后的版本里，sqlite做了另一个重大的更新：在页面管理部分引入了WAL机制，加上前面两个版本阅读下来累积的信心，就接着找当时还是最新的3.36版本的实现来阅读，这又花了一个多月的时间。&lt;/p&gt;
+
+&lt;p&gt;这以后，就是逐步将整理的笔记写成文档了，后续的事情不表，都在这几篇文档里。&lt;/p&gt;
+
+&lt;p&gt;回头看这整个流程，我自己的感受是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;“问题驱动”可能是效率更高的学习方式，带着问题出发、找到自己疑问的答案，能更快的学习某个知识。&lt;/li&gt;
+&lt;li&gt;生产级的实现和教科书的区别很大，后者更多的是讲解原理，而生产级实现考虑更多的是各种实际生产中的边际情况。如果只了解原理，而不去具体做实现，对事情的理解最后只能浮于表面。&lt;/li&gt;
+&lt;li&gt;找到那个精简实现是这个过程里的“突破口”，原因在于：如果一上来看的很成熟的版本，而且你在这个领域积累的不深，那么很可能会导致丢失了很多“上下文（context）”情景，给阅读、理解带来很大困难。下次再遇到类似的问题，我会按照这次的经验，先尝试回退到之前的更简单的版本，看看在那里能不能跟上作者的思路，攻克简单的实现之后，再尝试最新的版本。&lt;/li&gt;
+&lt;li&gt;除了数据库领域以外，有一些别的领域，在教学的时候会让学生参与实现一个简单的项目。这类型的项目虽然简单，但是五脏俱全，能够让学生了解这个领域的概貌，我把这种流程称为“破解神秘感”。如我最开始提到的那些疑问，如果在这之前做过数据库相关的作业，应该会有个大体的想法。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;这篇番外篇的番外篇&#34;&gt;这篇番外篇的番外篇&lt;/h1&gt;
+
+&lt;h2 id=&#34;sqlite的注释&#34;&gt;sqlite的注释&lt;/h2&gt;
+
+&lt;p&gt;除了这些以外，sqlite的代码风格也很好，尤其是注释写的非常详尽。&lt;/p&gt;
+
+&lt;p&gt;有一种说法，“好的代码都是自解释的，无需多做注释”。我对这句话有一些不太一样的看法，因为即便再好的代码，如果只看代码的话，对整个的架构、结构很难了解。这一点sqlite就做的很好，在代码中会写上类似文档一样的注释来解释结构，比如有这么一段解释btree内部结构的注释文档：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-c&#34;&gt;/
+** This file implements an external (disk-based) database using BTrees.
+** For a detailed discussion of BTrees, refer to
+**
+**     Donald E. Knuth, THE ART OF COMPUTER PROGRAMMING, Volume 3:
+**     &amp;quot;Sorting And Searching&amp;quot;, pages 473-480. Addison-Wesley
+**     Publishing Company, Reading, Massachusetts.
+**
+** The basic idea is that each page of the file contains N database
+** entries and N+1 pointers to subpages.
+**
+**   ----------------------------------------------------------------
+**   |  Ptr(0) | Key(0) | Ptr(1) | Key(1) | ... | Key(N-1) | Ptr(N) |
+**   ----------------------------------------------------------------
+**
+** All of the keys on the page that Ptr(0) points to have values less
+** than Key(0).  All of the keys on page Ptr(1) and its subpages have
+** values greater than Key(0) and less than Key(1).  All of the keys
+** on Ptr(N) and its subpages have values greater than Key(N-1).  And
+** so forth.
+*/
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;如果不写这些注释，读者想要理解作者的思路的话，仅凭代码是很困难的。&lt;/p&gt;
+
+&lt;p&gt;这里只是抽取了sqlite代码注释中的一小部分，我读代码下来的感觉，sqlite的注释可以说是“保姆级别”的。“写代码是表达自己，读代码是去理解别人”（见&lt;a href=&#34;https://www.zhihu.com/question/21820752/answer/19427754&#34;&gt;为什么说读代码比写代码难？ - 知乎&lt;/a&gt;），可以说sqlite的作者为了让别人更好的理解自己，尽力了。&lt;/p&gt;
+
+&lt;p&gt;对应的，我也看过那种几乎没有注释、变量函数名都是缩写的代码，这样的代码作者，可能就不是很像让别人读懂ta。&lt;/p&gt;
+
+&lt;h2 id=&#34;sqlite几个相关的链接&#34;&gt;sqlite几个相关的链接&lt;/h2&gt;
+
+&lt;p&gt;可以在这里（&lt;a href=&#34;https://sqlite.org/chronology.html&#34;&gt;History Of SQLite Releases&lt;/a&gt;）找到sqlite的release历史，进而下载到对应版本的代码。以2.5版本为例，发布于&lt;a href=&#34;https://www.sqlite.org/src/timeline?c=9baef3e240&amp;amp;y=ci&#34;&gt;2002-06-17&lt;/a&gt;这一天，我用代码统计工具统计了一下，代码量仅有31188行（包括注释）：&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220220-weekly-6/2.5.png&#34; alt=&#34;sqlite2.5的代码统计&#34; title=&#34;sqlite2.5的代码统计&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;BTW：不知道sqlite 2.5版本，对比一些数据库实验课程的大作业，复杂度如何，感觉以早期sqlite代码来入门数据库学习也是足够的，前提是有足够的耐心和时间。&lt;/p&gt;
+
+&lt;p&gt;而3.36版本发布于&lt;a href=&#34;https://www.sqlite.org/src/timeline?c=5c9a6c0687&amp;amp;y=ci&#34;&gt;2021-06-18&lt;/a&gt;这一天，代码量已经到了21W行，前后相隔19年：&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220220-weekly-6/3.36.png&#34; alt=&#34;sqlite3.36的代码统计&#34; title=&#34;sqlite3.36的代码统计&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;还可以在&lt;a href=&#34;https://www.sqlite.org/changes.html&#34;&gt;Release History Of SQLite&lt;/a&gt;看到不同版本新增的特性、bug fix等，比如可以看到WAL是在3.7.0版本引入的特性：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;2010-07-21 (3.7.0)&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Added support for write-ahead logging.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/blockquote&gt;
+
+&lt;h2 id=&#34;sqlite的箴言&#34;&gt;sqlite的箴言&lt;/h2&gt;
+
+&lt;p&gt;在每个sqlite代码文件中，开头都有这么一段注释：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h2 id=&#34;破解神秘感的项目&#34;&gt;破解神秘感的项目&lt;/h2&gt;
+
+&lt;p&gt;前面提到过要破解神秘感，列举几个计算机相关课程的实验大作业或项目。&lt;/p&gt;
+
+&lt;h3 id=&#34;操作系统&#34;&gt;操作系统&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;哈佛大学的Xv6：&lt;a href=&#34;https://pdos.csail.mit.edu/6.828/2012/xv6.html&#34;&gt;Xv6, a simple Unix-like teaching operating system&lt;/a&gt;， 对应的课程：&lt;a href=&#34;https://pdos.csail.mit.edu/6.828/2021/&#34;&gt;6.S081 / Fall 2021&lt;/a&gt;。&lt;/li&gt;
+&lt;li&gt;清华的uCore：&lt;a href=&#34;https://github.com/kiukotsu/ucore&#34;&gt;kiukotsu/ucore: 清华大学操作系统课程实验 (OS Kernel Labs)&lt;/a&gt;，实验指导书：&lt;a href=&#34;https://chyyuu.gitbooks.io/ucore_os_docs/content/&#34;&gt;Introduction · ucore_os_docs&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;数据库&#34;&gt;数据库&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;CMU的15445：&lt;a href=&#34;https://15445.courses.cs.cmu.edu/fall2021/&#34;&gt;CMU 15-&lt;sup&gt;445&lt;/sup&gt;&amp;frasl;&lt;sub&gt;645&lt;/sub&gt; :: Intro to Database Systems (Fall 2021)&lt;/a&gt;，随课程要完成一个大作业项目，之前没有做过，否则应该不至于不了解生产级实现的原理。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;分布式系统&#34;&gt;分布式系统&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;MIT的6.824：&lt;a href=&#34;https://pdos.csail.mit.edu/6.824/schedule.html&#34;&gt;6.824 Schedule: Spring 2022&lt;/a&gt;，也是有随课程要完成的大作业，以前使用C++实现Paxos，后面改成了Go实现Raft。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&#34;linux早期内核实现解析&#34;&gt;Linux早期内核实现解析&lt;/h3&gt;
+
+&lt;p&gt;许多年以前，赵炯博士在网上公开过一份文档，基本上&lt;strong&gt;逐行&lt;/strong&gt;讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，但是还能搜索下载《linux内核完全剖析基于linux0.11》，也有对应的公开发行物：&lt;a href=&#34;https://book.douban.com/subject/3229243/&#34;&gt;Linux内核完全剖析 (豆瓣)&lt;/a&gt;。&lt;/p&gt;
 </description>
     </item>
     
@@ -4525,354 +4682,6 @@ If two entries in different logs have the same index and term, then the logs are
 &lt;p&gt;于是，回到我们开始的问题，(d2)场景中，在添加本任期日志4的时候，会发现有一些节点上并不存在过往任期的日志2，这时候就会相应地计算不同节点的nextIndex索引，来驱动同步日志2到这些节点上。&lt;/p&gt;
 
 &lt;p&gt;总而言之，根据日志的性质，只要本任期的日志4能达成一致，上一条日志2就能达成一致。&lt;/p&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>Memcached的存储原理解析（续）</title>
-      <link>https://www.codedump.info/post/20210812-memcached/</link>
-      <pubDate>Thu, 12 Aug 2021 08:40:04 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20210812-memcached/</guid>
-      <description>
-
-&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
-
-&lt;p&gt;在前面的&lt;a href=&#34;https://www.codedump.info/post/20210701-memcached/&#34;&gt;Memcached的存储原理解析&lt;/a&gt;一文中，简单分析了memcached的存储原理，但是最近在照搬memcached的实现原理到项目中时，发现前面的梳理还不够细致，有一些细节没有谈及，因此重新整理一篇文章。&lt;/p&gt;
-
-&lt;h1 id=&#34;slab&#34;&gt;slab&lt;/h1&gt;
-
-&lt;p&gt;memcached是根据slab为基础单位来管理空闲空间的。slab的大体原理如下图：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210812-memcached/slabclass.png&#34; alt=&#34;slabclass的分级存储&#34; title=&#34;slabclass的分级存储&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;slabs.c中定义了类型为&lt;code&gt;slabclass_t&lt;/code&gt;、大小为&lt;code&gt;MAX_NUMBER_OF_SLAB_CLASSES&lt;/code&gt;的数组&lt;code&gt;slabclass&lt;/code&gt;，用于分级存储。&lt;/p&gt;
-
-&lt;p&gt;数组中的每个&lt;code&gt;slabclass_t&lt;/code&gt;元素，其能分配出去的内存大小递增，由如下的规则决定：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;每个数组可分配的内存大小都要8字节对齐（&lt;code&gt;CHUNK_ALIGN_BYTES&lt;/code&gt;）,这个大小保存在&lt;code&gt;slabclass_t&lt;/code&gt;的&lt;code&gt;size&lt;/code&gt;成员中。&lt;/li&gt;
-&lt;li&gt;数组的第一个&lt;code&gt;slabclass_t&lt;/code&gt;元素的可分配内存大小为&lt;code&gt;sizeof(item) + settings.chunk_size&lt;/code&gt;。这之后的&lt;code&gt;slabclass_t&lt;/code&gt;可分配内存大小，都在上一个的元素的基础上放大&lt;code&gt;factor&lt;/code&gt;倍，同时还要8字节对齐。&lt;/li&gt;
-&lt;li&gt;每次分配一个页面的大小由配置项&lt;code&gt;settings.slab_page_size&lt;/code&gt;来决定，因此每一个&lt;code&gt;slabclass_t&lt;/code&gt;元素的一个页面能容纳的&lt;code&gt;item&lt;/code&gt;数量为&lt;code&gt;settings.slab_page_size / slabclass[i].size&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;以上图为例，假设第一级存储的item大小不超过56字节，每个slab之间的增长因子是1.2，那么下一个slab存储的item内存大小就是56*1.2=72字节。&lt;/p&gt;
-
-&lt;p&gt;在当前还有空闲可用内存的情况下，每一次分配新的空间，都是以page（page=1MB）为单位的，然后再根据该slab的item大小划分为多个空闲可用item。&lt;/p&gt;
-
-&lt;p&gt;&lt;code&gt;slabclass_t&lt;/code&gt;类型中最重要的是以下两个成员：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;slab_list：保存已经分配出去的page数组，分配一个page的内存之后，需要将page根据该slab的size划分成多个空闲的item，挂载到下面提到的slots链表中。当最后需要回收分配出去的内存时，直接遍历slab_list中的成员回收内存即可。&lt;/li&gt;
-&lt;li&gt;slots：保存空闲item链表。空闲item来源有两部分，一部分是从page中分配但是还未使用的item，还有一部分是曾经被使用后来释放回来的item，上图中使用了不同的颜色进行了区分。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;当需要分配一块大小的内存时，首先需要根据其大小，计算出该尺寸最终对应到上面的哪个元素，这个数组索引在Memcached中被称为&lt;code&gt;clsid&lt;/code&gt;，这个计算索引的过程参见函数&lt;code&gt;slabs_clsid&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;比如：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;slabclass[0].size = 56，fator参数为1.2，那么slabclass[1].size = (56 * 1.25)向上对齐8位 = 72，以此类推。&lt;/li&gt;
-&lt;li&gt;假设需要分配的内存大小为60，就会去找&lt;code&gt;slabclass_t.size &amp;gt;= 60&lt;/code&gt;的第一个slabclass，在这个例子中返回的&lt;code&gt;clsid&lt;/code&gt;是1，也就是&lt;code&gt;slabclass[1]&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;内存分配时根据大小向上取满足条件的第一个slab的做法，优点在于方便了内存的分配管理，缺陷是会浪费掉部分空间，比如上面的例子中，将大小为72的slab用于60的内存，那么12字节的空间就被浪费掉了。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;从上面可以看到，&lt;code&gt;slabclass_t&lt;/code&gt;用于管理空闲内存，当需要分配新item时，会依次做如下的检查：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;如果&lt;code&gt;slots&lt;/code&gt;链表中还有空闲item，直接摘下来使用；&lt;/li&gt;
-&lt;li&gt;否则，如果当前还没有达到内存分配的阈值，就分配一个新的page出来，将page按照该slab的大小划分为多个item，这些新分配出来的item都挂载到&lt;code&gt;slots&lt;/code&gt;链表中。&lt;/li&gt;
-&lt;li&gt;如果以上两步都不满足了，说明当前已经没有可用的内存和空闲item，需要进行淘汰了。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;讲到item的淘汰，就涉及到下面的LRU算法了。&lt;/p&gt;
-
-&lt;h1 id=&#34;lru算法&#34;&gt;LRU算法&lt;/h1&gt;
-
-&lt;h2 id=&#34;旧的lru算法及其问题&#34;&gt;旧的LRU算法及其问题&lt;/h2&gt;
-
-&lt;p&gt;以往的LRU算法，基本做法都是这样的：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;创建一个LRU链表，每次新加入的元素都放在链表头。&lt;/li&gt;
-&lt;li&gt;如果元素被访问了一次，同样从当前链表中摘除放到链表头。&lt;/li&gt;
-&lt;li&gt;需要淘汰元素时，从链表尾开始找可以淘汰的元素出来淘汰。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;这个算法有如下几个问题：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;元素被访问一次就会被放到LRU链表的头部，这样即便这个元素可以被淘汰，也会需要很久才会淘汰掉这个元素。&lt;/li&gt;
-&lt;li&gt;由于上面的原因，从链表尾部开始找可以淘汰的元素时，实际可能访问到的是一些虽然不常被访问，但是还没到淘汰时间（即有效时间TTL还未过期）的数据，这样会一直沿着链表往前找很久才能找到适合淘汰的元素。由于这个查找被淘汰元素的过程是需要加锁保护的，加锁时间一长影响了系统的并发。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/old-lru-list.png&#34; alt=&#34;经典的LRU链表实现&#34; title=&#34;经典的LRU链表实现&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;综上，经典的LRU链表问题的核心在于：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;只需要一次被访问就能让元素远离被淘汰的地方。&lt;/li&gt;
-&lt;li&gt;以及如何高效定位到更可能被淘汰的元素。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;从Memcached 1.5版本开始，引入了所谓的分段LRU算法（Segmented LRU）来解决这些问题。&lt;/p&gt;
-
-&lt;h2 id=&#34;改进的分段lru算法-segmented-lru&#34;&gt;改进的分段LRU算法（Segmented LRU）&lt;/h2&gt;
-
-&lt;p&gt;分段LRU算法中将LRU链表根据&lt;code&gt;活跃度&lt;/code&gt;分成了三类：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;HOT_LRU：存储热数据的LRU链表。&lt;/li&gt;
-&lt;li&gt;WARM_LRU：存储温数据（即活跃度不如热数据）的LRU链表。&lt;/li&gt;
-&lt;li&gt;COLD_LRU：存储冷数据的LRU链表。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;需要说明的是：热（参数&lt;code&gt;settings.hot_lru_pct&lt;/code&gt;）和暖（参数&lt;code&gt;settings.warm_lru_pct&lt;/code&gt;）数据的占总体内存的比例有限制，而冷数据则无限。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;#define HOT_LRU 0
-#define WARM_LRU 64
-#define COLD_LRU 128
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;同时，使用了&lt;code&gt;heads&lt;/code&gt;和&lt;code&gt;tails&lt;/code&gt;两个数组用来保存LRU链表：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;#define POWER_LARGEST  256 /* actual cap is 255 */
-
-#define LARGEST_ID POWER_LARGEST
-
-static item *heads[LARGEST_ID];
-static item *tails[LARGEST_ID];
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;上面分析&lt;code&gt;slabclass&lt;/code&gt;的时候提到过，首先会根据被分配内存大小计算出来一个&lt;code&gt;slabclass&lt;/code&gt;数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次&lt;code&gt;slabid | lru id&lt;/code&gt;计算（其实就是&lt;code&gt;slabid + lru id&lt;/code&gt;），到对应的LRU链表中查找元素：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/slabclass-lru.png&#34; alt=&#34;将slabclass数组索引映射到LRU队列数组&#34; title=&#34;将slabclass数组索引映射到LRU队列数组&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。&lt;/p&gt;
-
-&lt;p&gt;前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。&lt;/p&gt;
-
-&lt;p&gt;首先，改进的算法中，加入了一个机制：只有当元素被访问两次以后，才会标记成&lt;code&gt;活跃&lt;/code&gt;元素。&lt;/p&gt;
-
-&lt;p&gt;代码中引入了两个标志位，其置位的规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;ITEM_FETCHED：第一次被访问时置位该标志位。&lt;/li&gt;
-&lt;li&gt;ITEM_ACTIVE：第二次被访问时（即&lt;code&gt;it-&amp;gt;it_flags &amp;amp; ITEM_FETCHED&lt;/code&gt;为true的情况下）置位该标志位。&lt;/li&gt;
-&lt;li&gt;INACTIVE：不活跃状态。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;ITEM_ACTIVE标志位清除的规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;如果从链表尾遍历到某一个LRU链表时，该元素是链表的最后一个元素，则认为是不活跃的元素，即可以清除ITEM_ACTIVE标志位；&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;这样，有效避免了只访问一次就变成&lt;code&gt;活跃&lt;/code&gt;元素的问题（见函数&lt;code&gt;do_item_bump&lt;/code&gt;）。&lt;/p&gt;
-
-&lt;p&gt;以下的讨论中，元素变成&lt;code&gt;活跃&lt;/code&gt;就意指“至少被访问两次以上”。&lt;/p&gt;
-
-&lt;p&gt;其次，由于从链表尾部往前查找可以淘汰的元素，中间可能会经历很多不能被淘汰的元素，影响了淘汰的速度，因此前面的分级LRU链表就能帮助程序快速识别出哪些元素可以被淘汰。三个分级的LRU链表之间的转换规则如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;HOT_LRU：在HOT LRU队列中的数据绝不会到HOT_LRU队列的前面，只会往更冷的队列中放。规则是：如果元素变得活跃，就放到WARM队列中；否则如果不活跃，就直接放到COLD队列中。&lt;/li&gt;
-&lt;li&gt;WARM_LRU：如果WARM队列的元素变的&lt;code&gt;活跃&lt;/code&gt;，就会移动到WARM队列头；否则往COLD队列移动。&lt;/li&gt;
-&lt;li&gt;COLD_LRU：从上面可知，COLD队列中的元素，都是不太活跃的了，所以当需要淘汰元素时都会首先到COLD LRU队列中找可以淘汰的数据。当一个在COLD队列的元素重新变成&lt;code&gt;活跃&lt;/code&gt;元素时，并不会移动到COLD队列的头部，而是直接移动回去WARM队列。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;以上需要注意的是：任何操作都不能将一个元素从WARM和COLD队列中移动回去HOT队列了，也就是从HOT队列中移动元素出去的操作是单向操作。&lt;/p&gt;
-
-&lt;p&gt;上述算法的状态机转换过程，可以参考下图。使用了这些规则来维护着三个队列之后，基本能保证COLD队列中的元素是不活跃的，这样查找起被淘汰元素也更快了。&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210701-memcached/lru.png&#34; alt=&#34;三级LRU队列转换状态图&#34; title=&#34;三级LRU队列转换状态图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;综述起来，改进的分段LRU算法做了如下的优化：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;需要至少两次被访问，才能变成&lt;code&gt;活跃&lt;/code&gt;元素。&lt;/li&gt;
-&lt;li&gt;将元素按照被访问频率的&lt;code&gt;冷热程度&lt;/code&gt;，划分为三种LRU链表来分段管理，加速了查找被淘汰元素的流程。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;读写操作的实现&#34;&gt;读写操作的实现&lt;/h1&gt;
-
-&lt;p&gt;从以上的分析里，可以看出memcached中主要有这么几种数据结构：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;item：存储一个KV数据的基本单位。&lt;/li&gt;
-&lt;li&gt;slabclass：存储空闲item的数据结构。&lt;/li&gt;
-&lt;li&gt;lru链表：根据访问的冷热程度存储当前在使用中的item。&lt;/li&gt;
-&lt;li&gt;hash表：这部分没有在上面描述，用于根据key查询item的数据结构。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;一个item，必然处于空闲和在使用这两种互斥状态之一，即：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;空闲的item：保存在slabclass的slots空闲链表中，这一点已经在上面slab的图示中描述过了。&lt;/li&gt;
-&lt;li&gt;在使用中的item：保存在lru链表中，用于数据回收之用；同时还保存在hash表中，用于数据访问时使用。如下图所示：&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210812-memcached/in-use-item.png&#34; alt=&#34;使用中的item数据组织结构&#34; title=&#34;使用中的item数据组织结构&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;对item的数据组织有了大体的概念之后，下面展开来说读写操作的具体实现。&lt;/p&gt;
-
-&lt;h2 id=&#34;读操作&#34;&gt;读操作&lt;/h2&gt;
-
-&lt;p&gt;由于被使用数据存储在hash表中，所以查询操作相对简单，其伪代码是：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;读操作：
-  加锁
-    在hash表中查询数据
-  释放锁
-
-  返回查询的结果
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;虽然简单，但是其中有一个值得注意的细节。这里的加锁操作，并不是一个全局锁，否则系统的并发性会大大折扣；同时，也不是给hash数组中的某一个hash桶进行加锁，实际上hash表本身并不存在锁操作。&lt;/p&gt;
-
-&lt;p&gt;在这里，加的锁是首先根据所查询数据的键进行hash计算，再得到对应的锁，在memcached里被称为“item lock”（见全局变量&lt;code&gt;static pthread_mutex_t *item_locks&lt;/code&gt;）。这个锁虽然与数据的键值相关，但是如果hash数组数量与item_locks不相等，那么就不是一一对应的关系，所以才说不是针对hash桶进行加锁。如果hash桶的数量大于item lock的数量，那么这就是一对多的关系，也就是对一个item lock加锁之后，获得锁的线程可以访问多个hash桶。&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210812-memcached/item-lock.png&#34; alt=&#34;item锁与hash桶的对应关系&#34; title=&#34;item锁与hash桶的对应关系&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;上图中，索引为N的item锁，管理着索引为M、P这两个hash桶，因此拿到该item锁的线程可以同时访问这两个hash桶。&lt;/p&gt;
-
-&lt;p&gt;因此，上面的读操作更准确的描述应该是：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;读操作：
-  根据查询键值加item锁
-    在hash表中查询数据
-  根据查询键值释放item锁
-
-  返回查询的结果
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h2 id=&#34;写操作&#34;&gt;写操作&lt;/h2&gt;
-
-&lt;p&gt;与前面非常简单的读操作相比，写操作会更加复杂，因为当内存不足时需要淘汰在LRU数组中的item。&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;写操作：  
-  根据查询键值加item锁
-
-    分配足够内存的item，写入新的数据
-    向hash表中写入数据
-
-  根据查询键值释放item锁
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;在上面的步骤中，&lt;code&gt;分配足够内存的item&lt;/code&gt;这一步，暂不考虑分析内存足够下的情况，因为这种情况相对简单，只分析内存不足时需要淘汰的情况。将这部分代码展开来讨论，则伪代码如下：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;写操作：  
-  1:根据查询键值加item锁
-
-    2:内存不足情况下分配足够内存的item，写入新的数据：
-
-      2.1:计算满足所需内存所在的LRU数组元素，对该LRU链表加锁
-      2.2:从后往前遍历所要求内存的LRU数组：
-        2.2.1:找到一个item，如果尝试对该item的键值进行加锁失败，则继续尝试下一个item
-        2.2.3:否则，对该item的键值进行加锁成功，如果符合回收条件：
-          2.2.4:从item所在的hash表中删除item
-        2.2.5:释放2.2.1中加的item锁
-      
-      2.3:对该LRU链表解锁
-
-    3:向hash表中写入数据
-
-  4:根据查询键值释放item锁
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;需要注意的是，步骤2.2.1中，是尝试对当前item的键值所在的item锁加锁，这一步是可能失败的，因为在第一步中已经加上了item锁，两者有可能相同，如果这里不是尝试而是直接等待解锁，则可能造成死锁。&lt;/p&gt;
-
-&lt;p&gt;但是仅有上面的步骤仍然是不够的，因为即便找到了一个可以被回收的item，也要确定该item没有被其他线程引用，判断的标准是根据item中的引用计数：首先将引用计数加1，如果为2的情况下（使用中的item默认引用计数为1）说明当前只有本线程引用了这个item，后面就可以安全的回收该item。&lt;/p&gt;
-
-&lt;p&gt;在memcached代码中，如果上一步增加引用计数之后不为2时，有可能是item泄露了，如果打开tail_repair_time开关且满足时间的情况下，可以进行强制回收，但是作者也提醒了这样可能会造成程序core掉，也就是出现上面提到的被引用的item被释放的情况：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code class=&#34;language-C&#34;&gt;int lru_pull_tail(const int orig_id, const int cur_lru,
-        const uint64_t total_bytes, const uint8_t flags, const rel_time_t max_age,
-        struct lru_pull_tail_return *ret_it) {
-        
-        // ...
-
-        if (refcount_incr(search) != 2) {
-            /* Note pathological case with ref&#39;ed items in tail.
-             * Can still unlink the item, but it won&#39;t be reusable yet */
-            itemstats[id].lrutail_reflocked++;
-            /* In case of refcount leaks, enable for quick workaround. */
-            /* WARNING: This can cause terrible corruption */
-            if (settings.tail_repair_time &amp;amp;&amp;amp;
-                    search-&amp;gt;time + settings.tail_repair_time &amp;lt; current_time) {
-                itemstats[id].tailrepairs++;
-                search-&amp;gt;refcount = 1;
-                /* This will call item_remove -&amp;gt; item_free since refcnt is 1 */
-                STORAGE_delete(ext_storage, search);
-                do_item_unlink_nolock(search, hv);
-                item_trylock_unlock(hold_lock);
-                continue;
-            }
-        }
-
-        // ...
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;步骤2，内存不足情况下分配足够内存的item，其完整实现在函数&lt;code&gt;lru_pull_tail&lt;/code&gt;中，读者可以自行结合上面的伪代码以及前面提及的LRU算法自行分析。&lt;/p&gt;
-
-&lt;p&gt;以上的整个流程如下图所示：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210812-memcached/item-recycle.png&#34; alt=&#34;需淘汰item时的写入数据流程图&#34; title=&#34;需淘汰item时的写入数据流程图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;解释完毕了读写操作流程之后，需要回答这个问题：为什么针对键值的锁加在了item锁上，而不是hash桶？&lt;/p&gt;
-
-&lt;p&gt;原因在于：当写入的元素过多时，hash表需要进行扩容操作，即可以认为hash桶的数量是有可能发生变化的。因此，如果锁在hash桶上，在容量发生变化的时候就难以处理。而item锁数组，其大小则是固定的，不存在这个问题。&lt;/p&gt;
-
-&lt;h1 id=&#34;hash数组的扩容操作&#34;&gt;hash数组的扩容操作&lt;/h1&gt;
-
-&lt;p&gt;hash数组的数量必须是2的次方，每次存储的数据总量超过数组数量的1.5倍时，就需要扩容一倍，最多到2^32。&lt;/p&gt;
-
-&lt;p&gt;扩容流程示意图如下：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20210812-memcached/expand-hashtable.png&#34; alt=&#34;hashtable扩容示意图&#34; title=&#34;hashtable扩容示意图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;扩容步骤为：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;按照新的大小分配出来新的hash数组保存到primary_hashtable中，原hash数组命名为old_hashtable，另外有扩容索引值expand_bucket，在该索引之前的数据，表示已经从old_hashtable中转移到新的hash数组了。&lt;/li&gt;
-&lt;li&gt;每次操作一个hash桶元素，需要对该hash桶对应的item锁进行加锁之后才能开始转移。&lt;/li&gt;
-&lt;li&gt;期间如果有数据访问，首先按照旧的hash桶数量进行计算，如果计算出来的索引值不小于expand_bucket，说明这个数据还在旧的桶里，到old_hashtable中查找；否则说明在新的hash数组里了，按照新的hash桶数量计算器索引值，然后再到primary_hashtable中操作。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;综述&#34;&gt;综述&lt;/h1&gt;
-
-&lt;p&gt;从以上分析可以看出，实现一个完备的LRU cache库，需要考虑的细节问题其实不少的，尤其memcached需要应对的是多线程情况下cache的读写，比之redis单进程单线程的情况还是要复杂不少，主要包括以下方面：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;如何有效、快速的分配、利用内存（slab算法与数据结构）。&lt;/li&gt;
-&lt;li&gt;更合理的LRU算法，不至于一次访问就导致该数据难以被回收（分段LRU算法）。&lt;/li&gt;
-&lt;li&gt;细粒度加锁操作，而不是全局锁，保证读写操作的并发。不把针对键值的锁放在hash桶上，因为可能会因为容量扩充导致hash桶数组变化，而是使用了一个固定大小的锁数组。&lt;/li&gt;
-&lt;li&gt;除了上述的锁之外，还需要不要回收正在被使用的内存（item引用计数）。&lt;/li&gt;
-&lt;li&gt;hash数组扩容时如何尽量减少数据访问的冲突。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://memcached.org/blog/modern-lru/&#34;&gt;Replacing the cache replacement algorithm in memcached&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://github.com/memcached/memcached/blob/master/doc/new_lru.txt&#34;&gt;memcached/new_lru.txt&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
 </description>
     </item>
     

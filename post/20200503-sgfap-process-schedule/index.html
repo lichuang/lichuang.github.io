@@ -261,14 +261,14 @@ if (!doNotTrack) {
 <p>每个CPU维护自己的就绪队列，就绪队列由结构体<code>rq</code>来表示，队列中的每个元素都是前面提到的描述进程信息的结构体<code>task_struct</code>。这里需要注意的是，虽然称之为“队列”，内部的实现中，根据不同的调度算法，使用了不同的数据结构来保存进程，比如CFS调度器使用了红黑树来保存进程，这一点在后面展开阐述，目前为止，暂且认为就绪队列是一个维护CPU所有当前就绪进程的容器。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/runqueue.png" alt="runqueue" title="runqueue" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/runqueue.png" alt="runqueue" title="runqueue" />
 </center></p>
 
 <p>不同的调度器算法，无论内部如何实现，其最终都是从就绪队列中选择下一个可执行的进程来运行。
 在这个版本的内核中一共实现了如下几种调度器算法，它们统一由结构体<code>sched_class</code>来表示：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/sched_class.png" alt="sched_class" title="sched_class" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/sched_class.png" alt="sched_class" title="sched_class" />
 </center></p>
 
 <table>
@@ -312,7 +312,7 @@ if (!doNotTrack) {
 <p>从以上的介绍可以看到，内核的调度器负责维护就绪队列，即提供了调度进程所需的数据来源；而不同的调度器算法则根据自己的实现来从就绪队列中选择进程来执行，那么选择的依据又是什么？答案是进程的优先级。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/schedule.png" alt="schedule" title="schedule" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/schedule.png" alt="schedule" title="schedule" />
 </center></p>
 
 <p>以上简单阐述了Linux进程调度中涉及到的四个最重要的要素，下面将展开讨论。</p>
@@ -330,7 +330,7 @@ if (!doNotTrack) {
 <p>Linux通过nice命令设置进程的静态优先级，进程的nice值在[-20,19]之间，值越小优先级越高。而内核本身，选择范围[0,139]在内部表示优先级，同样是数值越低优先级越高：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/nice.png" alt="nice" title="nice" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/nice.png" alt="nice" title="nice" />
 </center></p>
 
 <p>对于普通的进程，可以认为优先级不会发生变化，而实时进程则不然：</p>
@@ -459,7 +459,7 @@ static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight
 <p>以下将前面的nice值、权重、虚拟运行时间的关系总结如下图：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/vruntime.png" alt="vruntime" title="vruntime" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/vruntime.png" alt="vruntime" title="vruntime" />
 </center></p>
 
 <h2 id="更新虚拟运行时间">更新虚拟运行时间</h2>
@@ -467,7 +467,7 @@ static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight
 <p>由于更新进程调度实体以及就绪队列的虚拟运行时间的操作如此重要，所以内核中有一个专门的<code>update_curr</code>函数完成这个工作：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/update_curr.png" alt="update_curr" title="update_curr" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/update_curr.png" alt="update_curr" title="update_curr" />
 </center></p>
 
 <p>这里，<code>update_curr</code>函数除了更新进程本身的虚拟运行时间之外，还要更新就绪队列的<code>min_vruntime</code>（最小虚拟运行时间），下面介绍到CFS调度算法时讲解释这个值的作用。</p>
@@ -646,7 +646,7 @@ struct sched_entity {
 <p>总结上面提到的<code>rq</code>、<code>cfs_rq</code>以及<code>sched_entity</code>结构体的关系如下图：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/cfs_rq.png" alt="cfs_rq" title="cfs_rq" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/cfs_rq.png" alt="cfs_rq" title="cfs_rq" />
 </center></p>
 
 <p>即：<code>rq</code>结构体内部有一个类型为<code>cfs_rq</code>结构体的成员，用于维护CFS算法的运行队列，而<code>cfs_rq</code>内部又是使用红黑树结构来维护成员的，每个红黑树成员是<code>sched_entity</code>结构体类型的节点。</p>
@@ -656,7 +656,7 @@ struct sched_entity {
 <p><code>核心调度器</code>指的是内核的进程调度框架，由内核来触发调度进程的时机，而如何选择进程的工作，交予调度器类来实现：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/scheduler-core.png" alt="scheduler-core" title="scheduler-core" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/scheduler-core.png" alt="scheduler-core" title="scheduler-core" />
 </center></p>
 
 <p>核心调度器中，一共有以下几处地方有机会触发进程调度，下面来分别说明。</p>
@@ -751,7 +751,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 <p>CFS调度器内部维护一颗红黑树，红黑树的键值即为进程的虚拟运行时间，虚拟运行时间越小的进程，被调度执行的优先级越高，获得更多的CPU时间。</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/cfs.png" alt="cfs" title="cfs" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/cfs.png" alt="cfs" title="cfs" />
 </center></p>
 
 <p>对比两个调度实体在红黑树中的先后顺序，也就只需要对比其中的虚拟运行时间即可：</p>
@@ -826,7 +826,7 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
 </ol>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/min_vruntime.png" alt="min_vruntime" title="min_vruntime" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/min_vruntime.png" alt="min_vruntime" title="min_vruntime" />
 </center></p>
 
 <p>之所以要保证CFS就绪队列的最小虚拟运行时间不回退，是因为CFS就绪队列中的红黑树排序是以调度实体的vruntime作为基准来进行计算的。vruntime值越小的节点，说明虚拟运行时间越少，对应的当前被调度的优先级就越往前，会被更快的调度来执行。</p>
@@ -1007,7 +1007,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 <p>CFS调度器选择下一个执行进程的操作由函数pick_next_task_fair完成，其主要流程如下：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/pick_next_task_fair.png" alt="pick_next_task_fair" title="pick_next_task_fair" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/pick_next_task_fair.png" alt="pick_next_task_fair" title="pick_next_task_fair" />
 </center></p>
 
 <p>下面逐个分析这几个函数。</p>
@@ -1122,7 +1122,7 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 <p>CFS调度器中，处理周期性调度器的函数是<code>task_tick_fair</code>，实际工作由<code>entity_tick</code>函数负责，其核心流程如下：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/entity_tick.png" alt="entity_tick" title="entity_tick" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/entity_tick.png" alt="entity_tick" title="entity_tick" />
 </center></p>
 
 <p>其中的<code>update_curr</code>是更新就绪队列虚拟运行时间的函数，前面已经介绍过就不再阐述，重点看这里的<code>check_preempt_tick</code>函数。</p>
@@ -1218,7 +1218,7 @@ preempt:
 <p><code>wakeup_preempt_entity</code>函数传入两个调度实体，返回对比结果，分为以下几种情况：</p>
 
 <p><center>
-<img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/wakeup_preempt_entity.png" alt="wakeup_preempt_entity" title="wakeup_preempt_entity" />
+<img src="/media/imgs/20200503-sgfap-process-schedule/wakeup_preempt_entity.png" alt="wakeup_preempt_entity" title="wakeup_preempt_entity" />
 </center></p>
 
 <p>这里之所以要在大于se虚拟运行时间的情况下，需要保证大于gran值才返回1允许调度，是为了避免抢占过于频繁，导致大量上下文切换影响系统性能。默认情况下，wakeup_gran()函数返回的值是1ms根据调度实体se的权重计算的虚拟时间。</p>
@@ -1262,7 +1262,7 @@ preempt:
     
     
       <label class="qr-code-image" for="reward">
-        <img class="image" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/wechat.png">
+        <img class="image" src="/media/imgs/reward/wechat.png">
         <span>微信支付</span>
       </label>
     
@@ -1278,7 +1278,7 @@ preempt:
 
 <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
 <footer class="post-footer">
   <div class="post-tags">
