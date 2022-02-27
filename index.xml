@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 20 Feb 2022 10:53:41 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 27 Feb 2022 11:25:33 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -195,6 +195,121 @@
     </item>
     
     <item>
+      <title>周刊（第7期）：一个C系程序员的Rust初体验</title>
+      <link>https://www.codedump.info/post/20220227-weekly-7/</link>
+      <pubDate>Sun, 27 Feb 2022 11:25:33 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220227-weekly-7/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：在工作里使用Rust已经有两个多月的时间了，谈谈我做为一名多年的C系（C、C++）程序员，对Rust的初体验。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;一个c系程序员的rust初体验&#34;&gt;一个C系程序员的Rust初体验&lt;/h1&gt;
+
+&lt;p&gt;最近由于工作的原因，使用上了Rust语言，在此之前我有多年的C、C++编码经验（以下将C、C++简称C系语言）。&lt;/p&gt;
+
+&lt;p&gt;使用C系语言编码时，最经常面对的问题就是内存问题，诸如：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;野指针（Wild Pointe）：使用了不可知的指针变量，如已经被释放、未初始化、随机，等等。&lt;/li&gt;
+&lt;li&gt;内存地址由于访问越界等原因被覆盖（overflow），这不但是可能出错的问题，还有可能成为程序的内存漏洞被利用。&lt;/li&gt;
+&lt;li&gt;内存分配后未回收。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;连Chrome的报告都指出，Chrome中大约70%的安全漏洞都是内存问题，见：&lt;a href=&#34;https://www.chromium.org/Home/chromium-security/memory-safety/&#34;&gt;Memory safety&lt;/a&gt;。&lt;/p&gt;
+
+&lt;p&gt;C系语言发展到今天，已经有不少可以用于内存问题检测的利器了，其中最好用的莫过于&lt;a href=&#34;https://en.wikipedia.org/wiki/AddressSanitizer&#34;&gt;AddressSanitizer&lt;/a&gt;，它的原理是在编译时给程序加上一些信息，一旦发生内存越界访问、野指针等错误都会自动检测出来。&lt;/p&gt;
+
+&lt;p&gt;但是即便有这些工具，内存问题也不好解决，其核心的原因在于：这些问题绝大部分都是运行时（Runtime）问题，即要在程序跑到特定场景的时候才会暴露出来，诸如上面提到的AddressSanitizer就是这样。&lt;/p&gt;
+
+&lt;p&gt;都知道解决问题的第一步是能复现问题，而如果一个问题是运行时问题，这就意味着：复现问题可能会是一件很麻烦的事情，有时候还可能到生产环境去复现。&lt;/p&gt;
+
+&lt;p&gt;以我之前经历的一个Bug来看这类工作的复杂度，见&lt;a href=&#34;https://www.codedump.info/post/20190413-problem-fix/&#34;&gt;线上存储服务崩溃问题分析记录 - codedump的网络日志&lt;/a&gt;，这是一个很典型的发生在生产环境上由于内存错误导致的崩溃问题：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;不好复现，因为跟特定的请求相关，还跟线程的调度有关；&lt;/li&gt;
+&lt;li&gt;本质是由于使用了被释放的内存导致的错误。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这个线上问题，记得当时花了一周时间来复现问题解决。&lt;/p&gt;
+
+&lt;p&gt;换言之，如果一个问题要等到运行时才能发现，那么可以预见的是：一旦出现问题，要复现问题可能要花费大量的精力，以及需要很多经验才行。如果一个问题还是在特定场景，或者用户现场才出现的，那就更麻烦了，C系程序员以往一般都是这样来保存“现场”：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;出现崩溃的时候保存core文件来查看调用堆栈、变量等信息。&lt;/li&gt;
+&lt;li&gt;发明了各种复制流量重放的工具，比如&lt;a href=&#34;https://github.com/session-replay-tools/tcpcopy&#34;&gt;tcpcopy&lt;/a&gt;等。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;总而言之，运行时问题一旦出现是很麻烦的，而解决这类问题的时间是难以预期的。&lt;/p&gt;
+
+&lt;p&gt;Rust给这类内存问题的解决提供了另一个解决思路：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;一个内存地址同时只能被一个变量使用。&lt;/li&gt;
+&lt;li&gt;不能使用未初始化的变量。&lt;/li&gt;
+&lt;li&gt;&amp;hellip;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;简而言之，凡是可能出现内存错误的地方，都在语言的语法层面给予禁止，换来的就是更多的编译时间，因为要做这么多检查嘛，而需要更多的编译时间反过来就需要更好的硬件。我想这也是Rust到了最近几年才开始慢慢流行开来的原因之一，毕竟即便是现在，一些大型的Rust项目普通的机器编译起来也还是很耗时。&lt;/p&gt;
+
+&lt;p&gt;“编译时间（compile time）”是一个可以预期的固定时间，能通过增加硬件性能（比如买更好的机器来写Rust）来解决；而“运行时问题”一旦出现，查找起来的时间、精力、场景（比如出现在用户现场、几百万次才能重现一次等）不确定性可就很高了。&lt;/p&gt;
+
+&lt;p&gt;两者权衡，我选择解决“编译时间”问题。而且，在我意识到有这样的工具能够在编译期解决大部分内存问题时，反过来再看使用C系语言的项目，几乎可以预期的是：只要代码和复杂度上了一定规模，那么这类项目都要花上相当的一段时间才能稳定下来。原因在于：类似内存问题这样的运行时问题，是需要场景去积累，才能暴露出来的，而场景的积累，就需要很多的小白鼠和运行时间了。&lt;/p&gt;
+
+&lt;p&gt;总结一下我的观点：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;C系语言最多的问题就是各类内存问题，而这些问题大多是运行时问题。即便现在已经有了各种工具，解决其运行时问题也很困难。&lt;/li&gt;
+&lt;li&gt;Rust解决这类问题的思路，是在语法层面禁止一切可能出现内存问题的操作，换来的代价就是更多的编译时间。&lt;/li&gt;
+&lt;li&gt;可预期的“编译时间”和难预期的“运行时问题”解决，我选择前者。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;番外篇&#34;&gt;番外篇&lt;/h1&gt;
+
+&lt;h2 id=&#34;rr&#34;&gt;rr&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://rr-project.org/&#34;&gt;rr: lightweight recording &amp;amp; deterministic debugging&lt;/a&gt;也是出自Mozilla的另一款调试C系程序的利器，&lt;code&gt;rr&lt;/code&gt;是&lt;code&gt;Record and Replay&lt;/code&gt;的简称，目的还是为了解决各种运行时问题，由于运行时问题中存在着各种不确定的因素，包括：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;变量值。&lt;/li&gt;
+&lt;li&gt;进程、线程环境，比如不同的线程调度顺序可能导致了不同的结果。&lt;/li&gt;
+&lt;li&gt;输入不同的数据，能得到不同的结果。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;于是，&lt;code&gt;rr&lt;/code&gt;要解决的核心问题，就是让一个程序在运行时有一个固定的环境，它可以抓取程序运行的环境保存下来。这样在出现问题之后，就能使用它可以记录下来程序运行时的环境，不停的重放来调试解决问题。&lt;/p&gt;
+
+&lt;p&gt;但是，即便是这样，&lt;code&gt;rr&lt;/code&gt;可能更适合于明确知道问题的情况下去抓取环境，不可能在线上直接打开这个工具。所以又回到前面的结论了：调试运行时问题可能面对的困难，包括场景、时间、用户现场等等不确定因素。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;rr&lt;/code&gt;和&lt;code&gt;Rust&lt;/code&gt;一样，都出自Mozilla，我想不是偶然的。Mozilla和chrome等一样，都是使用C++编码的超大型项目，而这里一定遇到了各种运行时问题，不止于内存问题，所以才要使用各种工具来辅助解决这类问题。&lt;/p&gt;
+
+&lt;h2 id=&#34;吃上硬件升级的红利了吗&#34;&gt;吃上硬件升级的红利了吗？&lt;/h2&gt;
+
+&lt;p&gt;前面提到过，Rust目前较大的问题是编译时间过长，这可能是导致它最近几年才开始逐渐流行开来的原因。其实反过来说，在硬件升级之后，应该能尽量利用上硬件，在编译期尽量多检查出错误来，减少运行时发现问题的数量。这样，才能吃上硬件升级的红利，利用硬件来减少自己的犯错。&lt;/p&gt;
+
+&lt;p&gt;一方面硬件升级给了编程语言能施展更大、更快的的“舞台”，随着舞台的更新，就会有更新、更好的工具出现；另一方面做为从业者，也应该与时俱进，多学习跟进这些工具的演进。&lt;/p&gt;
+
+&lt;p&gt;我看到有一些人，强调自己多早就已经用C语言写代码了，但是查内存问题还在用慢的不行的&lt;code&gt;Valgrind&lt;/code&gt;，没听过更不知道怎么用&lt;code&gt;Address Sanitizer&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;想说如果技能点都已经不更新了，强调多早学的有什么意义？好比1950年就会打算盘，有意义吗？强调多早就用C语言类似的言论，在我看来就是“倚老卖老”，但是技术日新月异的领域，卖老的意义不大。&lt;/p&gt;
+
+&lt;h2 id=&#34;rust-for-rustaceans&#34;&gt;《Rust for Rustaceans》&lt;/h2&gt;
+
+&lt;p&gt;推荐&lt;a href=&#34;https://rust-for-rustaceans.com/&#34;&gt;Rust for Rustaceans&lt;/a&gt;作者Jon Gjengset的油管频道：&lt;a href=&#34;https://www.youtube.com/c/JonGjengset/playlists&#34;&gt;https://www.youtube.com/c/JonGjengset/playlists&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;有很多很有深度的Rust分享，比如：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=bzja9fQWzdA&amp;amp;list=PLqbS7AVVErFivDY3iKAQk3_VAm8SXwt1X&#34;&gt;Implementing TCP in Rust (part 1) - YouTube&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=yQFWmGaFBjk&amp;amp;list=PLqbS7AVVErFj824-6QgnK_Za1187rNfnl&#34;&gt;Porting Java&amp;rsquo;s ConcurrentHashMap to Rust (part 1) - YouTube&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
       <title>周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇</title>
       <link>https://www.codedump.info/post/20220220-weekly-6/</link>
       <pubDate>Sun, 20 Feb 2022 10:53:41 +0800</pubDate>
@@ -347,7 +462,7 @@
 
 &lt;h3 id=&#34;linux早期内核实现解析&#34;&gt;Linux早期内核实现解析&lt;/h3&gt;
 
-&lt;p&gt;许多年以前，赵炯博士在网上公开过一份文档，基本上&lt;strong&gt;逐行&lt;/strong&gt;讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，但是还能搜索下载《linux内核完全剖析基于linux0.11》，也有对应的公开发行物：&lt;a href=&#34;https://book.douban.com/subject/3229243/&#34;&gt;Linux内核完全剖析 (豆瓣)&lt;/a&gt;。&lt;/p&gt;
+&lt;p&gt;许多年以前，赵炯博士在网上公开过一份文档，基本上&lt;strong&gt;逐行&lt;/strong&gt;讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，在官网的页面&lt;a href=&#34;http://www.oldlinux.org/book.html&#34;&gt;Early Linux Kernel Analisys and Comments&lt;/a&gt;也提供了这份文档电子版的下载链接：&lt;a href=&#34;http://www.oldlinux.org/download/clk011c-1.9.5.pdf，也有对应的公开发行物：[Linux内核完全剖析&#34;&gt;http://www.oldlinux.org/download/clk011c-1.9.5.pdf，也有对应的公开发行物：[Linux内核完全剖析&lt;/a&gt; (豆瓣)](&lt;a href=&#34;https://book.douban.com/subject/3229243/)。&#34;&gt;https://book.douban.com/subject/3229243/)。&lt;/a&gt;&lt;/p&gt;
 </description>
     </item>
     
@@ -4583,105 +4698,6 @@ typedef struct sqlite3_pcache sqlite3_pcache;
 &lt;li&gt;BohuTANG已经在数据库领域沉浸多年，前阿里云数据库内核组早期成员、前青云数据库团队负责人。现在数据库领域创业，公司的项目是：&lt;a href=&#34;https://github.com/datafuselabs/databend&#34;&gt;datafuselabs/databend&lt;/a&gt;，欢迎围观。&lt;/li&gt;
 &lt;li&gt;博客地址：&lt;a href=&#34;https://bohutang.me/&#34;&gt;[ 虎哥的博客 ]&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>为什么Raft协议不能提交之前任期的日志？</title>
-      <link>https://www.codedump.info/post/20211011-raft-propose-prev-term/</link>
-      <pubDate>Mon, 11 Oct 2021 23:14:01 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20211011-raft-propose-prev-term/</guid>
-      <description>
-
-&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
-
-&lt;p&gt;在Raft大论文中3.6.2中，有一个细节“不允许提交之前任期的日志”，之前看了几次都理解的不够准确，把这部分内容展开阐述一下。&lt;/p&gt;
-
-&lt;h1 id=&#34;问题&#34;&gt;问题&lt;/h1&gt;
-
-&lt;p&gt;还是先从论文的图例开始解释，如下图：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211011-raft-propose-prev-term/propose-prev-term.png&#34; alt=&#34;论文截图&#34; title=&#34;论文截图&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;需要特别说明的是，图例中演示的是&lt;strong&gt;“如果允许提交之前任期的日志，将导致什么问题”&lt;/strong&gt;，这是大前提，这个前提条件后面会反复强调。&lt;/p&gt;
-
-&lt;p&gt;有了这个前提，下面展开图中的步骤讨论：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;(a) ：S1 是leader，将黄色的日志2同步到了S2，然后S1崩溃。&lt;/li&gt;
-&lt;li&gt;(b) ：S5 在任期 3 里通过 S3、S4 和自己的选票赢得选举，将蓝色日志3存储到本地，然后崩溃了。&lt;/li&gt;
-&lt;li&gt;(c)：S1重新启动，选举成功。注意在这时，&lt;strong&gt;如果允许“提交之前任期的日志”&lt;/strong&gt;，将首先开始同步过往任期的日志，即将S1上的本地黄色的日志2同步到了S3。这时黄色的节点2已经同步到了集群多数节点，然后S1写了一条新日志4，然后S1又崩溃了。&lt;/li&gt;
-&lt;li&gt;接下来，就可能出现两种不同的情况：
-
-&lt;ul&gt;
-&lt;li&gt;（d1）：S5重新当选，&lt;strong&gt;如果允许“提交之前任期的日志”&lt;/strong&gt;，就开始同步往期日志，将本地的蓝色日志3同步到所有的节点。结果已经被同步到半数以上节点的黄色日志2被覆盖了。这说明，如果允许“提交之前任期的日志”，会可能出现即便已经同步到半数以上节点的日志被覆盖，这是不允许的。&lt;/li&gt;
-&lt;li&gt;（d2）：反之，如果在崩溃之前，S1不去同步往期的日志，而是首先同步自己任期内的日志4到所有节点，就不会导致黄色日志2被覆盖。因为leader同步日志的流程中，会通过不断的向后重试的方式，将日志同步到其他所有follower，只要日志4被复制成功，在它之前的日志2就会被复制成功。（d2）是想说明：不能直接提交过往任期的日志，即便已经被多数通过，但是可以先同步一条自己任内的日志，如果这条日志通过，就能带着前面的日志一起通过，这是（c）和（d2）两个图的区别。图（c）中，S1先去提交过往任期的日志2，图（d2）中，S1先去提交自己任内的日志4。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;再次强调，这里图示想演示的是&lt;strong&gt;“如果允许提交之前任期的日志，将导致什么问题”&lt;/strong&gt;。&lt;/p&gt;
-
-&lt;p&gt;我们可以看到的是，如果允许这么做，那么：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;(c)中，S1恢复之后，又再次提交在任期2中的黄色日志2。但是，从后面可以看到，即便这个之前任期中的黄色日志2，提交到大部分节点，如果允许“提交之前任期的日志”，仍然存在被覆盖的可能性，因为：&lt;/li&gt;
-&lt;li&gt;(d1)中，S5恢复之后，也会提交在自己本地上保存的之前任期3的蓝色日志，这会导致覆盖了前面已经到半数以上节点的黄色日志2。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;所以，“如果允许提交之前任期的日志”，即如同(c)和(d1)演示的那样：重新当选之后，马上提交自己本地保存的、之前任期的日志，就会&lt;strong&gt;可能导致即便已经同步到半数以上节点的日志，被覆盖的情况&lt;/strong&gt;。&lt;/p&gt;
-
-&lt;p&gt;而“已同步到半数以上节点的日志”，一定在新当选leader上（否则这个节点不可能成为新leader）且达成了一致可提交，即不允许被覆盖。&lt;/p&gt;
-
-&lt;p&gt;这就是矛盾的地方，即允许“提交之前任期的日志”，最终导致了违反协议规则的情况。&lt;/p&gt;
-
-&lt;p&gt;那么，如何确保新当选的leader节点，其本地的未提交日志被正确提交呢？图(d2)展示了正常的情况：即当选之后，不要首先提交本地已有的黄色日志2，而是首先提交一条新日志4，如果这条新日志被提交成功，那么按照Raft日志的匹配规则（log matching property）：日志4如果能提交，它前面的日志也提交了。&lt;/p&gt;
-
-&lt;p&gt;可是，新的问题又出现了，如果在(d2)中，S1重新当选之后，客户端写入没有这条新的日志4，那么前面的日志2是不是永远无法提交了？为了解决这个问题，raft要求每个leader新当选之后，马上写入一条只有任期号和索引、而没有内容的所谓“no-op”日志，以这条日志来驱动在它之前的日志达成一致。&lt;/p&gt;
-
-&lt;p&gt;这就是论文中这部分内容想要表达的。这部分内容之所以比较难理解，是因为经常忽略了这个图示展示的是错误的情况，允许“提交之前任期的日志”可能导致的问题。&lt;/p&gt;
-
-&lt;h1 id=&#34;其他疑问&#34;&gt;其他疑问&lt;/h1&gt;
-
-&lt;h2 id=&#34;c-和-d2-有什么区别&#34;&gt;(c)和(d2) 有什么区别？&lt;/h2&gt;
-
-&lt;p&gt;看起来，(c)和(d2)一样，S1当选后都提交了日志1、2、4，那么两者的区别在哪里？&lt;/p&gt;
-
-&lt;p&gt;虽然两个场景中，提交的日志都是一样的，但是日志达成一致的顺序并不一致：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;(c)：S1成为leader之后，先提交过往任期、本地的日志2，再提交日志4。这就是“提交之前任期日志”的情况。&lt;/li&gt;
-&lt;li&gt;(d2)：S1成为leader之后，先提交本次任期的日志4，如果日志4能提交成功，那么它前面的日志2就能提交成功了。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;关于(d2)的这个场景，有可能又存在着下一个疑问：&lt;/p&gt;
-
-&lt;h2 id=&#34;如何理解-d2-中-本任期的日志4提交成功-那么它前面的日志2也能提交成功了&#34;&gt;如何理解(d2)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？&lt;/h2&gt;
-
-&lt;p&gt;这是由raft日志的&lt;code&gt;Log Matching Property&lt;/code&gt;决定的:&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;If two entries in different logs have the same index and term, then they store the same command.
-If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.&lt;/li&gt;
-&lt;li&gt;If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;第一条性质，说明的是在不同节点上的已提交的日志，如果任期号、索引一样，那么它们的内容肯定一样。这是由leader节点的安全性和leader上的日志只能添加不能覆盖来保证的，这样leader就永远不会在同一个任期，创建两个相同索引的日志。&lt;/p&gt;
-
-&lt;p&gt;第二条性质，说明的是在不同节点上的日志中，如果其中有同样的一条日志（即相同任期和索引）已经达成了一致，那么在这不同节点上在这条日志之前的所有日志都是一样的。&lt;/p&gt;
-
-&lt;p&gt;第二条性质是由leader节点向follower节点上根据&lt;code&gt;AppendEntries&lt;/code&gt;消息同步日志上保证的。leader在&lt;code&gt;AppendEntries&lt;/code&gt;消息中会携带新的新添加entries之前日志的term和index，follower会判断在log中是否存在拥有此term和index的消息，如果没有就会拒绝。&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;leader为每一个follower维护一个nextIndex，表示待发送的下一个日志的index。初始化为日志长度。&lt;/li&gt;
-&lt;li&gt;leader在follower拒绝&lt;code&gt;AppendEntries&lt;/code&gt;之后会对nextIndex减一，然后继续重试AppendEntries直到两者一致。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;于是，回到我们开始的问题，(d2)场景中，在添加本任期日志4的时候，会发现有一些节点上并不存在过往任期的日志2，这时候就会相应地计算不同节点的nextIndex索引，来驱动同步日志2到这些节点上。&lt;/p&gt;
-
-&lt;p&gt;总而言之，根据日志的性质，只要本任期的日志4能达成一致，上一条日志2就能达成一致。&lt;/p&gt;
 </description>
     </item>
     
