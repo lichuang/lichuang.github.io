@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 04 Mar 2022 22:10:11 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 13 Mar 2022 11:20:59 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -191,6 +191,267 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>周刊（第9期）：Mozilla rr使用简介</title>
+      <link>https://www.codedump.info/post/20220313-weekly-9/</link>
+      <pubDate>Sun, 13 Mar 2022 11:20:59 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220313-weekly-9/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：在之前的&lt;a href=&#34;https://www.codedump.info/post/20220227-weekly-7/&#34;&gt;周刊（第7期）：一个C系程序员的Rust初体验&lt;/a&gt;中，简单提到过Mozilla rr这款调试工具，由于这个工具并不是太为人所知，所以本文对该工具做一个简介。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;mozilla-rr使用简介&#34;&gt;Mozilla rr使用简介&lt;/h1&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://rr-project.org/&#34;&gt;rr&lt;/a&gt;是由Mozilla出品的一款调试工具，用官网的话来说：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;rr aspires to be your primary C/C++ debugging tool for Linux, replacing — well, enhancing — gdb. You record a failure once, then debug the recording, deterministically, as many times as you want. The same execution is replayed every time.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;即它的特点是：可以记录下来程序运行时的上下文环境，包括线程、堆栈、寄存器等等，这样的好处有两个：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;“deterministically”：很多问题问题的产生，都与特定的环境相关，如：
+
+&lt;ul&gt;
+&lt;li&gt;线程调度执行的顺序，先执行A线程再B线程，以及反之，可能得到的是不同的结果。&lt;/li&gt;
+&lt;li&gt;环境参数，如输入不同的参数，尤其一些边界条件的触发就跟输入不同的参数有关。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;replay：记录下来程序执行的环境之后，rr除了支持gdb方式的调试之后，还能利用环境来不停的重放程序，甚至反向来执行程序。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;以下对&lt;code&gt;rr&lt;/code&gt;的使用做一些简单的介绍。&lt;/p&gt;
+
+&lt;h2 id=&#34;deterministically&#34;&gt;deterministically&lt;/h2&gt;
+
+&lt;p&gt;以下面一个最简单的多线程程序来解释何为&lt;code&gt;deterministically&lt;/code&gt;：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-c&#34;&gt;#include &amp;lt;pthread.h&amp;gt;
+#include &amp;lt;stdio.h&amp;gt;
+
+void * doPrint(void *arg)
+{
+    return NULL;
+}
+
+int main() {
+    pthread_t pid;
+    pthread_create(&amp;amp;pid, NULL, doPrint, NULL);
+    printf(&amp;quot;pid = %lu\n&amp;quot;, pid);
+
+    return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这个程序很简单：创建一个线程之后，打印线程的pid。&lt;/p&gt;
+
+&lt;p&gt;如果多次执行，会发现每次打印出来的pid并不一样：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ ./a.out
+pid = 140301410010880
+
+$ ./a.out
+pid = 139804250023680
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这个原因自不必多说：每次程序执行的时候，执行环境是有变化的。&lt;/p&gt;
+
+&lt;p&gt;这个简单的结论，对应到bug出现的场景上，有的代码可能正常的情况下没有异常，但是会出现在特定的场景下：特定的输入参数、特定的线程执行顺序，等等。换言之，问题并不是必现的，即&lt;code&gt;un-deterministically&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;rr&lt;/code&gt;的一大功能，就是要解决这个&lt;code&gt;deterministically&lt;/code&gt;问题，即在问题发现的时候，能有一个确定的环境，可以反复重现问题。&lt;/p&gt;
+
+&lt;h2 id=&#34;record-and-replay&#34;&gt;record and replay&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;rr&lt;/code&gt;这个名字里的两个r，意指&lt;code&gt;record and replay&lt;/code&gt;，即“记录及回放”，它的使用也很简单，就是这两步：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;record：&lt;code&gt;rr record /your/application --args&lt;/code&gt; 记录下来程序的执行环境。&lt;/li&gt;
+&lt;li&gt;replay：&lt;code&gt;rr replay&lt;/code&gt;，默认将使用最近保存的记录文件进行回放，回放时可以进入类似gdb那样的调试环境。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;比如前面那个多线程程序，使用&lt;code&gt;rr&lt;/code&gt;来记录及回放就是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;record：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rr record ./a.out
+Freezing performance counters on SMIs should be turned on for maximum rr
+reliability on Comet Lake and later CPUs. Consider putting
+&#39;w /sys/devices/cpu/freeze_on_smi - - - - 1&#39; in /etc/tmpfiles.d/10-rr.conf
+See &#39;man 5 sysfs&#39;, &#39;man 5 tmpfiles.d&#39; (systemd systems)
+rr: Saving execution to trace directory `/home/codedump/.local/share/rr/a.out-0&#39;.
+pid = 139837942626048
+&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;可以看到记录执行的时候，打印出来的&lt;code&gt;pid&lt;/code&gt;是&lt;code&gt;139837942626048&lt;/code&gt;。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;replay：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ rr replay
+
+...省略不重要信息...
+
+（进入replay之后第一次执行，是按`c`）
+
+(rr) c
+Continuing.
+pid = 139837942626048
+
+（前面已经执行完毕，想要第二次执行，按`r`（run））
+
+(rr) r
+[Inferior 1 (process 36022) exited normally]
+Starting program: /home/codedump/.local/share/rr/a.out-0/mmap_hardlink_4_a.out
+
+Program stopped.
+0x00007f2e8f19c100 in ?? () from /lib64/ld-linux-x86-64.so.2
+(rr) c
+Continuing.
+pid = 139837942626048
+&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;可以看到，前后两次重放执行，打印的&lt;code&gt;pid&lt;/code&gt;都是之前记录的值&lt;code&gt;139837942626048&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;这就意味着：record下来的程序执行环境，后面可以不停的回放。因为重现问题的场景很重要，有时候还不好复现，那么类似&lt;code&gt;rr&lt;/code&gt;这样能记录下来执行环境并且重放的能力，对于查找问题就特别重要了。&lt;/p&gt;
+
+&lt;h2 id=&#34;高级用法&#34;&gt;高级用法&lt;/h2&gt;
+
+&lt;p&gt;前面提到过，使用&lt;code&gt;rr replay&lt;/code&gt;来重放记录时，实际会进入类似gdb那样的一个调试环境，在这个环境里，常用的gdb命令都可以使用，所以这些不会展开讨论，只说一下&lt;code&gt;rr&lt;/code&gt;在这里具备的一些其他更高级的调试能力。&lt;/p&gt;
+
+&lt;h3 id=&#34;事件&#34;&gt;事件&lt;/h3&gt;
+
+&lt;p&gt;为了能够更加精准的跟进某个问题，&lt;code&gt;rr&lt;/code&gt;提供了事件（event）的概念，每个事件有与之相关的两个值：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;进程pid。&lt;/li&gt;
+&lt;li&gt;事件编号。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;code&gt;rr&lt;/code&gt;在replay的时候，可以带上&lt;code&gt;-M&lt;/code&gt;参数打印出来事件编号，比如前面的实例程序改成这样：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-c&#34;&gt;#include &amp;lt;pthread.h&amp;gt;
+#include &amp;lt;stdio.h&amp;gt;
+
+void * doPrint(void *arg) {
+  int i = *((int*)arg);
+  printf(&amp;quot;in thread %d\n&amp;quot;, i);
+  return NULL;
+}
+
+int main() {
+  int i = 0;
+  for (i = 0; i &amp;lt; 10; ++i) {
+    pthread_t pid;
+    pthread_create(&amp;amp;pid, NULL, doPrint, &amp;amp;i);
+    printf(&amp;quot;pid = %lu\n&amp;quot;, pid);
+  }
+  return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这里创建了10个线程，线程中分别打印循环变量，如果使用&lt;code&gt;-M&lt;/code&gt;在输出时就能看到如下的信息：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;(rr) c
+Continuing.
+[rr 4450 288]pid = 140096584951552
+[rr 4450 305]in thread 1
+[rr 4450 313]pid = 140096574461696
+[rr 4450 330]in thread 2
+[rr 4450 337]pid = 140096563971840
+[rr 4450 354]in thread 3
+[rr 4450 361]pid = 140096555579136
+[rr 4450 378]in thread 4
+[rr 4450 385]pid = 140096547186432
+[rr 4450 402]in thread 5
+[rr 4450 409]pid = 140096538793728
+[rr 4450 426]in thread 6
+[rr 4450 433]pid = 140096530401024
+[rr 4450 450]in thread 7
+[rr 4450 457]pid = 140096522008320
+[rr 4450 474]in thread 8
+[rr 4450 481]pid = 140096513615616
+[rr 4450 498]in thread 9
+[rr 4450 505]pid = 140096505222912
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;最左边显示事件的格式为&lt;code&gt;[rr pid 事件id]&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;知道了事件对应的&lt;code&gt;(pid,事件id)&lt;/code&gt;二元组之后，在replay的时候，可以指定这两个值，比如：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;pre&gt;&lt;code&gt;rr -M replay -g 事件id
+或者
+rr -M replay -p pid
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;让程序replay的时候迅速到达指定事件发生的场景下。比如上面的例子中，如果使用&lt;code&gt;rr -M replay -g 354&lt;/code&gt;就能马上重放到&lt;code&gt;[rr 4450 354]in thread 3&lt;/code&gt;这一处。&lt;/p&gt;
+
+&lt;p&gt;这种基于事件的调试方式，调试那种代码相同，但是由于输入参数不同导致的问题时，特别管用，因为可以直达问题发生的环境。&lt;/p&gt;
+
+&lt;h3 id=&#34;反向执行-reverse-execution&#34;&gt;反向执行（Reverse execution）&lt;/h3&gt;
+
+&lt;p&gt;有了记录的能力之后，&lt;code&gt;rr&lt;/code&gt;除了能正向执行程序，还能反向来执行程序，这点在那种看到程序的环境发生了变化，但是不知道怎么发生，想重试一下的情况下特别管用。&lt;/p&gt;
+
+&lt;p&gt;单向调试执行程序时，用的是&lt;code&gt;step&lt;/code&gt;、&lt;code&gt;next&lt;/code&gt;、&lt;code&gt;continue&lt;/code&gt;、&lt;code&gt;finish&lt;/code&gt;等命令，反向执行就在这些命令前面加上&lt;code&gt;reverse-&lt;/code&gt;前缀，如&lt;code&gt;reverse-cont&lt;/code&gt;（后面的可以简写）。&lt;/p&gt;
+
+&lt;h2 id=&#34;缺点&#34;&gt;缺点&lt;/h2&gt;
+
+&lt;p&gt;前面介绍了&lt;code&gt;rr&lt;/code&gt;要解决的问题，最后聊一下它的缺陷。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;rr&lt;/code&gt;最开始是由Mozilla开发的工具，看来Mozilla对这类运行时问题也是深恶痛绝，发明了很多工具试图提高效率，Rust是另外一个重要的工具，可以参见之前&lt;a href=&#34;https://www.codedump.info/post/20220227-weekly-7/&#34;&gt;周刊（第7期）：一个C系程序员的Rust初体验&lt;/a&gt;中我对Rust的使用体验。&lt;/li&gt;
+&lt;li&gt;很可惜，这个工具貌似只能在Linux上面运行，并没有Win\Mac版本，而且貌似也不怎么更新了。&lt;/li&gt;
+&lt;li&gt;由于&lt;code&gt;rr&lt;/code&gt;在记录时，需要记录大量的数据来保存程序运行时的场景，这样一来会给程序带来卡顿，二来会有大量的记录数据，所以并不适合直接在生产环境上使用这个工具。更适合的场景是：已经找到了重现问题的办法，此时可以搭建一个环境开启&lt;code&gt;rr&lt;/code&gt;记录下来重现时的环境，即并不适合漫无目的的就打开这个工具使用。&lt;/li&gt;
+&lt;li&gt;以上&lt;code&gt;rr&lt;/code&gt;的缺陷，归根到底还是之前提到的：查找运行时的问题太难了，尽量在编译时屏蔽可能出现的问题，真等问题到了运行时再解决的时候，时间、精力、场景复现等等都是不可控的。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;番外篇&#34;&gt;番外篇&lt;/h1&gt;
+
+&lt;h2 id=&#34;rr使用的wiki&#34;&gt;rr使用的wiki&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;rr&lt;/code&gt;的github上，有一篇更为详细一些的介绍使用的&lt;a href=&#34;https://github.com/rr-debugger/rr/wiki/Usage&#34;&gt;Usage · rr-debugger/rr Wiki&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&#34;rr视频教程&#34;&gt;rr视频教程&lt;/h2&gt;
+
+&lt;p&gt;油管上有几个视频教程，见：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=hYsLBcTX00I&#34;&gt;Quick rr Demo - YouTube&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=61kD3x4Pu8I&#34;&gt;rr 1.2 basic demo - YouTube&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=H4iNuufAe_8&#34;&gt;Robert O&amp;rsquo;Callahan - Corporation Taming Nondeterminism - YouTube&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;其它文档&#34;&gt;其它文档&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;介绍了&lt;code&gt;rr&lt;/code&gt;是如何实现的：&lt;a href=&#34;https://arxiv.org/pdf/1705.05937.pdf&#34;&gt;Engineering Record And Replay For Deployability Extended Technical Report&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;如何在开源项目中做重构&#34;&gt;《如何在开源项目中做重构？》&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/JrxNyDKNg9MseQZ7PlG2VQ&#34;&gt;《如何在开源项目中做重构？》&lt;/a&gt;，总结了维护一个开源项目重构的经验。&lt;/p&gt;
+
+&lt;h2 id=&#34;linux-containers-in-500-lines-of-code&#34;&gt;《Linux containers in 500 lines of code》&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://blog.lizzie.io/linux-containers-in-500-loc.html&#34;&gt;Linux containers in 500 lines of code&lt;/a&gt;，讲解Linux容器原理的文章。&lt;/p&gt;
+
+&lt;h2 id=&#34;收集整理远程工作相关的资料&#34;&gt;收集整理远程工作相关的资料&lt;/h2&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/greatghoul/remote-working&#34;&gt;greatghoul/remote-working: 收集整理远程工作相关的资料&lt;/a&gt;，但是貌似已经不更新了。&lt;/p&gt;
 </description>
     </item>
     
@@ -4325,459 +4586,6 @@ static void walUnlockExclusive(Wal *pWal, int lockIdx, int n);
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&#34;https://sqlite.org/atomiccommit.html&#34;&gt;Atomic Commit In SQLite&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.sqlite.org/lockingv3.html&#34;&gt;File Locking And Concurrency In SQLite Version 3&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>sqlite3.36版本 btree实现（一）- 管理页面缓存</title>
-      <link>https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/</link>
-      <pubDate>Fri, 17 Dec 2021 14:22:06 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/</guid>
-      <description>
-
-&lt;p&gt;《sqlite3.36版本 btree实现》系列文章：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20211217-sqlite-btree-0/&#34;&gt;sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/&#34;&gt;sqlite3.36版本 btree实现（一）- 管理页面缓存 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/&#34;&gt;sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20211222-sqlite-btree-3-journal/&#34;&gt;sqlite3.36版本 btree实现（三）- journal文件备份机制 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20220106-sqlite-btree-4-wal/&#34;&gt;sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20220201-sqlite-btree-5-btree/&#34;&gt;sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
-
-&lt;p&gt;&lt;code&gt;页面管理&lt;/code&gt;模块中，很重要的一个功能是缓存页面的内容在内存中：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;读页面：如果页面已经在内存，就不需要到文件中读出页面内容。&lt;/li&gt;
-&lt;li&gt;写页面：如果页面已经在内存，那么对页面的修改就只需要修改页面在内存中的数据即可，被修改了但是还没有落盘的页面，被称为“脏页面（dirty page）“。这样，多次对某个页面的修改，可能最后只需要一次落盘即可。当然，对页面的修改，如果在还没有落盘之前，系统就崩溃了，这种情况下应该如何处理，这就是“崩溃恢复”模块做的事情了。本节中，将专注在“页面缓存”这个子模块的实现。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;既然要将页面缓存在内存中，就会涉及到几个功能：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;如何知道哪些页面已经被缓存在内存里了？&lt;/li&gt;
-&lt;li&gt;缓存在内存中的页面如何组织管理？&lt;/li&gt;
-&lt;li&gt;缓存页面使用的内存不够用时，应该如何处理？&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;我们首先来了解一下“页面缓存”模块的总体划分：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache.png&#34; alt=&#34;页面缓存功能的模块划分&#34; title=&#34;页面缓存功能的模块划分&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;按照上图的划分，页面缓存模块分为以下几部分：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;页面缓存管理器：实现了页面缓存的总体算法流程，以及提供对外的接口，但是具体到“页面缓存算法”的实现，则有赖于下面这个可用户定制的&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;。这部分功能在代码&lt;code&gt;pcache.c&lt;/code&gt;中。&lt;/li&gt;
-&lt;li&gt;页面缓存算法：用户可自己定制，只要实现&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体中的接口即可。系统中的默认实现，在文件&lt;code&gt;pcache1.c&lt;/code&gt;中。&lt;/li&gt;
-&lt;li&gt;除此以外，还需要快速根据页面编号就能知道哪些页面已经被缓存的功能，这部分sqlite使用位图数据结构来实现，在文件&lt;code&gt;bitvec.c&lt;/code&gt;中。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;页面缓存管理器，核心功能就是维护脏页面链表，缓存页面的管理，诸如根据页面编号查找页面、淘汰页面算法等，都由“页面缓存算法”来维护。可以这样来简单的理解上面的功能划分：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;“页面缓存管理器”：定义了管理页面缓存的接口、总体流程，维护管理目前在用的脏页面。&lt;/li&gt;
-&lt;li&gt;“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。当内存不足以分配时，需要淘汰不常用的页面，这时候需要使用“页面缓存管理器”注册的回调函数来淘汰页面。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache_module.png&#34; alt=&#34;页面缓存两个模块的功能划分&#34; title=&#34;页面缓存两个模块的功能划分&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;简而言之，如果把当前在内存中的页面划分为以下两类，那么：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;当前在使用的页面：即与页面编号对应的页面，由“页面缓存管理器”维护。&lt;/li&gt;
-&lt;li&gt;当前还未使用、但也在内存中的页面：即随时准备拿出来存储从磁盘中读出来的数据的页面，由“页面缓存算法”维护，比如淘汰、回收、复用等。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png&#34; alt=&#34;两种页面的划分&#34; title=&#34;两种页面的划分&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;下面，就开始“页面缓存”这几部分功能的具体讲解。&lt;/p&gt;
-
-&lt;h1 id=&#34;管理页面&#34;&gt;管理页面&lt;/h1&gt;
-
-&lt;h2 id=&#34;页面相关的数据数据结构&#34;&gt;页面相关的数据数据结构&lt;/h2&gt;
-
-&lt;p&gt;首先来看页面相关的数据结构，sqlite中使用&lt;code&gt;PgHdr&lt;/code&gt;结构体来在内存中描述一个页面：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;/*
-** Every page in the cache is controlled by an instance of the following
-** structure.
-*/
-struct PgHdr {
-  sqlite3_pcache_page *pPage;    /* Pcache object page handle */
-  void *pData;                   /* Page data */
-  void *pExtra;                  /* Extra content */
-  PCache *pCache;                /* PRIVATE: Cache that owns this page */
-  PgHdr *pDirty;                 /* Transient list of dirty sorted by pgno */
-  Pager *pPager;                 /* The pager this page is part of */
-  Pgno pgno;                     /* Page number for this page */
-#ifdef SQLITE_CHECK_PAGES
-  u32 pageHash;                  /* Hash of page content */
-#endif
-  u16 flags;                     /* PGHDR flags defined below */
-
-  /**********************************************************************
-  ** Elements above, except pCache, are public.  All that follow are 
-  ** private to pcache.c and should not be accessed by other modules.
-  ** pCache is grouped with the public elements for efficiency.
-  */
-  i16 nRef;                      /* Number of users of this page */
-  PgHdr *pDirtyNext;             /* Next element in list of dirty pages */
-  PgHdr *pDirtyPrev;             /* Previous element in list of dirty pages */
-                          /* NB: pDirtyNext and pDirtyPrev are undefined if the
-                          ** PgHdr object is not dirty */
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;其中的信息，大部分在注释中已经自解释：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;pPage：这个字段稍显复杂，后面展开详细解释。&lt;/li&gt;
-&lt;li&gt;pData，pExtra：pData指向了页面实际的内容，pExtra指向页面额外数据，大部分时候，后者的内容可以忽视。&lt;/li&gt;
-&lt;li&gt;pCache：页面缓存管理器对象指针。&lt;/li&gt;
-&lt;li&gt;pDirty：脏页面链表指针。&lt;/li&gt;
-&lt;li&gt;pPager：页面管理器对象指针。（注意和pCache进行区分，pCache是“页面缓存管理器”）。&lt;/li&gt;
-&lt;li&gt;pgno：存储该页面的页面编号。&lt;/li&gt;
-&lt;li&gt;flags：页面标志位，有如下几种，可以通过位操作来加上多个标志位：
-
-&lt;ul&gt;
-&lt;li&gt;PGHDR_CLEAN：干净的页面。&lt;/li&gt;
-&lt;li&gt;PGHDR_DIRTY：脏页面。&lt;/li&gt;
-&lt;li&gt;PGHDR_WRITEABLE：已经记录下来修改之前的页面内容，所以此时可以对内存中的页面内容进行修改了。&lt;/li&gt;
-&lt;li&gt;PGHDR_NEED_SYNC：将该页面内容写入数据库文件之前，需要sync journal文件中的页面内容。&lt;/li&gt;
-&lt;li&gt;PGHDR_DONT_WRITE：不需要写页面内容到磁盘。&lt;/li&gt;
-&lt;li&gt;PGHDR_MMAP：该页面内容是通过mmap到内存中的。&lt;/li&gt;
-&lt;li&gt;PGHDR_WAL_APPEND：页面内容已经添加到WAL文件中了。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;nRef：页面引用计数。&lt;/li&gt;
-&lt;li&gt;pDirtyNext、pDirtyPrev：存储脏页面链表中前、后页面指针，如果该页面不是脏页面，则这两个字段未定义。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;可以简略的总结该结构体中的内容，最重要的莫过于以下几项：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;pData存储的页面内容，所谓的读、写页面内容实际上操作的是这个成员指向的内容。&lt;/li&gt;
-&lt;li&gt;pDirty、pDirtyNext、pDirtyPrev这几个成员维护的脏页面相关的指针。&lt;/li&gt;
-&lt;li&gt;flags维护的页面标志位，通过这些标志位来区分应该对页面进行什么操作。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/PgHdr.png&#34; alt=&#34;内存中脏页面的组织&#34; title=&#34;内存中脏页面的组织&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;h3 id=&#34;sqlite3-pcache-page数据结构&#34;&gt;sqlite3_pcache_page数据结构&lt;/h3&gt;
-
-&lt;p&gt;上面的&lt;code&gt;PgHdr&lt;/code&gt;结构体中，还有第一个成员，即&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;类型的pPage指针没有讲解，这里展开解释。&lt;/p&gt;
-
-&lt;p&gt;前面概述部分提到，“页面缓存算法”的实现，是可以交给用户自定义的，这就带来一个问题：每个自定义的实现，内部实现的管理页面的结构体可能并不相同。于是，就要类似C++中的面向对象机制一样，先声明一个“页面”的基类，基类中定义最基础的成员变量，这样做之后有这样的好处：页面管理模块，所有的操作都能针对这个基类来进行，而不需要管具体实现中的差异。&lt;/p&gt;
-
-&lt;p&gt;在这里，这个基类就是成员&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;，其定义如下：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;typedef struct sqlite3_pcache_page sqlite3_pcache_page;
-struct sqlite3_pcache_page {
-  void *pBuf;        /* The content of the page */
-  void *pExtra;      /* Extra information associated with the page */
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;成员中的用途，注释中也写得挺清楚了：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;pBuf：指向页面内容。&lt;/li&gt;
-&lt;li&gt;pExtra：保存页面的额外信息。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;既然是“基类”，就要求每个子类都要有该基类的信息，实际上也是这样做的，比如“页面缓存算法”的默认实现中，其管理页面的结构体是&lt;code&gt;PgHdr1&lt;/code&gt;（后面会展开解释这个结构体），其初始定义如下：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PgHdr1 {
-  sqlite3_pcache_page page;      /* Base class. Must be first. pBuf &amp;amp; pExtra */
-  ...
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;从注释可以看到，sqlite中要求所有实现页面缓存算法中管理页面的数据结构体，都要以&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;结构体开始做为第一个成员。&lt;/p&gt;
-
-&lt;p&gt;实际上，&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;结构体中，&lt;code&gt;pExtra&lt;/code&gt;成员包括如下两部分：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;额外内容：由系统指定&lt;code&gt;szExtra&lt;/code&gt;大小来指定这部分内容大小，简单起见，目前可以认为这部分为0。&lt;/li&gt;
-&lt;li&gt;PgHdr结构体：即前面讲解的&lt;code&gt;页面缓存模块&lt;/code&gt;中描述一个页面的结构体大小。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;读到这里，有可能把读者绕晕了，我们以代码和图示为引子详细看一下。&lt;/p&gt;
-
-&lt;p&gt;首先，创建一个“页面缓存算法”模块时，要调用&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体中定义的&lt;code&gt;xCreate&lt;/code&gt;函数指针来完成，其函数定义如下：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sqlite3_pcache *(*xCreate)(int szPage, int szExtra, int bPurgeable);
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;传入的第二个参数&lt;code&gt;szExtra&lt;/code&gt;需要指定额外部分的内容大小，实际在调用时，这个参数的大小就是我们上面说的&lt;code&gt;szExtra&lt;/code&gt;和PgHdr结构体大小之和（做了8字节对齐）：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;    sqlite3_pcache *pNew;
-    pNew = sqlite3GlobalConfig.pcache2.xCreate(
-                szPage, pCache-&amp;gt;szExtra + ROUND8(sizeof(PgHdr)),
-                pCache-&amp;gt;bPurgeable
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;于是，“页面缓存模块”中要获取一个页面时，是通过&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体中定义的&lt;code&gt;xFetch&lt;/code&gt;函数指针来完成的，这个函数指针的定义是：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;sqlite3_pcache_page *(*xFetch)(sqlite3_pcache*, unsigned key, int createFlag);
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;可以看到，这里返回的就是上面说的“基类”，即&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;结构体指针。而在内部的默认实现中，其实返回的是&lt;code&gt;PgHdr1&lt;/code&gt;指针进行强制转换之后的结果，即&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;这一基类的子类，之所以能够做，完全是因为在&lt;code&gt;PgHdr1&lt;/code&gt;结构体定义时，把&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;结构体成员放在第一个成员：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PgHdr1 {
-  sqlite3_pcache_page page;      /* Base class. Must be first. pBuf &amp;amp; pExtra */
-  ...
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;得到返回的&lt;code&gt;sqlite3_pcache_page&lt;/code&gt;指针之后，就能通过其中的&lt;code&gt;pExtra&lt;/code&gt;指针拿到&lt;code&gt;PgHdr&lt;/code&gt;：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;PgHdr *sqlite3PcacheFetchFinish(
-  PCache *pCache,             /* Obtain the page from this cache */
-  Pgno pgno,                  /* Page number obtained */
-  sqlite3_pcache_page *pPage  /* Page obtained by prior PcacheFetch() call */
-){
-  PgHdr *pPgHdr;
-
-  pPgHdr = (PgHdr *)pPage-&amp;gt;pExtra;
-  // ...
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;总结起来，如下图所示：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/sqlite3_pcache_page.png&#34; alt=&#34;sqlite3_pcache_page&#34; title=&#34;sqlite3_pcache_page&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;h2 id=&#34;页面所在的数据结构&#34;&gt;页面所在的数据结构&lt;/h2&gt;
-
-&lt;p&gt;缓存中的页面，可能存在于以下三种数据结构中：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;脏页面链表：该链表维护所有当前在使用的页面，由“页面缓存管理器”维护。&lt;/li&gt;
-&lt;li&gt;hash数组：作用是以页面编号为键来查询页面，由默认的“页面缓存算法”来维护。&lt;/li&gt;
-&lt;li&gt;LRU链表：越是常被访问的页面，在LRU链表中就越往前，从LRU链表中淘汰数据都是从链表尾部开始的，也是由默认的“页面缓存算法”来维护。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-1-pagecache/page_ds.png&#34; alt=&#34;页面所在的三种数据结构&#34; title=&#34;页面所在的三种数据结构&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;h3 id=&#34;脏页面链表&#34;&gt;脏页面链表&lt;/h3&gt;
-
-&lt;p&gt;这个页面链表叫“脏页面（dirty page）链表”实际上并不十分准确，这会让人误以为这个链表上的页面全都是脏页面，实际上是可能存在干净的页面的。更准确的说法，是当前系统在使用的页面，都维护在这个页面链表中。&lt;/p&gt;
-
-&lt;p&gt;操作这个链表的入口函数是&lt;code&gt;pcacheManageDirtyList&lt;/code&gt;，其传入的参数一个是&lt;code&gt;PgHdr&lt;/code&gt;类型的指针，另一个用于指定行为，有以下三种：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;#define PCACHE_DIRTYLIST_REMOVE   1    /* Remove pPage from dirty list */
-#define PCACHE_DIRTYLIST_ADD      2    /* Add pPage to the dirty list */
-#define PCACHE_DIRTYLIST_FRONT    3    /* Move pPage to the front of the list */
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;在&lt;code&gt;pcacheManageDirtyList&lt;/code&gt;函数实现中，也是根据这个参数进行与操作判断来做不同的行为的：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;pcacheManageDirtyList实现：
-  如果 addRemove &amp;amp; PCACHE_DIRTYLIST_REMOVE:
-    从链表上删除
-  如果 addRemove &amp;amp; PCACHE_DIRTYLIST_ADD：
-    添加到链表头
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;这里需要注意的是，参数&lt;code&gt;PCACHE_DIRTYLIST_FRONT&lt;/code&gt;为3，而另外两个参数一个是1（删除）一个是2，所以当传入&lt;code&gt;PCACHE_DIRTYLIST_FRONT&lt;/code&gt;的时候，按照上面的流程，就是首先从链表上删除，再放到链表头。&lt;/p&gt;
-
-&lt;p&gt;由于脏页面链表是由“页面缓存管理器”来管理的，所以描述页面的结构体与这个链表相关的数据结构，都在&lt;code&gt;PgHdr&lt;/code&gt;上：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PgHdr {
-  ...
-  PgHdr *pDirtyNext;             /* Next element in list of dirty pages */
-  PgHdr *pDirtyPrev;             /* Previous element in list of dirty pages */
-                          /* NB: pDirtyNext and pDirtyPrev are undefined if the
-                          ** PgHdr object is not dirty */
-}; 
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h3 id=&#34;hash数组&#34;&gt;hash数组&lt;/h3&gt;
-
-&lt;p&gt;为了快速根据页面编号，查找到该编号的页面是否已经加载到页面中，每个页面的数据还存在于一个hash数组中。&lt;/p&gt;
-
-&lt;p&gt;如前所述，这个数据结构由默认的“页面缓存算法”维护，所以与之相关的数据结构，都在结构体&lt;code&gt;PgHdr1&lt;/code&gt;上：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PgHdr1 {
-  ...
-  PgHdr1 *pNext;                 /* Next in hash table chain */
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;hash数组的实现，与一般的实现并没有太大区别，这里就不展开说了。&lt;/p&gt;
-
-&lt;h3 id=&#34;lru链表&#34;&gt;LRU链表&lt;/h3&gt;
-
-&lt;p&gt;当需要加载当前还不在内存中的页面时，需要首先分配出一块空间，用于保存从文件中加载的页面数据。如前所述，“页面缓存管理器”管理的是还在使用的页面，而“页面缓存算法”管理的是当前没有被使用的页面，所以这部分功能也是由默认的“页面缓存算法”来实现的，与之相关的数据结构，和hash数组的实现一样，也在结构体&lt;code&gt;PgHdr1&lt;/code&gt;上：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PgHdr1 {
-  ...
-  PgHdr1 *pLruNext;              /* Next in LRU list of unpinned pages */
-  PgHdr1 *pLruPrev;              /* Previous in LRU list of unpinned pages */
-                                 /* NB: pLruPrev is only valid if pLruNext!=0 */
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;当需要从“没有被使用的页面”中，分配出来一个页面数据用于保存加载的页面时，就涉及到淘汰问题：如果一个页面虽然当前没有被使用，但是由于经常被访问，所以不应该淘汰这个页面，因为很有可能它马上又会被访问到，应该首先淘汰那些不常被访问的页面，用来加载页面数据。&lt;/p&gt;
-
-&lt;p&gt;维护这些信息的数据结构，就是LRU链表：在链表中越往前的数据，意味着被访问的越频繁；反之，淘汰都是从链表尾部开始。&lt;/p&gt;
-
-&lt;h3 id=&#34;pin和unpin操作&#34;&gt;pin和unpin操作&lt;/h3&gt;
-
-&lt;p&gt;&lt;code&gt;pin&lt;/code&gt;和&lt;code&gt;unpin&lt;/code&gt;操作，在默认的缓存算法中，是针对LRU链表而言的：一个页面数据，如果执行了&lt;code&gt;pin&lt;/code&gt;操作，就是将这个页面从LRU链表上摘下来。而&lt;code&gt;unpin&lt;/code&gt;操作则反之，将页面放入LRU链表。&lt;/p&gt;
-
-&lt;p&gt;为什么需要这两个操作？&lt;/p&gt;
-
-&lt;p&gt;再复习一下前面提到的分工：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;页面缓存管理器：负责维护在使用的页面。&lt;/li&gt;
-&lt;li&gt;页面缓存算法：负责维护未使用的页面。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;假设一个页面编号为N的页面，被访问时需要加载到内存，此时就会由“页面缓存管理器”加载到内存中，放入脏页面链表；而一旦访问完成，就会调用页面缓存算法的&lt;code&gt;xUnpin&lt;/code&gt;函数指针执行&lt;code&gt;unpin&lt;/code&gt;操作（实现页面缓存算法的&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体在后面解释）。&lt;/p&gt;
-
-&lt;p&gt;在默认的缓存算法中，执行&lt;code&gt;unpin&lt;/code&gt;操作，就是将页面放入LRU链表，并不会将页面从hash数组中删除，也就是说：&lt;code&gt;unpin&lt;/code&gt;操作，并不妨碍这个能够以页面编号从hash数组中再次查到该页面的数据。&lt;/p&gt;
-
-&lt;p&gt;换言之，&lt;code&gt;unpin&lt;/code&gt;操作是在“页面缓存算法”使用完毕某个页面时执行的，只是用来通知“页面缓存算法”：这个页面我已经用不上了，后续怎么处理，可以由“页面缓存算法”自行决定。&lt;/p&gt;
-
-&lt;p&gt;于是，对于那些经常被访问的页面，即便当前没有被使用，真正到需要它的时候，只要没有被淘汰出去分配给其他页面，就不再需要再次从文件中加载出来。&lt;/p&gt;
-
-&lt;h2 id=&#34;页面缓存管理器&#34;&gt;页面缓存管理器&lt;/h2&gt;
-
-&lt;h3 id=&#34;页面缓存管理器的数据结构&#34;&gt;页面缓存管理器的数据结构&lt;/h3&gt;
-
-&lt;p&gt;页面缓存管理器，核心功能就是维护脏页面链表，页面缓存管理器的数据结构中最重要的莫过于以下几个成员：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;struct PCache {
-  PgHdr *pDirty, *pDirtyTail;         /* List of dirty pages in LRU order */
-  PgHdr *pSynced;                     /* Last synced page in dirty page list */
-  ...
-
-  int (*xStress)(void*,PgHdr*);       /* Call to try make a page clean */
-  void *pStress;                      /* Argument to xStress */
-  sqlite3_pcache *pCache;             /* Pluggable cache module */
-}
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;可以看到，有两个维护页面链表相关的指针：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;脏页面链表：由成员pDirty, pDirtyTail指向该链表的一头一尾。脏页面链表中，页面是按照LRU的顺序进行排列的，即：越靠近链表尾的页面最可能被淘汰。&lt;/li&gt;
-&lt;li&gt;最后进行sync的页面指针：在脏页面链表中，pSynced始终指向最后一个已经进行sync操作的页面。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;为什么需要多一个&lt;code&gt;pSynced&lt;/code&gt;指针？因为在页面缓存紧张的时候，需要快速知道哪些页面已经sync了，这样的页面淘汰的代价最低，具体可以看函数&lt;code&gt;sqlite3PcacheFetchStress&lt;/code&gt;的实现，该函数的大体流程是：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;分为两步寻找可以淘汰的页面：
-  首先在pSynced指针开始往前找不需要sync且引用计数为0的页面
-  如果找不到就继续在脏页面链表中寻找引用计数为0的页面
-  找到之后，调用注册的xStress进行淘汰操作
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;除了这几个和脏页面链表相关的数据结构之外，上面还列举出来了其他几个成员：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;xStress和pStress：在页面缓存出现压力时，需要将页面淘汰同时进行清理，清理页面的操作最终由&lt;code&gt;xStress&lt;/code&gt;函数指针来完成。&lt;/li&gt;
-&lt;li&gt;sqlite3_pcache：下面会提到，实现“页面缓存算法”的&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体，其内部的&lt;code&gt;xCreate&lt;/code&gt;函数指针最终会创建出一个&lt;code&gt;sqlite3_pcache&lt;/code&gt;返回，后续调用&lt;code&gt;页面缓存算法&lt;/code&gt;时，传入的都是这个返回的指针。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&#34;页面缓存算法结构体&#34;&gt;页面缓存算法结构体&lt;/h2&gt;
-
-&lt;p&gt;页面缓存算法，需要实现&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;接口并且注册到系统中，来看&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;的定义：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;typedef struct sqlite3_pcache_methods2 sqlite3_pcache_methods2;
-struct sqlite3_pcache_methods2 {
-  int iVersion;
-  void *pArg;
-  int (*xInit)(void*);
-  void (*xShutdown)(void*);
-  sqlite3_pcache *(*xCreate)(int szPage, int szExtra, int bPurgeable);
-  void (*xCachesize)(sqlite3_pcache*, int nCachesize);
-  int (*xPagecount)(sqlite3_pcache*);
-  sqlite3_pcache_page *(*xFetch)(sqlite3_pcache*, unsigned key, int createFlag);
-  void (*xUnpin)(sqlite3_pcache*, sqlite3_pcache_page*, int discard);
-  void (*xRekey)(sqlite3_pcache*, sqlite3_pcache_page*, 
-      unsigned oldKey, unsigned newKey);
-  void (*xTruncate)(sqlite3_pcache*, unsigned iLimit);
-  void (*xDestroy)(sqlite3_pcache*);
-  void (*xShrink)(sqlite3_pcache*);
-};
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;p&gt;逐个解释：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;iVersion：版本号。&lt;/li&gt;
-&lt;li&gt;pArg：参数。&lt;/li&gt;
-&lt;li&gt;xInit：初始化模块的函数指针，这在模块初始化时一次性调用即可。&lt;/li&gt;
-&lt;li&gt;xShutdown：停止模块的函数指针。&lt;/li&gt;
-&lt;li&gt;xCreate：创建一个“页面缓存算法”的指针&lt;code&gt;sqlite3_pcache&lt;/code&gt;返回，注意这个函数里传入了页面大小、额外空间大小，这些都在上面有说明。后续的其他函数指针，传入的第一个参数都是这里返回的&lt;code&gt;sqlite3_pcache&lt;/code&gt;指针。&lt;/li&gt;
-&lt;li&gt;xCachesize：返回当前cache大小。&lt;/li&gt;
-&lt;li&gt;xPagecount：返回页面数量。&lt;/li&gt;
-&lt;li&gt;xFetch：核心函数，根据传入的&lt;code&gt;key&lt;/code&gt;在缓存中查找页面，如果没有找到则按照&lt;code&gt;createFlag&lt;/code&gt;参数来决定后面的行为。&lt;/li&gt;
-&lt;li&gt;xUnpin：页面的引用计数为0时就会调用这个函数。&lt;/li&gt;
-&lt;li&gt;xRekey：表示把页面的key进行修改，这里key其实就是页面编号。&lt;/li&gt;
-&lt;li&gt;xTruncate：将所有页面编号&amp;gt;=iLimit的页面都释放，回收内存。&lt;/li&gt;
-&lt;li&gt;xDestroy：销毁前面&lt;code&gt;xCreate&lt;/code&gt;函数返回的&lt;code&gt;sqlite3_pcache&lt;/code&gt;指针。&lt;/li&gt;
-&lt;li&gt;xShrink：尽可能的回收内存。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;需要说明的是：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;xInit函数：完成初始化这个模块的工作。&lt;/li&gt;
-&lt;li&gt;xCreate：返回创建一个“页面缓存算法”的指针&lt;code&gt;sqlite3_pcache&lt;/code&gt;，后续的所有操作，都使用这个指针。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;而sqlite中，其实并没有定义&lt;code&gt;sqlite3_pcache&lt;/code&gt;的具体结构，仅仅只是声明了这个类型，可以理解为是一个类似于&lt;code&gt;void*&lt;/code&gt;这样的泛型指针：&lt;/p&gt;
-
-&lt;pre&gt;&lt;code&gt;/*
-** CAPI3REF: Custom Page Cache Object
-**
-** The sqlite3_pcache type is opaque.  It is implemented by
-** the pluggable module.  The SQLite core has no knowledge of
-** its size or internal structure and never deals with the
-** sqlite3_pcache object except by holding and passing pointers
-** to the object.
-**
-** See [sqlite3_pcache_methods2] for additional information.
-*/
-typedef struct sqlite3_pcache sqlite3_pcache;
-&lt;/code&gt;&lt;/pre&gt;
-
-&lt;h1 id=&#34;总结&#34;&gt;总结&lt;/h1&gt;
-
-&lt;p&gt;&lt;code&gt;sqlite&lt;/code&gt;里的页面缓存，分为两个大的模块：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;页面缓存管理器：主要任务是管理脏页面，以及对外提供根据页面编号查询页面的接口，当某个页面不在内存时，自动将其加载到内存中。&lt;/li&gt;
-&lt;li&gt;页面缓存算法：负责实现页面的缓存、淘汰、查询。这是可以由用户自己实现的模块，需要实现对应的&lt;code&gt;sqlite3_pcache_methods2&lt;/code&gt;结构体即可，也提供了默认的实现。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;在内存中的页面，在以下几个数据结构中：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;脏页面链表，由&lt;code&gt;页面缓存管理器&lt;/code&gt;维护。&lt;/li&gt;
-&lt;li&gt;Hash数组：根据页面编号查询到页面数据的指针，由默认的&lt;code&gt;页面缓存算法&lt;/code&gt;维护。&lt;/li&gt;
-&lt;li&gt;LRU链表：负责淘汰页面，由默认的&lt;code&gt;页面缓存算法&lt;/code&gt;维护。&lt;/li&gt;
 &lt;/ul&gt;
 </description>
     </item>
