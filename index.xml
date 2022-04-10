@@ -5,7 +5,7 @@
     <description>Recent content in codedump的网络日志 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 27 Mar 2022 15:06:38 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 10 Apr 2022 11:38:16 +0800</lastBuildDate>
     <atom:link href="/" rel="self" type="application/rss+xml" />
     
     <item>
@@ -191,6 +191,189 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>周刊（第12期）：Page oriented类存储引擎里可能同时存在多种树形结构</title>
+      <link>https://www.codedump.info/post/20220410-weekly-12/</link>
+      <pubDate>Sun, 10 Apr 2022 11:38:16 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220410-weekly-12/</guid>
+      <description>
+
+&lt;hr /&gt;
+
+&lt;p&gt;引言：本期聊一聊Page oriented类存储引擎内的数据结构组织。在满足“向磁盘读写的基本单位是物理页面”这个大前提下，这类存储引擎的树形结构就可能有多种。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h1 id=&#34;page-oriented类存储引擎里可能同时存在多种树形结构&#34;&gt;page oriented类存储引擎里可能同时存在多种树形结构&lt;/h1&gt;
+
+&lt;h2 id=&#34;存储引擎的分类&#34;&gt;存储引擎的分类&lt;/h2&gt;
+
+&lt;p&gt;目前接触到的存储引擎，以向磁盘读写方式来分类的话，大体可以分为两类：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;LSM-Tree结构。&lt;/li&gt;
+&lt;li&gt;Page oriented类。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;LSM-Tree是“Log-Structured Merge-Tree”的简称，这类存储引擎写入一条数据的流程大体如下：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;向内存以及WAL日志中写入完成，即可认为写入成功。&lt;/li&gt;
+&lt;li&gt;内存中的数据写满之后，将落盘到所谓的sstable中。&lt;/li&gt;
+&lt;li&gt;sstable分为多层，随着写入进行，不同层次的sstable数据将进行合并。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220410-weekly-12/LSM.jpeg&#34; alt=&#34;LSM&#34; title=&#34;LSM&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;（图片引用自&lt;a href=&#34;https://zhuanlan.zhihu.com/p/181498475&#34;&gt;LSM树详解 - 知乎&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;从上面简单的写入LSM的流程可以看到：无论是写入内存还是磁盘，这类存储引擎在写入新数据时（不是合并sstable流程），磁盘操作的单位是一条记录。而一条记录的长度，是不定长的。&lt;/p&gt;
+
+&lt;p&gt;与LSM-Tree类的结构不同的是，Page oriented类的存储引擎，向磁盘发起读写操作的基本单位是页面（page），一个页面通常的大小是2的次方，最小一般是1024字节，比如sqlite的存储，其页面大小为4K（可以修改编译选项配置页面大小）。&lt;/p&gt;
+
+&lt;p&gt;以一个物理页面为读写磁盘的基本单位，这也是这一类存储引擎之所以被称为”Page oriented类存储引擎“的原因。本文重点是介绍Page oriented类存储引擎的结构。&lt;/p&gt;
+
+&lt;h2 id=&#34;page-oriented存储引擎的结构&#34;&gt;Page oriented存储引擎的结构&lt;/h2&gt;
+
+&lt;p&gt;还是以之前介绍过的sqlite的架构图来开头：&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20211217-sqlite-btree-0/btree-arch.png&#34; alt=&#34;btree架构&#34; title=&#34;btree架构&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;这个架构由下往上依次是：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;系统层：提供不同系统级API的封装，比如文件读写、加解锁操作等。&lt;/li&gt;
+&lt;li&gt;物理页面管理层：提供物理页面读写、缓存等功能。&lt;/li&gt;
+&lt;li&gt;树形结构的实现：根据具体的树形算法，组织物理页面之间的逻辑关系（比如父子页面、兄弟页面），以及单个物理页面之内的数据的组织。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这里的重点是页面管理层和树形结构的实现这两部分：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;物理页面管理相当于是磁盘文件的”原材料供应商“，负责对它的客户也就是各种不同结构的实现提供物理页面这一”原材料“的读写、缓存管理，而它对这些材料被客户拿去做成了什么，一无所知。&lt;/li&gt;
+&lt;li&gt;树形结构的实现，从页面管理器拿到了”物理页面“这个原材料之后，可以按照自己的算法和数据结构任意塑造成任何合理的结构。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220201-sqlite-btree-5-btree/database-file.png&#34; alt=&#34;数据库文件的物理页面组织和逻辑页面结构&#34; title=&#34;数据库文件的物理页面组织和逻辑页面结构&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;可以看到，Page oriented存储引擎，在满足“向磁盘读写的基本单位是物理页面”这个大前提下，这类存储引擎的树形结构就可能有多种：可能是B-Tree，也可能是B+Tree。还有另一种情况是：是一个这类存储引擎内部同时存在多种树形结构。&lt;/p&gt;
+
+&lt;p&gt;以sqlite为例，内部其实就存在两种树形结构：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;存储索引的index tree：结构为B-Tree，键为表索引，值为这一行数据的&lt;code&gt;rowid&lt;/code&gt;，其中&lt;code&gt;rowid&lt;/code&gt;为隐藏列，创建数据表时自动生成，这一列是自增整数。&lt;/li&gt;
+&lt;li&gt;存储数据的table tree：结构为B+Tree，键为&lt;code&gt;rowid&lt;/code&gt;，值为一行数据。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这两类存储引擎，由于同属于“Page oriented类存储引擎”，因此可以共用同一个物理页面管理器。&lt;/p&gt;
+
+&lt;p&gt;&lt;center&gt;
+&lt;img src=&#34;https://www.codedump.info/media/imgs/20220201-sqlite-btree-5-btree/btree-rowid.png&#34; alt=&#34;数据库文件的rowid全量数据表和索引表&#34; title=&#34;数据库文件的rowid全量数据表和索引表&#34; /&gt;
+&lt;/center&gt;&lt;/p&gt;
+
+&lt;p&gt;下面，以sqlite中的一个表为例来解释上面这个流程。&lt;/p&gt;
+
+&lt;p&gt;首先，创建一个表以及索引：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sql&#34;&gt;// 创建数据库COMPANY
+CREATE TABLE COMPANY(
+   ID             INT      NOT NULL,
+   NAME           TEXT    NOT NULL,
+   AGE            INT     NOT NULL,
+);
+// 创建索引
+CREATE INDEX id_index ON COMPANY (id);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上面这个建表以及创建索引之后，对应的在这个数据文件中就有了两个树形结构：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;存储&lt;code&gt;COMPANY&lt;/code&gt;表数据的table-tree。&lt;/li&gt;
+&lt;li&gt;存储索引&lt;code&gt;id&lt;/code&gt;到&lt;code&gt;rowid&lt;/code&gt;关系的index-tree。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;如果向这个表插入数据，比如：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sql&#34;&gt;INSERT INTO COMPANY (ID,NAME,AGE) VALUES (1, &#39;Paul&#39;, 32 );
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;那么，这个插入操作背后实际对应了向这两棵树的插入操作：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;首先，将这一行数据插入到table-tree中，同时得到&lt;code&gt;rowid&lt;/code&gt;以及插入时候的&lt;code&gt;id&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;再将第一步得到的&lt;code&gt;rowid&lt;/code&gt;以及&lt;code&gt;id&lt;/code&gt;插入到index-tree中。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;如果使用&lt;code&gt;id_index&lt;/code&gt;索引来查询&lt;code&gt;COMPANY&lt;/code&gt;表，比如：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-sql&#34;&gt;select * from COMPANY where id = 1;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这个查询操作也实际上经过了上面这两个表：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;首先，通过存储&lt;code&gt;id_index&lt;/code&gt;到&lt;code&gt;rowid&lt;/code&gt;关系的index-tree，找到&lt;code&gt;id=1&lt;/code&gt;对应的&lt;code&gt;rowid&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;然后，再根据第一步得到的&lt;code&gt;rowid&lt;/code&gt;到table-tree中查询到这一行数据。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;存储引擎，按照对磁盘读写方式的不同，大体可以分为以下两类：
+
+&lt;ul&gt;
+&lt;li&gt;LSM-Tree：写磁盘的基本单位是一条记录，而一条记录大小是不定长的。&lt;/li&gt;
+&lt;li&gt;Page oriented：读写磁盘的基本单位是页面，页面大小为2的次方。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;“Page oriented”类存储引擎的核心模块是页面管理器和树形结构的实现，前者提供物理页面这一“原材料”的读写操作，对页面内部的结构一无所知；后者组织管理物理页面间的逻辑关系，以及物理页面内部的数据。&lt;/li&gt;
+&lt;li&gt;在满足“读写磁盘的基本单位是页面”的大前提下，“Page oriented”类存储引擎可以使用各种树形结构，还可能在同一个存储引擎中同时存在多种树形结构。&lt;/li&gt;
+&lt;li&gt;sqlite的实现，内部存在两种不同的树形结构：使用B-Tree来管理索引数据，以B+Tree来管理表数据。这是因为：
+
+&lt;ul&gt;
+&lt;li&gt;索引数据的值只有&lt;code&gt;rowid&lt;/code&gt;这样的整型数据，所以单个物理页面内能存储更多的索引数据，适合使用B-Tree这样“高而瘦”的结构来管理这类单条数据很小的数据。&lt;/li&gt;
+&lt;li&gt;而B+Tree的树形结构是“矮而胖”的结构，更适合存储管理多种不定长的数据。&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
+
+&lt;h2 id=&#34;git的第一版&#34;&gt;Git的第一版&lt;/h2&gt;
+
+&lt;p&gt;2005年4月6日，Git发布了第一版。Git无疑是最伟大的开源软件之一，它的出现极大改变了开源软件的协作、开发方式。&lt;/p&gt;
+
+&lt;p&gt;根据这里的“史料”（ &lt;a href=&#34;https://www.ithome.com.tw/news/95088&#34;&gt;Git十歲了！Git之父Linus Torvalds說古，大談Git開發秘辛 | iThome&lt;/a&gt; ）记载：Linus最初只花了10天就写出了第一版可以跑的Git了。&lt;/p&gt;
+
+&lt;h2 id=&#34;使用rust编写grpc服务的初学者指南&#34;&gt;使用Rust编写gRPC服务的初学者指南&lt;/h2&gt;
+
+&lt;p&gt;最近在使用Rust编写gRPC服务，这篇教程讲解了这部分内容，包括一应一答模式、单向stream模式、双向stream模式都有对应的代码例子，见：&lt;a href=&#34;https://dev.to/anshulgoyal15/a-beginners-guide-to-grpc-with-rust-3c7o&#34;&gt;Rust gRPC: A beginners guide to gRPC with Rust&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&#34;在大公司工作的吐槽&#34;&gt;在大公司工作的吐槽&lt;/h2&gt;
+
+&lt;p&gt;一位在美国工作的工程师写的国外大公司（文中是亚马逊）晋升的一些槽点，看起来和国内大公司也差不多，见：&lt;a href=&#34;https://yorotoo.medium.com/%E5%85%B3%E4%BA%8E%E5%8D%87%E8%81%8C-55dbe62ebaf&#34;&gt;关于升职 - Yang Letu - Medium&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;另外文中还推荐了一个推特上的吐槽：&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://twitter.com/kantrn/status/1511791378497384454&#34;&gt;Noah Kantrowitz on Twitter: &amp;ldquo;FAANG promo committees are killing Kubernetes: A Short Thread 🧵&amp;rdquo; / Twitter&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&#34;关于威尔史密斯打人-一位台湾老师的社会课引导思考&#34;&gt;《关于威尔史密斯打人，一位台湾老师的社会课引导思考》&lt;/h2&gt;
+
+&lt;p&gt;关于威尔史密斯打人，一位台湾老师的社会课引导思考，见：&lt;a href=&#34;https://www.facebook.com/hhsleo/posts/5543635368999794&#34;&gt;https://www.facebook.com/hhsleo/posts/5543635368999794&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;（上面的文章可能需要FB权限才能打开，也可以看这篇微信公众号的转发：&lt;a href=&#34;https://mp.weixin.qq.com/s/lGJpnq89gxTPxj_KUA2ZCg&#34;&gt;关于威尔史密斯打人，一位台湾老师的社会课引导思考&lt;/a&gt;）&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;“我告訴學生，我今天扮演的角色，就像是政治人物或媒體，我蓄意餵養你片面的、我想要你知道的資訊，而有超過7成的人，在這個過程中，被我操弄了，你因為我每次餵養的資訊不同，而產生立場反覆的狀況！明明政治人物應該考慮的是公益，媒體應該報導的是真相，但我若故意要操弄輿論，我只要給你我要你知道的訊息就好，對我不利的，我一概不提。慢慢的，我就可以透過這種愚弄的手法，讓民眾變成對我死忠而深信不疑的禁臠而不自知，我要你膜拜你就膜拜，我要你打砸殺你就打砸殺，我要你剷除異己你就剷除異己，我要你上刀山下油鍋，你還會爭先恐後想要身先士卒。而這樣的現象，正在世界各地上演”&lt;/p&gt;
+&lt;/blockquote&gt;
 </description>
     </item>
     
@@ -4013,380 +4196,6 @@ static void walUnlockExclusive(Wal *pWal, int lockIdx, int n);
 &lt;li&gt;checkpoint中几种模式的解释：&lt;a href=&#34;https://sqlite.org/c3ref/wal_checkpoint_v2.html&#34;&gt;Checkpoint a database&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://blog.csdn.net/zearot/article/details/51039593&#34;&gt;SQLite分析之WAL机制_岩之痕-CSDN博客_sqlite wal&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://blog.csdn.net/pfysw/article/details/80531495&#34;&gt;SQLite3源码学习（31） WAL日志的锁机制_test-CSDN博客&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-</description>
-    </item>
-    
-    <item>
-      <title>etcd 3.5版本的joint consensus实现解析</title>
-      <link>https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/</link>
-      <pubDate>Sat, 01 Jan 2022 15:02:50 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/</guid>
-      <description>
-
-&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
-
-&lt;p&gt;在以前的etcd实现中，“集群节点变更”这一功能，仅支持每次变更一个节点，最新的etcd已经能支持一次变更多个节点配置的功能了。本文将就这部分的实现进行解析。&lt;/p&gt;
-
-&lt;h1 id=&#34;原理&#34;&gt;原理&lt;/h1&gt;
-
-&lt;p&gt;Raft论文《CONSENSUS: BRIDGING THEORY AND PRACTICE》的第四章”集群成员变更“中，支持两种集群变更方式：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;每次变更单节点，即“One Server Config Change”。&lt;/li&gt;
-&lt;li&gt;多节点联合共识，即“Joint Consensus”。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;本文先就这两种实现方式进行原理上的讲解。&lt;/p&gt;
-
-&lt;h2 id=&#34;集群节点变更的问题&#34;&gt;集群节点变更的问题&lt;/h2&gt;
-
-&lt;p&gt;要保证Raft协议的安全性，就是要保证任意时刻，集群中只有唯一的&lt;code&gt;leader&lt;/code&gt;节点。如果不加限制条件，那么动态向当前运行集群增删节点的操作，有可能会导致存在多个&lt;code&gt;leader&lt;/code&gt;的情况。如下图所示：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20220101-etcd3.5-joint-Consensus/multi-server.png&#34; alt=&#34;集群节点变更问题&#34; title=&#34;集群节点变更问题&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;图中有两种颜色的配置，绿色表示旧的集群配置（&lt;code&gt;C_old&lt;/code&gt;），蓝色表示新的集群配置（&lt;code&gt;C_new&lt;/code&gt;），如果不加任何限制，直接将配置启用，由于不同的集群节点之间，存在时间差，那么可能出现这样的情况：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Server{1,2}：当前都使用旧的集群配置，所以可能选出server1为集群的leader。&lt;/li&gt;
-&lt;li&gt;Server{3,4,5}：当前都使用新的集群配置，可能选出server3为集群的leader。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;由上图可以看到：如果不加任何限制，直接应用新的集群配置，由于时间差的原因，可能导致集群中出现两个不同leader的情况。&lt;/p&gt;
-
-&lt;h2 id=&#34;单节点成员变更-one-server-confchange&#34;&gt;单节点成员变更（One Server ConfChange）&lt;/h2&gt;
-
-&lt;p&gt;“单节点成员变更”，意指每次只添加或删除一个节点，这样就能保证集群的安全性，不会在同一时间出现多个&lt;code&gt;leader&lt;/code&gt;的情况。之所以能有这个保证，是因为每次变更一个节点，那么新旧两种配置的半数节点（majorrity）肯定存在交集。以下图来说明：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20220101-etcd3.5-joint-Consensus/one-server-confchange.png&#34; alt=&#34;单节点成员变更&#34; title=&#34;单节点成员变更&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;上图演示了向偶数或奇数的集群增删一个节点的所有可能情况。不论哪种情况，新旧配置都有交集，在每个任期只能投出一张票的情况下，是不会出现多&lt;code&gt;leader&lt;/code&gt;的情况的。&lt;/p&gt;
-
-&lt;p&gt;有了上面的理论基础，下面来看&lt;code&gt;单节点集群变更&lt;/code&gt;的全流程，当下发集群节点变更配置时，新的配置会以一种特殊的日志方式进行提交，即：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;普通日志：半数通过，提交成功时，会传给应用层的状态机。&lt;/li&gt;
-&lt;li&gt;配置变更类日志：半数通过，提交成功时，集群节点将以新的集群配置生效。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;其流程如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;将集群配置变更数据，序列化为日志数据，需要将日志类型标记为&lt;code&gt;集群配置变更&lt;/code&gt;类的日志，提交给&lt;code&gt;leader&lt;/code&gt;节点。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;leader&lt;/code&gt;节点收到日志后，需要存储该日志的索引为&lt;code&gt;未完成的集群配置变更索引&lt;/code&gt;，像其它正常日志一样处理：先写本地的日志，再广播给集群的其他节点，半数应答则认为日志达成一致可以提交了。如果提交了这类日志，可以将前面保存的&lt;code&gt;未完成的集群配置变更索引&lt;/code&gt;置为空了。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;集群配置变更&lt;/code&gt;日志提交之后，对照新旧的集群变更数据，该添加到集群的添加到集群，该删除的节点停机。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;需要注意的是，同一时间只能有唯一一个&lt;code&gt;集群变更类日志&lt;/code&gt;存在，怎么保证这一点？就算是在&lt;code&gt;leader&lt;/code&gt;收到该类型日志时，判断&lt;code&gt;未完成的集群配置变更索引&lt;/code&gt;是否为空。&lt;/p&gt;
-
-&lt;h2 id=&#34;多节点联合共识-joint-consensus&#34;&gt;多节点联合共识（Joint Consensus）&lt;/h2&gt;
-
-&lt;p&gt;除了上面的单节点变更，有时候还需要一次提交多个节点的变更。但是按照前面的描述，如果一次提交多个节点，很可能会导致集群的安全性被破坏，即同时出现多个&lt;code&gt;leader&lt;/code&gt;的情况。因此，一次提交多节点时，就需要走&lt;code&gt;联合共识&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;所谓的&lt;code&gt;联合共识&lt;/code&gt;，就是将新旧配置的节点一起做为一个节点集合，只有该节点集合达成半数一致，才能认为日志可以提交，由于新旧两个集合做了合并，那么就不会出现多&lt;code&gt;leader&lt;/code&gt;的情况了。具体流程如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;leader&lt;/code&gt;收到成员变更请求，新集群节点集合为&lt;code&gt;C_new&lt;/code&gt;，当前集群节点集合为&lt;code&gt;C_old&lt;/code&gt;，此时首先会以新旧节点集合的交集&lt;code&gt;C_{old,new}&lt;/code&gt;做为一个&lt;code&gt;集群配置变更&lt;/code&gt;类的日志，走正常的日志提交流程。注意，这时候的日志，需要提交到&lt;code&gt;C_{old,new}&lt;/code&gt;中的所有节点。&lt;/li&gt;
-&lt;li&gt;当&lt;code&gt;C_{old,new}&lt;/code&gt;集群变更日志提交之后，&lt;code&gt;leader&lt;/code&gt;节点再马上创建一个只有&lt;code&gt;C_new&lt;/code&gt;节点集合的&lt;code&gt;集群配置变更&lt;/code&gt;类日志，再次走正常的日志提交流程。这时候的日志，只需要提交到&lt;code&gt;C_new&lt;/code&gt;中的所有节点。&lt;/li&gt;
-&lt;li&gt;当&lt;code&gt;C_new&lt;/code&gt;日志被提交之后，集群的配置就能切换到&lt;code&gt;C_new&lt;/code&gt;对应的新集群配置下了。而不在&lt;code&gt;C_new&lt;/code&gt;配置内的节点，将被移除。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;可以看到，&lt;code&gt;多节点联合共识&lt;/code&gt;的提交流程分为了两次提交：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;先提交新旧集合的交集&lt;code&gt;C_{old,new}&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;再提交新节点集合&lt;code&gt;C_new&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;以下图来说明，这几个阶段中，集群的安全性都得到了保证：&lt;/p&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20220101-etcd3.5-joint-Consensus/Joint-Consensus.png&#34; alt=&#34;多节点联合共识&#34; title=&#34;多节点联合共识&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;ol&gt;
-&lt;li&gt;&lt;code&gt;C_{old,new}&lt;/code&gt;配置提交之前：在做个阶段，集群中的节点，要么处于&lt;code&gt;C_old&lt;/code&gt;配置下，要么处于&lt;code&gt;C_new,old&lt;/code&gt;配置之下。此时，如果集群的&lt;code&gt;leader&lt;/code&gt;节点宕机，那么将会基于&lt;code&gt;C_old&lt;/code&gt;或者&lt;code&gt;C_new,old&lt;/code&gt;配置来选出新的&lt;code&gt;leader&lt;/code&gt;，而不会仅仅基于&lt;code&gt;C_new&lt;/code&gt;，因此不会选出不同的&lt;code&gt;leader&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;C_{old,new}&lt;/code&gt;配置提交之后，&lt;code&gt;C_new&lt;/code&gt;下发之前：如果这时候&lt;code&gt;leader&lt;/code&gt;宕机，只会基于&lt;code&gt;C_{old,new}&lt;/code&gt;的配置选出&lt;code&gt;leader&lt;/code&gt;，因此也不会选出不同的&lt;code&gt;leader&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;C_new&lt;/code&gt;下发但还未提交时：如果这时候&lt;code&gt;leader&lt;/code&gt;宕机，只会基于&lt;code&gt;C_{old,new}&lt;/code&gt;或者&lt;code&gt;C_new&lt;/code&gt;的配置选出&lt;code&gt;leader&lt;/code&gt;，同时也不再会发给仅仅在&lt;code&gt;C_old&lt;/code&gt;中的节点了，所以无论是哪个配置，都需要得到&lt;code&gt;C_new&lt;/code&gt;的半数同意，因此不会选出不同的&lt;code&gt;leader&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;C_new&lt;/code&gt;提交之后：此时集群中只有一种配置了，安全性得到了保证。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h1 id=&#34;实现&#34;&gt;实现&lt;/h1&gt;
-
-&lt;p&gt;了解了原理之后，可以来具体看etcd 3.5中这部分的实现了。&lt;/p&gt;
-
-&lt;h2 id=&#34;learner&#34;&gt;learner&lt;/h2&gt;
-
-&lt;p&gt;首先需要了解&lt;code&gt;learner&lt;/code&gt;这个概念，在Raft中，这类型节点有以下特点：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;与其他节点一样，能正常接收&lt;code&gt;leader&lt;/code&gt;同步的日志。&lt;/li&gt;
-&lt;li&gt;但是&lt;code&gt;learner&lt;/code&gt;节点没有投票权，即：投票时会忽略掉这类型节点。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;也因为这样，所以&lt;code&gt;learner&lt;/code&gt;节点也常被称为&lt;code&gt;non voter&lt;/code&gt;类型的节点。&lt;/p&gt;
-
-&lt;p&gt;那么，什么时候需要&lt;code&gt;learner&lt;/code&gt;节点呢？如果一个节点刚加入集群，此时要追上当前的进度，需要一段时间，但是由于这个新节点的加入，导致集群的不可用风险增加了，即原来三节点的集群，挂了一个还能工作；加入这个新节点之后，新节点还没赶上进度，那么可能挂了一个节点集群就不可用了。&lt;/p&gt;
-
-&lt;p&gt;所以，对于新加入的节点，可以先将它置为&lt;code&gt;learner&lt;/code&gt;类型，即：只同步日志，不参与投票。等到进度追上了，再变成正常的有投票权的节点。&lt;/p&gt;
-
-&lt;p&gt;一个节点，需要添加到集群中变成集群的&lt;code&gt;learner&lt;/code&gt;，或者从原集群的&lt;code&gt;voter&lt;/code&gt;变成&lt;code&gt;learner&lt;/code&gt;，也都不能直接添加，而是必须走前面正常的&lt;code&gt;集群变更&lt;/code&gt;流程，即：集群中的&lt;code&gt;learner&lt;/code&gt;集合也是集群节点配置的一部分。&lt;/p&gt;
-
-&lt;h2 id=&#34;数据结构&#34;&gt;数据结构&lt;/h2&gt;
-
-&lt;h3 id=&#34;每个节点的进度数据-progress结构体&#34;&gt;每个节点的进度数据（Progress结构体）&lt;/h3&gt;
-
-&lt;p&gt;etcd中，使用&lt;code&gt;Progress&lt;/code&gt;结构体来存储集群中每个节点当前的进度数据，包括以下成员：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;日志索引类成员：
-
-&lt;ul&gt;
-&lt;li&gt;Match索引&lt;/li&gt;
-&lt;li&gt;Next索引。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;当前的进度状态：
-
-&lt;ul&gt;
-&lt;li&gt;探针状态（probe）：节点刚加入，或者刚恢复都是该状态。&lt;/li&gt;
-&lt;li&gt;正常同步状态（replicate）。&lt;/li&gt;
-&lt;li&gt;同步快照状态：当前没有在进行日志同步，而是在同步快照。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;IsLearner：标记当前该节点是否是&lt;code&gt;learner&lt;/code&gt;状态的节点。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;其中，&lt;code&gt;进度状态&lt;/code&gt;类似于TCP协议中的流控，不在这里做阐述了；两个&lt;code&gt;日志索引&lt;/code&gt;也是Raft论文中用于存储节点进度数据的索引，也不在这里阐述了；唯独需要注意的是&lt;code&gt;IsLearner&lt;/code&gt;，该成员标记了该节点是否&lt;code&gt;learner&lt;/code&gt;节点。&lt;/p&gt;
-
-&lt;h3 id=&#34;集群配置-config结构体&#34;&gt;集群配置（Config结构体）&lt;/h3&gt;
-
-&lt;p&gt;集群配置使用&lt;code&gt;Config&lt;/code&gt;结构体来保存，其成员如下：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Voters：包括新旧两个配置。新旧两个配置的节点集合合集，成为当前的所有节点集合。
-
-&lt;ul&gt;
-&lt;li&gt;[0]：&lt;code&gt;incoming&lt;/code&gt;配置，新的集群配置。&lt;/li&gt;
-&lt;li&gt;[1]：&lt;code&gt;outgoing&lt;/code&gt;配置，旧的集群配置。一般这个集合为空，这个集合不为空时，存储的是变更之前旧的集群配置，因此不为空时表示当前有未提交的&lt;code&gt;joint consensus&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;Learners：当前的learner集合，learner集合和前面的所有节点集合交集必须为空集。&lt;/li&gt;
-&lt;li&gt;LearnersNext：集群配置提交后，从原集群的&lt;code&gt;voter&lt;/code&gt;降级为&lt;code&gt;learner&lt;/code&gt;的节点集合。&lt;/li&gt;
-&lt;li&gt;AutoLeave：该配置为true时，自动让新配置生效。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;前面原理的部分，只讲解了新旧配置的变更流程，但是在etcd的实现中，集群配置里除了新旧配置，还多了存储&lt;code&gt;Learner&lt;/code&gt;节点的两种集合，这会让情况变得更复杂一些。&lt;/p&gt;
-
-&lt;p&gt;如果一个节点要在新的集群配置中变成&lt;code&gt;Learner&lt;/code&gt;，需要区分两种情况：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;该节点原先是集群的&lt;code&gt;voter&lt;/code&gt;：并不是直接加入到&lt;code&gt;Learner&lt;/code&gt;集合的，而是首先提交到&lt;code&gt;LearnersNext&lt;/code&gt;集合中，同样也是等待这个新的集群配置被成功之后，才移动到&lt;code&gt;Learner&lt;/code&gt;集合中。否则，如果直接修改加入到&lt;code&gt;Learner&lt;/code&gt;集合中，可能导致集群的安全性受到影响。比如一个三节点{a,b,c}的集群，原先有只挂了一个节点还能继续工作；现在由于各种原因，想将节点c降级为&lt;code&gt;learner&lt;/code&gt;，将节点d加入到集群中，如果直接将c节点降级为&lt;code&gt;learner&lt;/code&gt;，就会导致在这个流程里一旦一个节点不可用，整个集群就不可用了。&lt;/li&gt;
-&lt;li&gt;该节点原先不是集群中的成员：这种节点由于之前并不存在，并不影响集群的安全性，这时候可以直接移动到&lt;code&gt;Learner&lt;/code&gt;中。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;center&gt;
-&lt;img src=&#34;https://www.codedump.info/media/imgs/20220101-etcd3.5-joint-Consensus/add-learner.png&#34; alt=&#34;单节点成员变更&#34; title=&#34;单节点成员变更&#34; /&gt;
-&lt;/center&gt;&lt;/p&gt;
-
-&lt;p&gt;所以：&lt;code&gt;Voters&lt;/code&gt;两个配置，与两种&lt;code&gt;Learner&lt;/code&gt;集合，必须满足以下的关系（见函数&lt;code&gt;checkInvariants&lt;/code&gt;）：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;在&lt;code&gt;LearnersNext&lt;/code&gt;中的节点，表示未提交的集群配置中待添加&lt;code&gt;learner&lt;/code&gt;节点集合的节点：
-
-&lt;ul&gt;
-&lt;li&gt;必须出现在&lt;code&gt;outgoing&lt;/code&gt;中，即必须出现在旧的集群配置中。&lt;/li&gt;
-&lt;li&gt;该节点的进度数据中，&lt;code&gt;IsLearner&lt;/code&gt;为False。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;在&lt;code&gt;Learners&lt;/code&gt;中的节点，表示当前集群的&lt;code&gt;learner&lt;/code&gt;节点集合：
-
-&lt;ul&gt;
-&lt;li&gt;不能出现在任一个&lt;code&gt;voter&lt;/code&gt;集合中（&lt;code&gt;incoming&lt;/code&gt;和&lt;code&gt;outgoing&lt;/code&gt;）中，即不能出现在新、旧的集群配置中。&lt;/li&gt;
-&lt;li&gt;该节点的进度数据中，&lt;code&gt;IsLearner&lt;/code&gt;为True。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;集群整体监控-progresstracker结构体&#34;&gt;集群整体监控（ProgressTracker结构体）&lt;/h3&gt;
-
-&lt;p&gt;有了节点的进度数据（Progress结构体），以及集群配置数据（Config结构体），整个集群的进度管控，都放在了结构体&lt;code&gt;ProgressTracker&lt;/code&gt;中：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;Config：存储当前集群的配置。&lt;/li&gt;
-&lt;li&gt;Progress：以节点ID为键，值为&lt;code&gt;Progress结构体&lt;/code&gt;的map。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;负责提交配置流程-changer结构体&#34;&gt;负责提交配置流程（Changer结构体）&lt;/h3&gt;
-
-&lt;p&gt;&lt;code&gt;Changer&lt;/code&gt;属于提交流程中存储中间状态的数据结构，对其输入：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;当前的&lt;code&gt;ProgressTracker结构体&lt;/code&gt;数据，即当前的配置和进度数据。&lt;/li&gt;
-&lt;li&gt;要进行的变更数据。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;输出：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;需要提交的配置数据。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;Raft最终以其输入的配置数据，来生成&lt;code&gt;集群配置类型&lt;/code&gt;的日志，走正常的日志提交流程。提交成功之后，配置生效。&lt;/p&gt;
-
-&lt;h2 id=&#34;流程&#34;&gt;流程&lt;/h2&gt;
-
-&lt;p&gt;按照前面原理部分的分析，&lt;code&gt;多节点联合共识&lt;/code&gt;的提交分为两步：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;先提交新旧集合的交集&lt;code&gt;C_{old,new}&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;再提交新节点集合&lt;code&gt;C_new&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;实际在etcd中，也是这样做的，分为：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;EnterJoint：将新旧集合的交集提交。&lt;/li&gt;
-&lt;li&gt;LeaveJoint：提交新节点集合。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;enterjoint&#34;&gt;EnterJoint&lt;/h3&gt;
-
-&lt;p&gt;该流程在&lt;code&gt;Changer::EnterJoint&lt;/code&gt;中实现：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;拷贝当前&lt;code&gt;ProgressTracker&lt;/code&gt;结构体当前的进度（&lt;code&gt;Progress&lt;/code&gt;）和配置数据（&lt;code&gt;Config&lt;/code&gt;）。&lt;/li&gt;
-&lt;li&gt;如果当前有在提交的配置，就返回退出，因为同一时间只能有一个未提交的配置变更。如何判断当前是否有未提交的配置？看&lt;code&gt;Config&lt;/code&gt;中的&lt;code&gt;outgoing&lt;/code&gt;（即&lt;code&gt;voters[1]&lt;/code&gt;）是否为空。我们下面再详细解释。&lt;/li&gt;
-&lt;li&gt;下面，以第一步拷贝的配置数据，生成新的配置数据：
-
-&lt;ul&gt;
-&lt;li&gt;将&lt;code&gt;Config&lt;/code&gt;中的&lt;code&gt;incoming&lt;/code&gt;数据拷贝到&lt;code&gt;outgoing&lt;/code&gt;中，即先保存当前的配置到&lt;code&gt;outgoing&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;遍历需要修改的配置，根据不同的操作类型做操作，生成新的配置：&lt;/li&gt;
-&lt;li&gt;如果要删除某节点，调用&lt;code&gt;Changer::remove&lt;/code&gt;函数：
-
-&lt;ul&gt;
-&lt;li&gt;从&lt;code&gt;incoming&lt;/code&gt;中删除该节点。&lt;/li&gt;
-&lt;li&gt;从&lt;code&gt;Learner&lt;/code&gt;以及&lt;code&gt;LearnerNext&lt;/code&gt;集合中删除该节点。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;如果增加&lt;code&gt;voter&lt;/code&gt;，调用&lt;code&gt;Changer::makeVoter&lt;/code&gt;函数：
-
-&lt;ul&gt;
-&lt;li&gt;该节点的进度数据中，&lt;code&gt;IsLearner&lt;/code&gt;变为&lt;code&gt;false&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;从&lt;code&gt;Learner&lt;/code&gt;以及&lt;code&gt;LearnerNext&lt;/code&gt;集合中删除该节点。&lt;/li&gt;
-&lt;li&gt;将节点ID加入&lt;code&gt;incoming&lt;/code&gt;集合中。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;如果增加&lt;code&gt;learner&lt;/code&gt;，调用&lt;code&gt;Changer::makeLearner&lt;/code&gt;函数：
-
-&lt;ul&gt;
-&lt;li&gt;调用&lt;code&gt;Changer::remove&lt;/code&gt;函数先删除该节点。&lt;/li&gt;
-&lt;li&gt;判断是否在&lt;code&gt;outgoing&lt;/code&gt;配置中有该节点，表示该节点是降级节点：&lt;/li&gt;
-&lt;li&gt;有：表示在新配置下变成了&lt;code&gt;learner&lt;/code&gt;，但是此时并不能直接变成&lt;code&gt;learner&lt;/code&gt;，所以这种情况下该节点加入到了配置的&lt;code&gt;LearnersNext&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;否则，说明是新增节点，直接加入到&lt;code&gt;Learner&lt;/code&gt;集合中。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;上面生成了新旧配置的交集配置，以这个配置数据生成日志来进行提交，生效后应用该配置。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;leavejoint&#34;&gt;LeaveJoint&lt;/h3&gt;
-
-&lt;ul&gt;
-&lt;li&gt;拷贝当前&lt;code&gt;ProgressTracker&lt;/code&gt;结构体当前的进度（&lt;code&gt;Progress&lt;/code&gt;）和配置数据（&lt;code&gt;Config&lt;/code&gt;）。&lt;/li&gt;
-&lt;li&gt;下面，以第一步拷贝的配置数据，生成新的配置数据：
-
-&lt;ul&gt;
-&lt;li&gt;遍历&lt;code&gt;LearnersNext&lt;/code&gt;集合，将其中的节点：&lt;/li&gt;
-&lt;li&gt;加入&lt;code&gt;Learner&lt;/code&gt;集合。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;IsLearner&lt;/code&gt;置为true。&lt;/li&gt;
-&lt;li&gt;清空&lt;code&gt;LearnerNext&lt;/code&gt;集合。&lt;/li&gt;
-&lt;li&gt;遍历&lt;code&gt;outgoing&lt;/code&gt;节点集合：&lt;/li&gt;
-&lt;li&gt;如果一个节点，既不在&lt;code&gt;incoming&lt;/code&gt;集合中，也不在&lt;code&gt;Learner&lt;/code&gt;集合中，则认为在新的配置中没有该节点了，删除其进度数据。&lt;/li&gt;
-&lt;li&gt;清空&lt;code&gt;outgoing&lt;/code&gt;节点集合。&lt;/li&gt;
-&lt;/ul&gt;&lt;/li&gt;
-&lt;li&gt;上面生成了新旧配置的交集配置，以这个配置数据生成日志来进行提交，生效后应用该配置。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&#34;例子&#34;&gt;例子&lt;/h3&gt;
-
-&lt;p&gt;以一个例子来说明上面的流程，假设集群当前的配置为：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;投票节点：{1,2}。&lt;/li&gt;
-&lt;li&gt;Learner节点：{}。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;新提交的配置中有以下三个操作：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;新增投票节点：{3}。&lt;/li&gt;
-&lt;li&gt;降级节点{2}为&lt;code&gt;learner&lt;/code&gt;节点。&lt;/li&gt;
-&lt;li&gt;新增Learner节点：{4}。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;需要再次强调：&lt;strong&gt;无论是&lt;code&gt;EnterJoint&lt;/code&gt;还是&lt;code&gt;LeaveJoint&lt;/code&gt;操作，都并不会让配置马上生效，而是生成了一份待提交的配置，Raft拿到这份配置生成一个提交配置变更的日志，走正常的日志提交流程，待这条日志被半数通过时，才生效该配置。&lt;/strong&gt;&lt;/p&gt;
-
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;阶段&lt;/th&gt;
-&lt;th&gt;incoming节点集合&lt;/th&gt;
-&lt;th&gt;outgoing节点集合&lt;/th&gt;
-&lt;th&gt;Learner节点集合&lt;/th&gt;
-&lt;th&gt;LearnerNext节点集合&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;提交之前&lt;/td&gt;
-&lt;td&gt;{1,2}&lt;/td&gt;
-&lt;td&gt;{}&lt;/td&gt;
-&lt;td&gt;{}&lt;/td&gt;
-&lt;td&gt;{}&lt;/td&gt;
-&lt;/tr&gt;
-
-&lt;tr&gt;
-&lt;td&gt;EnterJoint&lt;/td&gt;
-&lt;td&gt;{1,3}&lt;/td&gt;
-&lt;td&gt;{1,2}&lt;/td&gt;
-&lt;td&gt;{4}&lt;/td&gt;
-&lt;td&gt;{2}&lt;/td&gt;
-&lt;/tr&gt;
-
-&lt;tr&gt;
-&lt;td&gt;LeaveJoint&lt;/td&gt;
-&lt;td&gt;{1,3}&lt;/td&gt;
-&lt;td&gt;{}&lt;/td&gt;
-&lt;td&gt;{2,4}&lt;/td&gt;
-&lt;td&gt;{}&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-
-&lt;p&gt;读者可以对着上面的流程，以这个例子来理解一下。&lt;/p&gt;
-
-&lt;h2 id=&#34;自动提交&#34;&gt;自动提交&lt;/h2&gt;
-
-&lt;p&gt;这里还有一个细节，即&lt;code&gt;多节点联合共识&lt;/code&gt;是一个两阶段的提交流程：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;EnterJoint&lt;/code&gt;之后，&lt;code&gt;outgoing&lt;/code&gt;节点集合变为一个非空集合，这时候不再能提交新的配置，需要到&lt;code&gt;LeaveJoint&lt;/code&gt;之后，才会清空这个集合。&lt;/li&gt;
-&lt;li&gt;在etcd中，&lt;code&gt;LeaveJoint&lt;/code&gt;操作，并不见得会自动执行。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;是否在&lt;code&gt;EnterJoint&lt;/code&gt;之后自动执行&lt;code&gt;LeaveJoint&lt;/code&gt;，取决于当前提交的&lt;code&gt;Config&lt;/code&gt;结构体中的&lt;code&gt;AutoLeave&lt;/code&gt;字段，它有两种可能，见&lt;code&gt;ConfChangeTransition&lt;/code&gt;枚举类型的定义：&lt;/p&gt;
-
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;ConfChangeTransitionAuto&lt;/code&gt;和&lt;code&gt;ConfChangeTransitionJointImplicit&lt;/code&gt;：如果是这两种情况，都会自动做转换。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;ConfChangeTransitionJointExplicit&lt;/code&gt;：需要用户手动执行&lt;code&gt;LeaveJoint&lt;/code&gt;操作。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;（见函数&lt;code&gt;ConfChangeV2::EnterJoint&lt;/code&gt;的实现。）&lt;/p&gt;
-
-&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
-
-&lt;ul&gt;
-&lt;li&gt;《CONSENSUS: BRIDGING THEORY AND PRACTICE》chapter4”Cluster membership changes“&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://etcd.io/docs/v3.3/learning/learner/&#34;&gt;Learner | etcd&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 </description>
     </item>
