@@ -1,232 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志</title>
-  <meta name="renderer" content="webkit" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-<meta http-equiv="Cache-Control" content="no-transform" />
-<meta http-equiv="Cache-Control" content="no-siteapp" />
+  
+  <meta name="author" content="codedump">
 
-<meta name="theme-color" content="#f8f5ec" />
-<meta name="msapplication-navbutton-color" content="#f8f5ec">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+  
+  
+  <meta name="description" content="Nginx源码阅读笔记-Master Woker进程模型">
+  
 
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-Master Woker进程模型" />
-<meta name="keywords" content="Nginx, 进程模型" />
+  
+  
+  <meta name="keywords" content=" Nginx  进程模型 ">
+  
 
+  
+  
 
-<meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志">
-<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志">
-
-
-
-<meta name="google-site-verification" content="UA-126255685-1" />
-
-
-<meta name="generator" content="Hugo 0.56.0" />
-
-
-<link rel="canonical" href="https://www.codedump.info/post/20190131-nginx-master-worker/" />
-
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/manifest.json">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-
-
-
-
-
-
-
-<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
-<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
-
-
-
-
-<meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型" />
+  
+  <meta property="og:title" content="Nginx源码阅读笔记-Master Woker进程模型" />
 <meta property="og:description" content="Nginx源码阅读笔记-Master Woker进程模型" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190131-nginx-master-worker/" />
+<meta property="og:url" content="https://www.codedump.info/post/20190131-nginx-master-worker/" /><meta property="article:section" content="post" />
 <meta property="article:published_time" content="2019-01-31T09:53:57+08:00" />
 <meta property="article:modified_time" content="2019-01-31T09:53:57+08:00" />
-<meta itemprop="name" content="Nginx源码阅读笔记-Master Woker进程模型">
-<meta itemprop="description" content="Nginx源码阅读笔记-Master Woker进程模型">
 
 
-<meta itemprop="datePublished" content="2019-01-31T09:53:57&#43;08:00" />
-<meta itemprop="dateModified" content="2019-01-31T09:53:57&#43;08:00" />
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20190131-nginx-master-worker/">
+
+  
+  
+  <meta itemprop="name" content="Nginx源码阅读笔记-Master Woker进程模型">
+<meta itemprop="description" content="Nginx源码阅读笔记-Master Woker进程模型"><meta itemprop="datePublished" content="2019-01-31T09:53:57+08:00" />
+<meta itemprop="dateModified" content="2019-01-31T09:53:57+08:00" />
 <meta itemprop="wordCount" content="1964">
-
-
-
 <meta itemprop="keywords" content="nginx," />
-<meta name="twitter:card" content="summary"/>
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-Master Woker进程模型"/>
 <meta name="twitter:description" content="Nginx源码阅读笔记-Master Woker进程模型"/>
 
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-
-
-<!--[if lte IE 9]>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
-<![endif]-->
-
-<!--[if lt IE 9]>
-  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
-<![endif]-->
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
 </head>
+
 <body>
-  <div id="mobile-navbar" class="mobile-navbar">
-  <div class="mobile-header-logo">
-    <a href="/" class="logo">codedump的网络日志</a>
-  </div>
-  <div class="mobile-navbar-icon">    
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<nav id="mobile-menu" class="mobile-menu slideout-menu">
-  <ul class="mobile-menu-list">
-    <a href="/">
-        <li class="mobile-menu-item">主页</li>
-      </a><a href="/post/">
-        <li class="mobile-menu-item">归档</li>
-      </a><a href="/tags/">
-        <li class="mobile-menu-item">标签</li>
-      </a><a href="/categories/">
-        <li class="mobile-menu-item">分类</li>
-      </a><a href="/post/20200122-series-pages/">
-        <li class="mobile-menu-item">系列文章索引</li>
-      </a><a href="/page/about">
-        <li class="mobile-menu-item">关于</li>
-      </a><a href="/page/weekly">
-        <li class="mobile-menu-item">周刊</li>
-      </a><a href="https://www.codedump.info/index.xml">
-        <li class="mobile-menu-item">订阅</li>
-      </a>
-  </ul>
-</nav>
-  <div class="container" id="mobile-panel">
-    <header id="header" class="header">
-        <div class="logo-wrapper">
-  <a href="/" class="logo">codedump的网络日志</a>
-</div>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
 
-<nav class="site-navbar">
-  <ul id="menu" class="menu">
-    <li class="menu-item">
-        <a class="menu-item-link" href="/">主页</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/">归档</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/tags/">标签</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/categories/">分类</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/about">关于</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/weekly">周刊</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
-      </li>
-  </ul>
-</nav>
-    </header>
-
-    <main id="main" class="main">
-      <div class="content-wrapper">
-        <div id="content" class="content">
-          <article class="post">
+  <nav>
     
-    <header class="post-header">
-      <h1 class="post-title">Nginx源码阅读笔记-Master Woker进程模型</h1>
-
-      <div class="post-meta">
-        <span class="post-time"> 2019-01-31 </span>
-        <div class="post-category">
-            
-              <a href="/categories/nginx/"> nginx </a>
-            
-          </div>
-        
-        
-      </div>
-    </header>
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
 
     
-    
-<div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title">Contents</h2>
+<main id="main" class="post">
   
-  <div class="post-toc-content always-active">
-    <nav id="TableOfContents">
-<ul>
-<li><a href="#master进程">master进程</a></li>
-<li><a href="#worker进程">worker进程</a></li>
-</ul>
-</nav>
+  
+  <h1>Nginx源码阅读笔记-Master Woker进程模型</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/nginx'>#nginx</a>
+    
   </div>
-</div>
-
+  
+  
+  <article class="content">
     
-    
-
-    
-    <div class="post-content">
-      
-
-<h1 id="master进程">master进程</h1>
-
+    <h1 id="master进程">master进程</h1>
 <p>Nginx采用的模型是master-worker模型，即：</p>
-
 <ul>
 <li>由master进程负责创建worker进程，以及监控worker进程的情况，如需要更新配置的情况下发消息给worker进程重新加载配置等。</li>
 <li>master进程负责具体网络事件。</li>
 </ul>
-
 <p>将里面核心的流程和函数抽取出来，如下图所示：</p>
-
-<p><img src="/media/imgs/20190131-nginx-master-worker/master-worker.png" alt="master-worker" title="master-worker" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190131-nginx-master-worker/master-worker.png" alt="master-worker" title="master-worker"></p>
 <ul>
 <li>master进程的主循环在函数ngx_master_process_cycle中，主要负责：
-
 <ul>
 <li>调用ngx_start_worker_processes函数创建worker子进程。</li>
 <li>监控各种信号量的变化做处理，比如需要停止进程、重新加载配置等。</li>
-</ul></li>
+</ul>
+</li>
 <li>master进程最终会调用函数ngx_spawn_process函数来创建出worker子进程：
-
 <ul>
 <li>使用共享内存创建出用于master-worker进程之间通信的channel。</li>
 <li>fork出子进程之后，进入worker进程的主函数ngx_worker_process_cycle。</li>
-</ul></li>
 </ul>
-
+</li>
+</ul>
 <p>以下列举出几个相关的信号量：</p>
-
 <table>
 <thead>
 <tr>
@@ -235,44 +157,37 @@ if (!doNotTrack) {
 <th>处理</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>QUIT</td>
 <td>ngx_quit</td>
 <td>优雅关闭整个Nginx服务</td>
 </tr>
-
 <tr>
 <td>TERM或者INT</td>
 <td>ngx_terminate</td>
 <td>强制关闭Nginx服务</td>
 </tr>
-
 <tr>
 <td>USR1</td>
 <td>ngx_reopen</td>
 <td>重新打开文件</td>
 </tr>
-
 <tr>
 <td>WINCH</td>
 <td>ngx_noaccept</td>
 <td>所有worker进程不再接受新的连接，相当于给子进程发送QUIT信号</td>
 </tr>
-
 <tr>
 <td>USR2</td>
 <td>ngx_change_binary</td>
 <td>平滑升级到新的Nginx二进制文件</td>
 </tr>
-
 <tr>
 <td>HUP</td>
 <td>ng_reconfigure</td>
 <td>重新加载配置文件</td>
 </tr>
-
 <tr>
 <td>CHLD</td>
 <td>ngx_reap</td>
@@ -280,99 +195,61 @@ if (!doNotTrack) {
 </tr>
 </tbody>
 </table>
-
 <h1 id="worker进程">worker进程</h1>
-
 <p>worker进程的函数入口在ngx_worker_process_cycle中，其主要做的工作分为两部分：</p>
-
 <ul>
 <li>调用ngx_process_events_and_timers处理IO事件以及定时器事件。</li>
 <li>判断ngx_terminate、ngx_quit、ngx_reopen这几个变量是否被置位来做相应的处理。</li>
 </ul>
-
 <p>下面主要谈网络IO事件的处理，即ngx_process_events_and_timers函数。</p>
-
 <p>先来介绍几个与接收连接相关的全局变量：</p>
-
 <ul>
 <li>ngx_use_accept_mutex：由配置项accept_mutex配置，表示是否需要使用accept锁，只有抢到该锁的worker才允许接收新的连接。</li>
 <li>ngx_accept_mutex_delay：由配置项accept_mutex_delay配置，在开启accept_mutex的情况下，一个worker进程在抢不到accept锁的情况下，最长多少时间才重新接收新的连接。</li>
 <li>ngx_accept_disabled：值为ngx_cycle-&gt;connection_n / 8 - ngx_cycle-&gt;free_connection_n，可以看到当链接数量到nginx.conf中配置的worker_connections的7/8以上时，这个变量ngx_accept_disabled为正数，此时不会接收新的连接，直到该值小于等于0为止。</li>
 <li>ngx_accept_mutex_held：表示是否抢到了accept锁，只有抢到的才能接收新连接。</li>
 </ul>
-
 <p>具体来看看ngx_process_events_and_timers函数中与接收连接相关的逻辑，伪代码如下：</p>
-
-<pre><code class="language-C">如果开启了accept_mutex配置：
-  如果当前ngx_accept_disabled大于0，表示不能接收新的连接，直接返回。
-  否则尝试获取accept mutex。
-  如果获取accept mutex锁成功：
-    将调用事件轮询函数的标志位加上NGX_POST_EVENTS标志
-  如果获取失败：
-    调用事件轮询函数的事件参数不得超过ngx_accept_mutex_delay值。
-
-  调用ngx_process_events函数处理轮询事件
-
-  调用ngx_event_process_posted(cycle, &amp;ngx_posted_accept_events)函数处理accept事件
-
-  如果前面拿到了accept mutex锁，则释放这个锁，好让其他worker也有机会接收新的连接
-
-  调用ngx_event_expire_timers处理定时器事件
-
-  调用ngx_event_process_posted(cycle, &amp;ngx_posted_events);函数处理除了accept事件以外的其他post事件
-</code></pre>
-
-<p>在ngx_process_events处理函数中，当传入的flags有NGX_POST_EVENTS标志时，意味着并不马上在这个函数中调用事件的回调函数进行处理，而是放在一个队列中，回头在后面的ngx_event_process_posted函数中再进行处理。</p>
-
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">如果开启了</span>accept_mutex配置<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">如果当前</span>ngx_accept_disabled大于0<span style="">，表示不能接收新的连接，直接返回。</span>
+</span></span><span style="display:flex;"><span>  <span style="">否则尝试获取</span>accept mutex<span style="">。</span>
+</span></span><span style="display:flex;"><span>  <span style="">如果获取</span>accept mutex锁成功<span style="">：</span>
+</span></span><span style="display:flex;"><span>    <span style="">将调用事件轮询函数的标志位加上</span>NGX_POST_EVENTS标志
+</span></span><span style="display:flex;"><span>  <span style="">如果获取失败：</span>
+</span></span><span style="display:flex;"><span>    <span style="">调用事件轮询函数的事件参数不得超过</span>ngx_accept_mutex_delay值<span style="">。</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">调用</span>ngx_process_events函数处理轮询事件
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">调用</span>ngx_event_process_posted(cycle, <span style="color:#666">&amp;</span>ngx_posted_accept_events)<span style="">函数处理</span>accept事件
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">如果前面拿到了</span>accept mutex锁<span style="">，则释放这个锁，好让其他</span>worker也有机会接收新的连接
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">调用</span>ngx_event_expire_timers处理定时器事件
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">调用</span>ngx_event_process_posted(cycle, <span style="color:#666">&amp;</span>ngx_posted_events);<span style="">函数处理除了</span>accept事件以外的其他post事件
+</span></span></code></pre></div><p>在ngx_process_events处理函数中，当传入的flags有NGX_POST_EVENTS标志时，意味着并不马上在这个函数中调用事件的回调函数进行处理，而是放在一个队列中，回头在后面的ngx_event_process_posted函数中再进行处理。</p>
 <p>而这里的队列分为两类：</p>
-
 <ul>
 <li>ngx_posted_accept_events用于存放接收新连接事件。</li>
 <li>ngx_posted_events用于存放除了accept之外的其他事件。</li>
 </ul>
-
 <p>这样的做法，是为了将接收新连接的事件优先级放在其他IO事件以及定时器事件之前。</p>
-
 <p>在下一篇文章，再详细展开事件模块的分析。</p>
 
-    </div>
-
     
-    <div class="post-copyright">
-  <p class="copyright-item">
-    <span class="item-title">Author</span>
-    <span class="item-content">codedump</span>
-  </p>
-  <p class="copyright-item">
-    <span class="item-title">LastMod</span>
-    <span class="item-content">2019-01-31</span>
-  </p>
-  
-  <p class="copyright-item">
-    <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
-  </p>
-</div>
-  
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20190123-libuv/">← prev</a>
     
     
-<div class="post-reward">
-  <input type="checkbox" name="reward" id="reward" hidden />
-  <label class="reward-button" for="reward">打赏</label>
-  <div class="qr-code">
-    
-    
-      <label class="qr-code-image" for="reward">
-        <img class="image" src="/media/imgs/reward/wechat.png">
-        <span>微信支付</span>
-      </label>
+    <a class="link" href="https://www.codedump.info/post/20190131-nginx-event/">next →</a>
     
   </div>
-</div>
-        
-      
-      <h1>相关文章</h1>
-<li><strong> 2019-05-01: </strong> <a href="https://www.codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-14: </strong> <a href="https://www.codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 2019-02-13: </strong> <a href="https://www.codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://www.codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li>
+
+    
+<h1>相关文章</h1>
+<li><strong> 1059-05-01: </strong> <a href="https://www.codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 14029-02-14: </strong> <a href="https://www.codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 13029-02-13: </strong> <a href="https://www.codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 12029-02-12: </strong> <a href="https://www.codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 1029-02-01: </strong> <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li>
 <h1>邮件订阅</h1>
 
 <div class="custom-footer">
@@ -383,42 +260,53 @@ if (!doNotTrack) {
   </form>
 </div>
 
-<h1>微信公众号</h1>
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/nginx/">nginx</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
 
-<footer class="post-footer">
-  <div class="post-tags">
-      
-      <a href="/tags/nginx/">nginx</a>
-      
-    </div>
+  </div>
 
-
-
-      
-      <nav class="post-nav">
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
         
-          <a class="prev" href="/post/20190131-nginx-event/">
-            <i class="iconfont icon-left"></i>
-            <span class="prev-text nav-default">Nginx源码阅读笔记-事件处理模块</span>
-            <span class="prev-text nav-mobile">Prev</span>
-          </a>
-        
-          <a class="next" href="/post/20190123-libuv/">
-            <span class="next-text nav-default">Libuv代码简单分析</span>
-            <span class="next-text nav-mobile">Next</span>
-            <i class="iconfont icon-right"></i>
-          </a>
-      </nav>
-    </footer>
-
-
-
-  </article>
-        </div>
-        
-  <div id="disqus_thread"></div>
+      </div>
+      <div id="disqus_thread"></div>
     <script type="text/javascript">
     (function() {
       
@@ -435,72 +323,56 @@ if (!doNotTrack) {
 
   
 
-	
-  <div class="post bg-white">
+  
     <script src="https://utteranc.es/client.js"
-          repo="lichuang/lichuang.github.io"
-          issue-term="pathname"
-          theme="github-light"
-          crossorigin="anonymous"
-          async>
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
     </script>
-  </div>    
     <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
 
-  
-
-      </div>
-    </main>
-
-    <footer id="footer" class="footer">
-      <div class="social-links">
-      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
-      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
-      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
-      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
-</div>
-
-<div class="copyright">
-  <span class="power-by">
-    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
-  </span>
-  <span class="division">|</span>
-  <span class="theme-info">
-    Theme - 
-    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
-  </span>
-
-  
-
-  <span class="copyright-year">
-    &copy; 
-    
-      2018 - 
-    2022
-    <span class="heart">
-      <i class="iconfont icon-heart"></i>
-    </span>
-    <span class="author">codedump</span>
-  </span>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
-    </footer>
-
-    <div class="back-to-top" id="back-to-top">
-      <i class="iconfont icon-up"></i>
     </div>
-  </div>
+  </main>
+
+
   
-<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
-  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
+<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
 
 
-<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
 
+  
+  
 
+  
+  
 <script type="application/javascript">
 var doNotTrack = false;
 if (!doNotTrack) {
@@ -511,21 +383,9 @@ if (!doNotTrack) {
 }
 </script>
 <script async src='https://www.google-analytics.com/analytics.js'></script>
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-
-
 
 
 
 </body>
+
 </html>

@@ -1,230 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>Nginx源码阅读笔记-事件处理模块 - codedump的网络日志</title>
-  <meta name="renderer" content="webkit" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-<meta http-equiv="Cache-Control" content="no-transform" />
-<meta http-equiv="Cache-Control" content="no-siteapp" />
+  
+  <meta name="author" content="codedump">
 
-<meta name="theme-color" content="#f8f5ec" />
-<meta name="msapplication-navbutton-color" content="#f8f5ec">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+  
+  
+  <meta name="description" content="Nginx源码阅读笔记-事件处理模块">
+  
 
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-<meta name="author" content="codedump" /><meta name="description" content="Nginx源码阅读笔记-事件处理模块" />
-<meta name="keywords" content="Nginx, 进程模型" />
+  
+  
+  <meta name="keywords" content=" Nginx  进程模型 ">
+  
 
+  
+  
 
-<meta property="og:title" content="Nginx源码阅读笔记-事件处理模块 - codedump的网络日志">
-<meta name="apple-mobile-web-app-title" content="Nginx源码阅读笔记-事件处理模块 - codedump的网络日志">
-
-
-
-<meta name="google-site-verification" content="UA-126255685-1" />
-
-
-<meta name="generator" content="Hugo 0.56.0" />
-
-
-<link rel="canonical" href="https://www.codedump.info/post/20190131-nginx-event/" />
-
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/manifest.json">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-
-
-
-
-
-
-
-<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
-<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
-
-
-
-
-<meta property="og:title" content="Nginx源码阅读笔记-事件处理模块" />
+  
+  <meta property="og:title" content="Nginx源码阅读笔记-事件处理模块" />
 <meta property="og:description" content="Nginx源码阅读笔记-事件处理模块" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190131-nginx-event/" />
+<meta property="og:url" content="https://www.codedump.info/post/20190131-nginx-event/" /><meta property="article:section" content="post" />
 <meta property="article:published_time" content="2019-01-31T21:12:01+08:00" />
 <meta property="article:modified_time" content="2019-01-31T21:12:01+08:00" />
-<meta itemprop="name" content="Nginx源码阅读笔记-事件处理模块">
-<meta itemprop="description" content="Nginx源码阅读笔记-事件处理模块">
 
 
-<meta itemprop="datePublished" content="2019-01-31T21:12:01&#43;08:00" />
-<meta itemprop="dateModified" content="2019-01-31T21:12:01&#43;08:00" />
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20190131-nginx-event/">
+
+  
+  
+  <meta itemprop="name" content="Nginx源码阅读笔记-事件处理模块">
+<meta itemprop="description" content="Nginx源码阅读笔记-事件处理模块"><meta itemprop="datePublished" content="2019-01-31T21:12:01+08:00" />
+<meta itemprop="dateModified" content="2019-01-31T21:12:01+08:00" />
 <meta itemprop="wordCount" content="1947">
-
-
-
 <meta itemprop="keywords" content="nginx," />
-<meta name="twitter:card" content="summary"/>
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>Nginx源码阅读笔记-事件处理模块 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Nginx源码阅读笔记-事件处理模块"/>
 <meta name="twitter:description" content="Nginx源码阅读笔记-事件处理模块"/>
 
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-
-
-<!--[if lte IE 9]>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
-<![endif]-->
-
-<!--[if lt IE 9]>
-  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
-<![endif]-->
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
 </head>
+
 <body>
-  <div id="mobile-navbar" class="mobile-navbar">
-  <div class="mobile-header-logo">
-    <a href="/" class="logo">codedump的网络日志</a>
-  </div>
-  <div class="mobile-navbar-icon">    
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<nav id="mobile-menu" class="mobile-menu slideout-menu">
-  <ul class="mobile-menu-list">
-    <a href="/">
-        <li class="mobile-menu-item">主页</li>
-      </a><a href="/post/">
-        <li class="mobile-menu-item">归档</li>
-      </a><a href="/tags/">
-        <li class="mobile-menu-item">标签</li>
-      </a><a href="/categories/">
-        <li class="mobile-menu-item">分类</li>
-      </a><a href="/post/20200122-series-pages/">
-        <li class="mobile-menu-item">系列文章索引</li>
-      </a><a href="/page/about">
-        <li class="mobile-menu-item">关于</li>
-      </a><a href="/page/weekly">
-        <li class="mobile-menu-item">周刊</li>
-      </a><a href="https://www.codedump.info/index.xml">
-        <li class="mobile-menu-item">订阅</li>
-      </a>
-  </ul>
-</nav>
-  <div class="container" id="mobile-panel">
-    <header id="header" class="header">
-        <div class="logo-wrapper">
-  <a href="/" class="logo">codedump的网络日志</a>
-</div>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
 
-<nav class="site-navbar">
-  <ul id="menu" class="menu">
-    <li class="menu-item">
-        <a class="menu-item-link" href="/">主页</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/">归档</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/tags/">标签</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/categories/">分类</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/about">关于</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/weekly">周刊</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
-      </li>
-  </ul>
-</nav>
-    </header>
-
-    <main id="main" class="main">
-      <div class="content-wrapper">
-        <div id="content" class="content">
-          <article class="post">
+  <nav>
     
-    <header class="post-header">
-      <h1 class="post-title">Nginx源码阅读笔记-事件处理模块</h1>
-
-      <div class="post-meta">
-        <span class="post-time"> 2019-01-31 </span>
-        <div class="post-category">
-            
-              <a href="/categories/nginx/"> nginx </a>
-            
-          </div>
-        
-        
-      </div>
-    </header>
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
 
     
-    
-<div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title">Contents</h2>
+<main id="main" class="post">
   
-  <div class="post-toc-content always-active">
-    <nav id="TableOfContents">
-<ul>
-<li><a href="#ngx-event-t">ngx_event_t</a></li>
-<li><a href="#定时器的实现">定时器的实现</a></li>
-<li><a href="#事件模块的实现">事件模块的实现</a></li>
-</ul>
-</nav>
+  
+  <h1>Nginx源码阅读笔记-事件处理模块</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/nginx'>#nginx</a>
+    
   </div>
-</div>
-
+  
+  
+  <article class="content">
     
-    
-
-    
-    <div class="post-content">
-      
-
-<p>大概做高性能服务器的，都绕不开事件处理模块来，一般一个事件模块，会分为以下几部分：</p>
-
+    <p>大概做高性能服务器的，都绕不开事件处理模块来，一般一个事件模块，会分为以下几部分：</p>
 <ul>
 <li>如何定义一个描述事件的数据结构。</li>
 <li>如何在事件模块中支持定时器。</li>
 <li>如果需要支持多平台，事件模块需要考虑如何统一以及区分各平台的具体实现。</li>
 </ul>
-
 <p>下面就这三部分展开Nginx事件处理模块的分析。</p>
-
-<h1 id="ngx-event-t">ngx_event_t</h1>
-
+<h1 id="ngx_event_t">ngx_event_t</h1>
 <p>描述事件的数据结构，一般至少需要以下几部分数据：</p>
-
 <ul>
 <li>用于保存用户相关的数据。</li>
 <li>用于保存事件触发之后的回调函数。</li>
 <li>用于表示事件状态、类型的数据。</li>
 </ul>
-
 <p>nginx中，描述事件采用的数据结构是ngx_event_t中，其内部成员就是按照前面的三部分来划分了。</p>
-
 <ul>
 <li>void *data：事件相关的数据。</li>
 <li>ngx_event_handler_pt handler：事件被触发时的回调函数。</li>
 <li>第三类数据，ngx_event_t中划分的比较仔细：
-
 <ul>
 <li>unsigned write:1：可写标志位</li>
 <li>unsigned active:1：活跃标志位</li>
@@ -234,145 +154,96 @@ if (!doNotTrack) {
 <li>unsigned timedout:1：事件超时</li>
 <li>unsigned timer_set:1：为1表示这是一个超时事件</li>
 <li>unsigned deferred_accept:1：为1表示需要延迟接收TCP连接</li>
-</ul></li>
+</ul>
+</li>
 <li>除了以上三部分，还有其他一些重要的数据：
-
 <ul>
 <li>ngx_rbtree_node_t timer：红黑树节点，用于实现定时器的，下面讨论定时器再展开。</li>
 <li>ngx_queue_t queue：延迟队列，如果事件不在轮询循环中直接处理，而是之后被处理，就放在这个队列中。</li>
-</ul></li>
 </ul>
-
+</li>
+</ul>
 <p>总体来看，event这个结构体为了涵盖所有可能的事件，做的大而全，不只是用来描述一般的IO事件，还包括了定时器事件，还包括了接收连接相关的数据。</p>
-
 <h1 id="定时器的实现">定时器的实现</h1>
-
 <p>Nginx内部使用红黑树来实现定时器，目的在于能够快速的查询到哪些定时器超时了。不同的事件结构中，这部分实现采用的数据结构不一样，libevent、libuv采用的是最小堆，redis比较挫，这部分采用的是链表。</p>
-
 <p>在一个事件循环中，因为既要考虑到一般的IO事件，又要考虑到定时器事件，所以都会以一个最近被触发的定时器来做为查询IO事件被触发的时间，即以下的伪代码：</p>
-
-<pre><code class="language-C">查询最近将被触发的定时器超时时间返回t
-将t做为epoll_wait之类的查询IO事件的超时时间，即最长等待t时间看有没有IO事件被触发
-遍历定时器，查询已经超时的定时器进行回调处理
-</code></pre>
-
-<p>从这里可以看出，“迅速查询到距离当前最近被触发的定时器时间”以及“迅速查询到当前哪些定时器超时”，是这个定时器模块速度的关键。</p>
-
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">查询最近将被触发的定时器超时时间返回</span>t
+</span></span><span style="display:flex;"><span><span style="">将</span>t做为epoll_wait之类的查询IO事件的超时时间<span style="">，即最长等待</span>t时间看有没有IO事件被触发
+</span></span><span style="display:flex;"><span><span style="">遍历定时器，查询已经超时的定时器进行回调处理</span>
+</span></span></code></pre></div><p>从这里可以看出，“迅速查询到距离当前最近被触发的定时器时间”以及“迅速查询到当前哪些定时器超时”，是这个定时器模块速度的关键。</p>
 <p>由于红黑树、最小堆这种平衡数据结构，每次查询都排除掉当前一半的元素，可以做到时间复杂度O(logn)，所以就常用来实现定时器了。</p>
-
 <h1 id="事件模块的实现">事件模块的实现</h1>
-
 <p>由于nginx需要跑在多个平台下面，而不同平台使用的事件机制又不一样，比如linux是epoll，bsd是kqueue等，需要实现事件模块的时候，既需要统一事件模块的共性部分，又需要区分不同平台的差异部分。</p>
-
 <p>这看上去又是一个面向对象的设计问题了：基类负责实现共性的部分，子类具体再来实现各平台相关的部分。</p>
-
 <p>前面<a href="http://localhost:1313/post/20190123-libuv/#%E6%80%BB%E7%BB%93">分析libuv</a>的时候提到过，libuv多使用宏来模拟C++中的继承，不是很认可这个代码风格，来看看nginx类似场景的实现。</p>
-
 <p>nginx中，将事件相关的操作函数统一放在结构体ngx_event_actions_t中，可以把这部分类比于子类需要实现的函数接口：</p>
-
-<pre><code class="language-C">typedef struct {
-  ngx_int_t  (*add)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
-  ngx_int_t  (*del)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
-
-  ngx_int_t  (*enable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
-  ngx_int_t  (*disable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
-
-  ngx_int_t  (*add_conn)(ngx_connection_t *c);
-  ngx_int_t  (*del_conn)(ngx_connection_t *c, ngx_uint_t flags);
-
-  ngx_int_t  (*notify)(ngx_event_handler_pt handler);
-
-  ngx_int_t  (*process_events)(ngx_cycle_t *cycle, ngx_msec_t timer,
-    ngx_uint_t flags);
-
-  ngx_int_t  (*init)(ngx_cycle_t *cycle, ngx_msec_t timer);
-  void       (*done)(ngx_cycle_t *cycle);
-} ngx_event_actions_t;
-</code></pre>
-
-<p>前面在分析到nginx如何解析配置的时候提到过，nginx中的配置是分层次的，event模块做为一个顶层的core模块，内部又有子模块，而这里的事件模块就是event模块中的子模块：</p>
-
-<pre><code class="language-C">typedef struct {
-  ngx_str_t              *name;
-
-  void                 *(*create_conf)(ngx_cycle_t *cycle);
-  char                 *(*init_conf)(ngx_cycle_t *cycle, void *conf);
-
-  ngx_event_actions_t     actions;
-} ngx_event_module_t;
-</code></pre>
-
-<p>在具体实现中，每个平台的事件模块创建自己的ngx_event_module_t结构，在create_conf、init_conf中完成对事件模块的初始化，然后填充模块的actions结构体。</p>
-
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">typedef</span> <span style="color:#a2f;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>add)(ngx_event_t <span style="color:#666">*</span>ev, ngx_int_t event, ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>del)(ngx_event_t <span style="color:#666">*</span>ev, ngx_int_t event, ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>enable)(ngx_event_t <span style="color:#666">*</span>ev, ngx_int_t event, ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>disable)(ngx_event_t <span style="color:#666">*</span>ev, ngx_int_t event, ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>add_conn)(ngx_connection_t <span style="color:#666">*</span>c);
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>del_conn)(ngx_connection_t <span style="color:#666">*</span>c, ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>notify)(ngx_event_handler_pt handler);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>process_events)(ngx_cycle_t <span style="color:#666">*</span>cycle, ngx_msec_t timer,
+</span></span><span style="display:flex;"><span>    ngx_uint_t flags);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_int_t  (<span style="color:#666">*</span>init)(ngx_cycle_t <span style="color:#666">*</span>cycle, ngx_msec_t timer);
+</span></span><span style="display:flex;"><span>  <span style="color:#0b0;font-weight:bold">void</span>       (<span style="color:#666">*</span>done)(ngx_cycle_t <span style="color:#666">*</span>cycle);
+</span></span><span style="display:flex;"><span>} ngx_event_actions_t;
+</span></span></code></pre></div><p>前面在分析到nginx如何解析配置的时候提到过，nginx中的配置是分层次的，event模块做为一个顶层的core模块，内部又有子模块，而这里的事件模块就是event模块中的子模块：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">typedef</span> <span style="color:#a2f;font-weight:bold">struct</span> {
+</span></span><span style="display:flex;"><span>  ngx_str_t              <span style="color:#666">*</span>name;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#0b0;font-weight:bold">void</span>                 <span style="color:#666">*</span>(<span style="color:#666">*</span>create_conf)(ngx_cycle_t <span style="color:#666">*</span>cycle);
+</span></span><span style="display:flex;"><span>  <span style="color:#0b0;font-weight:bold">char</span>                 <span style="color:#666">*</span>(<span style="color:#666">*</span>init_conf)(ngx_cycle_t <span style="color:#666">*</span>cycle, <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#666">*</span>conf);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ngx_event_actions_t     actions;
+</span></span><span style="display:flex;"><span>} ngx_event_module_t;
+</span></span></code></pre></div><p>在具体实现中，每个平台的事件模块创建自己的ngx_event_module_t结构，在create_conf、init_conf中完成对事件模块的初始化，然后填充模块的actions结构体。</p>
 <p>最后，具体调用actions结构体中的函数，封装到宏里面，毕竟虽然有多平台的实现，最后也只能用上一个而已：</p>
-
-<pre><code class="language-C">#define ngx_process_events   ngx_event_actions.process_events
-#define ngx_done_events      ngx_event_actions.done
-
-#define ngx_add_event        ngx_event_actions.add
-#define ngx_del_event        ngx_event_actions.del
-#define ngx_add_conn         ngx_event_actions.add_conn
-#define ngx_del_conn         ngx_event_actions.del_conn
-
-#define ngx_notify           ngx_event_actions.notify
-</code></pre>
-
-<p>而前面提到的事件处理部分共性的地方，全都放在函数ngx_process_events_and_timers里，那个函数里面再通过宏ngx_process_events调用具体事件模块的处理函数。</p>
-
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080">#define ngx_process_events   ngx_event_actions.process_events
+</span></span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_done_events      ngx_event_actions.done
+</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>
+</span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_add_event        ngx_event_actions.add
+</span></span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_del_event        ngx_event_actions.del
+</span></span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_add_conn         ngx_event_actions.add_conn
+</span></span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_del_conn         ngx_event_actions.del_conn
+</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>
+</span></span><span style="display:flex;"><span><span style="color:#080">#define ngx_notify           ngx_event_actions.notify
+</span></span></span></code></pre></div><p>而前面提到的事件处理部分共性的地方，全都放在函数ngx_process_events_and_timers里，那个函数里面再通过宏ngx_process_events调用具体事件模块的处理函数。</p>
 <p>这里有个细节，其实前面的分析也提到过，nginx的事件模块里，不一定在检查到事件触发之后就会被马上调用回调函数来处理，而是可能放在一个post队列中，在轮询完所有事件之后再进行回调：</p>
-
-<pre><code class="language-C">if (flags &amp; NGX_POST_EVENTS) {
-		// 有NGX_POST_EVENTS标志位的情况，将accept事件放到ngx_posted_accept_events队列中
-		// 等待后续被回调
-		queue = rev-&gt;accept ? &amp;ngx_posted_accept_events
-												: &amp;ngx_posted_events;
-
-		ngx_post_event(rev, queue);
-
-} else {
-		// 否则直接处理
-		rev-&gt;handler(rev);
-}
-</code></pre>
-
-    </div>
-
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">if</span> (flags <span style="color:#666">&amp;</span> NGX_POST_EVENTS) {
+</span></span><span style="display:flex;"><span>		<span style="color:#080;font-style:italic">// 有NGX_POST_EVENTS标志位的情况，将accept事件放到ngx_posted_accept_events队列中
+</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		<span style="color:#080;font-style:italic">// 等待后续被回调
+</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		queue <span style="color:#666">=</span> rev<span style="color:#666">-&gt;</span>accept <span style="color:#666">?</span> <span style="color:#666">&amp;</span><span style="color:#a0a000">ngx_posted_accept_events</span>
+</span></span><span style="display:flex;"><span>												: <span style="color:#666">&amp;</span>ngx_posted_events;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		ngx_post_event(rev, queue);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>} <span style="color:#a2f;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#080;font-style:italic">// 否则直接处理
+</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		rev<span style="color:#666">-&gt;</span>handler(rev);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
     
-    <div class="post-copyright">
-  <p class="copyright-item">
-    <span class="item-title">Author</span>
-    <span class="item-content">codedump</span>
-  </p>
-  <p class="copyright-item">
-    <span class="item-title">LastMod</span>
-    <span class="item-content">2019-01-31</span>
-  </p>
-  
-  <p class="copyright-item">
-    <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
-  </p>
-</div>
-  
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20190131-nginx-master-worker/">← prev</a>
     
     
-<div class="post-reward">
-  <input type="checkbox" name="reward" id="reward" hidden />
-  <label class="reward-button" for="reward">打赏</label>
-  <div class="qr-code">
-    
-    
-      <label class="qr-code-image" for="reward">
-        <img class="image" src="/media/imgs/reward/wechat.png">
-        <span>微信支付</span>
-      </label>
+    <a class="link" href="https://www.codedump.info/post/20190131-nginx-read-http-request/">next →</a>
     
   </div>
-</div>
-        
-      
-      <h1>相关文章</h1>
-<li><strong> 2019-05-01: </strong> <a href="https://www.codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 2019-02-14: </strong> <a href="https://www.codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 2019-02-13: </strong> <a href="https://www.codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 2019-02-12: </strong> <a href="https://www.codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 2019-02-01: </strong> <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li>
+
+    
+<h1>相关文章</h1>
+<li><strong> 1059-05-01: </strong> <a href="https://www.codedump.info/post/20190501-lua-stream/">OpenResty Lua Stream实现分析</a>  </li><li><strong> 14029-02-14: </strong> <a href="https://www.codedump.info/post/20190214-nginx-memory-pool/">Nginx源码阅读笔记-内存池的设计</a>  </li><li><strong> 13029-02-13: </strong> <a href="https://www.codedump.info/post/20190213-nginx-process-http-request/">Nginx源码阅读笔记-处理HTTP请求</a>  </li><li><strong> 12029-02-12: </strong> <a href="https://www.codedump.info/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a>  </li><li><strong> 1029-02-01: </strong> <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">Nginx源码阅读笔记-接收HTTP请求流程</a>  </li>
 <h1>邮件订阅</h1>
 
 <div class="custom-footer">
@@ -383,42 +254,53 @@ if (!doNotTrack) {
   </form>
 </div>
 
-<h1>微信公众号</h1>
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/nginx/">nginx</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
 
-<footer class="post-footer">
-  <div class="post-tags">
-      
-      <a href="/tags/nginx/">nginx</a>
-      
-    </div>
+  </div>
 
-
-
-      
-      <nav class="post-nav">
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
         
-          <a class="prev" href="/post/20190131-nginx-read-http-request/">
-            <i class="iconfont icon-left"></i>
-            <span class="prev-text nav-default">Nginx源码阅读笔记-接收HTTP请求流程</span>
-            <span class="prev-text nav-mobile">Prev</span>
-          </a>
-        
-          <a class="next" href="/post/20190131-nginx-master-worker/">
-            <span class="next-text nav-default">Nginx源码阅读笔记-Master Woker进程模型</span>
-            <span class="next-text nav-mobile">Next</span>
-            <i class="iconfont icon-right"></i>
-          </a>
-      </nav>
-    </footer>
-
-
-
-  </article>
-        </div>
-        
-  <div id="disqus_thread"></div>
+      </div>
+      <div id="disqus_thread"></div>
     <script type="text/javascript">
     (function() {
       
@@ -435,72 +317,56 @@ if (!doNotTrack) {
 
   
 
-	
-  <div class="post bg-white">
+  
     <script src="https://utteranc.es/client.js"
-          repo="lichuang/lichuang.github.io"
-          issue-term="pathname"
-          theme="github-light"
-          crossorigin="anonymous"
-          async>
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
     </script>
-  </div>    
     <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
 
-  
-
-      </div>
-    </main>
-
-    <footer id="footer" class="footer">
-      <div class="social-links">
-      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
-      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
-      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
-      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
-</div>
-
-<div class="copyright">
-  <span class="power-by">
-    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
-  </span>
-  <span class="division">|</span>
-  <span class="theme-info">
-    Theme - 
-    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
-  </span>
-
-  
-
-  <span class="copyright-year">
-    &copy; 
-    
-      2018 - 
-    2022
-    <span class="heart">
-      <i class="iconfont icon-heart"></i>
-    </span>
-    <span class="author">codedump</span>
-  </span>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
-    </footer>
-
-    <div class="back-to-top" id="back-to-top">
-      <i class="iconfont icon-up"></i>
     </div>
-  </div>
+  </main>
+
+
   
-<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
-  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
+<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
 
 
-<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
 
+  
+  
 
+  
+  
 <script type="application/javascript">
 var doNotTrack = false;
 if (!doNotTrack) {
@@ -511,21 +377,9 @@ if (!doNotTrack) {
 }
 </script>
 <script async src='https://www.google-analytics.com/analytics.js'></script>
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-
-
 
 
 
 </body>
+
 </html>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  
+  <meta name="author" content="codedump">
+
+  
+  
+  <meta name="description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇">
+  
+
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
+
+  
+  
+  <meta name="keywords" content=" Raft  周刊  一致性算法 ">
+  
+
+  
+  
+
+  
+  <meta property="og:title" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇" />
+<meta property="og:description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://www.codedump.info/post/20220417-weekly-13/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2022-04-17T15:16:30+08:00" />
+<meta property="article:modified_time" content="2022-04-17T15:16:30+08:00" />
+
+
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20220417-weekly-13/">
+
+  
+  
+  <meta itemprop="name" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇">
+<meta itemprop="description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇"><meta itemprop="datePublished" content="2022-04-17T15:16:30+08:00" />
+<meta itemprop="dateModified" content="2022-04-17T15:16:30+08:00" />
+<meta itemprop="wordCount" content="3574">
+<meta itemprop="keywords" content="周刊,存储引擎," />
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇"/>
+<meta name="twitter:description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇"/>
+
+
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
+
+  <nav>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
+
+    
+<main id="main" class="post">
+  
+  
+  <h1>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%91%A8%E5%88%8A'>#周刊</a>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E'>#存储引擎</a>
+    
+  </div>
+  
+  
+  <article class="content">
+    
+    <hr>
+<p>引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，这是上篇，主要讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。</p>
+<hr>
+<h1 id="重读raft论文中的集群成员变更算法一理论篇">重读Raft论文中的集群成员变更算法（一）：理论篇</h1>
+<p>“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《<a href="https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf">Consensus: Bridging Theory and Practice</a>》中有专门的一节来讲解这部分内容。</p>
+<h2 id="安全性">安全性</h2>
+<p>首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.2.png" alt="4.2" title="4.2"></p>
+<p>在上图的图示中：</p>
+<ul>
+<li>旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。</li>
+<li>如果直接如图中这样变更，由于每个节点的时间窗口并不一致，可能就会出现这种情况：
+<ul>
+<li>在某一时刻，节点1、2还使用的是旧集群（只含有{1,2,3}）的成员配置，而3、4、5已经是新集群（含有{1,2,3,4,5}）的成员配置了。</li>
+<li>这样就可能出现还使用旧集群节点配置的1、2选出了一个leader，以及已经使用了新集群配置的节点3、4、5选出了另一个leader的情况，于是违反了上面阐述的“安全性”要求。</li>
+</ul>
+</li>
+</ul>
+<p>需要说明的是，在上面这个错误的示例中，是由于有两类行为同时出现才导致的错误：</p>
+<ul>
+<li>一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。</li>
+<li>直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/cluster-membership-change.png" alt="cluster-membership-change" title="cluster-membership-change"></p>
+<p>于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：</p>
+<ul>
+<li>要么一次性严格限制只变更一个节点。</li>
+<li>如果实在想一次变更多个节点，那就不能直接变更，需要经过一个中间状态的过渡之后才能完成同时变更多个节点的操作。</li>
+</ul>
+<p>以下分别来阐述这两种不同的实现。</p>
+<h2 id="一次变更单个节点">一次变更单个节点</h2>
+<p>如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。</p>
+<p>论文中以下面几个例子来说明这样操作的正确性：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.3.png" alt="4.3" title="4.3"></p>
+<p>这几个图，是在两个维度上做示范的：</p>
+<ul>
+<li>增、删操作。</li>
+<li>原集群节点数量是奇数还是偶数。</li>
+</ul>
+<p>两个维度的组合一共就是上面的4中情况，但是无论哪一种情况，由于都保证了“新、旧集合的quorum集合是有重合的”这个条件，于是不会选出不一样的leader来。</p>
+<h2 id="一次变更多个节点">一次变更多个节点</h2>
+<p>从上面的例子中可以看到：只要能保证一次只变更一个节点，是可以直接（directly）变更的。即：无需中间状态，直接从A集合变更到A+1集合，因为这两个集合的quorum肯定有重合。</p>
+<p>但是，在一次需要变更多个节点的情况下，就不能这样直接变更，因为会出现最开始示例的那样同时选出两个leader的情况。于是，为了解决这个问题，需要引入一个中间状态：</p>
+<ul>
+<li>假设原先的集群节点集合为C_Old，新的集群节点集合为C_New，那么首先变更配置到{C_Old,C_New}，也就是新旧集群节点集合的并集。</li>
+<li>上面这次变更提交之后，再向集群变更配置到C_New。在这次变更提交之后，那些不在C_New节点集合中的节点，收到这个变更时，自动下线退出集群。</li>
+</ul>
+<p>可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。</p>
+<p>从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.8.png" alt="4.8" title="4.8"></p>
+<h3 id="failover">Failover</h3>
+<p>我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。</p>
+<p>第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：</p>
+<ul>
+<li>只有C_Old节点集合的节点：由于这时候这个leader并没有第一阶段提交的{C_Old,C_New}节点集合变更，因此那些已有{C_Old,C_New}节点集合的follower这部分的日志将被截断，成员变更失败，回退回C_Old集合。</li>
+<li>有{C_Old,C_New}节点集合的节点：这意味这个leader已经有第一阶段提交的{C_Old,C_New}节点集合变更，可以继续将未完成的成员变更流程走完。</li>
+</ul>
+<p>类似的，也可以去推导一下在第二阶段出现leader宕机时，选出来的leader只可能具备两种情况，但是这两种情况都不可能选出多个leader。</p>
+<h2 id="集群变更何时生效">集群变更何时生效？</h2>
+<p>以上讲解完毕两种不同的集群变更方式，下面来聊一聊集群变更何时生效。</p>
+<p>在Raft、Paxos这类状态机模型的一致性算法中，将任何变更操作都认为是一个命令（Command），命令的处理流程是这样的：</p>
+<ul>
+<li>状态机收到命令，首先在自己本地将命令持久化。</li>
+<li>然后广播给集群中的其他节点。</li>
+<li>当收到集群半数以上节点的应答时，认为命令是可以被提交（commit）的，于是可以生效将这些已经被提交的日志传给应用层的状态机使用了。</li>
+</ul>
+<p>以上流程可以看到：一条命令，只有在“提交（commit）”之后才能“生效（apply）”。</p>
+<p>在Raft中，“成员变更”这个操作，也是一类命令，即：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> <span style="color:#00f">Command</span><span style="color:#bbb"> </span>{<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">	</span>LogEntry,<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb">	</span>MembershipChange,<span style="color:#bbb">
+</span></span></span><span style="display:flex;"><span><span style="color:#bbb"></span>};<span style="color:#bbb">
+</span></span></span></code></pre></div><p>这样设计的好处在于：处理成员变更操作，和一般的日志并没有区别，于是不存在一个特定的时间被称为“处理成员变更的时间”，在这个时间里停止响应一般的命令。</p>
+<p>但是与一般命令不同的是，“成员变更”操作并不需要等到多数通过才能生效。注意，对于一般命令而言，要“生效”必须首先“提交”，而集群变更类命令的生效没有这个依赖关系。</p>
+<p>即，在Raft的成员变更流程中，节点在收到一个新集群节点配置之后，是马上生效的，无需等待半数以上通过。</p>
+<p>这是在阅读Raft论文这一部分内容时，经常被忽略的部分。为什么集群变更类指令，可以这么做，以及这样做会不会出问题？</p>
+<p>为了安全性，Raft在进行集群变更操作时，无论是“单次变更一个节点”还是“一次变更多个节点”，在不同的阶段都不能有重叠（overlap）的情况出现，因为重叠意味着可能违反前面提到的安全性。比如将一个集群节点集合从{1,2,3}变更为{1,4,5}，如果使用这两种方式，步骤分别是：</p>
+<ul>
+<li>单次变更一个节点：{1,2,3}-&gt;{1,2,3,4} （增加节点4）-&gt;{1,2,3,4,5} （增加节点5）-&gt;{1,3,4,5} （删除节点2）-&gt; {1,4,5} （删除节点3）。</li>
+<li>单次变更多个节点：{1,2,3}（C_Old）-&gt; {1,2,3,4,5}（{C_Old,C_New}）-&gt; {1,4,5}（C_Old,C_New）。</li>
+</ul>
+<p>可以看到，无论采用哪一种方式，都会有多个步骤。由leader来决定当前的步骤，其判断的标准是：前一步修改的日志，是否已经被提交（半数以上同意）。所以，如果成员变更类的日志在提交之后才生效的话，leader就需要再多一个步骤：</p>
+<ul>
+<li>首先确认日志已经被提交到半数以上节点。</li>
+<li>在这之后，再确认这个成员变更已经在节点上生效。</li>
+</ul>
+<p>而后面的这个确认，是可以避免的。因为根据前面<code>failover</code>部分的分析，无论哪一种情况出现，即便在变更的过程中leader宕机，也不会出现选出多个leader的情况。</p>
+<p>于是，对于成员变更类的日志来说，Raft的规则是：</p>
+<ul>
+<li>多次提交不能重叠（overlap），即如果当前已经有还未提交的成员变更日志，在它提交之前不允许提交新的成员变更修改。</li>
+<li>成员变更的生效，无需等待提交，每个节点在收到这类日志的时候，就能马上修改本节点上的成员为最新的这个配置。</li>
+</ul>
+<h2 id="总结">总结</h2>
+<ul>
+<li>Raft算法要求任何时候都要保证安全性（safety）：不能在同一时间在集群中存在两个不同的leader节点。</li>
+<li>如果以下两个操作同时发生，就有可能违反安全性：
+<ul>
+<li>一次变更多个节点。</li>
+<li>直接变更集群的节点集合。</li>
+</ul>
+</li>
+<li>由这两个限制出发，分别有以下两种实现成员变更的算法：
+<ul>
+<li>限制每次只变更一个节点，这种情况下可以直接变更成员。</li>
+<li>每次可以变更任意数量的节点，但是必须通过两阶段提交完成才能生效：第一次从C_Old变成{C_Old,C_New}节点集合，第二次从{C_Old,C_New}变成C_New。</li>
+</ul>
+</li>
+<li>“成员变更”类命令，在Raft算法看来也是一条日志。但是与普通日志命令不同的是，成员变更类日志的生效，无需等待这条日志提交了才能生效，可以在收到之后马上生效。</li>
+</ul>
+
+    
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20220410-weekly-12/">← prev</a>
+    
+    
+    <a class="link" href="https://www.codedump.info/post/20200122-series-pages/">next →</a>
+    
+  </div>
+
+    
+<h1>相关文章</h1><li><strong> 10049-04-10: </strong> <a href="https://www.codedump.info/post/20220410-weekly-12/">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</a>  </li><li><strong> 27039-03-27: </strong> <a href="https://www.codedump.info/post/20220327-weekly-11/">周刊（第11期）：mmap适用于存储引擎吗？</a>  </li>
+
+<h1>邮件订阅</h1>
+
+<div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+    <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
+  </form>
+</div>
+
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/%E5%91%A8%E5%88%8A/">周刊</a>
+          <a href="/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">存储引擎</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
+
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
+
+  </div>
+
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
+        
+      </div>
+      <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+  
+    <script src="https://utteranc.es/client.js"
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+    </div>
+  </main>
+
+
+  
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
+<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
+
+
+
+  
+  
+
+  
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+</body>
+
+</html>

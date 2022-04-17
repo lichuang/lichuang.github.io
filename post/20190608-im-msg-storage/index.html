@@ -1,284 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>IM服务器设计-消息存储 - codedump的网络日志</title>
-  <meta name="renderer" content="webkit" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-<meta http-equiv="Cache-Control" content="no-transform" />
-<meta http-equiv="Cache-Control" content="no-siteapp" />
+  
+  <meta name="author" content="codedump">
 
-<meta name="theme-color" content="#f8f5ec" />
-<meta name="msapplication-navbutton-color" content="#f8f5ec">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+  
+  
+  <meta name="description" content="IM服务器设计-消息存储">
+  
 
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-<meta name="author" content="codedump" /><meta name="description" content="IM服务器设计-消息存储" />
-<meta name="keywords" content="IM, 服务器架构, 系统设计" />
+  
+  
+  <meta name="keywords" content=" IM  服务器架构  系统设计 ">
+  
 
+  
+  
 
-<meta property="og:title" content="IM服务器设计-消息存储 - codedump的网络日志">
-<meta name="apple-mobile-web-app-title" content="IM服务器设计-消息存储 - codedump的网络日志">
-
-
-
-<meta name="google-site-verification" content="UA-126255685-1" />
-
-
-<meta name="generator" content="Hugo 0.56.0" />
-
-
-<link rel="canonical" href="https://www.codedump.info/post/20190608-im-msg-storage/" />
-
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/manifest.json">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-
-
-
-
-
-
-
-<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
-<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
-
-
-
-
-<meta property="og:title" content="IM服务器设计-消息存储" />
+  
+  <meta property="og:title" content="IM服务器设计-消息存储" />
 <meta property="og:description" content="IM服务器设计-消息存储" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190608-im-msg-storage/" />
+<meta property="og:url" content="https://www.codedump.info/post/20190608-im-msg-storage/" /><meta property="article:section" content="post" />
 <meta property="article:published_time" content="2019-06-08T20:18:47+08:00" />
 <meta property="article:modified_time" content="2019-06-08T20:18:47+08:00" />
-<meta itemprop="name" content="IM服务器设计-消息存储">
-<meta itemprop="description" content="IM服务器设计-消息存储">
 
 
-<meta itemprop="datePublished" content="2019-06-08T20:18:47&#43;08:00" />
-<meta itemprop="dateModified" content="2019-06-08T20:18:47&#43;08:00" />
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20190608-im-msg-storage/">
+
+  
+  
+  <meta itemprop="name" content="IM服务器设计-消息存储">
+<meta itemprop="description" content="IM服务器设计-消息存储"><meta itemprop="datePublished" content="2019-06-08T20:18:47+08:00" />
+<meta itemprop="dateModified" content="2019-06-08T20:18:47+08:00" />
 <meta itemprop="wordCount" content="2257">
-
-
-
 <meta itemprop="keywords" content="系统设计," />
-<meta name="twitter:card" content="summary"/>
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>IM服务器设计-消息存储 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="IM服务器设计-消息存储"/>
 <meta name="twitter:description" content="IM服务器设计-消息存储"/>
 
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-
-
-<!--[if lte IE 9]>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
-<![endif]-->
-
-<!--[if lt IE 9]>
-  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
-<![endif]-->
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
 </head>
+
 <body>
-  <div id="mobile-navbar" class="mobile-navbar">
-  <div class="mobile-header-logo">
-    <a href="/" class="logo">codedump的网络日志</a>
-  </div>
-  <div class="mobile-navbar-icon">    
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<nav id="mobile-menu" class="mobile-menu slideout-menu">
-  <ul class="mobile-menu-list">
-    <a href="/">
-        <li class="mobile-menu-item">主页</li>
-      </a><a href="/post/">
-        <li class="mobile-menu-item">归档</li>
-      </a><a href="/tags/">
-        <li class="mobile-menu-item">标签</li>
-      </a><a href="/categories/">
-        <li class="mobile-menu-item">分类</li>
-      </a><a href="/post/20200122-series-pages/">
-        <li class="mobile-menu-item">系列文章索引</li>
-      </a><a href="/page/about">
-        <li class="mobile-menu-item">关于</li>
-      </a><a href="/page/weekly">
-        <li class="mobile-menu-item">周刊</li>
-      </a><a href="https://www.codedump.info/index.xml">
-        <li class="mobile-menu-item">订阅</li>
-      </a>
-  </ul>
-</nav>
-  <div class="container" id="mobile-panel">
-    <header id="header" class="header">
-        <div class="logo-wrapper">
-  <a href="/" class="logo">codedump的网络日志</a>
-</div>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
 
-<nav class="site-navbar">
-  <ul id="menu" class="menu">
-    <li class="menu-item">
-        <a class="menu-item-link" href="/">主页</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/">归档</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/tags/">标签</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/categories/">分类</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/about">关于</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/weekly">周刊</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
-      </li>
-  </ul>
-</nav>
-    </header>
-
-    <main id="main" class="main">
-      <div class="content-wrapper">
-        <div id="content" class="content">
-          <article class="post">
+  <nav>
     
-    <header class="post-header">
-      <h1 class="post-title">IM服务器设计-消息存储</h1>
-
-      <div class="post-meta">
-        <span class="post-time"> 2019-06-08 </span>
-        <div class="post-category">
-            
-              <a href="/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/"> 系统设计 </a>
-            
-          </div>
-        
-        
-      </div>
-    </header>
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
 
     
-    
-<div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title">Contents</h2>
+<main id="main" class="post">
   
-  <div class="post-toc-content always-active">
-    <nav id="TableOfContents">
-<ul>
-<li><a href="#读扩散-vs-写扩散">读扩散 VS 写扩散</a>
-<ul>
-<li><a href="#写扩散-push">写扩散（push）</a></li>
-<li><a href="#读扩散-pull">读扩散（pull）</a></li>
-</ul></li>
-<li><a href="#表设计">表设计</a>
-<ul>
-<li><a href="#用户发送消息表">用户发送消息表</a></li>
-<li><a href="#用户接收消息表">用户接收消息表</a></li>
-</ul></li>
-<li><a href="#分库分表及访问策略">分库分表及访问策略</a>
-<ul>
-<li><a href="#写消息">写消息</a></li>
-<li><a href="#读消息">读消息</a></li>
-</ul></li>
-<li><a href="#登录之后拉取离线消息的优化">登录之后拉取离线消息的优化</a></li>
-<li><a href="#总结">总结</a></li>
-</ul>
-</nav>
+  
+  <h1>IM服务器设计-消息存储</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1'>#系统设计</a>
+    
   </div>
-</div>
-
+  
+  
+  <article class="content">
     
-    
-
-    
-    <div class="post-content">
-      
-
-<p>这部分专门讲述IM消息存储的设计。消息存储的难度在于，要考虑以下的场景：</p>
-
+    <p>这部分专门讲述IM消息存储的设计。消息存储的难度在于，要考虑以下的场景：</p>
 <ul>
 <li>离线消息存储。即发送消息时对方不在线该怎么处理。</li>
 <li>单聊、群聊消息。</li>
 <li>随着用户量越来越大，应该以后如何扩展。</li>
 </ul>
-
 <h1 id="读扩散-vs-写扩散">读扩散 VS 写扩散</h1>
-
 <p>消息同步模型中，有写扩散和读扩散这两种模型。在开始讨论之前需要先了解两个相关的概念：</p>
-
 <ul>
 <li>收件箱（inbox）：该用户收到的消息。</li>
 <li>发件箱（outbox）：该用户发出的消息。</li>
 </ul>
-
-<h2 id="写扩散-push">写扩散（push）</h2>
-
+<h2 id="写扩散push">写扩散（push）</h2>
 <p>写扩散就是经常说的push模式，即每个消息都直接发送到该用户的收件箱中。其优缺点如下：</p>
-
 <ul>
 <li>优点：读优化，用户每次只需要去读取自己收件箱中的消息即可。</li>
 <li>缺点：写很重，如果这个消息是一条群消息，那么一个群成员发送出去的消息将拷贝到所有其余群成员的收件箱中。</li>
 </ul>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-msg-push.png" alt="im-msg-push" title="im msg push" /></p>
-
-<h2 id="读扩散-pull">读扩散（pull）</h2>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-msg-push.png" alt="im-msg-push" title="im msg push"></p>
+<h2 id="读扩散pull">读扩散（pull）</h2>
 <p>读扩散就是pull模式，用户每次到消息发送者的发件箱去拉取消息，优缺点如下：</p>
-
 <ul>
 <li>优点：写优化，每次发送的消息只需要写到一个地方，由收件者自己去拉取消息即可。</li>
 <li>缺点：读操作很重，假设一个用户有一千个好友，重新登录时需要拉取这些好友所有的离线消息。</li>
 </ul>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-msg-pull.png" alt="im-msg-pull" title="im msg pull" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-msg-pull.png" alt="im-msg-pull" title="im msg pull"></p>
 <p>最终选择的是以pull模式为主的模式，理由在于：</p>
-
 <ul>
 <li>IM业务属于『写多读少』类型的业务，如果使用push模式，将造成消息的大量冗余。</li>
 <li>pull模式读操作较重的缺陷可以通过其他方式来优化解决。</li>
 </ul>
-
 <p>下面来看具体的设计。</p>
-
 <h1 id="表设计">表设计</h1>
-
 <p>在数据库设计中，仅使用一个发送消息表来存储消息的具体内容，而另外有一个消息接收表用来存储消息的ID信息而不是具体内容，这样用户查询消息时，大体流程如下：</p>
-
 <ul>
 <li>首先拉取接收消息表中的信息。</li>
 <li>根据接收消息表中的ID以及发送者ID信息到发送信息表来具体查询消息。</li>
 </ul>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-msg.png" alt="im-msg" title="im msg" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-msg.png" alt="im-msg" title="im msg"></p>
 <h2 id="用户发送消息表">用户发送消息表</h2>
-
 <p>无论是单聊还是群聊消息，都使用这个表来存储发送出去的消息。</p>
-
 <p>im_message_send（msg_id,msg_from,msg_to,msg_seq,msg_content,send_time,msg_type）</p>
-
 <p>其中：</p>
-
 <ul>
 <li>msg_id：消息ID。</li>
 <li>msg_from：消息发送者UID。</li>
@@ -288,13 +178,9 @@ if (!doNotTrack) {
 <li>send_time：消息发送时间。</li>
 <li>msg_type：消息类型，如单聊、群聊消息等。</li>
 </ul>
-
 <h2 id="用户接收消息表">用户接收消息表</h2>
-
 <p>im_message_recieve（id,msg_from,msg_to,msg_id,flag）</p>
-
 <p>其中：</p>
-
 <ul>
 <li>id：这个表的ID，自增。</li>
 <li>msg_from：消息发送者ID。</li>
@@ -302,110 +188,64 @@ if (!doNotTrack) {
 <li>msg_id：消息ID，对应发送消息表中的ID。</li>
 <li>flag：标志位，表示该消息是否已读。</li>
 </ul>
-
 <p>接收消息表的信息并没有很多，因为主体部分如消息内容、发送消息时间等都在发送消息表中。</p>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-msg-table.png" alt="im-msg-table" title="im msg table" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-msg-table.png" alt="im-msg-table" title="im msg table"></p>
 <h1 id="分库分表及访问策略">分库分表及访问策略</h1>
-
 <p>发送消息表，根据msg_from字段做为分库分表的依据，而接收消息表则使用msg_to字段做为分库分表的依据。</p>
-
 <p>另外，还需要添加缓存将群聊消息进行缓存，缓存的key为msg_to和msg_id的组合，这样查询具体群聊消息的时候就可以根据组ID来查询一条具体的消息了。</p>
-
 <p>以上需要对存储之上的业务层完全透明，因此加上一个db proxy来处理消息的读写，除了应付这套流程以外，proxy的引入还有这些好处：</p>
-
 <ul>
 <li>无状态，可以横向扩展。</li>
 <li>下面的存储服务扩缩容的时候，proxy可以感知到变化，而这些对上面的应用层而言都是透明的。</li>
 </ul>
-
 <p>有了这一层proxy之后，消息的读写流程如下。</p>
-
 <h2 id="写消息">写消息</h2>
-
 <p>收到用户发送过来的消息，db proxy做如下处理：</p>
-
 <ul>
 <li>根据msg_from查询到哪个存储服务存储该发送消息，写入消息，同时得到写入成功之后的消息ID。</li>
 <li>如果这条消息是一个群聊消息，此时根据群ID以及第一步返回的消息ID，写一条键为群ID以及消息ID组合，而值为消息内容的缓存数据到缓存中。</li>
 <li>根据msg_to查询是哪个存储服务存储该接收消息，写入这部分信息。</li>
 </ul>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-msg-write.png" alt="im-msg-write" title="im msg write" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-msg-write.png" alt="im-msg-write" title="im msg write"></p>
 <h2 id="读消息">读消息</h2>
-
 <p>读消息的过程反之：</p>
-
 <ul>
 <li>根据msg_to查询是哪个存储服务存储该接收消息，查询到该消息之后就知道对应的msg_id。</li>
 <li>根据第一步查询到msg_from以及msg_id来去发送消息表中查询消息，如果是群聊消息的话，可以首先组合这两个字段到缓存中查询，查询不到再查询数据库。</li>
 <li>如果上面第二步中的群聊消息，在缓存中没有查询到，需要一个策略来向缓存中写入一份该群聊消息。</li>
 <li>如果接收到用户已读该消息的应答，那么还需要再次根据msg_to查询该消息将flag字段变成用户已读状态。</li>
 </ul>
-
 <h1 id="登录之后拉取离线消息的优化">登录之后拉取离线消息的优化</h1>
-
 <p>在第一篇<a href="https://www.codedump.info/post/20190608-im-design-base/">基础篇</a>中已经给出了拉取离线消息的基本流程，在这里还需要进行一些优化。</p>
-
 <p>在实际的应用中，离线的群聊消息并不是需要每次登录都完整拉取下来的，因此这里可以做一个优化：登录时针对群聊消息仅拉取每个群的未读消息数量，用于客户端的展示，而实际消息内容的加载，可以等到用户真的点到这个群查看消息或者可以后台加载，总之不影响登录主流程即可。</p>
-
 <p>细化了消息存储部分之后的整体架构如下图所示：</p>
-
-<p><img src="/media/imgs/20190608-im-msg-storage/im-arch.png" alt="im-arch" title="im arch" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-msg-storage/im-arch.png" alt="im-arch" title="im arch"></p>
 <h1 id="总结">总结</h1>
-
 <ul>
 <li>采用pull模式为主的消息发送存储方式。</li>
 <li>为了解决pull模式的读消息较重的问题，引入了以下组件：
-
 <ul>
 <li>db proxy来解决整个读写逻辑，这部分对业务层完全透明，同时proxy可以感知下面存储服务的扩缩容变更等。</li>
 <li>群聊消息根据消息ID以及群ID写入缓存一份，不必每次都到存储服务器上面拉取消息。</li>
 <li>使用另一个消息计数表来存储未读消息数量，登录之后群聊消息仅展示未读消息数量，这部分群聊消息可以延迟拉取或者后台拉取不影响客户端登录主流程。</li>
-</ul></li>
+</ul>
+</li>
 </ul>
 
-    </div>
-
     
-    <div class="post-copyright">
-  <p class="copyright-item">
-    <span class="item-title">Author</span>
-    <span class="item-content">codedump</span>
-  </p>
-  <p class="copyright-item">
-    <span class="item-title">LastMod</span>
-    <span class="item-content">2019-06-08</span>
-  </p>
-  
-  <p class="copyright-item">
-    <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
-  </p>
-</div>
-  
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20190608-im-design-base/">← prev</a>
     
     
-<div class="post-reward">
-  <input type="checkbox" name="reward" id="reward" hidden />
-  <label class="reward-button" for="reward">打赏</label>
-  <div class="qr-code">
-    
-    
-      <label class="qr-code-image" for="reward">
-        <img class="image" src="/media/imgs/reward/wechat.png">
-        <span>微信支付</span>
-      </label>
+    <a class="link" href="https://www.codedump.info/post/20190629-service-history/">next →</a>
     
   </div>
-</div>
-        
-      
-      <h1>相关文章</h1>
-<li><strong> 2019-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-2/">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a>  </li><li><strong> 2019-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>  </li><li><strong> 2019-12-06: </strong> <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/">对比脚本型和编译型游戏服务器的热更新方案</a>  </li><li><strong> 2019-10-13: </strong> <a href="https://www.codedump.info/post/20191013-im-msg-out-of-order/">IM服务器设计-如何解决消息的乱序</a>  </li><li><strong> 2019-08-18: </strong> <a href="https://www.codedump.info/post/20190818-im-msg-gate/">IM服务器设计-网关接入层</a>  </li>
+
+    
+<h1>相关文章</h1>
+<li><strong> 14129-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-2/">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a>  </li><li><strong> 14129-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>  </li><li><strong> 6129-12-06: </strong> <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/">对比脚本型和编译型游戏服务器的热更新方案</a>  </li><li><strong> 13109-10-13: </strong> <a href="https://www.codedump.info/post/20191013-im-msg-out-of-order/">IM服务器设计-如何解决消息的乱序</a>  </li><li><strong> 18089-08-18: </strong> <a href="https://www.codedump.info/post/20190818-im-msg-gate/">IM服务器设计-网关接入层</a>  </li>
 <h1>邮件订阅</h1>
 
 <div class="custom-footer">
@@ -416,42 +256,53 @@ if (!doNotTrack) {
   </form>
 </div>
 
-<h1>微信公众号</h1>
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">系统设计</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
 
-<footer class="post-footer">
-  <div class="post-tags">
-      
-      <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">系统设计</a>
-      
-    </div>
+  </div>
 
-
-
-      
-      <nav class="post-nav">
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
         
-          <a class="prev" href="/post/20190629-service-history/">
-            <i class="iconfont icon-left"></i>
-            <span class="prev-text nav-default">服务调用的演进历史</span>
-            <span class="prev-text nav-mobile">Prev</span>
-          </a>
-        
-          <a class="next" href="/post/20190608-im-design-base/">
-            <span class="next-text nav-default">IM服务器设计-基础</span>
-            <span class="next-text nav-mobile">Next</span>
-            <i class="iconfont icon-right"></i>
-          </a>
-      </nav>
-    </footer>
-
-
-
-  </article>
-        </div>
-        
-  <div id="disqus_thread"></div>
+      </div>
+      <div id="disqus_thread"></div>
     <script type="text/javascript">
     (function() {
       
@@ -468,72 +319,56 @@ if (!doNotTrack) {
 
   
 
-	
-  <div class="post bg-white">
+  
     <script src="https://utteranc.es/client.js"
-          repo="lichuang/lichuang.github.io"
-          issue-term="pathname"
-          theme="github-light"
-          crossorigin="anonymous"
-          async>
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
     </script>
-  </div>    
     <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
 
-  
-
-      </div>
-    </main>
-
-    <footer id="footer" class="footer">
-      <div class="social-links">
-      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
-      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
-      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
-      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
-</div>
-
-<div class="copyright">
-  <span class="power-by">
-    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
-  </span>
-  <span class="division">|</span>
-  <span class="theme-info">
-    Theme - 
-    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
-  </span>
-
-  
-
-  <span class="copyright-year">
-    &copy; 
-    
-      2018 - 
-    2022
-    <span class="heart">
-      <i class="iconfont icon-heart"></i>
-    </span>
-    <span class="author">codedump</span>
-  </span>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
-    </footer>
-
-    <div class="back-to-top" id="back-to-top">
-      <i class="iconfont icon-up"></i>
     </div>
-  </div>
+  </main>
+
+
   
-<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
-  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
+<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
 
 
-<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
 
+  
+  
 
+  
+  
 <script type="application/javascript">
 var doNotTrack = false;
 if (!doNotTrack) {
@@ -544,21 +379,9 @@ if (!doNotTrack) {
 }
 </script>
 <script async src='https://www.google-analytics.com/analytics.js'></script>
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-
-
 
 
 
 </body>
+
 </html>

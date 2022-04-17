@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>网络编程 on codedump的网络日志</title>
@@ -6,18 +6,396 @@
     <description>Recent content in 网络编程 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 05 Nov 2020 22:08:40 +0800</lastBuildDate>
-    
-	<atom:link href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" rel="self" type="application/rss+xml" />
-    
-    
+    <lastBuildDate>Thu, 05 Nov 2020 22:08:40 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>KCP 1.4源码分析</title>
       <link>https://www.codedump.info/post/20201105-kcp/</link>
       <pubDate>Thu, 05 Nov 2020 22:08:40 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20201105-kcp/</guid>
-      <description>概述 KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更</description>
+      
+      <description>&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;&lt;a href=&#34;https://github.com/skywind3000/kcp&#34;&gt;KCP&lt;/a&gt;是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用基于UDP的可靠传输协议。&lt;/p&gt;
+&lt;p&gt;在项目的官网上，对KCP是这么介绍的：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;KCP是一个快速可靠协议，能以比 TCP 浪费 10%-20% 的带宽的代价，换取平均延迟降低 30%-40%，且最大延迟降低三倍的传输效果。纯算法实现，并不负责底层协议（如UDP）的收发，需要使用者自己定义下层数据包的发送方式，以 callback的方式提供给 KCP。 连时钟都需要外部传递进来，内部不会有任何一次系统调用。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;UDP并不是一个可靠的传输协议，如果数据没有发送成功并不会自动重传，KCP基于UDP协议之上实现了自己的ARQ协议，所以在继续介绍KCP协议之前，先大体了解一下ARQ协议。&lt;/p&gt;
+&lt;h2 id=&#34;arq的两种模式&#34;&gt;ARQ的两种模式&lt;/h2&gt;
+&lt;p&gt;KCP在UDP之上，自己实现了可靠性的算法，即给UDP加上了诸如超时重传、流量控制等机制，这些都是为了保证ARQ协议的运作。&lt;/p&gt;
+&lt;p&gt;ARQ协议(Automatic Repeat-reQuest)，即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输。&lt;/p&gt;
+&lt;p&gt;ARQ的实现通常有如下两种模式。&lt;/p&gt;
+&lt;h3 id=&#34;停等arq协议stop-and-wait&#34;&gt;停等ARQ协议（stop-and-wait）&lt;/h3&gt;
+&lt;p&gt;停等ARQ协议，意味着每个数据在发送出去之后，在没有收到对端的接收回复之前，将一直等待下去，而不会继续发送新的数据包。如果超时还未收到应答，就会自动重传数据包，以保证数据的可靠性。&lt;/p&gt;
+&lt;p&gt;下图是两种情况下停等协议的示意图：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20201105-kcp/stop-and-wait.png&#34; alt=&#34;stop-and-wait&#34; title=&#34;stop-and-wait&#34;&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;上图：正常不出错情况下运行的停等协议，消息2必须在发送方收到了消息1的对端确认回复之后才能发送出去。&lt;/li&gt;
+&lt;li&gt;下图：出错情况下运行的停等协议，发送方发现消息1超时还未收到应答，就触发了针对消息1的重传机制。在这之前消息2都不会被发出去。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;协议栈如何确认这个“超时时间”呢？答案是根据数据往返时间动态估算出来的RTO（Retransmission TimeOut，重传超时时间）时间来确认的。&lt;/p&gt;
+&lt;h3 id=&#34;连续arq协议continuous-arq&#34;&gt;连续ARQ协议（Continuous ARQ）&lt;/h3&gt;
+&lt;p&gt;可以看到，停等协议的机制是“一应一答”式的，对带宽的利用率不高，传输效率不高。&lt;/p&gt;
+&lt;p&gt;连续ARQ协议，可以一次性发送多个数据，而不必像停等协议那样需要等待上一个数据包的确认回复才能继续发送数据。&lt;/p&gt;
+&lt;p&gt;在使用连续ARQ协议的时候，接收方也并不会针对每一个收到的数据包进行确认应答，而只需应答确认最大的那个数据包，这时就认为在此之前的数据包都收到了。&lt;/p&gt;
+&lt;p&gt;这种模式称为“UNA（unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到）”模式，与之对应的是，停等协议是ACK模式。&lt;/p&gt;
+&lt;p&gt;然而，即便是可以一次发送多个数据包，也不意味着可以不受控制的发送数据，因为还要受到几种流量窗口的限制，这部分被称为“流量控制”。&lt;/p&gt;
+&lt;h3 id=&#34;拥塞窗口&#34;&gt;拥塞窗口&lt;/h3&gt;
+&lt;p&gt;拥塞窗口更多是对网络上经过的网络设备总体网络情况的一个预估。因为在真正发送数据时，并不清楚这时候的网络情况，因此启动时拥塞窗口会有一个初始值，然后根据以下几种算法进行动态的调整：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;慢启动：在启动时让拥塞窗口缓慢扩张。&lt;/li&gt;
+&lt;li&gt;退半避让：在发生网络拥堵时让拥塞窗口大小减半。&lt;/li&gt;
+&lt;li&gt;快重传：在网络恢复时尽快的将数据发送出去。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;滑动窗口&#34;&gt;滑动窗口&lt;/h3&gt;
+&lt;p&gt;拥塞窗口是对外部网络情况的一种动态的检测，而滑动窗口则是进程本身接收缓冲区的控制，滑动窗口就是接收方用来通知发送方本方接收缓冲区大小的。由于一个网络进程分为协议层和应用层，如果协议层接收数据很快，但是应用层消费数据很慢，这个滑动窗口就会缩小，通过这种方式来通知对端放缓数据的发送，因为接收方已经忙不过来了。&lt;/p&gt;
+&lt;p&gt;KCP作为一个ARQ协议，内部就是要实现对以上这些机制的支持。&lt;/p&gt;
+&lt;p&gt;如果对TCP协议的实现有一些了解，可以看到上述的对端确认回复、超时重传、拥塞窗口、滑动窗口等概念，在TCP中就有，KCP自己实现的ARQ机制，与TCP对比起来有如下的不同点：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在TCP中，超时之后的RTO时间直接翻倍（即RTO&lt;em&gt;2），而在KCP启用了快速模式之后，RTO的超时时间是&lt;/em&gt;1.5，避免RTO时间的快速增长。&lt;/li&gt;
+&lt;li&gt;TCP协议在丢包时会直接重传丢的那个包之后的所有数据包，KCP只会选择性的重传真正丢失的数据包。&lt;/li&gt;
+&lt;li&gt;TCP为了充分利用带宽，会延迟发送ACK应答对端，这样会导致计算出来的RTT时间过大，KCP的ACK是否延迟发送则可以调节。&lt;/li&gt;
+&lt;li&gt;KCP 正常模式同 TCP 一样使用公平退让法则，即发送窗口大小由：发送缓存大小、接收端剩余接收缓存大小、丢包退让及慢启动这四要素决定。但传送及时性要求很高的小数据时，可选择通过配置跳过后两步，仅用前两项来控制发送频率。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;本文基于KCP 1.4版本对其实现做分析。&lt;/p&gt;
+&lt;h1 id=&#34;术语概念&#34;&gt;术语概念&lt;/h1&gt;
+&lt;p&gt;在展开讨论之前，首先介绍相关的术语概念。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ARQ：Automatic Repeat-reQuest，自动重传请求协议。KCP就是其中一种ARQ协议的实现。&lt;/li&gt;
+&lt;li&gt;MTU：Maximum Transmission Unit，最大传输单元，链路层规定的每一帧最大长度，通常为1500字节。&lt;/li&gt;
+&lt;li&gt;MSS：Maximum Segment Size，最大分段大小。通常为MTU-协议头大小。&lt;/li&gt;
+&lt;li&gt;RTT：Round-Trip Time，数据往返时间，即发出消息到接收到对端消息应答之间的时间差。&lt;/li&gt;
+&lt;li&gt;RTO：Retransmission TimeOut，重传超时时间，根据收集到的RTT时间估算。&lt;/li&gt;
+&lt;li&gt;rwnd：Receive Window，接收窗口大小，接收端通过该数据通知发送端本方接收窗口大小。&lt;/li&gt;
+&lt;li&gt;cwnd：Congestion Window，拥塞窗口大小，影响发送方发送数据大小。&lt;/li&gt;
+&lt;li&gt;ack：acknowledge，接收端接收到一个数据包之后，通过应答该数据包序列号来通知发送端接收成功。&lt;/li&gt;
+&lt;li&gt;una：unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到。&lt;/li&gt;
+&lt;li&gt;ssthresh：Slow Start threshold，慢启动阈值，用于在发生拥塞的情况下控制窗口的增长速度。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;数据结构&#34;&gt;数据结构&lt;/h1&gt;
+&lt;h2 id=&#34;报文定义&#34;&gt;报文定义&lt;/h2&gt;
+&lt;p&gt;每个KCP数据报文，其定义如下，注释中描述了每个字段的含义：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;struct IKCPSEG
+{
+	struct IQUEUEHEAD node;
+	// 会话编号，两方一致才能通信
+	IUINT32 conv;
+	// 指令类型，可以同时有多个指令通过与操作设置进来
+	IUINT32 cmd;
+	// 分片编号，表示倒数第几个分片。
+	IUINT32 frg;
+	// 本方可用窗口大小
+	IUINT32 wnd;
+	// 当前时间
+	IUINT32 ts;
+	// 确认编号
+	IUINT32 sn;
+	// 代表编号前面的所有报都收到了的标志
+	IUINT32 una;
+	// 数据大小
+	IUINT32 len;
+	// 重传时间戳，超过这个时间重发这个包
+	IUINT32 resendts;
+	IUINT32 rto;
+	// 快速应答数量，记录被跳过的次数，统计在这个封包的序列号之前有多少报已经应答了。
+	// 比如1，2，3三个封包，收到2的时候知道1被跳过了，此时1的fastack加一，收到3的时候继续加一，超过一定阈值直接重传1这个封包。
+	// 该阈值由ikcp_nodelay函数设置，默认为0
+	IUINT32 fastack;
+	// 重传次数
+	IUINT32 xmit;
+	// 数据
+	char data[1];
+};
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，挑其中几个重点的字段来展开说说，其他的字段已经在上面的注释中有描述。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;conv：该字段是会话编号，由于UDP协议不是基于链接的，因此通信的双方需要会话编号一致才能进行通信。&lt;/li&gt;
+&lt;li&gt;cmd：指令类型，具体有以下这几种：
+&lt;ul&gt;
+&lt;li&gt;IKCP_CMD_PUSH：传送数据。&lt;/li&gt;
+&lt;li&gt;IKCP_CMD_ACK：应答接收到数据包。&lt;/li&gt;
+&lt;li&gt;IKCP_CMD_WASK：探测接收端接收窗口大小。&lt;/li&gt;
+&lt;li&gt;IKCP_CMD_WINS：通知接收窗口大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;frg：分片编号，当发送的数据超过MTU大小时，就会将数据分片来发送，该字段就是用来存储分片编号，值从大到小，比如有4个分片，则从第一块分片到第四块分片的报文，该字段依次为3、2、1、0。&lt;/li&gt;
+&lt;li&gt;fastack：用于快速重传的字段，具体的使用在后面展开详细的讨论。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;需要说明的是，以上只是报文在内存中的表示，当写入报文时报文的头部数据如下（由于KCP文档中有这部分的图示就直接引用了）：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;kcp协议头,共24个字节
+|&amp;lt;&amp;lt;----------- 4 bytes -----------&amp;gt;&amp;gt;|
+|--------|--------|--------|--------|
+|		conv		   |
+|--------|--------|--------|--------|
+|  cmd   |  frg   |	wnd	   |
+|--------|--------|--------|--------|
+|		ts	    	   |
+|--------|--------|--------|--------|
+|		sn		   |
+|--------|--------|--------|--------|
+|		una		   |
+|--------|--------|--------|--------|
+|		len		   |
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;kcp结构体&#34;&gt;KCP结构体&lt;/h2&gt;
+&lt;p&gt;除了上面定义每个报文的结构体之外，&lt;code&gt;kcp&lt;/code&gt;协议栈还有一个负责记录kcp协议栈信息的结构体&lt;code&gt;IKCPCB&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;其定义及成员的注释如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IKCPCB
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// mss：MSS（Maximum Segment Size），最大报文长度
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 conv, mtu, mss, state;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// snd_una：最小的未ack序列号，即这个编号前面的所有报都收到了的标志
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// snd_nxt：下一个待发送的序列号
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// rcv_nxt：下一个待接收的序列号，会通过包头中的una字段通知对端
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 snd_una, snd_nxt, rcv_nxt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ssthresh：slow start threshhold，慢启动阈值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 ts_recent, ts_lastack, ssthresh;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// RTT：Round Trip Time，往返时间
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// rx_rttval：RTT的平均偏差
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// rx_srtt：RTT的一个加权RTT平均值，平滑值。
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IINT32 rx_rttval, rx_srtt, rx_rto, rx_minrto;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// rmt_wnd：对端（rmt=remote）窗口
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// probe：存储探测标志位
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 snd_wnd, rcv_wnd, rmt_wnd, cwnd, probe;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 current, interval, ts_flush, xmit;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 接收和发送缓冲区大小
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 nrcv_buf, nsnd_buf;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 接收和发送队列大小
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	IUINT32 nrcv_que, nsnd_que;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 nodelay, updated;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 ts_probe, probe_wait;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 dead_link, incr;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IQUEUEHEAD snd_queue;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IQUEUEHEAD rcv_queue;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IQUEUEHEAD snd_buf;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IQUEUEHEAD rcv_buf;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;acklist;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 ackcount;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IUINT32 ackblock;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;user;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;buffer;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; fastresend;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; fastlimit;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// nocwnd：是否关闭流控，0表示不关闭，默认值为0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; nocwnd, stream;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; logmask;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;output)(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;buf, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; len, &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IKCPCB &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;kcp, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;user);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;writelog)(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;log, &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; IKCPCB &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;kcp, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;user);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;kcp库对外的接口中，首先需要调用&lt;code&gt;ikcp_create&lt;/code&gt;函数创建该结构体，才能继续后面的工作。&lt;/p&gt;
+&lt;h2 id=&#34;几个队列&#34;&gt;几个队列&lt;/h2&gt;
+&lt;p&gt;从上面定义的数据结构中，还看到了其中有队列指针，不难想象每个报文数据都是某种队列中的元素，确实也是这样，在KCP中定义了以下几个和报文相关的队列：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;snd_queue、nsnd_que：发送队列以及其大小。&lt;/li&gt;
+&lt;li&gt;snd_buf、nsnd_buf：发送缓冲区及其大小。&lt;/li&gt;
+&lt;li&gt;rcv_queue、nrcv_que：接收队列以及其大小。&lt;/li&gt;
+&lt;li&gt;rcv_buf、nrcv_buf：接收缓冲区及其大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;为什么发送和接收两端，既有缓冲区又有队列？在KCP中，队列是应用层可以直接进行读写的区域，而缓冲区则是KCP协议层接收和发送数据的区域了，如图所示：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20201105-kcp/kcp-queue-buf.png&#34; alt=&#34;kcp-queue-buf&#34; title=&#34;kcp-queue-buf&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在发送报文时，用户层调用&lt;code&gt;ikcp_send&lt;/code&gt;函数，该函数最终会分配报文结构体指针，然后添加到发送队列&lt;code&gt;snd_queue&lt;/code&gt;的末尾；而在KCP协议栈真正调用系统接口发送数据出去的时候，将从&lt;code&gt;snd_queue&lt;/code&gt;队列中将报文取出，放入&lt;code&gt;snd_buf&lt;/code&gt;缓冲区中再进行发送。接收报文的流程反之，这里就不再阐述了。&lt;/p&gt;
+&lt;h1 id=&#34;核心流程&#34;&gt;核心流程&lt;/h1&gt;
+&lt;p&gt;了解了相关的数据结构，这里开始分析核心流程。先来看看整体的框架。&lt;/p&gt;
+&lt;h2 id=&#34;概述-1&#34;&gt;概述&lt;/h2&gt;
+&lt;p&gt;KCP的实现中，把两个部分留给应用层来做：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;具体收发数据的流程，通过将&lt;code&gt;ikcp_setoutput&lt;/code&gt;函数留给应用层注册来进行数据发送，KCP自己并不负责这一块。&lt;/li&gt;
+&lt;li&gt;何时驱动KCP进行数据的收发，即KCP内部并没有实现一个定时器，定期检查条件来触发收发流程，而是提供了&lt;code&gt;ikcp_update&lt;/code&gt;函数给应用层，通过该函数来驱动KCP协议栈的运作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;除此以外，KCP提供另外几个函数的作用如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ikcp_input：当应用层接收到数据时，通过该函数通知KCP协议栈对接收到的数据进行解析，最终会生成报文存储到前面提到的接收队列&lt;code&gt;rcv_queue&lt;/code&gt;中。&lt;/li&gt;
+&lt;li&gt;ikcp_recv：上一步调用&lt;code&gt;ikcp_input&lt;/code&gt;函数完成对接收到的报文的解析之后，&lt;code&gt;ikcp_recv&lt;/code&gt;函数将解析完成的报文重新拼装到buffer中返回给用户层。&lt;/li&gt;
+&lt;li&gt;ikcp_send：用户层发送数据，最终会将待发送的数据编码成一个个的KCP报文存入&lt;code&gt;snd_queue&lt;/code&gt;中。&lt;/li&gt;
+&lt;li&gt;ikcp_update：用户层调用该函数，来驱动KCP协议栈进行具体的协议收发、拥塞控制等流程，这些流程实际最终由函数&lt;code&gt;ikcp_flush&lt;/code&gt;完成，但是用户层并不会直接调用这个函数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;整个流程中涉及到的函数及流程如下图：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20201105-kcp/ikcp.png&#34; alt=&#34;ikcp&#34; title=&#34;ikcp&#34;&gt;&lt;/p&gt;
+&lt;p&gt;（出自：&lt;a href=&#34;https://blog.csdn.net/yongkai0214/article/details/85156452&#34;&gt;KCP 协议与源码分析（一）_老雍的博客-CSDN博客_kcp&lt;/a&gt;）&lt;/p&gt;
+&lt;p&gt;在这里先对上图做简单的解释，下面再展开详细的分析：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;图中中轴的函数是&lt;code&gt;ikcp_create&lt;/code&gt;，负责创建kcp协议栈结构体指针；而真正需要发送数据时，需要用户层自己调用&lt;code&gt;ikcp_update&lt;/code&gt;函数驱动kcp协议栈工作。&lt;/li&gt;
+&lt;li&gt;图的左边是用户层与协议栈的交互。用户调用&lt;code&gt;ikcp_send&lt;/code&gt;函数，将用户缓冲区的数据，根据KCP协议拼装成报文放到发送队列&lt;code&gt;snd_queue&lt;/code&gt;中。而当用户需要从协议栈接收数据时，会调用&lt;code&gt;ikcp_recv&lt;/code&gt;函数，该函数会将在接收队列&lt;code&gt;recv_queue&lt;/code&gt;中的报文反序列化成用户层缓冲数据，返回给应用层。&lt;/li&gt;
+&lt;li&gt;图的右边是协议栈与网络之间的交互。首先&lt;code&gt;ikcp_flush&lt;/code&gt;函数，会将发送队列&lt;code&gt;snd_queue&lt;/code&gt;中的报文移动到发送缓冲区中，最终调用用户通过&lt;code&gt;ikcp_output&lt;/code&gt;函数注册发送函数发送出去；同时，当收到网络层的数据时，会调用&lt;code&gt;ikcp_input&lt;/code&gt;函数将这些数据以kcp协议的形式解析出来，放入到接收缓冲区&lt;code&gt;snd_buf&lt;/code&gt;中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下对其中的核心流程做分析。&lt;/p&gt;
+&lt;h1 id=&#34;ikcp_input函数&#34;&gt;ikcp_input函数&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;ikcp_input&lt;/code&gt;函数是用户层接收到数据时调用的第一个函数，其传入的参数是收到数据的缓冲区。因为用户层接收到的数据，都没有经过KCP协议的解析，所以首先调用&lt;code&gt;ikcp_input&lt;/code&gt;函数进行协议解析。又由于一个报文中可能存在多个KCP协议包，所以会遍历这个用户层数据缓冲区进行多次的KCP协议解析。KCP协议，按照其包头中带的指令类型，可能有以下几种：&lt;/p&gt;
+&lt;h2 id=&#34;ikcp_cmd_ack&#34;&gt;IKCP_CMD_ACK&lt;/h2&gt;
+&lt;p&gt;对端应答ack报。处理流程如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;调用&lt;code&gt;ikcp_update_ack&lt;/code&gt;函数更新RTT估算值。&lt;/li&gt;
+&lt;li&gt;由于收到了对端的ack，所以调用&lt;code&gt;ikcp_parse_ack&lt;/code&gt;函数，遍历当前的发送缓冲区&lt;code&gt;snd_buf&lt;/code&gt;删除对应该应答序列号的报文，因为该报文对端已经应答收到了，不需要再重发了。&lt;/li&gt;
+&lt;li&gt;调用&lt;code&gt;ikcp_shrink_buf&lt;/code&gt;函数更新&lt;code&gt;snd_una&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;快速重传逻辑的处理，这部分在函数&lt;code&gt;ikcp_parse_fastack&lt;/code&gt;中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;ikcp_update_ack&lt;/code&gt;函数用于更新RTT相关的估算值，包括：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;rx_rttval：rtt平均值，为最近4次rtt的平均值。&lt;/li&gt;
+&lt;li&gt;rx_srtt：ack接收rtt平滑值为最近8次的平均值。&lt;/li&gt;
+&lt;li&gt;rx_minrto：最小RTO，系统启动时配置，在nodelay的情况下值为&lt;code&gt;IKCP_RTO_NDL&lt;/code&gt;，否则就是&lt;code&gt;IKCP_RTO_MIN&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;rx_rto：估算出来的rto值，为平滑值+max（interval，平均值），在[rx_minrto,IKCP_RTO_MAX]之间。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;static&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;ikcp_update_ack&lt;/span&gt;(ikcpcb &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;kcp, IINT32 rtt)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	IINT32 rto &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) { &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 当前没有rtt加权平均值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 以这次RTT值来设置
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; rtt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 平均值要除以2
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_rttval &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; rtt &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;2&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;else&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 计算两者之差
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;long&lt;/span&gt; delta &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; rtt &lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (delta &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) delta &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;delta;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 算平均值，可以看到平均值是最近4次的平均
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_rttval &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;3&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_rttval &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; delta) &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;4&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 算加权值，加权值是最近8次加权值的平均
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;7&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; rtt) &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;8&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 不能小于1
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 计算RTO值：平滑值+max（interval，平均值）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	rto &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_srtt &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; _imax_(kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;interval, &lt;span style=&#34;color:#666&#34;&gt;4&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_rttval);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 最终在[rx_minrto,IKCP_RTO_MAX]之间
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_rto &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _ibound_(kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rx_minrto, rto, IKCP_RTO_MAX);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可见，以上流程最终要算出来当前KCP协议栈的&lt;code&gt;rx_rto&lt;/code&gt;，这个值最终会影响每个报文的超时发送时间，这在后面的发送流程中再解释。&lt;/p&gt;
+&lt;p&gt;另外还需要专门聊一下&lt;code&gt;ikcp_parse_fastack&lt;/code&gt;函数，以及快速重传的处理。快速重传的原理是这样的：假设当前有序列号&lt;code&gt;[1,2,3]&lt;/code&gt;的报文等待对端应答，当KCP协议栈收到报文2的ack时，知道报文1被跳过1次了；同样的，当收到报文3的ack时，报文1又被跳过1次。&lt;/p&gt;
+&lt;p&gt;这里的“跳过次数”就存储在&lt;code&gt;IKCPSEG.fastack&lt;/code&gt;成员中，KCP协议栈提供&lt;code&gt;ikcp_nodelay&lt;/code&gt;函数可以配置快速重传值&lt;code&gt;resend&lt;/code&gt;，当报文的跳过次数超过&lt;code&gt;resend&lt;/code&gt;时，就马上重传该报文，不会等待报文超时，一定程度上加速报文的重传降低了延迟。&lt;/p&gt;
+&lt;h2 id=&#34;ikcp_cmd_push&#34;&gt;IKCP_CMD_PUSH&lt;/h2&gt;
+&lt;p&gt;传送数据的指令，此时解析最终会进入&lt;code&gt;ikcp_parse_data&lt;/code&gt;函数中，该函数流程如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先会通过报文序列号判断是否在当前接收窗口以内（&lt;code&gt;_itimediff(sn, kcp-&amp;gt;rcv_nxt + kcp-&amp;gt;rcv_wnd) &amp;gt;= 0&lt;/code&gt;），或者已经接收过了（&lt;code&gt;_itimediff(sn, kcp-&amp;gt;rcv_nxt) &amp;lt; 0&lt;/code&gt;），这两种情况都删除报文返回，不做进一步处理。&lt;/li&gt;
+&lt;li&gt;根据报文序列号在&lt;code&gt;rcv_buf&lt;/code&gt;判断当前接收缓冲区中是否已经存在同序列号的报文，如果已经存在说明是重复接收的，也删除报文不再处理。&lt;/li&gt;
+&lt;li&gt;以上两步都通过了，说明是首次接收该序列号的报文，将把该报文放入接收缓冲区&lt;code&gt;rcv_buf&lt;/code&gt;中。&lt;/li&gt;
+&lt;li&gt;由于&lt;code&gt;rcv_queue&lt;/code&gt;中的报文才是最终面向用户层的，而上面的操作可能让&lt;code&gt;rcv_buf&lt;/code&gt;接收缓冲区非空存在新的报文了，所以接下来将&lt;code&gt;rcv_buf&lt;/code&gt;中的报文移动到&lt;code&gt;rcv_queue&lt;/code&gt;中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;ikcp_cmd_wask&#34;&gt;IKCP_CMD_WASK&lt;/h2&gt;
+&lt;p&gt;对端请求探测窗口大小，此时会把探测标志位加上&lt;code&gt;IKCP_ASK_TELL&lt;/code&gt;，下一次发送数据时带上窗口大小通知对端。&lt;/p&gt;
+&lt;h2 id=&#34;ikcp_cmd_wins&#34;&gt;IKCP_CMD_WINS&lt;/h2&gt;
+&lt;p&gt;通知窗口大小。&lt;/p&gt;
+&lt;h2 id=&#34;快速应答处理&#34;&gt;快速应答处理&lt;/h2&gt;
+&lt;h2 id=&#34;更新参数&#34;&gt;更新参数&lt;/h2&gt;
+&lt;p&gt;前面的处理完毕之后，可能会收到新的ack报文，这时就需要更新KCP协议栈的拥塞窗口大小。&lt;/p&gt;
+&lt;p&gt;如果当前拥塞窗口大小小于对端的窗口大小（&lt;code&gt;kcp-&amp;gt;cwnd &amp;lt; kcp-&amp;gt;rmt_wnd&lt;/code&gt;），那么需要增加拥塞窗口大小，区分两种情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果拥塞窗口大小小于慢启动阈值（&lt;code&gt;kcp-&amp;gt;cwnd &amp;lt; kcp-&amp;gt;ssthresh&lt;/code&gt;）：递增拥塞窗口大小。&lt;/li&gt;
+&lt;li&gt;否则：
+&lt;ul&gt;
+&lt;li&gt;拥塞窗口增量递增1/16；&lt;/li&gt;
+&lt;li&gt;如果当前拥塞窗口递增后小于增量的情况下才递增。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;最后，拥塞窗口不能超过对端窗口大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 前面处理完毕之后，最新的una更大，说明接收到了新的ack
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (_itimediff(kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;snd_una, prev_una) &lt;span style=&#34;color:#666&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rmt_wnd) {	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 拥塞窗口小于对端窗口
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;			IUINT32 mss &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;mss;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;ssthresh) { &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 拥塞窗口小于慢启动阈值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd&lt;span style=&#34;color:#666&#34;&gt;++&lt;/span&gt;;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 递增拥塞窗口
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;+=&lt;/span&gt; mss;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 递增mss
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;			}	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;else&lt;/span&gt; { &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 拥塞窗口大于等于慢启动阈值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 不能小于mss了
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;&lt;/span&gt; mss) kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; mss;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 增加 mss + 1/16 mss
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;+=&lt;/span&gt; (mss &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; mss) &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; (mss &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;16&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 只有在拥塞窗口递增后不超过incr的情况下才允许加一
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; ((kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; mss &lt;span style=&#34;color:#666&#34;&gt;&amp;lt;=&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd&lt;span style=&#34;color:#666&#34;&gt;++&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd &lt;span style=&#34;color:#666&#34;&gt;&amp;gt;&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rmt_wnd) { &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 拥塞窗口不能比对端窗口大
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;				kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;cwnd &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rmt_wnd;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;incr &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; kcp&lt;span style=&#34;color:#666&#34;&gt;-&amp;gt;&lt;/span&gt;rmt_wnd &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; mss;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h1 id=&#34;ikcp_recv函数&#34;&gt;ikcp_recv函数&lt;/h1&gt;
+&lt;p&gt;前面的&lt;code&gt;ikcp_input&lt;/code&gt;解析完毕之后，将用户缓冲区的数据解析到一个一个的报文放到了接收队列&lt;code&gt;rcv_queue&lt;/code&gt;中，&lt;code&gt;ikcp_recv&lt;/code&gt;函数就负责将这些报文重新组装起来放入用户缓冲区返回给用户层。&lt;/p&gt;
+&lt;p&gt;之所以这里还需要“组装”，是因为对端发送的数据由于超过MTU所以被KCP协议栈分成多个报文发送了。所以这里需要兼容多个分片的情况，如果待接收报文的所有分片没有接收完毕，那么不能处理。接收完毕或者不分片的情况下，就遍历这些报文将数据拷贝到缓冲区中。&lt;/p&gt;
+&lt;p&gt;上面的步骤完成之后，如果接收缓冲区&lt;code&gt;rcv_buf&lt;/code&gt;还有报文，那么依然是把这部分报文移动到接收队列中，等待下一次&lt;code&gt;ikcp_recv&lt;/code&gt;调用。&lt;/p&gt;
+&lt;h1 id=&#34;ikcp_send&#34;&gt;ikcp_send&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;ikcp_send&lt;/code&gt;函数是用户层发送数据的接口，最终会将用户传入的缓冲区数据，组装成KCP报文，放入发送队列&lt;code&gt;snd_queue&lt;/code&gt;中。&lt;/p&gt;
+&lt;p&gt;这里需要注意两种情况。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果是流模式，那么首先KCP会取出发送队列当前的最后报文的结构体，如果当前报文还有空间就将部分数据拷贝过去。&lt;/li&gt;
+&lt;li&gt;如果数据超过MSS大小，那么需要对数据分片，即将数据分为多个KCP报文发送。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;ikcp_update和ikcp_flush&#34;&gt;ikcp_update和ikcp_flush&lt;/h1&gt;
+&lt;p&gt;前面的&lt;code&gt;ikcp_send&lt;/code&gt;只是将待发送数据组装成KCP报文放到发送队列中了，具体的发送流程由调用&lt;code&gt;ikcp_update&lt;/code&gt;函数来驱动完成的。&lt;/p&gt;
+&lt;p&gt;KCP协议栈中，并没有任何的自定义定时器，即自己并不会主动来根据时间驱动来完成工作，这部分都留给了用户层，由用户层主动调用&lt;code&gt;ikcp_update&lt;/code&gt;来完成这些工作。&lt;code&gt;ikcp_update&lt;/code&gt;函数的处理其实很简单，会判断上一次刷新（flush）时间与这次的间隔，来判断是否调用&lt;code&gt;ikcp_flush&lt;/code&gt;函数来完成工作，所以这里真正工作的是&lt;code&gt;ikcp_flush&lt;/code&gt;函数，下面就来重点分析这个函数的实现。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;ikcp_flush&lt;/code&gt;函数本质就是根据当前的情况，封装KCP报文，将这些报文放到发送缓冲区&lt;code&gt;snd_buf&lt;/code&gt;中，发送到对端。除此之外，还需要重新计算流控、拥塞窗口等参数。总体来看，需要完成以下的工作：&lt;/p&gt;
+&lt;h2 id=&#34;处理ack应答&#34;&gt;处理ACK应答&lt;/h2&gt;
+&lt;p&gt;首先，&lt;code&gt;ikcp_flush&lt;/code&gt;函数将编码&lt;code&gt;IKCP_CMD_ACK&lt;/code&gt;类型的指令，应答收到了对端那些报文。&lt;/p&gt;
+&lt;h2 id=&#34;探测对端窗口&#34;&gt;探测对端窗口&lt;/h2&gt;
+&lt;p&gt;在对端通知窗口为0（即&lt;code&gt;kcp-&amp;gt;rmt_wnd == 0&lt;/code&gt;）情况下，需要探测对端当前窗口大小，即需要发送&lt;code&gt;IKCP_ASK_SEND&lt;/code&gt;类型的报文。&lt;/p&gt;
+&lt;p&gt;在这里，涉及到KCP协议栈&lt;code&gt;ikcpcb&lt;/code&gt;结构体的几个参数：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;probe_wait：存储下一次探测窗口的时间间隔，该参数的初始值为&lt;code&gt;IKCP_PROBE_INIT&lt;/code&gt;，每次新的探测间隔时间将在当前基础上递增当前的1/2，但是最高不超过&lt;code&gt;IKCP_PROBE_LIMIT&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;ts_probe：存储下一次探测时间，不难知道这个值每次都是根据当前时间加上&lt;code&gt;probe_wait&lt;/code&gt;计算出来的。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;在当前时间超过&lt;code&gt;ts_probe&lt;/code&gt;（即&lt;code&gt;_itimediff(kcp-&amp;gt;current, kcp-&amp;gt;ts_probe) &amp;gt;= 0&lt;/code&gt;）的情况下，&lt;code&gt;probe&lt;/code&gt;探测标志位就要加上&lt;code&gt;IKCP_ASK_SEND&lt;/code&gt;，表示需要给对端发送探测窗口的报文了。&lt;/p&gt;
+&lt;h2 id=&#34;流控&#34;&gt;流控&lt;/h2&gt;
+&lt;p&gt;以上已经处理了&lt;code&gt;IKCP_CMD_ACK&lt;/code&gt;、&lt;code&gt;IKCP_ASK_SEND&lt;/code&gt;、&lt;code&gt;IKCP_ASK_TELL&lt;/code&gt;这三个类型的指令了，接下来就是处理&lt;code&gt;IKCP_CMD_PUSH&lt;/code&gt;类型的数据了，这部分数据都已经在前面的&lt;code&gt;ikcp_send&lt;/code&gt;由用户层传入的缓冲区解析拼装到发送队列&lt;code&gt;snd_queue&lt;/code&gt;中了。&lt;/p&gt;
+&lt;p&gt;接下来，就可以遍历发送队列&lt;code&gt;snd_queue&lt;/code&gt;中的报文移动到发送队列&lt;code&gt;snd_buf&lt;/code&gt;中，进行实际的报文发送了。&lt;/p&gt;
+&lt;p&gt;但是，并不是所有当前在发送队列中的报文都能在一次flush过程被发送出去，要考虑三个窗口的大小：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先不能超过发送窗口（snd_wnd）和对端窗口（rmt_wnd）的大小。&lt;/li&gt;
+&lt;li&gt;在开启流控（kcp-&amp;gt;nocwnd == 0）的情况下，还不能超过当前流控窗口（cwnd）的大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;前面的流程算出来发送时的窗口大小，接下来就按照这个窗口大小将&lt;code&gt;snd_queue&lt;/code&gt;的报文取下来放入&lt;code&gt;snd_buf&lt;/code&gt;中了。&lt;/p&gt;
+&lt;h2 id=&#34;发送数据&#34;&gt;发送数据&lt;/h2&gt;
+&lt;p&gt;以上已经根据流控窗口选出了待发送的报文放在发送缓冲区&lt;code&gt;snd_buf&lt;/code&gt;里了，接下来就是具体的发送流程了。&lt;/p&gt;
+&lt;p&gt;针对每个报文，在发送之前要计算它的几个参数：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;xmit：发送次数，每发送一次该计数递增，如果一个报文的发送次数超过了&lt;code&gt;dead_link&lt;/code&gt;，那么认为网络已经断了不再尝试发送。&lt;/li&gt;
+&lt;li&gt;rto：用来计算重传超时时间的，初始值就是KCP协议栈当前估算出来的RTO值，在发生重传的情况下这个值会增加：
+&lt;ul&gt;
+&lt;li&gt;在非急速模式下，每次递增的值也是KCP协议栈估算出来的RTO值。（&lt;code&gt;segment-&amp;gt;rto += kcp-&amp;gt;rx_rto;&lt;/code&gt;）&lt;/li&gt;
+&lt;li&gt;急速模式下，每次递增的值也是KCP协议栈估算出来的RTO值的二分之一。（&lt;code&gt;segment-&amp;gt;rto += kcp-&amp;gt;rx_rto / 2&lt;/code&gt;）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;resendts：根据当前时间加上rto时间计算出来的下次重传时间。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看看发送报文需要考虑的几种情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首次发送（&lt;code&gt;segment-&amp;gt;xmit == 0&lt;/code&gt;）：设置&lt;code&gt;xmit&lt;/code&gt;为1，&lt;code&gt;rto&lt;/code&gt;为&lt;code&gt;kcp-&amp;gt;rx_rto&lt;/code&gt;，以及重传时间为当前时间加上rto（&lt;code&gt;segment-&amp;gt;resendts = current + segment-&amp;gt;rto + rtomin&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;因为超时发生的重传（&lt;code&gt;_itimediff(current, segment-&amp;gt;resendts) &amp;gt;= 0&lt;/code&gt;）：递增&lt;code&gt;xmit&lt;/code&gt;计数值，增加&lt;code&gt;rto&lt;/code&gt;时间，以及更新下次重传时间&lt;code&gt;resendts&lt;/code&gt;，并且标记发生了丢包（&lt;code&gt;lost=1&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;快速重传（&lt;code&gt;segment-&amp;gt;fastack &amp;gt;= resent&lt;/code&gt;）：前面已经分析过快速重传参数&lt;code&gt;fastack&lt;/code&gt;的作用，这里就不再阐述了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;通过以上分析，可以知道除了第一种情况是正常发送之外，还发生了超时重传以及快速重传，根据这些情况，需要更新一下KCP协议栈的参数。&lt;/p&gt;
+&lt;h2 id=&#34;更新参数-1&#34;&gt;更新参数&lt;/h2&gt;
+&lt;p&gt;分以下两种情况处理：&lt;/p&gt;
+&lt;h3 id=&#34;快速重传&#34;&gt;快速重传&lt;/h3&gt;
+&lt;p&gt;在发生快速重传的情况下，会挑战ssthresh为当前发送窗口的一半大小，同时拥塞窗口为&lt;code&gt;ssthresh + resent&lt;/code&gt;大小：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;	if (change) { // 发生了快速重传，计算新的ssthresh
+		// 如果发生了快速重传，拥塞窗口阈值降低为当前未确认包数量的一半或最小值  
+		// 当前发送窗口大小
+		IUINT32 inflight = kcp-&amp;gt;snd_nxt - kcp-&amp;gt;snd_una;
+		// ssthresh为当前窗口大小的一半
+		kcp-&amp;gt;ssthresh = inflight / 2;
+		// 不能小于IKCP_THRESH_MIN
+		if (kcp-&amp;gt;ssthresh &amp;lt; IKCP_THRESH_MIN)
+			kcp-&amp;gt;ssthresh = IKCP_THRESH_MIN;
+		kcp-&amp;gt;cwnd = kcp-&amp;gt;ssthresh + resent;
+		kcp-&amp;gt;incr = kcp-&amp;gt;cwnd * kcp-&amp;gt;mss;
+	}
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;超时丢包&#34;&gt;超时丢包&lt;/h3&gt;
+&lt;p&gt;在发生超时丢包的情况下，慢启动阈值调整为旧的拥塞窗口的一半，但是不能小于&lt;code&gt;IKCP_THRESH_MIN&lt;/code&gt;，而新的拥塞窗口值变成1：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;	if (lost) { // 发生了丢包
+		// 丢失则阈值减半, cwd 窗口保留为 1  
+		kcp-&amp;gt;ssthresh = cwnd / 2;
+		if (kcp-&amp;gt;ssthresh &amp;lt; IKCP_THRESH_MIN)
+			kcp-&amp;gt;ssthresh = IKCP_THRESH_MIN;
+		kcp-&amp;gt;cwnd = 1;
+		kcp-&amp;gt;incr = kcp-&amp;gt;mss;
+	}
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/&#34;&gt;KCP: 快速可靠的ARQ协议 - Kaiyuan&amp;rsquo;s Blog | May the force be with me&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
     </item>
     
     <item>
@@ -26,7 +404,169 @@
       <pubDate>Mon, 29 Jul 2019 11:43:56 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20190729-glog/</guid>
-      <description>本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。 概述 要记录一条日志，分为两个阶段： 首先生成日志。 然后将</description>
+      
+      <description>&lt;p&gt;本文基于glog CPP版本的0.4.0版本，对glog的实现机制做一些简单的分析记录。&lt;/p&gt;
+&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;要记录一条日志，分为两个阶段：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先生成日志。&lt;/li&gt;
+&lt;li&gt;然后将日志内容输出到相应的设备，如标准输出、文件等。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下就分两部分展开对glog的分析。&lt;/p&gt;
+&lt;h1 id=&#34;日志的生成&#34;&gt;日志的生成&lt;/h1&gt;
+&lt;p&gt;一般有两种生成日志数据的方式：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;类printf的方式，将需要输入的数据格式化。&lt;/li&gt;
+&lt;li&gt;类C++ stream流的方式，提供出来operator &amp;laquo;操作符供输入数据。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;前者的好处在于可以对输入的数据格式进行严格检查，不匹配的情况下编译器会进行告警。缺点则是不够灵活。
+后者的好处是灵活，除了用了进行一般的日志输入，还可以写出类似&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;CHECK_IF(某条件不成立) &amp;lt;&amp;lt; 输出日志
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;的操作。&lt;/p&gt;
+&lt;p&gt;glog中选择了第二种方式。&lt;/p&gt;
+&lt;p&gt;首先来看glog对外暴露的用于日志输入的接口。其对应的宏是：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;#define LOG(severity) COMPACT_GOOGLE_LOG_ ## severity.stream()
+
+#define COMPACT_GOOGLE_LOG_INFO google::LogMessage( \
+    __FILE__, __LINE__)
+#define COMPACT_GOOGLE_LOG_WARNING google::LogMessage( \
+    __FILE__, __LINE__, google::GLOG_WARNING)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;从中可以看到glog中每一条日志，都对应一个LogMessage的类，然后将返回其中的stream()对象输入日志数据。&lt;/p&gt;
+&lt;p&gt;每个LogMessage内部有一个名为LogMessageData的成员，用于保存这些数据，其中比较重要的成员有以下几个：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;char message_text_[LogMessage::kMaxLogMessageLen+1]; // 用户存储日志的固定长度数组，大小为30KB。
+LogStream stream_; // 用于接收用户日志的C++stream，构造时传入上面的message_text_来构造，所以实际写数据会到message_text_中。
+void (LogMessage::*send_method_)(); // 用户最终发送日志数据的函数指针。
+timestamp_、tm_time_：保存日志时间相关的成员。
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;实际根据日志创建出一个LogMessage对象时，会根据不同类型的日志，传入不同的send_method函数指针，而每个不同的LogMessage构造时都会去调用其内部的Init函数完成LogMessageData的构造，Init函数主要做的事情有：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;存储send_method函数指针。&lt;/li&gt;
+&lt;li&gt;获取当前的系统时间，存放到相应的成员中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;而LOG之类的宏，实际返回的就是LogMessageData的stream指针，待到一切的输入完毕，这一条日志对应的LogMessage就会被析构，其析构函数内又会调用成员函数Flush，这个函数最终完成将日志输出的操作：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;void LogMessage::Flush() {
+  // ...
+  {
+    MutexLock l(&amp;amp;log_mutex);
+    (this-&amp;gt;*(data_-&amp;gt;send_method_))();
+    ++num_messages_[static_cast&amp;lt;int&amp;gt;(data_-&amp;gt;severity_)];
+  }
+  // ...
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;有了以上的准备，实际回头来看一个日志的输入&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190729-glog/log-generate.png&#34; alt=&#34;log-generate&#34; title=&#34;log-generate&#34;&gt;&lt;/p&gt;
+&lt;h1 id=&#34;输出日志&#34;&gt;输出日志&lt;/h1&gt;
+&lt;p&gt;以上解决了生成日志的问题，继续往下看生成日志之后发到哪里去。&lt;/p&gt;
+&lt;p&gt;日志的分发由类LogDestination来负责，其提供出去的接口多为静态函数。 以某个send_method函数的实现来看，如LogMessage::SendToLog，省略大部分细节，其内部实现为：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;void LogMessage::SendToLog() EXCLUSIVE_LOCKS_REQUIRED(log_mutex) {
+    // ...
+
+    // log this message to all log files of severity &amp;lt;= severity_
+    LogDestination::LogToAllLogfiles(data_-&amp;gt;severity_, data_-&amp;gt;timestamp_,
+                                     data_-&amp;gt;message_text_,
+                                     data_-&amp;gt;num_chars_to_log_);
+    LogDestination::LogToSinks(data_-&amp;gt;severity_,
+                           data_-&amp;gt;fullname_, data_-&amp;gt;basename_,
+                           data_-&amp;gt;line_, &amp;amp;data_-&amp;gt;tm_time_,
+                           data_-&amp;gt;message_text_ + data_-&amp;gt;num_prefix_chars_,
+                           (data_-&amp;gt;num_chars_to_log_
+                            - data_-&amp;gt;num_prefix_chars_ - 1));
+    // ...
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;其中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;LogDestination::LogToAllLogfiles：写日志到对应级别的日志文件中。&lt;/li&gt;
+&lt;li&gt;LogDestination::LogToSinks：写到用户自定义的sink输出中，传递那么多参数是为了去掉添加进去的logprefix，包括severity，ts，线程id，文件basename等。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;接下来分别分析这两部分输出的操作。&lt;/p&gt;
+&lt;h2 id=&#34;写到对应级别的日志中&#34;&gt;写到对应级别的日志中&lt;/h2&gt;
+&lt;p&gt;LogDestination内部有一个与不同日志级别相关的LogDestination数组：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;static LogDestination* log_destinations_[NUM_SEVERITIES];
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;首先来看LogToAllLogfiles函数的实现：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;inline void LogDestination::LogToAllLogfiles(LogSeverity severity,
+                                             time_t timestamp,
+                                             const char* message,
+                                             size_t len) {
+
+  if ( FLAGS_logtostderr ) {           // global flag: never log to file
+    ColoredWriteToStderr(severity, message, len);
+  } else {
+    for (int i = severity; i &amp;gt;= 0; --i)
+      LogDestination::MaybeLogToLogfile(i, timestamp, message, len);
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;可以看到，对某个级别的日志而言，会依次调用级别值更小的日志输出，比如WARN级别的日志也会输出到INFO级别的日志文件中。&lt;/p&gt;
+&lt;p&gt;接着看MaybeLogToLogfile函数的实现：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;inline void LogDestination::MaybeLogToLogfile(LogSeverity severity,
+                                              time_t timestamp,
+					      const char* message,
+					      size_t len) {
+  const bool should_flush = severity &amp;gt; FLAGS_logbuflevel;
+  LogDestination* destination = log_destination(severity);
+  destination-&amp;gt;logger_-&amp;gt;Write(should_flush, timestamp, message, len);
+}
+
+inline LogDestination* LogDestination::log_destination(LogSeverity severity) {
+  assert(severity &amp;gt;=0 &amp;amp;&amp;amp; severity &amp;lt; NUM_SEVERITIES);
+  if (!log_destinations_[severity]) {
+    log_destinations_[severity] = new LogDestination(severity, NULL);
+  }
+  return log_destinations_[severity];
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;可以看到：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先会从log_destination中根据日志级别，得到对应的log_destinations_数组成员返回。&lt;/li&gt;
+&lt;li&gt;然后调用destination-&amp;gt;logger_成员的Write函数写日志，其中会传入一个叫should_flush的参数，仅在传入的日志级别大于FLAGS_logbuflevel才会为真，这样可以控制不同级别日志的flush到磁盘的行为。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;而logger_成员是一个Logger接口，本质上是一个纯虚类，因此glog也提供了接口给用户定制不同级别日志对应的Logger类：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// Set the logger for the specified severity level.  The logger
+// becomes the property of the logging module and should not
+// be deleted by the caller.  Thread-safe.
+extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;写到用户自定义sink中&#34;&gt;写到用户自定义sink中&lt;/h2&gt;
+&lt;p&gt;接下来看看怎么将日志输出到用户自定义sink中的流程。&lt;/p&gt;
+&lt;p&gt;而每个LogDestination内部又有一个叫LogSink的类来真正负责日志的输出，该类也是一个纯虚类，用户需要实现其中的send方法来完成日志的输出。对于每个级别的日志而言，会将同级别的LogSink一起放在一个向量中：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;static vector&amp;lt;LogSink*&amp;gt;* sinks_
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;因此，当需要输出自定义的日志时，就遍历该向量进行调用：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;inline void LogDestination::LogToSinks(LogSeverity severity,
+                                       const char *full_filename,
+                                       const char *base_filename,
+                                       int line,
+                                       const struct ::tm* tm_time,
+                                       const char* message,
+                                       size_t message_len) {
+  ReaderMutexLock l(&amp;amp;sink_mutex_);
+  if (sinks_) {
+    for (int i = sinks_-&amp;gt;size() - 1; i &amp;gt;= 0; i--) {
+      (*sinks_)[i]-&amp;gt;send(severity, full_filename, base_filename,
+                         line, tm_time, message, message_len);
+    }
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190729-glog/log-output.png&#34; alt=&#34;log-output&#34; title=&#34;log-output&#34;&gt;&lt;/p&gt;
+&lt;h1 id=&#34;性能分析&#34;&gt;性能分析&lt;/h1&gt;
+&lt;p&gt;写了一个简单的测试程序，起多个线程同时一起使用glog写入日志，用火焰图分别分析它的on和off CPU消耗如下：&lt;/p&gt;
+&lt;p&gt;on CPU：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190729-glog/on.svg&#34; alt=&#34;on&#34; title=&#34;on&#34;&gt;&lt;/p&gt;
+&lt;p&gt;off CPU：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190729-glog/off.svg&#34; alt=&#34;off&#34; title=&#34;off&#34;&gt;&lt;/p&gt;
+&lt;p&gt;从上面的火焰图可以看到几个优化点。&lt;/p&gt;
+&lt;h2 id=&#34;localtime_r的调用&#34;&gt;localtime_r的调用&lt;/h2&gt;
+&lt;p&gt;在前面分析到的LogMessage::Init函数中，会调用localtime_r函数获得当前时区的时间，但是该函数有几个大问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;本质上是一个传入当前秒数，然后根据时区将这个秒数转换成时区所在地时间的函数，然而由于需要加锁获取时区，所以每次调用该函数glibc内部的实现都需要加锁操作，表现在off CPU的火焰图中，就是__tz_convert这个函数的调用。&lt;/li&gt;
+&lt;li&gt;由于加锁，导致这个函数如果被信号中断然后又在信号处理中继续被调用，可能会导致死锁现象。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;因此，优化的方式是自己实现一个完成相同功能的函数，而在传入参数中需要提供时区值，这样就变成了一个纯CPU肌酸而不需要加锁的操作。我单独把localtime和优化版本拿出来对比压测，能有很大的提升。&lt;/p&gt;
+&lt;p&gt;参考：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.bugwz.com/2019/01/12/localtime/&#34;&gt;localtime函数死锁分析&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;减少全局锁&#34;&gt;减少全局锁&lt;/h2&gt;
+&lt;p&gt;前面分析到，在调用send_method之前需要全局加锁，从火焰图分析来看，确实也在这里耗费了相当的时间。&lt;/p&gt;
+&lt;p&gt;有些人提出了一种异步日志数据的方式，即独立出来一个日志线程，将日志都发往这个线程里面，而发送的流程可以使用无锁队列等机制减少锁的消耗，见
+&lt;a href=&#34;https://www.slideshare.net/chenshuo/efficient-logging-in-multithreaded-c-server&#34;&gt;Efficient logging in multithreaded C++ server&lt;/a&gt;&lt;/p&gt;
+</description>
+      
     </item>
     
     <item>
@@ -35,7 +575,103 @@
       <pubDate>Sat, 13 Apr 2019 12:04:59 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20190413-problem-fix/</guid>
-      <description>注：本文为重新发布2017-06-17所写博客，以下为正文部分。 上周我们的存储服务在某个线上项目频繁出现崩溃，花了几天的时间来查找解决该问题</description>
+      
+      <description>&lt;p&gt;注：本文为重新发布2017-06-17所写博客，以下为正文部分。&lt;/p&gt;
+&lt;p&gt;上周我们的存储服务在某个线上项目频繁出现崩溃，花了几天的时间来查找解决该问题。在这里，将这个过程做一下记录。&lt;/p&gt;
+&lt;h1 id=&#34;加入调试信息&#34;&gt;加入调试信息&lt;/h1&gt;
+&lt;p&gt;由于问题在线上发生，较难重现，首先想到的是能不能加上更多的信息，在问题出现时提供更多的解决思路。&lt;/p&gt;
+&lt;p&gt;首先，我们的代码里，在捕获到进程退出的信号比如SIGABRT、SIGSEGV、SIGILL等信号时，会打印出主线程的堆栈，用于帮助我们发现问题。&lt;/p&gt;
+&lt;p&gt;但是在崩溃的几次情况中，打印出来的信息并不足以帮助我们解决问题，因为打印的崩溃堆栈只有主线程，猜测是不是在辅助线程中发生的异常，于是采取了两个策略：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ulimit命令打开线上一台服务器的coredump，当再次有崩溃发生时有core文件产生，能够帮助发现问题。&lt;/li&gt;
+&lt;li&gt;加入了一些代码，用于在崩溃的时候同时也打印出所有辅助线程的堆栈信息。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;在做这两部分工作之后，再次发生崩溃的情况下，辅助线程的堆栈并无异常，core文件由于数据错乱也看不出来啥有用的信息来。&lt;/p&gt;
+&lt;h1 id=&#34;复现问题&#34;&gt;复现问题&lt;/h1&gt;
+&lt;p&gt;由于第一步工作受挫，接下来我的思路就在考虑怎么能在开发环境下复现这个问题。&lt;/p&gt;
+&lt;p&gt;我们的存储服务在其他项目上已经上线了有一段时间了，但是并没有出现类似的问题。那么，出现问题的项目，与其他已经上线的服务有啥不同，这里也许是一个突破口。&lt;/p&gt;
+&lt;p&gt;经过咨询业务方，该业务的特点是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;单条数据大：有的数据可能有几KB，而之前的项目都只有几百字节。&lt;/li&gt;
+&lt;li&gt;读请求并发大，而其他业务是写请求远大于读请求。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;由于我们的存储服务兼容memcached协议，出现问题时也是以memcached协议进行访问的，所以此时我的考虑是找一个memcached压测工具，模拟前面的数据和请求特点来做模拟压测。&lt;/p&gt;
+&lt;p&gt;最后选择的是twitter出品的工具twemperf，其特点是可以指定写入缓存的数据范围，同时还可以指定请求的频率。&lt;/p&gt;
+&lt;p&gt;有了这个工具，首先尝试了往存储中写入大量数据量分布在4KB~10KB的数据，此时没有发现服务有core的情况出现。
+然后，尝试构造大量的读请求，果然出现了core情况，重试了几次，都能稳定的重现问题了。&lt;/p&gt;
+&lt;p&gt;有了能稳定重现问题的办法，总算给问题的解决打开了一个口子。&lt;/p&gt;
+&lt;h1 id=&#34;首次尝试&#34;&gt;首次尝试&lt;/h1&gt;
+&lt;p&gt;此时，可以正式的在代码中查找问题的原因了。&lt;/p&gt;
+&lt;p&gt;来大概说明一下该存储服务的架构：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;主线程负责接收客户端请求，并且进行解析。&lt;/li&gt;
+&lt;li&gt;如果是读请求，将分派给读请求处理线程，由这个线程与存储引擎库进行交互，查询数据。此时该线程数量配置为2。&lt;/li&gt;
+&lt;li&gt;存储引擎库负责存储落地到磁盘的数据，类似leveldb，只不过这部分是我们自己写的存储引擎。&lt;/li&gt;
+&lt;li&gt;在读线程从存储引擎中查询数据返回后，将把数据返回给主线程，由主线程负责应答客户端。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190413-problem-fix/server.png&#34; alt=&#34;server&#34; title=&#34;server&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在这几步中，第1和第4步是在主线程中进行的，第2和第3步是在读存储引擎线程中进行的。在这个过程中，如果同一个客户端有多个读请求，那么只有按照这四步在处理完毕一个读请求之后，才会继续从该客户端中取出下一个请求进行处理。&lt;/p&gt;
+&lt;p&gt;在几次重现问题的过程中，发现出错的都是在第2步和第4步中，该请求客户端的数据结构某些成员出现了错乱，即要访问的指针地址已经无效了，导致的错误。&lt;/p&gt;
+&lt;p&gt;指针无效，一般来说有两种可能性：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;被无效地址覆盖了这个指针。&lt;/li&gt;
+&lt;li&gt;指针已经被释放的情况下继续使用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;当时尝试把一些错误的指针地址打印出来，发现有几次都是是字符串“pcm*”的16进制表示，当时在想这个特殊的字符串到底是什么，百思不得其解的时候，一位曾经使用过mcperf工具的同事，想起来mcperf做压测时的key就是&amp;quot;mcp&amp;quot;开头的，而因为是小端方式，所以如果使用这个类型的字符串，去覆盖指针，那么就变成了&amp;quot;pcm&amp;quot;。我们很快验证了这个说法，mcperf确实是以这个为前缀来写入数据的。&lt;/p&gt;
+&lt;p&gt;此时，猜测问题的原因在于：当读存储引擎线程去访问存储引擎时，某些错误导致从存储引擎读出来的数据，将客户端请求数据写乱，从而导致了崩溃。&lt;/p&gt;
+&lt;p&gt;由于同时有两个读存储引擎的线程，猜测这里是不是因为多线程访问出了问题，导致的错误呢？&lt;/p&gt;
+&lt;p&gt;为了验证这个问题，最简单的办法就是将线程数量改成1，重新用mcperf试了几次，确实没有再次出现问题。此时已经是周五，我们缓了一口气，打算以此修改暂时上测试环境利用周末的时间观察一下情况。&lt;/p&gt;
+&lt;h1 id=&#34;柳暗花明&#34;&gt;柳暗花明&lt;/h1&gt;
+&lt;p&gt;前面提到过，猜测问题出现的原因，是多线程访问存储引擎时将某个数据写错乱了，导致其中的指针无效。&lt;/p&gt;
+&lt;p&gt;clang和gcc 4.8有对应的编译参数，可以用来检测内存错误的写操作，即Address Sanitizer工具。为了兼容线上比较老的系统，之前我们的服务都是在gcc 4.1的环境下进行编译的，为了使用这个工具，首先需要折腾到满足gcc版本号大于4.8的系统上进行编译。&lt;/p&gt;
+&lt;p&gt;然而，在折腾编译并且运行后，同样使用mcperf的情况下，并不能看到有内存错误覆盖写的提示，我尝试了多次都没有看到。难道是工具没有起作用？&lt;/p&gt;
+&lt;p&gt;为了验证该工具的作用，我简单在出错代码的前面加入了一段肯定有问题的代码，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;char a[100] = {&amp;#39;0&amp;#39;};
+a[100] = &amp;#39;1&amp;#39;;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;而在加入这段有问题的代码之后再次运行，就能看到编译器对这段代码的提示。可见，Address Sanitizer工具是起作用的。那么，前面的过程中没有看到问题，只能说明一个问题：并没有内存错误写的情况发生。&lt;/p&gt;
+&lt;p&gt;此时想到另一个可能，就是有没有可能是多线程在没有保护的情况下访问了某段数据导致的问题？&lt;/p&gt;
+&lt;p&gt;gcc同样也有类似的工具来检查这类错误，即Thread Sanitizer工具。然而，在给项目Makefile加入该编译参数后，程序一运行就退出了，根本看不出什么有用的信息来。&lt;/p&gt;
+&lt;p&gt;此时想到的另一个工具是valgrind。大多数时候，valgrind只是用来做内存泄露检测的，其实它也可以用来做线程数据竞争的检查，使用参数 &amp;ndash;tool=helgrind 即可。使用valgrind之后，打印出来疑似有问题的代码如下：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190413-problem-fix/valgrind.png&#34; alt=&#34;valgrind&#34; title=&#34;valgrind&#34;&gt;&lt;/p&gt;
+&lt;p&gt;到了这里，猜测问题的原因就是由于多线程访问数据导致的错误。&lt;/p&gt;
+&lt;p&gt;因为有多个处理读请求数据的线程，首先猜测的是不是某些错误的处理，导致了可以在同一时间多个线程都操作该请求客户端的数据。但是通过review代码，发现这部分处理是没有问题的，另外在访问存储引擎查询数据时，入口处也确实进行了加锁的操作。&lt;/p&gt;
+&lt;p&gt;为了验证我的观点，我在每个请求客户端结构体中，新增了一个数据用于保存线程id，这个线程id在进入读线程中设置，而从读线程处理完毕转发给主线程之前重置为0。有了这个数据，在每次请求从主线程进入读线程中，都会判断一下这个值是不是非0，如果有非0的值那么说明此时有另外的读线程在进行处理。然而也并没有看到有异常的情况出现。&lt;/p&gt;
+&lt;p&gt;所以，这一步的猜测，即猜测是由于多线程操作客户端数据导致的问题，看起来方向是错误的了。而之前在测试环境上修改了读线程数为1的版本，也出现了崩溃。所以，问题的原因并不是由多个读线程导致的。&lt;/p&gt;
+&lt;h1 id=&#34;终见曙光&#34;&gt;终见曙光&lt;/h1&gt;
+&lt;p&gt;前面提到过，目前能确定的是，与客户端连接相关的指针无效了，而一个指针无效，一般来说是两种可能：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;被无效地址覆盖了这个指针。&lt;/li&gt;
+&lt;li&gt;指针已经被释放的情况下继续使用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;既然前面验证了第一个方向，不存在多线程覆盖该指针数据导致无效的情况，那么接下来就看看是否存在已经释放的情况下继续使用指针而导致了问题。&lt;/p&gt;
+&lt;p&gt;为了查找释放该指针的情况，首先我找到完成这个释放操作的函数，查找所有可能调用该函数的地方。发现有十几处，每一处都看有点繁琐，为了辅助调试，修改了函数的实现，新增传入一个int型参数，每个调用者传入不同的参数以此来区分不同的调用者，同时在函数内将被释放的指针以及传入的参数都打印出来。&lt;/p&gt;
+&lt;p&gt;释放时的日志中有了指针，就可以与core的情况下与出错时的指针做对比，知道是哪个指针出的问题；而有了每个调用者传入的参数，又可以定位到这个出错的指针在释放时是被哪里调用了。&lt;/p&gt;
+&lt;p&gt;加上调试信息之后，又跑了几次都在同一个地方调用，我又重新review了一下这部分的代码逻辑，终于定位到了问题真实的原因。&lt;/p&gt;
+&lt;p&gt;一个连接，可能会一次性的从同一个客户端接收到多个请求，即所谓的“pipeline”方式：客户端在上一次请求还没有应答的情况下，继续往这个链接中发生请求数据。&lt;/p&gt;
+&lt;p&gt;而主线程的处理逻辑大体是这样的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;while true:
+    如果客户端可写：
+        应答客户端请求
+        如果应答失败：
+            关闭客户端连接
+
+    如果客户端有未处理的请求：
+        读客户端的请求数据进行处理
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里的问题的时间序列大概是这样的，假设当前一个链接同时存在A、B两个请求：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;主线程已经处理了A请求，但是因为此时客户端还不可写，因此没有应答客户端，继续处理下一个B请求，将请求数据放到辅助线程中进行处理。&lt;/li&gt;
+&lt;li&gt;epoll通知客户端可写，主线程应答A请求的回复给客户端，但是应答出错，那么就会关闭这个连接。这种通知可写，又写失败的请求，大多发生在客户端关闭了连接时。&lt;/li&gt;
+&lt;li&gt;此时从辅助线程处理的B请求已经处理完毕了，辅助线程将处理结果告知主线程，主线程准备做下一步的处理时，第二步中已经关闭了连接，于是出错了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这个问题出现的临界条件是：请求并发量大，同时应用采用了使用pipeline方式的客户端，而在某些极端的情况下，比如同一个客户端已经堆积了很多请求在服务器的pipeline队列中，此时服务器处理应答也慢，导致客户度超时关闭了连接，而服务器主线程如果在这种情况下继续处理堆积的请求，就可能访问已经释放的连接对象导致出错。&lt;/p&gt;
+&lt;h1 id=&#34;总结&#34;&gt;总结&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;找到能稳定重现问题的办法很重要。一般来说，首先应该思考，同一个服务在别的业务下面没有出现问题，在另一个业务上出现了问题，那么以存储类服务来看，首先应该考虑环境以及数据有什么区别，从这里找突破口来重现问题。&lt;/li&gt;
+&lt;li&gt;需要熟悉使用各种工具。以C系列的服务器来说，出现问题大部分就是指针无效、内存泄露等，针对这些常用的工具就是Address Sanitizer、 valgrind等。&lt;/li&gt;
+&lt;li&gt;大胆假设、小心求证。跟进这种复杂的bug时，最好不要在一旁呆着空想，因为经常疑难的问题是在某些临界条件下出现的，就是同一段代码正常情况下是没有问题的，这些临界条件才触发的问题。因此，有很多看上去觉得没问题的地方，在临界条件下就成了问题。此时空想是解决不了问题的，需要动手来做一些实验、加一些调试代码和日志等，来验证你的猜测对不对。常见的临界条件有：线程调度导致的错误，由于操作系统内核调度线程对应用程序而言不可知，即同样的代码，先调度线程A执行再调度线程B执行，和反之的情况有截然不同的效果；另外数据也有可能导致不同的临界条件，这个需要具体看不同的业务数据都有哪些特点来具体分析。&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
     </item>
     
     <item>
@@ -44,7 +680,377 @@
       <pubDate>Wed, 27 Feb 2019 21:01:43 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20190227-tcp/</guid>
-      <description>概述 应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应</description>
+      
+      <description>&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcpip.png&#34; alt=&#34;tcpip&#34; title=&#34;tcpip&#34;&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应用层的信息是通过端口号，即不同的端口号提供不同的服务。&lt;/li&gt;
+&lt;li&gt;传输层：通常也称为“四层”，TCP、UDP协议工作在这一层，位于这一层的分组称为报文段（segment）。&lt;/li&gt;
+&lt;li&gt;网络层：通常也称为“三层”，负责将数据包（datagram）从一台主机移动到另一台主机。&lt;/li&gt;
+&lt;li&gt;接口层：通常也称为“二层”，链路层分组称为帧（frame）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;tcp协议格式&#34;&gt;TCP协议格式&lt;/h1&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-header.jpg&#34; alt=&#34;tcp-header&#34; title=&#34;tcp-header&#34;&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;端口号：tcp使用端口号来标记目标和源端口，tcp头中并没有ip地址信息，根据前面的tcp/ip模型，ip地址这是三层做的事情。&lt;/li&gt;
+&lt;li&gt;序号（Sequence Number）：用于对tcp字节流进行编号，以解决网络包乱序问题。&lt;/li&gt;
+&lt;li&gt;确认号（Acknowledgement Number）：用于确认接收到的报文段序号，用来解决丢包问题。&lt;/li&gt;
+&lt;li&gt;窗口：用于通知对端接收窗口大小，用于解决流控问题。&lt;/li&gt;
+&lt;li&gt;TCP标志位，用于控制TCP协议状态机的，包括以下几个：
+&lt;ul&gt;
+&lt;li&gt;ACK：只有这个标志位置位时，前面的确认号字段才有效。&lt;/li&gt;
+&lt;li&gt;SYN：在连接建立时用来同步序号。当 SYN=1，ACK=0 时表示这是一个连接请求报文段。若对方同意建立连接，则响应报文中 SYN=1，ACK=1。&lt;/li&gt;
+&lt;li&gt;FIN：用来释放一个连接，当 FIN=1 时，表示此报文段的发送方的数据已发送完毕，并要求释放连接。&lt;/li&gt;
+&lt;li&gt;RST：重置连接，比如向一个不存在监听服务的端口发请求时，就会收到RST包。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;TCP选项：这部分可选，不属于TCP头部必然存在的部分。
+&lt;ul&gt;
+&lt;li&gt;MSS（Maximum Segment Size，最大报文长度）：MSS选项用于在TCP连接建立时，收发双方协商通信时每一个报文段所能承载的最大数据长度。为了达到最佳的传输效能，TCP协议在建立连接的时候通常要协商双方的MSS值，这个值TCP协议在实现的时候往往用MTU值代替（需要减去IP数据包包头的大小20Bytes和TCP数据段的包头20Bytes）所以一般MSS值1460。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;tcp连接的建立和终止&#34;&gt;TCP连接的建立和终止&lt;/h1&gt;
+&lt;h2 id=&#34;连接建立&#34;&gt;连接建立&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-connect.png&#34; alt=&#34;tcp-connect&#34; title=&#34;tcp-connect&#34;&gt;&lt;/p&gt;
+&lt;p&gt;以上图说明建立TCP连接的过程，其中左边的A为客户端，右边的B为服务器：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;B调用listen系统命令，进入监听状态，等待客户端的连接。&lt;/li&gt;
+&lt;li&gt;A向B发送连接请求报文，其中TCP标志位里SYN=1，ACK=0，选择一个初始的序号x。&lt;/li&gt;
+&lt;li&gt;B收到请求报文，向 A 发送连接确认报文，SYN=1，ACK=1，确认号为 x+1，同时也选择一个初始的序号 y。&lt;/li&gt;
+&lt;li&gt;A 收到 B 的连接确认报文后，还要向 B 发出确认，确认号为 y+1，序号为 x+1。&lt;/li&gt;
+&lt;li&gt;B 收到 A 的确认后，连接建立。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上就是TCP建立连接的三次握手过程，以上流程还需要补充的是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;对于建链接的3次握手，主要是要初始化Sequence Number 的初始值。通信的双方要互相通知对方自己的初始化的Sequence Number（缩写为ISN：Inital Sequence Number）——所以叫SYN，全称Synchronize Sequence Numbers。也就上图中的 x 和 y。这个号要作为以后的数据通信的序号，以保证应用层接收到的数据不会因为网络上的传输的问题而乱序（TCP会用这个序号来拼接数据）。&lt;/li&gt;
+&lt;li&gt;第三次握手是为了防止失效的连接请求到达服务器，让服务器错误打开连接。客户端发送的连接请求如果在网络中滞留，那么就会隔很长一段时间才能收到服务器端发回的连接确认。客户端等待一个超时重传时间之后，就会重新请求连接。但是这个滞留的连接请求最后还是会到达服务器，如果不进行三次握手，那么服务器就会打开两个连接。如果有第三次握手，客户端会忽略服务器之后发送的对滞留连接请求的连接确认，不进行第三次握手，因此就不会再次打开连接。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;backlog参数与syn-flood攻击&#34;&gt;backlog参数与SYN Flood攻击&lt;/h3&gt;
+&lt;p&gt;listen系统调用中，会传入一个backlog参数，man文档对其的解释是：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;The behavior of the backlog argument on TCP sockets changed with Linux &lt;span style=&#34;color:#666&#34;&gt;2.2&lt;/span&gt;.  Now it specifies the queue  length  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;completely established sockets waiting to be accepted, instead of the number of incomplete connection requests.  The
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;maximum length of the queue &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; incomplete sockets can be set  using  &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;proc&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;sys&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;net&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;ipv4&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;tcp_max_syn_backlog.   When
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;syncookies are enabled there is no logical maximum length and this setting is ignored.  See tcp(&lt;span style=&#34;color:#666&#34;&gt;7&lt;/span&gt;) &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; more informa&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;tion.
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;If the backlog argument is greater than the value in &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;proc&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;sys&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;net&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;core&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;somaxconn, then it is silently truncated  to
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;that  value;  the  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;default&lt;/span&gt;  value in this file is &lt;span style=&#34;color:#666&#34;&gt;128.&lt;/span&gt;  In kernels before &lt;span style=&#34;color:#666&#34;&gt;2.4.25&lt;/span&gt;, this limit was a hard coded value,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;SOMAXCONN, with the value &lt;span style=&#34;color:#666&#34;&gt;128.&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;以上文字简单的翻译：该参数在Linux 2.2内核版本前后有不同的表现。在2.2版本以后表示的是已经建立起连接等待被接受的队列大小，而在之前则是未完成连接队列长度。未完成连接队列的最大长度由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog指定。而backlog不得大于系统参数/proc/sys/net/core/somaxconn，该参数的默认值为128。&lt;/p&gt;
+&lt;p&gt;上面提到的“未完成连接”，其实就是处于SYN-RCVD状态的连接，即只收到了客户端的SYN报文的连接。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-sync-queue-and-accept-queue-small.jpg&#34; alt=&#34;tcp-sync-queue-and-accept-queue-small&#34; title=&#34;tcp-sync-queue-and-accept-queue-small&#34;&gt;&lt;/p&gt;
+&lt;p&gt;Linux服务器内部，会维护一个半连接队列，即处于SYN-RCVD状态的连接都维护在这个队列中。同时还会维护一个完全连接队列，即处于ESTABLISH状态的队列。当连接从SYN-RCVD切换到ESTABLISH状态时，连接将从半连接队列转移到全连接队列中。&lt;/p&gt;
+&lt;p&gt;半连接队列无法由用户指定，而是由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog控制。
+全连接队列大小取listen系统调用的backlog和系统参数/proc/sys/net/core/somaxconn中的最小值。&lt;/p&gt;
+&lt;p&gt;当客户端建立连接时，server端给客户端的SYN-ACK回报，由于种种原因客户端一直没有收到，此时连接一直处于半连接状态，既不能算连接成功了也不算连接失败，此时server端需要给客户端重传SYN-ACK报文。但是也有一种可能，即客户端恶意的发送大量SYN报文给服务器，让服务器长期有大量处于半连接状态的连接，耗尽服务器资源。Linux有几个参数用于控制重传SYN-ACK报文重传行为的：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;net.ipv4.tcp_synack_retries &lt;span style=&#34;&#34;&gt;#内核放弃连接之前发送&lt;/span&gt;SYN&lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt;ACK包的数量
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;net.ipv4.tcp_syn_retries &lt;span style=&#34;&#34;&gt;#内核放弃建立连接之前发送&lt;/span&gt;SYN包的数量
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;连接结束&#34;&gt;连接结束&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-finish.jpg&#34; alt=&#34;tcp-finish&#34; title=&#34;tcp-finish&#34;&gt;&lt;/p&gt;
+&lt;p&gt;以上图来说明TCP连接释放的过程：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A主动关闭连接，向B发送FIN=1的报文，由于A进行了主动关闭，因此进入FIN-WAIT-1状态。&lt;/li&gt;
+&lt;li&gt;B收到FIN=1的报文之后，进入被动关闭状态，即CLOSE-WAIT状态，此时这个TCP连接属于半关闭状态，即A向B的通路被关闭不能再发送数据，但是B还是可以向A发送数据。&lt;/li&gt;
+&lt;li&gt;A收到B针对FIN=1报文的应答之后，从FIN-WAIT-1状态切换到FIN-WAIT-2状态。&lt;/li&gt;
+&lt;li&gt;当B也需要释放连接时，同样向A发送FIN=1的报文，然后B从CLOSE-WAIT状态切换到LAST-ACK状态。&lt;/li&gt;
+&lt;li&gt;处于FIN-WAIT-2状态的A收到B的FIN=1报文后，进入TIME-WAIT状态，这个状态将持续2MSL时间，最后切换到CLOSED状态。&lt;/li&gt;
+&lt;li&gt;处于LAST-ACK状态的B，收到A针对FIN=1报文的应答之后，进入CLOSED状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上就是TCP释放连接的四次挥手过程，以上流程还需要补充：&lt;/p&gt;
+&lt;h3 id=&#34;四次挥手的原因&#34;&gt;四次挥手的原因&lt;/h3&gt;
+&lt;p&gt;TCP连接是全双工的，即一端接收到FIN报时，对端虽然不再能发送数据，但是可以接收数据，所以需要两边都关闭连接才算完全关闭了这条TCP连接。&lt;/p&gt;
+&lt;h3 id=&#34;time-wait状态&#34;&gt;TIME-WAIT状态&lt;/h3&gt;
+&lt;p&gt;主动关闭的一方收到对端发出的FIN报之后，就从FIN-WAIT-2状态切换到TIME-WAIT状态了，再等待2MSL时间才再切换到CLOSED状态。这么做的原因在于：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;确保被动关闭的一方有足够的时间收到ACK，如果没有收到会触发重传。&lt;/li&gt;
+&lt;li&gt;有足够的时间，以让该连接不会与后面的连接混在一起。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;TIME-WAIT状态如果过多，会占用系统资源。Linux下有几个参数可以调整TIME-WAIT状态时间：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;net.ipv4.tcp_tw_reuse = 1 表示开启重用。允许将TIME-WAIT sockets重新用于新的TCP连接，默认为0，表示关闭。&lt;/li&gt;
+&lt;li&gt;net.ipv4.tcp_tw_recycle = 1 表示开启TCP连接中TIME-WAIT sockets的快速回收，默认为0，表示关闭。&lt;/li&gt;
+&lt;li&gt;net.ipv4.tcp_max_tw_buckets = 5000表示系统同时保持TIME_WAIT套接字的最大数量，如果超过这个数字，TIME_WAIT套接字将立刻被清除并打印警告信息。默认为180000，改为5000。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;然而，从TCP状态转换图可以看出，主动进行关闭的链接才会进入TIME-WAIT状态，所以最好的办法：尽量不要让服务器主动关闭链接，除非一些异常情况，如客户端协议错误、客户端超时等等。&lt;/p&gt;
+&lt;h2 id=&#34;tcp协议状态机与系统调用的关系&#34;&gt;TCP协议状态机与系统调用的关系&lt;/h2&gt;
+&lt;p&gt;下图给出了TCP协议状态机与系统调用之间的对应关系。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-statemachine.png&#34; alt=&#34;tcp-statemachine&#34; title=&#34;tcp-statemachine&#34;&gt;&lt;/p&gt;
+&lt;h1 id=&#34;tcp重传机制&#34;&gt;TCP重传机制&lt;/h1&gt;
+&lt;p&gt;TCP重转涉及到以下几个问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如何估算往返时间？只有在正确估算往返时间的前提下，才知道一个TCP包多久没有收到回应算超时。&lt;/li&gt;
+&lt;li&gt;在已知重传时间的前提下，重传TCP包依赖的其他数据结构和重传算法是如何的？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下来分别解释TCP重传机制中的几个问题。&lt;/p&gt;
+&lt;h2 id=&#34;估计往返时间&#34;&gt;估计往返时间&lt;/h2&gt;
+&lt;p&gt;报文段的样本RTT（sampleRTT）就是从某报文段被发出（即交给IP）到对该报文段的确认（ACK）被收到之间的时间。&lt;/p&gt;
+&lt;p&gt;大多数TCP的实现仅在某一个时刻做一次SampleRTT的测量，而不是为每个发送的报文段测量一个SampleRTT。这就是说，在任意时刻，仅为一个已发送的但尚未被确认的报文段估计SampleRTT，从而产生一个接近每个RTT的新SampleRTT值。另外,TCP绝不为已被重传的报文段计算SampleRTT，它仅为传输一次的报文段测量SampleRTT。&lt;/p&gt;
+&lt;p&gt;由于路由器的拥塞和系统负载的变化，SampleRTT也会随之波动。因此，TCP维持一个SampleRTT均值（称为EstimateRTT），一旦获得一个新的SampleRTT值，根据以下公式更新EstimateRTT：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;  EstimateRTT = (1 - α) * EstimateRTT + α * SampleRTT
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;即：新的EstimateRTT值由旧的EstimateRTT值与SampleRTT值加权相加而成。，在RFC 6298中，α参考值是0.125（1/8）。&lt;/p&gt;
+&lt;p&gt;除了估算RTT之外，还需要测量RTT的变化，RFC 6298定义了RTT偏差DevRTT，用于估算SampleRTT偏离EstimateRTT的程度，公式为：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;  DevRTT = (1 - β) * DevRTT + β * | SampleRTT - EstimateRTT|
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;如果SampleRTT波动值较小，那么DevRTT的值就会比较小。β的推荐值为0.25。&lt;/p&gt;
+&lt;h2 id=&#34;重传时间间隔&#34;&gt;重传时间间隔&lt;/h2&gt;
+&lt;p&gt;有了EstimateRTT和DevRTT值，就可以计算出重传时间间隔。显然，这个值应该大于等于EstimateRTT，否则将造成不必要的重传，但是超时时间也不能比EstimateRTT大太多，否则当报文段丢失时，TCP不能很快重传该报文段，导致数据传输时延时太大。因此要求将超时间隔设为EstimateRTT加上一定余量。当SampleRTT值波动较大时，这个余量应该大些，当波动较小时这个余量应该小一些。因此，DevRTT在这里就派上用场了，公式如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;  TimeoutInterval = EstimateRTT + 4 * DevRTT
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;RFC 6298推荐的TimeoutInterval值为1秒。当出现超时后，TimeoutInterval值将加倍，以免即将被确认的后续报文段过早出现超时。&lt;/p&gt;
+&lt;h2 id=&#34;可靠数据传输&#34;&gt;可靠数据传输&lt;/h2&gt;
+&lt;h3 id=&#34;简化的算法&#34;&gt;简化的算法&lt;/h3&gt;
+&lt;p&gt;先给出一个最简化版本的重传算法，在这里假设发送方不受TCP流量和拥塞控制的限制，来自上层的数据长度小于MSS，且数据传送只在一个方向进行。在这里，发送方只使用超时来恢复报文段的丢失，后面再给出更全面的描述。&lt;/p&gt;
+&lt;p&gt;TCP发送方有三个与发送和重传相关的主要事件：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;从上层应用程序接收数据。此时TCP将数据封装到一个报文段中，并把报文段交给IP。此时，如果定时器没有给其他报文段运行，那么此时就启动重传定时器，该定时器的超时时间是前面计算出来的TimeoutInterval。&lt;/li&gt;
+&lt;li&gt;超时事件。此时TCP的处理是重传引起超时的报文段来响应超时事件，然后TCP重启定时器。&lt;/li&gt;
+&lt;li&gt;收到来到接收方的确认报文段（ACK）。当该事件发生时，TCP将ACK的值y与自己的变量SendBase进行比较。TCP的状态变量SendBase是最早未被确认的字节序号（因此SendBase-1是指接收方已正确按序接收到的数据的最后一个字节的序号。）如果y&amp;gt;SendBase，那么该ACK是在确认一个或多个先前未被确认的报文段，因此发送方更新它的SendBase变量；如果当前还有未被确认的报文段，TCP还需要重启定时器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;综上，该简化算法如下处理以上三个事件：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;NextSeqNum = InitialSeqNumber
+SendBase = InitialSeqNumber
+
+循环：
+  如果是收到了上层应用程序发出的数据：
+    使用NextSeqNum创建新的TCP报文
+    如果当前TCP重传定时器没有在运行：
+      启动TCP重传定时器
+    将TCP报文交给IP层
+    NextSeqNum = NextSeqNum + length(data)
+
+  如果TCP重传定时器超时：
+    重传所有还没有被确认(ACK)的报文中seq最小的那个TCP报文
+    启动TCP重传定时器
+
+  如果收到了ACK报文，其中ACK值=y：
+    如果 y &amp;gt; SendBase：
+      SendBase = y
+      如果当前还有没有被ACK的TCP报文：
+        启动TCP重传定时器
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;超时时间加倍&#34;&gt;超时时间加倍&lt;/h3&gt;
+&lt;p&gt;如上所述，每当TCP超时定时器被触发，意味着有TCP报文在指定时间内没有收到ACK，此时TCP会重传最小序号的没有ACK的报文。每次TCP重传时都会将下一次超时时间设置为先前值的两倍，而不是使用当前计算得到的EstimateRTT值。&lt;/p&gt;
+&lt;h3 id=&#34;快速重传fast-retransmit&#34;&gt;快速重传（fast retransmit）&lt;/h3&gt;
+&lt;p&gt;超时触发重传存在的问题之一是超时周期可能相对较长。当一个报文段丢失时，这种长超时周期迫使发送方延迟重传丢失的分组，因而增加了端到端的时延。发送方通常可在超时事件发生之前通过注意所谓冗余ACK来检测丢包情况。&lt;/p&gt;
+&lt;p&gt;冗余ACK（duplicate ACK）就是再次确认某个报文段的ACK，而发送方之前已经收到对该报文段的ACK。&lt;/p&gt;
+&lt;p&gt;如果TCP发送方收到相同数据的3个冗余ACK，将以这个做为一个提示，说明跟在这个已被确认过3次的报文段之后的报文已经丢失。一旦收到3个冗余ACK，TCP就执行快速重传（fast retransmit），即在该报文段的定时器过期之前重传丢失的报文段。&lt;/p&gt;
+&lt;p&gt;有了以上的补充，将前面收到ACK事件的处理修改如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;  如果收到了ACK报文，其中ACK值=y：
+    如果 y &amp;gt; SendBase：
+      SendBase = y
+      如果当前还有没有被ACK的TCP报文：
+        启动TCP重传定时器
+    否则：  // 意味着收到了duplicate ACK
+      递增针对y的duplicate ACK计数
+      如果该计数 == 3：
+        重传seq在y之后的报文
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;流量控制&#34;&gt;流量控制&lt;/h1&gt;
+&lt;p&gt;TCP为它的应用程序提供了流量控制服务（flow control service），以消除发送方使接收方数据溢出的可能性。&lt;/p&gt;
+&lt;p&gt;流量控制因此是一种速度匹配服务，即发送方的发送速率与接收方应用程序的读取速率相匹配。&lt;/p&gt;
+&lt;p&gt;另一种控制发送方速度的方式是拥塞控制（congestion control），但是这两者是不同的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;流量控制基于对端的窗口大小来调整发送方的发送速度。&lt;/li&gt;
+&lt;li&gt;拥塞控制基于IP网络的速度来调整发送方的发送策略。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;下一节分析拥塞控制，这一节分析流量控制。&lt;/p&gt;
+&lt;p&gt;TCP让发送方维持一个接收窗口（receive window）的变量来提供流量控制。接收窗口用于给发送方一个提示，该接收方还有多少可用的缓存空间。因为TCP是全双工通信，因此在连接两端都各自维护一个接收窗口，通过TCP头的window字段来通知对方本方的接收窗口大小。&lt;/p&gt;
+&lt;h2 id=&#34;tcp滑动窗口&#34;&gt;TCP滑动窗口&lt;/h2&gt;
+&lt;p&gt;client和server两端都有自己的协议栈buffer，传输时不可能一直无限量的传输数据下去。此时如何让对端知道自己最多能接收多少数据呢？通过TCP协议头中的window字段来通知对端自己当前的接收窗口大小。&lt;/p&gt;
+&lt;p&gt;从以上可以看出，TCP协议通过TCP头部的window字段来解决流量控制问题。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcpswwindows.png&#34; alt=&#34;tcpswwindows&#34; title=&#34;tcpswwindows&#34;&gt;&lt;/p&gt;
+&lt;p&gt;如上图中，分成了四个部分，其中黑色框住的部分是滑动窗口：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;#1：表示已收到ack报文确认的数据。&lt;/li&gt;
+&lt;li&gt;#2：发送出去但是还没有收到对端ACK确认的数据。&lt;/li&gt;
+&lt;li&gt;#3：还没有发送出去的数据。&lt;/li&gt;
+&lt;li&gt;#4：窗口以外的数据。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;当收到对端确认一部分数据的ACK之后，滑动窗口将向右边移动，如下图中，收到36的ACK，并且发出了46-51字节的数据之后，滑动窗口变化成了：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcpswslide.png&#34; alt=&#34;tcpswslide&#34; title=&#34;tcpswslide&#34;&gt;&lt;/p&gt;
+&lt;p&gt;以下图为例来解释滑动窗口变化的流程：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcpswflow.png&#34; alt=&#34;tcpswflow&#34; title=&#34;tcpswflow&#34;&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;client端的可用窗口大小为360字节。client发送140字节数据到server，其中seq=1，length=140；发送之后，client的可用窗口向右移动140字节，窗口总大小还是360字节。&lt;/li&gt;
+&lt;li&gt;server端的可用窗口大小为360字节。收到client发来的140字节数据之后，server端接收窗口向右移动140字节，但是由于应用程序繁忙，只取出了其中的100字节，因此server在ACK的时候，可用窗口还剩360-100=260字节，ACK=141。&lt;/li&gt;
+&lt;li&gt;client在接收到server的ACK=141报文之后，发送窗口左边缘向右移动140字节，表示前面发送的140字节server已经接收到了。剩下的260字节，由于server端告知窗口大小为260字节，client调整自己的发送窗口为260字节，表示此时不能发送大于260字节的数据。&lt;/li&gt;
+&lt;li&gt;client发送180字节，可用窗口变成80（260-189）字节。&lt;/li&gt;
+&lt;li&gt;server收到client发送的180字节，放入buffer中，这时应用程序还是很繁忙一个字节都没有处理，因此这一次应答回客户端ACK=321（140+180+1），窗口大小为80（260-180）。&lt;/li&gt;
+&lt;li&gt;client收到server的确认应答，确认了第二次发送的180字节已经被server端收到，于是发送窗口左边缘向
+前移动了180字节。&lt;/li&gt;
+&lt;li&gt;client发送80字节，可用窗口变成0（80-80）。&lt;/li&gt;
+&lt;li&gt;server收到了80字节，但是这一次应用程序还是一个字节都没有从buffer中取出处理，因此server应答client端ACK=401（140+180+80+1），窗口大小为0（80-80）。&lt;/li&gt;
+&lt;li&gt;client收到确认包，确认之前发送的80字节已经到达server端。另外server端告知窗口大小为0，因此client无论是否有数据需要发送，都不能发送了。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h1 id=&#34;拥塞控制&#34;&gt;拥塞控制&lt;/h1&gt;
+&lt;p&gt;TCP所采用的方法是让每一个发送方根据所感知的网络拥塞程度来限制其能向连接发送流量的速率。这种方法提出了三个问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;一个TCP发送方如何限制它向其连接发送流量的速率？&lt;/li&gt;
+&lt;li&gt;一个TCP发送方如何感知从它到目的地之间的路径上存在拥塞呢？&lt;/li&gt;
+&lt;li&gt;当发送方感受到端到端之间的拥塞时，采用何种算法来改变其发送速率呢？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;首先分析TCP发送方如何限制向起连接发送流量的。在发送方的拥塞控制机制中再维护一个变量，即cwnd（congestion window，拥塞窗口），通过它对一个TCP发送方能向网络发送的流量速率进行限制。即：一个发送方中未被确认的数据量不会超过cwnd与rwnd中的最小值：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;  LastByteSent - LastBtyeAcked &amp;lt;= min(cwnd, rwnd)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;接下来讨论如何感知出现了拥塞的。我们将一个TCP发送方的“丢包事件”定义为：要么出现超时，要么收到来自接收方的3次冗余ACK（duplicate ACK）。&lt;/p&gt;
+&lt;p&gt;拥塞控制有以下几个常用的手段：慢启动、拥塞避免、快速恢复。其中慢启动和拥塞避免是TCP的强制部分，两者的差异在于对收到ACK做出反应时增加cwnd的方式，而快速恢复则是推荐部分，对TCP发送方并非是必需的。&lt;/p&gt;
+&lt;h2 id=&#34;慢启动slow-start算法&#34;&gt;慢启动（slow start）算法&lt;/h2&gt;
+&lt;p&gt;慢启动算法的思想是：刚建立的连接，根据对端的应答情况慢慢提速，不要一下子发送大量的数据。&lt;/p&gt;
+&lt;p&gt;慢启动算法维护一个cwnd（Congestion Window）变量，以及一个慢启动阈值变量ssthresh（slow start threshold），算法的逻辑是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;连接建立好之后，cwnd初始为1，表示可以传一个MSS大小的数据。&lt;/li&gt;
+&lt;li&gt;在每收到一个对新的报文段的确认后，将拥塞窗口递增1。&lt;/li&gt;
+&lt;li&gt;当cwnd&amp;gt;=ssthresh，拥塞控制算法进入后面将介绍到的“拥塞避免”阶段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以看到，慢启动算法通过对对端应答报文的RTT时间探测，来修改cwnd值。而这个修改，在不超过ssthresh的情况下，是指数增长的。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/slow-start.png&#34; alt=&#34;slow-start&#34; title=&#34;slow-start&#34;&gt;&lt;/p&gt;
+&lt;p&gt;何时结束这种指数增长呢？有如下三种情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果存在一个由超时指示的丢包事件（即拥塞），TCP发送方将cwnd设置为1并重新开始慢启动过程，此时还会将ssthresh设置为cwnd/2。&lt;/li&gt;
+&lt;li&gt;当cwnd&amp;gt;=ssthresh，进入后面介绍的“拥塞避免”阶段。&lt;/li&gt;
+&lt;li&gt;如果检测到三个冗余ACK（duplicate ACK），这时TCP进入快速重转并进入快速恢复状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;拥塞避免-congestion-avoidance算法&#34;&gt;拥塞避免（ Congestion Avoidance）算法&lt;/h2&gt;
+&lt;p&gt;当cwnd&amp;gt;=ssthresh，进入拥塞避免阶段，此时cwnd的增长不再像之前那样是指数增长，而是线性增长。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;收到一个ACK时，cwnd = cwnd + 1/cwnd。&lt;/li&gt;
+&lt;li&gt;当每过一个RTT时，cwnd = cwnd + 1。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;拥塞状态的算法&#34;&gt;拥塞状态的算法&lt;/h2&gt;
+&lt;p&gt;TCP拥塞控制认为网络丢包是由于网络拥塞造成的，有如下两种判定丢包的方式：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;上面提到过的超时重传。&lt;/li&gt;
+&lt;li&gt;收到三个重复确认ACK包（duplicate ACK）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;超时重传的原理，在上面也简单提到过：在发送一个TCP报文之后，会启动一个计时器，该计时器的超时时间是根据之前预估的几个往返时间RTT相关的参数计算得到的，如果再这个计时器超时之前都没有收到对端的应答，那么就需要重传这个报文。&lt;/p&gt;
+&lt;p&gt;而如果发送端收到三个以上的重复ACK时，就认为数据已经丢失需要重传，此时会立即重传数据而不是等待前面的超时重传定时器超时，所以被称为“快速重传”。&lt;/p&gt;
+&lt;p&gt;最早的TCP Tohoe算法是这么处理拥塞状态的，当出现丢包时：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;将慢启动阈值ssthresh变成当前cwnd的一半，即：ssthresh = cwnd / 2。&lt;/li&gt;
+&lt;li&gt;cwnd = 1，从而直接回到原来的慢启动状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;但是由于这个算法过于激进，每次一出现丢包cwnd就变成1，因此后来的TCP Reno算法进行了优化，其优化点在于，在收到三个重复确认ACK时，TCP开启快速重传Fast Retransmit算法：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd变成现在的一半，即：cwnd = cwnd / 2。&lt;/li&gt;
+&lt;li&gt;ssthresh设置为缩小后的cwnd大小。&lt;/li&gt;
+&lt;li&gt;进入快速恢复阶段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下图来解释上面三种状态的处理：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/tcp-congestion-avoidance-example.png&#34; alt=&#34;tcp-congestion-avoidance-example&#34; title=&#34;tcp-congestion-avoidance-example&#34;&gt;&lt;/p&gt;
+&lt;p&gt;上图中，横轴为传输轮次，纵轴为cwnd大小，按照时间顺序，其过程如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;0-4：为慢启动阶段，在这个时间里，cwnd指数级增长，到时间4时等于初始的ssthresh值，此时进入拥塞避免状态。&lt;/li&gt;
+&lt;li&gt;4-12：为拥塞避免状态，此时cwnd值线性增长。&lt;/li&gt;
+&lt;li&gt;12：在时间点12，收到了三个重复ACK值，此时两个不同的拥塞控制算法的处理不同：
+&lt;ul&gt;
+&lt;li&gt;TCP Tohoe算法：图中的点线部分，在时间点12，直接将cwnd变成1进入慢启动阶段，这个算法已经废弃。&lt;/li&gt;
+&lt;li&gt;TCP Reno算法：cwnd变成原来的一半，ssthresh变成最新的cwnd值使用快速恢复算法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这里提到了TCP Reno算法在收到三个重复ACK时，cwnd变成原来的一半并且使用快速恢复算法来处理拥塞，下面就接着分析快速恢复算法。&lt;/p&gt;
+&lt;h2 id=&#34;快速恢复fast-recovery&#34;&gt;快速恢复（fast recovery）&lt;/h2&gt;
+&lt;p&gt;再次说明：该算法只有TCP Reno版本才用，已经被废弃的TCP Tohoe算法并没有这部分。&lt;/p&gt;
+&lt;p&gt;在进入快速恢复以前，TCP Reno已经做了如下的事情：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = cwnd / 2，即变成原来的一半。&lt;/li&gt;
+&lt;li&gt;ssthresh = cwnd，即ssthresh变成新的cwnd值。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;快速恢复算法的逻辑如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = cwnd + 3 MSS，加3 MSS的原因是因为收到3个重复的ACK。&lt;/li&gt;
+&lt;li&gt;重传重复ACK（duplicate ACK）指定的数据包。&lt;/li&gt;
+&lt;li&gt;如果再收到重复ACK，cwnd递增1。&lt;/li&gt;
+&lt;li&gt;如果收到新的ACK，表明重传的报文已经收到。此时将cwnd设置为ssthresh值，进入拥塞避免状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/fast-recovery-example.png&#34; alt=&#34;fast-recovery-example&#34; title=&#34;fast-recovery-example&#34;&gt;&lt;/p&gt;
+&lt;p&gt;如上图中：发送端的第五个包丢失，导致发送端收到三个重复的针对第五个包的ACK。此时将ssthresh值设置为当时cwnd的一半，即6/2=3，而cwnd设置为3+3=6。然后重传第五个包。当收到最新的ACK时，即ACK 11，此时将cnwd设置为当前的ssthresh，即3，然后退出快速恢复而进入拥塞避免状态。&lt;/p&gt;
+&lt;h2 id=&#34;拥塞控制算法的有限状态机&#34;&gt;拥塞控制算法的有限状态机&lt;/h2&gt;
+&lt;p&gt;有了前面的解释，理解TCP拥塞控制算法的FSM就容易了：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190227-tcp/congestion-flow-algo-fsm.png&#34; alt=&#34;congestion-flow-algo-fsm&#34; title=&#34;congestion-flow-algo-fsm&#34;&gt;&lt;/p&gt;
+&lt;p&gt;下面对以上FSM进行简单的总结，每个状态转换箭头都做了数字标记，以数字标记为序来分别做解释：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;这是拥塞控制算法的初始状态：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = 1 MSS&lt;/li&gt;
+&lt;li&gt;ssthresh = 64KB&lt;/li&gt;
+&lt;li&gt;dupACKCount（重复ACK数量） = 0&lt;/li&gt;
+&lt;li&gt;此时进入慢启动状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;慢启动状态下重传超时，则几个拥塞控制算法变量变为：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;ssthresh = cwnd / 2&lt;/li&gt;
+&lt;li&gt;cwnd = 1 MSS&lt;/li&gt;
+&lt;li&gt;dupACKCount = 0&lt;/li&gt;
+&lt;li&gt;同时重传丢失的报文段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;3&#34;&gt;
+&lt;li&gt;收到重复ACK时，递增dupACKCount数量。&lt;/li&gt;
+&lt;li&gt;当收到的重复ACK数量为3时，进入快速恢复状态：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;ssthresh = cwnd / 2&lt;/li&gt;
+&lt;li&gt;cwnd = ssthresh + 3 MSS&lt;/li&gt;
+&lt;li&gt;同时重传丢失的报文段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;5&#34;&gt;
+&lt;li&gt;在慢启动状态下收到了新的ACK时，每收到一个ACK则递增cwnd一个MSS，即“指数增长”：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = cwnd + MSS&lt;/li&gt;
+&lt;li&gt;dupACKCount = 0&lt;/li&gt;
+&lt;li&gt;继续传输新的报文。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;6&#34;&gt;
+&lt;li&gt;在慢启动状态下，cwnd&amp;gt;=ssthresh值时，进入拥塞避免状态：&lt;/li&gt;
+&lt;li&gt;慢启动状态下，每次收到一个ACK报文时，加法递增：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = cwnd + MSS * (MSS/cwnd)&lt;/li&gt;
+&lt;li&gt;dupACKCount = 0&lt;/li&gt;
+&lt;li&gt;继续传输新的报文&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;8&#34;&gt;
+&lt;li&gt;收到重复ACK时，递增dupACKCount数量。&lt;/li&gt;
+&lt;li&gt;当收到的重复ACK数量为3时，进入快速恢复状态，注意这里的处理跟慢启动状态下收到三个重复ACK的处理是一致的（见状态4）：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;ssthresh = cwnd / 2&lt;/li&gt;
+&lt;li&gt;cwnd = ssthresh + 3 MSS&lt;/li&gt;
+&lt;li&gt;同时重传丢失的报文段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;10&#34;&gt;
+&lt;li&gt;快速恢复状态下，收到重复ACK时：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = cwnd + MSS&lt;/li&gt;
+&lt;li&gt;传输新的报文段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;11&#34;&gt;
+&lt;li&gt;快速恢复状态下重传超时，则几个拥塞控制算法变量变为：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;ssthresh = cwnd / 2&lt;/li&gt;
+&lt;li&gt;cwnd = 1&lt;/li&gt;
+&lt;li&gt;dupACKCount = 0&lt;/li&gt;
+&lt;li&gt;同时重传丢失的报文段。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;12&#34;&gt;
+&lt;li&gt;在快速恢复状态下收到了新的ACK时：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;cwnd = ssthresh&lt;/li&gt;
+&lt;li&gt;dupACKCount = 0&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://coolshell.cn/articles/11564.html&#34;&gt;TCP 的那些事儿（上）&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://remcarpediem.net/2019/02/27/TCP%E6%8B%A5%E5%A1%9E%E6%8E%A7%E5%88%B6%E7%AE%97%E6%B3%95%E7%AE%80%E4%BB%8B/&#34;&gt;TCP拥塞控制算法简介&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.cnxct.com/something-about-phpfpm-s-backlog/&#34;&gt;TCP SOCKET中backlog参数的用途是什么？&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://segmentfault.com/a/1190000008224853&#34;&gt;tcp的半连接与完全连接队列&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/CyC2018/CS-Notes/blob/master/docs/notes/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C.md#tcp-%E9%A6%96%E9%83%A8%E6%A0%BC%E5%BC%8F&#34;&gt;计算机网络&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
     </item>
     
     <item>
@@ -53,7 +1059,267 @@
       <pubDate>Sat, 09 Feb 2019 20:10:13 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20190209-zeromq-lockfree-queue/</guid>
-      <description>本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。 概述 zeromq这个网络库，有以下几个亮点： 从以往的面向TCP流的网络开发，变</description>
+      
+      <description>&lt;p&gt;本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。&lt;/p&gt;
+&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;zeromq这个网络库，有以下几个亮点：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;从以往的面向TCP流的网络开发，变成了面向消息的开发。应用层关注的是什么类型的消息，库本身解决网络收发、断线重连等问题。&lt;/li&gt;
+&lt;li&gt;将这些消息的传输模式封装成几个模式，应用开发者只需要关注自己的业务符合什么模式，采用搭积木的方式就能构建起应用服务。&lt;/li&gt;
+&lt;li&gt;内部实现无锁消息队列用于对象间通信，类似actor模式。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;基本架构&#34;&gt;基本架构&lt;/h1&gt;
+&lt;p&gt;zeromq内部运行着多个io线程，每个io线程内部有以下两个核心组件：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;poller：即针对epoll、select等事件轮询器的封装。&lt;/li&gt;
+&lt;li&gt;mailbox：负责接收消息的消息邮箱。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以简单理解IO线程做的事情是：内部通过一个poller，监听着各种事件，其中包括针对IO线程的mailbox的消息，以及绑定在该IO线程上的IO对象的消息。&lt;/p&gt;
+&lt;p&gt;即这是一个per-thread-per-loop的线程设计，线程之间的通信通过消息邮箱来进行。&lt;/p&gt;
+&lt;p&gt;除了io线程之外，io对象也有mailbox，即如果想与某个IO对象通信也是通过该mailbox进行。由于消息邮箱是zeromq中的重要组成部分，下面将专门分析zeromq是如何实现的。&lt;/p&gt;
+&lt;p&gt;所有需要收发消息的对象都继承自object_t：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;class object_t
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a0a000&#34;&gt;public&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  object_t (zmq&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;ctx_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;ctx_, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;uint32_t&lt;/span&gt; tid_);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;process_command&lt;/span&gt; (zmq&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;command_t &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;cmd_);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a0a000&#34;&gt;private&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  zmq&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;ctx_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;ctx;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Context provides access to the global state.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;uint32_t&lt;/span&gt; tid;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Thread ID of the thread the object belongs to.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;send_command&lt;/span&gt; (command_t &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;cmd_);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;而IO对象之间的命令通过command_t结构体来定义：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; command_t
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Object to process the command.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  zmq&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;object_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;destination;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;enum&lt;/span&gt; type_t
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  } type;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;union&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  } args;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。&lt;/p&gt;
+&lt;h1 id=&#34;使用无锁队列实现的消息邮箱&#34;&gt;使用无锁队列实现的消息邮箱&lt;/h1&gt;
+&lt;p&gt;zeromq内部类似actor模型，每个actor内部有一个mailbox，负责收发消息，对外暴露的接口就是收发相关的send、recv接口。&lt;/p&gt;
+&lt;p&gt;负责收发消息的类是mailbox_t，内部实现使用了ypipe_t来实现无锁消息队列，而ypipe_t内部又使用了yqueue_t来实现队列，这个实现的目的是为了减少内部的分配。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190209-zeromq-lockfree-queue/mailbox_t.png&#34; alt=&#34;mailbox_t&#34; title=&#34;mailbox_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;下面根据上面这个图，自上而下分析邮箱的实现。&lt;/p&gt;
+&lt;h2 id=&#34;yqueue_t&#34;&gt;yqueue_t&lt;/h2&gt;
+&lt;p&gt;yqueue_t的实现，每次能批量分配一批元素，减少内存的分配和释放。&lt;/p&gt;
+&lt;p&gt;yqueue_t内部由一个一个chunk组成，每个chunk保存N个元素，如下图：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190209-zeromq-lockfree-queue/yqueue_t.png&#34; alt=&#34;yqueue_t&#34; title=&#34;yqueue_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;有了chunk_t来管理数据，这样每次需要新分配元素的时候，如果当前已经没有可用元素，可以一次性分配一个chunk_t，这里面有N个元素；另外在回收的时候，也不是马上被释放，根据局部性原理可以先回收到spare_chunk里面，当再次需要分配chunk_t的时候从spare_chunk中获取。&lt;/p&gt;
+&lt;p&gt;yqueue_t内部有三个chunk_t类型指针以及对应的索引位置：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;begin_chunk/begin_pos：begin_chunk用于指向队列头的chunk，begin_pos用于指向队列第一个元素在当前chunk中的位置。&lt;/li&gt;
+&lt;li&gt;back_chunk/back_pos：back_chunk用于指向队列尾的chunk，back_chunk用于指向队列最后一个元素在当前chunk的位置。&lt;/li&gt;
+&lt;li&gt;end_chunk/end_pos：由于chunk是批量分配的，所以end_chunk用于指向分配的最后一个chunk位置。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;注意不要混淆了back和end的作用，&lt;strong&gt;back_chunk/back_pos负责的是元素的存储，而end_chunk/end_pos负责的是chunk的分配&lt;/strong&gt;，yqueue_t的back函数返回的是back_pos，而对外部而言，end相关的数据不可见。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190209-zeromq-lockfree-queue/chunk.png&#34; alt=&#34;chunk&#34; title=&#34;chunk&#34;&gt;&lt;/p&gt;
+&lt;p&gt;如上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;有三块chunk，分别由begin_chunk、back_chunk、end_chunk组成。&lt;/li&gt;
+&lt;li&gt;begin_pos指向begin_chunk中的第n个元素。&lt;/li&gt;
+&lt;li&gt;back_pos指向back_chunk的最后一个元素。&lt;/li&gt;
+&lt;li&gt;由于back_pos已经指向了back_chunk的最后一个元素，所以end_pos就指向了end_chunk的第一个元素。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;另外还有一个spare_chunk指针，用于保存释放的chunk指针，当需要再次分配chunk的时候，会首先查看这里，从这里分配chunk。这里使用了原子的cas操作来完成，利用了操作系统的局部性原理。&lt;/p&gt;
+&lt;h2 id=&#34;ypipe_t&#34;&gt;ypipe_t&lt;/h2&gt;
+&lt;p&gt;ypipe_t在yqueue_t之上，构建了一个&lt;strong&gt;单写单读的无锁队列&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;内部的元素有以下几个：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;yqueue_t&amp;lt;T, N&amp;gt; _queue：由yqueue_t实现的队列。&lt;/li&gt;
+&lt;li&gt;T *_w：指向第一个没有被flush的元素，只能被写线程使用。&lt;/li&gt;
+&lt;li&gt;T *_r：指向第一个未读的元素，只能被读线程使用。&lt;/li&gt;
+&lt;li&gt;T *_f：指向第一个写入但是还没有被刷新的元素。&lt;/li&gt;
+&lt;li&gt;atomic_ptr_t&lt;T&gt; _c：读写线程都能使用的指针，指向最后一个被刷新的元素。如果为空，那么读线程将休眠。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;之所以除了写指针_w之外，还需要一个_f的刷新指针，原因在于：可能会分批次写入一堆数据，但是在没有写完毕之前，不希望被读线程看到，所以写入数据的时候由_w指针控制，而_f指针控制读线程可以看到哪些数据。&lt;/p&gt;
+&lt;p&gt;来看相关的几个对外API：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;void write (const T &amp;amp;value_, bool incomplete_)：写入数据，incomplete参数表示写入是否还没完成，在没完成的时候不会修改flush指针，即这部分数据不会让读线程看到。&lt;/li&gt;
+&lt;li&gt;bool flush ()：刷新所有已经完成的数据到管道，返回false意味着读线程在休眠，在这种情况下调用者需要唤醒读线程。&lt;/li&gt;
+&lt;li&gt;bool read (T *value_):读数据，将读出的数据写入value指针中，返回false意味着没有数据可读。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下面的场景来解释这个无锁队列相关的流程：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190209-zeromq-lockfree-queue/ypipe_t.png&#34; alt=&#34;ypipe_t&#34; title=&#34;ypipe_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;说明：以下场景忽略begin、back、end在不同chunk的情况，假设都在一个chunk完成的操作。&lt;/p&gt;
+&lt;h3 id=&#34;1初始化&#34;&gt;1、初始化&lt;/h3&gt;
+&lt;p&gt;ypipe_t构造函数在初始化的时候，将push进去一个哑元素在队列尾部，然后_r、_w、_c、_f指针都同时指向队列头。
+而经过这个操作之后，begin_pos和back_pos都为0，end_pos为1（因为push了一个元素）。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;inline&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;ypipe_t&lt;/span&gt; ()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Insert terminator element into the queue.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  先放入一个空元素
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  _queue.push ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Let all the pointers to point to the terminator.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  (unless pipe is dead, in which case c is set to NULL).
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  _r &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _w &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _f &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.back ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  _c.set (&lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.back ());
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;2writea-true&#34;&gt;2、write(&amp;lsquo;a&amp;rsquo;, true)&lt;/h3&gt;
+&lt;p&gt;由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。&lt;/p&gt;
+&lt;p&gt;写入一个元素a，同时incomplete为true，意味着写入还未完成，所以并没有更新flush指针，_w指针也没有在这个函数中被更新，因此当incomplete为true时不会更新上面的四个指针。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;inline&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;write&lt;/span&gt; (&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; T &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;value_, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt; incomplete_)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 注意在这里写入数据的时候修改的是_f指针
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Place the value to the queue, add new terminator element.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  _queue.back () &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; value_;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  _queue.push ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Move the &amp;#34;flush up to here&amp;#34; poiter.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;!&lt;/span&gt;incomplete_)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// incomplete_为false表示写完毕数据了，可以修改flush指针指向
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    _f &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.back ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;3writeb-false&#34;&gt;3、write(&amp;lsquo;b&amp;rsquo;, false)&lt;/h3&gt;
+&lt;p&gt;由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。&lt;/p&gt;
+&lt;p&gt;写入一个元素b，同时incomplete为false，意味着写入完成，此时需要修改flush指针指向队列尾，即新的back_pos位置2。&lt;/p&gt;
+&lt;h3 id=&#34;4flush&#34;&gt;4、flush()&lt;/h3&gt;
+&lt;p&gt;刷新数据操作，该操作中将更新_w以及_c指针。&lt;/p&gt;
+&lt;p&gt;更新_w指针的操作，由于只有写线程来完成，因此不需要加锁，_w指针用于与_f指针进行对比，快速知道是否有数据需要刷新，以唤醒读线程来继续读数据。&lt;/p&gt;
+&lt;p&gt;而_c指针，则是读写线程都可以操作，因此需要使用原子的CAS操作来修改，它的可能值有以下几种：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;NULL：读线程设置，此时意味着已经没有数据可读，读线程在休眠。&lt;/li&gt;
+&lt;li&gt;非零：写线程设置，这里又区分两种情况：
+&lt;ul&gt;
+&lt;li&gt;旧值为_w的情况下，cas(_w,_f)操作修改为_f，意味着如果原先的值为_w，则原子性的修改为_f，表示有更多已被刷新的数据可读。&lt;/li&gt;
+&lt;li&gt;在旧值为NULL的情况下，此时读线程休眠，因此可以安全的设置为当前_f指针的位置。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;inline&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;flush&lt;/span&gt; ()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  If there are no un-flushed items, do nothing.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  _w等于_f，意味着没有需要刷新的元素了，直接返回
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (_w &lt;span style=&#34;color:#666&#34;&gt;==&lt;/span&gt; _f)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;true&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Try to set &amp;#39;c&amp;#39; to &amp;#39;f&amp;#39;.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  如果c原来是_w，切换为_f，同时返回旧的值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  如果返回值不是_w，意味着旧的值不是_w
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (_c.cas (_w, _f) &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; _w) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Compare-and-swap was unseccessful because &amp;#39;c&amp;#39; is NULL.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  This means that the reader is asleep. Therefore we don&amp;#39;t
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  care about thread-safeness and update c in non-atomic
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  manner. We&amp;#39;ll return false to let the caller know
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  that reader is sleeping.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  cas操作返回不是_w，意味着_c指针为NULL
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    _c.set (_f);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    _w &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _f;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;false&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Reader is alive. Nothing special to do now. Just move
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  the &amp;#39;first un-flushed item&amp;#39; pointer to &amp;#39;f&amp;#39;.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  _w &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _f;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;true&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;5readret&#34;&gt;5、read(&amp;amp;ret)&lt;/h3&gt;
+&lt;p&gt;第一次读操作，read函数返回true表示读到了数据，ret中保存的是&amp;rsquo;a&amp;rsquo;返回。&lt;/p&gt;
+&lt;p&gt;读操作首先进入check_read函数中检查是否有数据可读，做以下的判断：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&amp;amp;_queue.front () != _r &amp;amp;&amp;amp; _r：如果队列头不等于_r，而且_r不为NULL，意味着有预读的数据，这种情况下直接返回。&lt;/li&gt;
+&lt;li&gt;如果上面的条件不满足，意味着没有预读的数据。此时根据_c指针来判断是否有数据可读。使用原子的CAS操作，在_c为队列头的情况下重置为NULL，同时将_c的旧值返回到_r指针中，如果_r为队列头或者为NULL，则返回false表示没有数据可读。&lt;/li&gt;
+&lt;li&gt;否则，返回true意味着有数据可读。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;而在check_read函数返回true表示有数据可读的情况下，read函数将pop出队列的头部数据，这个操作将begin_pos递增一位。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  返回是否有数据可以读
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;inline&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;check_read&lt;/span&gt; ()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Was the value prefetched already? If so, return.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.front () &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; _r &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; _r)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;true&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  There&amp;#39;s no prefetched value, so let us prefetch more values.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Prefetching is to simply retrieve the
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  pointer from c in atomic fashion. If there are no
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  items to prefetch, set c to NULL (using compare-and-swap).
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  _r &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _c.cas (&lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.front (), &lt;span style=&#34;color:#a2f&#34;&gt;NULL&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  If there are no elements prefetched, exit.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  During pipe&amp;#39;s lifetime r should never be NULL, however,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  it can happen during pipe shutdown when items
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  are being deallocated.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;_queue.front () &lt;span style=&#34;color:#666&#34;&gt;==&lt;/span&gt; _r &lt;span style=&#34;color:#666&#34;&gt;||&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;!&lt;/span&gt;_r)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;false&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  There was at least one value prefetched.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;true&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Reads an item from the pipe. Returns false if there is no value.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  available.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;inline&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;read&lt;/span&gt; (T &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;value_)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Try to prefetch a value.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;!&lt;/span&gt;check_read ())
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;false&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  There was at least one value prefetched.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//  Return it to the caller.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;value_ &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _queue.front ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  _queue.pop ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;true&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;明白了以上的流程，具体解释第一次调用read(&amp;amp;ret)操作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在调用之前，_r指向队列头，由于_c不是指向队列头，所以_r = _c.cas (&amp;amp;_queue.front (), NULL)的操作并没有修改_c的值，只是将_r置为_c，然后check_read函数返回true表示有数据可读。&lt;/li&gt;
+&lt;li&gt;由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为1。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;6readret&#34;&gt;6、read(&amp;amp;ret)&lt;/h3&gt;
+&lt;p&gt;第二次读操作，read函数返回true表示读到了数据，ret中保存的是&amp;rsquo;b&amp;rsquo;返回。&lt;/p&gt;
+&lt;p&gt;流程如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;此时_r和_c为back_pos即索引位置2，而队列头为begin_pos索引位置1，因此有数据可读check_read返回true。&lt;/li&gt;
+&lt;li&gt;由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为2。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;7readret&#34;&gt;7、read(&amp;amp;ret)&lt;/h3&gt;
+&lt;p&gt;第三次读操作（上图中没有给出），read函数返回false表示没有数据可读。&lt;/p&gt;
+&lt;p&gt;流程如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;此时_r为back_pos即索引位置2，而队列头begin_pos也是2，因此check_read返回false表示没有数据可读。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;总结ypipe_t的整体设计：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;区分了几个指针，分别有以下不同的功能：
+&lt;ul&gt;
+&lt;li&gt;_f：用于存放刷新数据的位置。只有写线程可以更新，在写入的数据未完成的情况下不会更新该指针。&lt;/li&gt;
+&lt;li&gt;_w：用于存放写入数据的位置。只有写线程可以更新，只有在写入完成之后调用flush函数才会将该指针更新到_f。&lt;/li&gt;
+&lt;li&gt;_r：用于存放读取数据的位置。只有读线程可以更新，如果_r不是队列头，则表示一直有数据可读；否则需要根据_c的值判断是否有数据可读。&lt;/li&gt;
+&lt;li&gt;_c：指向最后一个被刷新数据的位置，读写线程都可以修改，如果为NULL表示没有数据可读。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;mailbox_t&#34;&gt;mailbox_t&lt;/h2&gt;
+&lt;p&gt;有了以上的介绍，实际理解起来mailbox_t的实现就比较简单了。但是前面分析ypipe_t的时候提到过，这个无锁队列的实现是单写单读的，而正常情况下，会有多个不同的线程同时往一个actor发消息，即需要的是多写多读的模式，来看mailbox_t中send函数的实现：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; zmq&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;mailbox_t&lt;span style=&#34;color:#666&#34;&gt;::&lt;/span&gt;send (&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; command_t &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;cmd_)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 这里需要加锁，因为是多写一读的邮箱
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;    _sync.lock ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    _cpipe.write (cmd_, &lt;span style=&#34;color:#a2f&#34;&gt;false&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt; ok &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; _cpipe.flush ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    _sync.unlock ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;!&lt;/span&gt;ok)  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;        _signaler.send ();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
+因此，&lt;strong&gt;zeromq号称的无锁消息队列设计，其实准确的说只是针对读写线程无锁，对于多个写线程而言还是有锁的&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;另外，由于在没有元素可读的情况下，读线程会休眠，因此需要一个唤醒读线程的机制，这里采用了signaler_t类型的成员变量_signaler，内部实现实际上一个pipe，向这个pipe写入一个字符用于唤醒读线程。&lt;/p&gt;
+</description>
+      
     </item>
     
     <item>
@@ -62,7 +1328,313 @@
       <pubDate>Wed, 23 Jan 2019 08:43:49 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20190123-libuv/</guid>
-      <description>本文基于libuv 1.x版本进行简单的分析。 数据结构 uv__io_t uv__io_t用来表示一个IO事件。 其成员包括： 成员 说明 uv__io_cb cb IO事件被触发的回调函数</description>
+      
+      <description>&lt;p&gt;本文基于libuv 1.x版本进行简单的分析。&lt;/p&gt;
+&lt;h1 id=&#34;数据结构&#34;&gt;数据结构&lt;/h1&gt;
+&lt;h2 id=&#34;uv__io_t&#34;&gt;uv__io_t&lt;/h2&gt;
+&lt;p&gt;uv__io_t用来表示一个IO事件。&lt;/p&gt;
+&lt;p&gt;其成员包括：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;成员&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;uv__io_cb cb&lt;/td&gt;
+&lt;td&gt;IO事件被触发的回调函数&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* pending_queue[2]&lt;/td&gt;
+&lt;td&gt;pending队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* watcher_queue[2]&lt;/td&gt;
+&lt;td&gt;watcher队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int pevents&lt;/td&gt;
+&lt;td&gt;pending的事件mask，等待下一次被添加到事件中&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int events&lt;/td&gt;
+&lt;td&gt;当前的事件mask&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;int fd&lt;/td&gt;
+&lt;td&gt;事件fd&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&#34;queue&#34;&gt;queue&lt;/h2&gt;
+&lt;p&gt;libuv的queue实现比较奇葩，一个queue里面的元素会有两个指针，一个指向队列前一个成员，一个指向队列下一个成员，在这里不做阐述，看到类似：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; watcher_queue[&lt;span style=&#34;color:#666&#34;&gt;2&lt;/span&gt;]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样子定义了有两个void*指针的数组知道这是一个队列就好了。&lt;/p&gt;
+&lt;h2 id=&#34;uv_timer_t&#34;&gt;uv_timer_t&lt;/h2&gt;
+&lt;p&gt;定义定时器的结构体，libuv中使用最小堆来维护定时器。&lt;/p&gt;
+&lt;p&gt;一般而言，都是首先从这个最小堆数据结构中获得距离当前最近的定时器，然后拿到它的超时时间，以该超时时间做为下一次loop事件循环的时间，某些情况下会无视这个值，比如存在idle handler的情况下，此时会以0做为超时时间。&lt;/p&gt;
+&lt;h2 id=&#34;uv_handle_t及其子类&#34;&gt;uv_handle_t及其子类&lt;/h2&gt;
+&lt;p&gt;uv_handle_t是libuv中所有handler的基类，libuv中实现继承的手段也比较奇葩：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;类成员定义放在宏里。&lt;/li&gt;
+&lt;li&gt;继承自某个基类的子类按照继承顺序依次放它前面基类的宏。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;比如uv_tcp_t继承自uv_stream_t，而后者又继承自uv_handle_t，三者的定义如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv_handle_s {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_HANDLE_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv_stream_s {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_HANDLE_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_STREAM_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv_tcp_s {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_HANDLE_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_STREAM_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV_TCP_PRIVATE_FIELDS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;代码中可以看到：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;uv_handle_t的成员放在宏UV_HANDLE_FIELDS。&lt;/li&gt;
+&lt;li&gt;uv_stream_t继承自uv_handle_t，所以在它结构体定义的开始部分先放的就是前面的宏UV_HANDLE_FIELDS。另外，uv_stream_t本身的成员定义又放在了宏UV_STREAM_FIELDS里。&lt;/li&gt;
+&lt;li&gt;uv_tcp_t继承自uv_stream_t，所以它结构体开始部分依次是宏UV_HANDLE_FIELDS，再到宏UV_STREAM_FIELDS。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190123-libuv/uv_tcp_t.png&#34; alt=&#34;uv_tcp_t&#34; title=&#34;uv_tcp_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  uv_tcp_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;tcp;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  uv_stream_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;stream &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; (uv_stream_t&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;)tcp;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  uv_handle_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;handle &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; (uv_handle_t&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;)stream;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。&lt;/p&gt;
+&lt;p&gt;简单看下UV_HANDLE_FIELDS的成员：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;成员&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;uv_loop_t* loop&lt;/td&gt;
+&lt;td&gt;事件循环&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;uv_handle_type type&lt;/td&gt;
+&lt;td&gt;handler类型&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* handle_queue[2]&lt;/td&gt;
+&lt;td&gt;加入到的handler队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;以下简单列出了handle相关类来：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190123-libuv/uv_handler_t.png&#34; alt=&#34;uv_handler_t&#34; title=&#34;uv_handler_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;以下解释几个特殊的handler。&lt;/p&gt;
+&lt;h3 id=&#34;uv_async_t&#34;&gt;uv_async_t&lt;/h3&gt;
+&lt;p&gt;该结构体用于线程之间消息通知之用。&lt;/p&gt;
+&lt;h3 id=&#34;uv_prepare_t&#34;&gt;uv_prepare_t&lt;/h3&gt;
+&lt;p&gt;prepare handler，用于注册在每次loop循环时需要被调用的回调函数，这些回调函数会在IO事件处理之前被回调。&lt;/p&gt;
+&lt;h3 id=&#34;uv_check_t&#34;&gt;uv_check_t&lt;/h3&gt;
+&lt;p&gt;check handler，用于注册在每次loop循环时需要被调用的回调函数，这些回调函数会在IO事件处理之后被回调。&lt;/p&gt;
+&lt;h3 id=&#34;uv_idle_t&#34;&gt;uv_idle_t&lt;/h3&gt;
+&lt;p&gt;idle handler与prepare handler已经，在每次loop循环中处理IO事件之前被调用。两者的区别在于，当存在idle handler的时候，loop循环会以超时时间0来调用事件循环，即不论有没有IO事件都马上返回。&lt;/p&gt;
+&lt;h2 id=&#34;uv_req_t及其子类&#34;&gt;uv_req_t及其子类&lt;/h2&gt;
+&lt;p&gt;handler主要应对一定与某个文件fd相关联的事件，除了这些以外，libuv希望把所有可能导致阻塞的操作全部异步化，包括：文件操作、查询域名操作等。这部分需要异步化的流程，全部封装到了uv_req_t结构体中。&lt;/p&gt;
+&lt;p&gt;每个uv_req_t子类中，都有一个类型为struct uv__work的成员：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;struct uv__work {
+  // 工作时回调函数
+  void (*work)(struct uv__work *w);
+  // 工作结束时回调函数
+  void (*done)(struct uv__work *w, int status);
+  // 对应的loop指针
+  struct uv_loop_s* loop;
+  // 工作队列指针
+  void* wq[2];
+};
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;最终，每一个uv_req_t都会被放到一个线程中进行处理，处理完毕了才回调对应的函数。后面会展开讨论这个流程。&lt;/p&gt;
+&lt;p&gt;uv_req_t有以下子类：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;uv_getaddrinfo_t：用于getaddrinfo调用。&lt;/li&gt;
+&lt;li&gt;uv_getnameinfo_t：用于getnameinfo调用。&lt;/li&gt;
+&lt;li&gt;uv_shutdown_t：用于shutdown操作。&lt;/li&gt;
+&lt;li&gt;uv_write_t：用于写操作。&lt;/li&gt;
+&lt;li&gt;uv_connect_t：用于TCP连接。&lt;/li&gt;
+&lt;li&gt;uv_udp_send_t：&lt;/li&gt;
+&lt;li&gt;uv_fs_t：用于文件的IO读写请求。&lt;/li&gt;
+&lt;li&gt;uv_worker_t：用于向线程提交一个任务。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;除了uv_worker_t之外，其它几个操作都有以下的特点：可能会阻塞线程，所以就单独拿出来处理了。&lt;/p&gt;
+&lt;h2 id=&#34;uv_loop_t&#34;&gt;uv_loop_t&lt;/h2&gt;
+&lt;p&gt;uv_loop_t用于表达一个事件循环，即内部封装了epoll、kqueue这类的事件通知API。&lt;/p&gt;
+&lt;p&gt;其内部数据分为两大部分：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;每个事件机制都会使用的数据，即公有数据。&lt;/li&gt;
+&lt;li&gt;每个事件机制独立的数据，使用宏UV_LOOP_PRIVATE_FIELDS，区分了unix和win两种平台的实现。而在unix版本的宏UV_LOOP_PRIVATE_FIELDS定义的最后部分，又引入了宏UV_PLATFORM_LOOP_FIELDS，用于定义不同unix操作系统相关的数据。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190123-libuv/uv_loop_t.png&#34; alt=&#34;uv_loop_t&#34; title=&#34;uv_loop_t&#34;&gt;&lt;/p&gt;
+&lt;p&gt;下面简单说明一下uv_loop_t公用的成员。&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;成员&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int active_handles&lt;/td&gt;
+&lt;td&gt;活跃的handler计数，每增加一个加一，相反减一&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* handle_queue[2]&lt;/td&gt;
+&lt;td&gt;存储handler的队列，每个添加到uv_loop_t的handler都会存储到这里来&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;active_reqs&lt;/td&gt;
+&lt;td&gt;存储活跃的req计数，不理解为什么这个成员要定义成union&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int stop_flag&lt;/td&gt;
+&lt;td&gt;事件循环终止标志位&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;下面简单说明一下uv_loop_t各事件机制独立的成员，即宏UV_LOOP_PRIVATE_FIELDS成员，以linux平台来说明。&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;成员&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;int backend_fd&lt;/td&gt;
+&lt;td&gt;事件监听fd，如epoll_create返回的fd就保存到这里&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* pending_queue[2]&lt;/td&gt;
+&lt;td&gt;pending事件队列，后面会加以说明&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* watcher_queue[2]&lt;/td&gt;
+&lt;td&gt;观察事件队列，还没有加入事件监听的事件会先放在这里，后面会加以说明&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;uv__io_t** watchers&lt;/td&gt;
+&lt;td&gt;存储uv__io_t*数组，其数组索引是fd&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int nwatchers&lt;/td&gt;
+&lt;td&gt;watchers的大小，不够的时候需要扩容&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;unsigned int nfds&lt;/td&gt;
+&lt;td&gt;watchers数组中实际存储的watcher数量&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* wq[2]&lt;/td&gt;
+&lt;td&gt;存储worker的队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* process_handles[2]&lt;/td&gt;
+&lt;td&gt;存储process handler的队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* prepare_handles[2]&lt;/td&gt;
+&lt;td&gt;存储prepare handler的队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* check_handles[2]&lt;/td&gt;
+&lt;td&gt;存储check handler的队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;void* idle_handles[2]&lt;/td&gt;
+&lt;td&gt;存储idle handler的队列&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h1 id=&#34;核心流程&#34;&gt;核心流程&lt;/h1&gt;
+&lt;p&gt;有了对以上核心数据结构的了解，可以来看看libuv的核心流程了。&lt;/p&gt;
+&lt;h2 id=&#34;事件循环&#34;&gt;事件循环&lt;/h2&gt;
+&lt;p&gt;先来简单了解一下一个事件框架的主流程，有如下的伪代码：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;&#34;&gt;循环：&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;&#34;&gt;根据定时器拿到距离最近的定时器超时时间&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;&#34;&gt;进行事件查询，以刚刚的超时时间做为查询最大时间&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;&#34;&gt;遍历查询回来的事件，对事件进行处理&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;&#34;&gt;遍历定时器，取出超时的事件进行处理&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。&lt;/p&gt;
+&lt;h3 id=&#34;新增的io事件&#34;&gt;新增的IO事件&lt;/h3&gt;
+&lt;p&gt;uv_loop_t结构体中有watcher_queue队列，新增加进来的IO事件，并不首先直接添加到epoll事件中，而是首先放在watcher队列，待到下一次进行poll操作时，会首先将watcher队列中的IO事件添加进来，然后再执行poll操作。而定义一个IO事件，用到的就是前面的uv__io_t结构体。&lt;/p&gt;
+&lt;p&gt;同时，由于IO事件肯定是uv_handler_t的子类，因此同时uv_loop_t又有一个handler queue，用于保存所有的handler。每次loop的循环中，也会去查看有哪些handler可以被释放了。&lt;/p&gt;
+&lt;h3 id=&#34;pending队列&#34;&gt;pending队列&lt;/h3&gt;
+&lt;p&gt;pending队列用于收集需要在一次loop中被回调的IO事件。loop循环的时候，每次会对pending队列的handler进行遍历然后回调，同时会返回这一次遍历了多少pending的IO事件。&lt;/p&gt;
+&lt;h3 id=&#34;checkidle和prepare队列&#34;&gt;check、idle和prepare队列&lt;/h3&gt;
+&lt;p&gt;在src/unix/loop-watcher.c文件中，使用宏定义了check、idle和prepare三种队列。&lt;/p&gt;
+&lt;p&gt;idle和prepare队列，会分别在loop主循环中，在poll操作之前被遍历调用，而check队列则在poll操作之后被遍历，主要用于添加poll之后的检查操作。&lt;/p&gt;
+&lt;p&gt;而idle和prepare队列的区别在于，如果idle队列不为空，那么将会使用0做为poll操作的超时时间。&lt;/p&gt;
+&lt;h3 id=&#34;小结&#34;&gt;小结&lt;/h3&gt;
+&lt;p&gt;以&lt;a href=&#34;http://docs.libuv.org/en/v1.x/design.html&#34;&gt;libuv官网文档&lt;/a&gt;中的一幅图来总结loop主循环的流程：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20190123-libuv/loop_iteration.png&#34; alt=&#34;loop_iteration&#34; title=&#34;loop_iteration&#34;&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;每次loop循环开始的时候，首先更新时间，以减少这部分系统调用次数。&lt;/li&gt;
+&lt;li&gt;如果loop当前不活跃，则直接退出函数了。如何判断是否活跃：看是否存在活跃的handler、活跃的请求。&lt;/li&gt;
+&lt;li&gt;遍历定时器的最小堆，调用所有超时的定时器。&lt;/li&gt;
+&lt;li&gt;遍历pending队列调用pending的handler。&lt;/li&gt;
+&lt;li&gt;遍历idle队列调用idle的handler。&lt;/li&gt;
+&lt;li&gt;遍历prepare队列调用prepare的handler。&lt;/li&gt;
+&lt;li&gt;计算poll操作的超时时间，有以下的情况需要考虑：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;如果loop使用UV_RUN_NOWAIT标志运行，则返回0。&lt;/li&gt;
+&lt;li&gt;如果loop即将结束，则返回0。&lt;/li&gt;
+&lt;li&gt;如果没有活跃的handler或请求，返回0。&lt;/li&gt;
+&lt;li&gt;如果存在idle handler，返回0。&lt;/li&gt;
+&lt;li&gt;如果有等待关闭的handler，返回0。&lt;/li&gt;
+&lt;li&gt;如果以上情况都不是，那么从最小堆中得到距离当前时间最近的超时事件；如果连定时器都没有，则返回-1，即一直等待下去。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;8&#34;&gt;
+&lt;li&gt;执行loop操作，而传入的超时时间就是第7步返回的时间。&lt;/li&gt;
+&lt;li&gt;遍历check队列调用check handler。
+10.关闭需要释放的handler。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;uv_req_t的处理&#34;&gt;uv_req_t的处理&lt;/h2&gt;
+&lt;p&gt;uv_req_t系列的子类，最后都会放到某个线程中处理，完成操作了之后再进行回调。&lt;/p&gt;
+&lt;p&gt;原因在于：libuv的设计中，不希望存在这些可能导致阻塞的操作，而是希望把这些操作全部异步化。&lt;/p&gt;
+&lt;p&gt;以uv_getaddrinfo函数为例，本质上这个操作封装了getaddrinfo，该操作对应的uv__work结构体中，work函数为uv__getaddrinfo_work，即在该操作被回调时的回调函数，内部封装了getaddrinfo函数，done函数为uv__getaddrinfo_done，封装了执行结束之后的回调操作。&lt;/p&gt;
+&lt;p&gt;libuv中，最终调用uv__work_submit函数向某个线程发送一个uv__work结构体指针来完成操作，其原型为：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; uv__work_submit(uv_loop_t&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; loop,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                     &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv__work&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; w,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                     &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;enum&lt;/span&gt; uv__work_kind kind,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                     &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;work)(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv__work&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; w),
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                     &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;done)(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; uv__work&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt; w, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; status))
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;enum&lt;/span&gt; uv__work_kind {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  UV__WORK_CPU,     &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 耗CPU的操作
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  UV__WORK_FAST_IO, &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 快速IO操作
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  UV__WORK_SLOW_IO  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 慢速IO操作
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;根据worker类型的不同，在将任务放到线程中会有不太一样的处理。&lt;/p&gt;
+&lt;p&gt;如果worker是UV__WORK_SLOW_IO，则该任务会放到slow_io_pending_wq队列中，如果慢速IO的任务数量，大于当前线程数量的一半以上，此时将暂停线程的执行，等待这些慢IO的操作完成才继续调度其它任务来执行。&lt;/p&gt;
+&lt;h1 id=&#34;总结&#34;&gt;总结&lt;/h1&gt;
+&lt;p&gt;以下是读代码之后的一些简单总结：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;大量的使用宏来模拟面向对象，导致可读性下降，不是很推荐这种做法。&lt;/li&gt;
+&lt;li&gt;将所有可能阻塞线程的操作都异步化了，用户使用这个库写不出阻塞同步的代码来。&lt;/li&gt;
+&lt;li&gt;事件框架的内部实现其实已经大同小异，无非是红黑树（Nginx）还是最小堆（libevent、libuv）来实现定时器之类的区别，已经玩不出太多的花样来，但是在怎么让上层用户更好的使用上，libevent走的路线是再往上走实现HTTP协议，libuv的实现则是将操作全部异步化。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://docs.libuv.org/en/v1.x/&#34;&gt;Libuv 1.x官方文档&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
     </item>
     
   </channel>

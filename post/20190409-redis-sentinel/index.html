@@ -1,460 +1,271 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>redis高可用原理 - codedump的网络日志</title>
-  <meta name="renderer" content="webkit" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-<meta http-equiv="Cache-Control" content="no-transform" />
-<meta http-equiv="Cache-Control" content="no-siteapp" />
+  
+  <meta name="author" content="codedump">
 
-<meta name="theme-color" content="#f8f5ec" />
-<meta name="msapplication-navbutton-color" content="#f8f5ec">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+  
+  
+  <meta name="description" content="redis高可用原理">
+  
 
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-<meta name="author" content="codedump" /><meta name="description" content="redis高可用原理" />
-<meta name="keywords" content="网络编程, redis" />
+  
+  
+  <meta name="keywords" content=" 网络编程  redis ">
+  
 
+  
+  
 
-<meta property="og:title" content="redis高可用原理 - codedump的网络日志">
-<meta name="apple-mobile-web-app-title" content="redis高可用原理 - codedump的网络日志">
-
-
-
-<meta name="google-site-verification" content="UA-126255685-1" />
-
-
-<meta name="generator" content="Hugo 0.56.0" />
-
-
-<link rel="canonical" href="https://www.codedump.info/post/20190409-redis-sentinel/" />
-
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/manifest.json">
-<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-
-
-
-
-
-
-
-<link href="/dist/even.min.css?v=3.2.0" rel="stylesheet">
-<link href="/lib/fancybox/jquery.fancybox-3.1.20.min.css" rel="stylesheet">
-
-
-
-
-<meta property="og:title" content="redis高可用原理" />
+  
+  <meta property="og:title" content="redis高可用原理" />
 <meta property="og:description" content="redis高可用原理" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190409-redis-sentinel/" />
+<meta property="og:url" content="https://www.codedump.info/post/20190409-redis-sentinel/" /><meta property="article:section" content="post" />
 <meta property="article:published_time" content="2019-04-21T22:52:16+08:00" />
 <meta property="article:modified_time" content="2019-04-21T22:52:16+08:00" />
-<meta itemprop="name" content="redis高可用原理">
-<meta itemprop="description" content="redis高可用原理">
-
-
-<meta itemprop="datePublished" content="2019-04-21T22:52:16&#43;08:00" />
-<meta itemprop="dateModified" content="2019-04-21T22:52:16&#43;08:00" />
-<meta itemprop="wordCount" content="3204">
 
 
 
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20190409-redis-sentinel/">
+
+  
+  
+  <meta itemprop="name" content="redis高可用原理">
+<meta itemprop="description" content="redis高可用原理"><meta itemprop="datePublished" content="2019-04-21T22:52:16+08:00" />
+<meta itemprop="dateModified" content="2019-04-21T22:52:16+08:00" />
+<meta itemprop="wordCount" content="3196">
 <meta itemprop="keywords" content="redis," />
-<meta name="twitter:card" content="summary"/>
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>redis高可用原理 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="redis高可用原理"/>
 <meta name="twitter:description" content="redis高可用原理"/>
 
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
 
-
-
-<!--[if lte IE 9]>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
-<![endif]-->
-
-<!--[if lt IE 9]>
-  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
-<![endif]-->
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
 </head>
+
 <body>
-  <div id="mobile-navbar" class="mobile-navbar">
-  <div class="mobile-header-logo">
-    <a href="/" class="logo">codedump的网络日志</a>
-  </div>
-  <div class="mobile-navbar-icon">    
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<nav id="mobile-menu" class="mobile-menu slideout-menu">
-  <ul class="mobile-menu-list">
-    <a href="/">
-        <li class="mobile-menu-item">主页</li>
-      </a><a href="/post/">
-        <li class="mobile-menu-item">归档</li>
-      </a><a href="/tags/">
-        <li class="mobile-menu-item">标签</li>
-      </a><a href="/categories/">
-        <li class="mobile-menu-item">分类</li>
-      </a><a href="/post/20200122-series-pages/">
-        <li class="mobile-menu-item">系列文章索引</li>
-      </a><a href="/page/about">
-        <li class="mobile-menu-item">关于</li>
-      </a><a href="/page/weekly">
-        <li class="mobile-menu-item">周刊</li>
-      </a><a href="https://www.codedump.info/index.xml">
-        <li class="mobile-menu-item">订阅</li>
-      </a>
-  </ul>
-</nav>
-  <div class="container" id="mobile-panel">
-    <header id="header" class="header">
-        <div class="logo-wrapper">
-  <a href="/" class="logo">codedump的网络日志</a>
-</div>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
 
-<nav class="site-navbar">
-  <ul id="menu" class="menu">
-    <li class="menu-item">
-        <a class="menu-item-link" href="/">主页</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/">归档</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/tags/">标签</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/categories/">分类</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/post/20200122-series-pages/">系列文章索引</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/about">关于</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="/page/weekly">周刊</a>
-      </li><li class="menu-item">
-        <a class="menu-item-link" href="https://www.codedump.info/index.xml">订阅</a>
-      </li>
-  </ul>
-</nav>
-    </header>
-
-    <main id="main" class="main">
-      <div class="content-wrapper">
-        <div id="content" class="content">
-          <article class="post">
+  <nav>
     
-    <header class="post-header">
-      <h1 class="post-title">redis高可用原理</h1>
-
-      <div class="post-meta">
-        <span class="post-time"> 2019-04-21 </span>
-        <div class="post-category">
-            
-              <a href="/categories/redis/"> redis </a>
-            
-          </div>
-        
-        
-      </div>
-    </header>
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+  </nav>
+</header>
 
     
-    
-<div class="post-toc" id="post-toc">
-  <h2 class="post-toc-title">Contents</h2>
+<main id="main" class="post">
   
-  <div class="post-toc-content always-active">
-    <nav id="TableOfContents">
-<ul>
-<li><a href="#主从复制">主从复制</a>
-<ul>
-<li><a href="#旧版本全量复制功能的实现">旧版本全量复制功能的实现</a></li>
-<li><a href="#新版本全量复制功能的实现">新版本全量复制功能的实现</a>
-<ul>
-<li><a href="#复制偏移量">复制偏移量</a></li>
-</ul></li>
-<li><a href="#复制积压缓冲区">复制积压缓冲区</a></li>
-<li><a href="#服务器运行id">服务器运行ID</a></li>
-<li><a href="#psync命令流程">psync命令流程</a></li>
-</ul></li>
-<li><a href="#哨兵机制概述">哨兵机制概述</a></li>
-<li><a href="#三个监控任务">三个监控任务</a>
-<ul>
-<li><a href="#info命令">info命令</a></li>
-<li><a href="#向-sentinel-hello频道同步信息">向__sentinel__:hello频道同步信息</a></li>
-<li><a href="#向数据节点做心跳探测">向数据节点做心跳探测</a></li>
-</ul></li>
-<li><a href="#主观下线和客观下线">主观下线和客观下线</a>
-<ul>
-<li><a href="#主观下线">主观下线</a></li>
-<li><a href="#客观下线">客观下线</a></li>
-</ul></li>
-<li><a href="#选举哨兵领导者">选举哨兵领导者</a></li>
-<li><a href="#选出新的主节点">选出新的主节点</a></li>
-<li><a href="#提升新的主节点">提升新的主节点</a></li>
-</ul>
-</nav>
+  
+  <h1>redis高可用原理</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/redis'>#redis</a>
+    
   </div>
-</div>
-
+  
+  
+  <article class="content">
     
-    
-
-    
-    <div class="post-content">
-      
-
-<p>redis中为了实现高可用（High Availability，简称HA），采用了如下两个方式：</p>
-
+    <p>redis中为了实现高可用（High Availability，简称HA），采用了如下两个方式：</p>
 <ul>
 <li>主从复制数据。</li>
 <li>采用哨兵监控数据节点的运行情况，一旦主节点出现问题由从节点顶上继续进行服务。</li>
 </ul>
-
 <h1 id="主从复制">主从复制</h1>
-
 <p>redis中主从节点复制数据有全量复制和部分复制之分。</p>
-
 <h2 id="旧版本全量复制功能的实现">旧版本全量复制功能的实现</h2>
-
 <p>全量复制使用snyc命令来实现，其流程是：</p>
-
 <ul>
 <li>从服务器向主服务器发送sync命令。</li>
 <li>主服务器在收到sync命令之后，调用bgsave命令生成最新的rdb文件，将这个文件同步给从服务器，这样从服务器载入这个rdb文件之后，状态就会和主服务器执行bgsave命令时候的一致。</li>
 <li>主服务器将保存在命令缓冲区中的写命令同步给从服务器，从服务器执行这些命令，这样从服务器的状态就跟主服务器当前状态一致了。</li>
 </ul>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/sync.png" alt="sync" title="sync" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/sync.png" alt="sync" title="sync"></p>
 <p>旧版本全量复制功能，其最大的问题是从服务器断线重连时，即便在从服务器上已经有一部分数据了，也需要进行全量复制，这样做的效率很低，于是新版本的redis在这部分做了改进。</p>
-
 <h2 id="新版本全量复制功能的实现">新版本全量复制功能的实现</h2>
-
 <p>新版本redis使用psync命令来代替sync命令，该命令既可以实现完整全同步也可以实现部分同步。</p>
-
 <h3 id="复制偏移量">复制偏移量</h3>
-
 <p>执行复制的双方，主从服务器，分别会维护一个复制偏移量：</p>
-
 <ul>
 <li>主服务器每次向从服务器同步了N字节数据之后，将修改自己的复制偏移量+N。</li>
 <li>从服务器每次从主服务器同步了N字节数据之后，将修改自己的复制偏移量+N。</li>
 </ul>
-
 <h2 id="复制积压缓冲区">复制积压缓冲区</h2>
-
 <p>主服务器内部维护了一个固定长度的先进先出队列做为复制积压缓冲区，其默认大小为1MB。</p>
-
 <p>在主服务器进行命令传播时，不仅会将写命令同步到从服务器，还会将写命令写入复制积压缓冲区。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/replication-backlog.png" alt="replication-backlog" title="replication-backlog" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/replication-backlog.png" alt="replication-backlog" title="replication-backlog"></p>
 <h2 id="服务器运行id">服务器运行ID</h2>
-
 <p>每个redis服务器，都有其运行ID，运行ID由服务器在启动时自动生成，主服务器会将自己的运行ID发送给从服务器，而从服务器会将主服务器的运行ID保存起来。</p>
-
 <p>从服务器redis断线重连之后进行同步时，就是根据运行ID来判断同步的进度：</p>
-
 <ul>
 <li>如果从服务器上面保存的主服务器运行ID与当前主服务器运行ID一致，则认为这一次断线重连连接的是之前复制的主服务器，主服务器可以继续尝试部分同步操作。</li>
 <li>否则，如果前后两次主服务器运行ID不相同，则认为是完成全同步流程。</li>
 </ul>
-
 <h2 id="psync命令流程">psync命令流程</h2>
-
 <p>有了前面的准备，下面开始分析psync命令的流程：</p>
-
 <ul>
 <li>如果从服务器之前没有复制过任何主服务器，或者之前执行过slaveof no one命令，那么从服务器就会向主服务器发送psync ? -1命令，请求主服务器进行数据的全量同步。</li>
 <li>否则，如果前面从服务器已经同步过部分数据，那么从服务器向主服务器发送psync &lt;runid&gt; &lt;offset&gt;命令，其中runid是上一次主服务器的运行id，offset是当前从服务器的复制偏移量。</li>
 </ul>
-
 <p>前面两种情况主服务器收到psync命令之后，会出现以下三种可能：</p>
-
 <ul>
 <li>主服务器返回+fullresync &lt;runid&gt; &lt;offset&gt;回复，表示主服务器要求与从服务器进行完整的数据全量同步操作。其中，runid是当前主服务器运行id，而offset是当前主服务器的复制偏移量。</li>
 <li>如果主服务器应答+continue，那么表示主服务器与从服务器进行部分数据同步操作，将从服务器缺失的数据同步过来即可。</li>
 <li>如果主服务器应答-err，那么表示主服务器版本低于2.8，识别不了psync命令，此时从服务器将向主服务器发送sync命令，执行完整的全量数据同步。</li>
 </ul>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/psync.png" alt="psync" title="psync" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/psync.png" alt="psync" title="psync"></p>
 <h1 id="哨兵机制概述">哨兵机制概述</h1>
-
 <p>redis使用哨兵机制来实现高可用(HA)，其大概工作原理是：</p>
-
 <ul>
 <li>redis使用一组哨兵（sentinel）节点来监控主从redis服务的可用性。</li>
 <li>一旦发现redis主节点失效，将选举出一个哨兵节点作为领导者（leader）。</li>
 <li>哨兵领导者再从剩余的从redis节点中选出一个redis节点作为新的主redis节点对外服务。</li>
 </ul>
-
 <p>以上将redis节点分为两类：</p>
-
 <ul>
 <li>哨兵节点（sentinel）：负责监控节点的运行情况。</li>
 <li>数据节点：即正常服务客户端请求的redis节点，有主从之分。</li>
 </ul>
-
 <p>以上是大体的流程，这个流程需要解决以下几个问题：</p>
-
 <ul>
 <li>如何对redis数据节点进行监控？</li>
 <li>如何确定一个redis数据节点失效？</li>
 <li>如何选择出一个哨兵领导者节点？</li>
 <li>哨兵节点选择新的主redis节点的依据是什么？</li>
 </ul>
-
 <p>以下来逐个回答这些问题。</p>
-
 <h1 id="三个监控任务">三个监控任务</h1>
-
 <p>哨兵节点通过三个定时监控任务监控redis数据节点的服务可用性。</p>
-
 <h2 id="info命令">info命令</h2>
-
 <p>每隔10秒，每个哨兵节点都会向主、从redis数据节点发送info命令，获取新的拓扑结构信息。</p>
-
 <p>redis拓扑结构信息包括了：</p>
-
 <ul>
 <li>本节点角色：主或从。</li>
 <li>主从节点的地址、端口信息。</li>
 </ul>
-
 <p>这样，哨兵节点就能从info命令中自动获取到从节点信息，因此那些后续才加入的从节点信息不需要显式配置就能自动感知。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/redis-info.png" alt="redis-info" title="redis-info" /></p>
-
-<h2 id="向-sentinel-hello频道同步信息">向__sentinel__:hello频道同步信息</h2>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/redis-info.png" alt="redis-info" title="redis-info"></p>
+<h2 id="向__sentinel__hello频道同步信息">向__sentinel__:hello频道同步信息</h2>
 <p>每隔2秒，每个哨兵节点将会向redis数据节点的__sentinel__:hello频道同步自身得到的主节点信息以及当前哨兵节点的信息，由于其他哨兵节点也订阅了这个频道，因此实际上这个操作可以交换哨兵节点之间关于主节点以及哨兵节点的信息。</p>
-
-<p>这一操作实际上完成了两件事情：
-* 发现新的哨兵节点：如果有新的哨兵节点加入，此时保存下来这个新哨兵节点的信息，后续与该哨兵节点建立连接。
-* 交换主节点的状态信息，作为后续客观判断主节点下线的依据。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/hello.png" alt="hello" title="hello" /></p>
-
-<h2 id="向数据节点做心跳探测">向数据节点做心跳探测</h2>
-
-<p>每隔1秒，每个哨兵节点向主、从数据节点以及其他sentinel节点发送ping命令做心跳探测，这个心跳探测是后续主观判断数据节点下线的依据。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/ping.png" alt="ping" title="ping" /></p>
-
-<h1 id="主观下线和客观下线">主观下线和客观下线</h1>
-
-<h2 id="主观下线">主观下线</h2>
-
-<p>上面三个监控任务中的第三个探测心跳任务，如果在配置的down-after-milliseconds之后没有收到有效回复，那么就认为该数据节点“主观下线（sdown）”。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/sdown.png" alt="sdown" title="sdown" /></p>
-
-<p>为什么称为“主观下线”？因为在一个分布式系统中，有多个机器在一起联动工作，网络可能出现各种状况，仅凭一个节点的判断还不足以认为一个数据节点下线了，这就需要后面的“客观下线”。</p>
-
-<h2 id="客观下线">客观下线</h2>
-
-<p>当一个哨兵节点认为主节点主观下线时，该哨兵节点需要通过&rdquo;sentinel is-master-down-by addr&rdquo;命令向其他哨兵节点咨询该主节点是否下线了，如果有超过半数的哨兵节点都回答了下线，此时认为主节点“客观下线”。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/odown.png" alt="odown" title="odown" /></p>
-
-<h1 id="选举哨兵领导者">选举哨兵领导者</h1>
-
-<p>当主节点客观下线时，需要选举出一个哨兵节点做为哨兵领导者，以完成后续选出新的主节点的工作。</p>
-
-<p>这个选举的大体思路是：</p>
-
+<p>这一操作实际上完成了两件事情：</p>
 <ul>
-<li>每个哨兵节点通过向其他哨兵节点发送&rdquo;sentinel is-master-down-by addr&rdquo;命令来申请成为哨兵领导者。</li>
-<li>而每个哨兵节点在收到一个&rdquo;sentinel is-master-down-by addr&rdquo;命令时，只允许给第一个节点投票，其他节点的该命令都会被拒绝。</li>
+<li>发现新的哨兵节点：如果有新的哨兵节点加入，此时保存下来这个新哨兵节点的信息，后续与该哨兵节点建立连接。</li>
+<li>交换主节点的状态信息，作为后续客观判断主节点下线的依据。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/hello.png" alt="hello" title="hello"></p>
+<h2 id="向数据节点做心跳探测">向数据节点做心跳探测</h2>
+<p>每隔1秒，每个哨兵节点向主、从数据节点以及其他sentinel节点发送ping命令做心跳探测，这个心跳探测是后续主观判断数据节点下线的依据。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/ping.png" alt="ping" title="ping"></p>
+<h1 id="主观下线和客观下线">主观下线和客观下线</h1>
+<h2 id="主观下线">主观下线</h2>
+<p>上面三个监控任务中的第三个探测心跳任务，如果在配置的down-after-milliseconds之后没有收到有效回复，那么就认为该数据节点“主观下线（sdown）”。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/sdown.png" alt="sdown" title="sdown"></p>
+<p>为什么称为“主观下线”？因为在一个分布式系统中，有多个机器在一起联动工作，网络可能出现各种状况，仅凭一个节点的判断还不足以认为一个数据节点下线了，这就需要后面的“客观下线”。</p>
+<h2 id="客观下线">客观下线</h2>
+<p>当一个哨兵节点认为主节点主观下线时，该哨兵节点需要通过&quot;sentinel is-master-down-by addr&quot;命令向其他哨兵节点咨询该主节点是否下线了，如果有超过半数的哨兵节点都回答了下线，此时认为主节点“客观下线”。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/odown.png" alt="odown" title="odown"></p>
+<h1 id="选举哨兵领导者">选举哨兵领导者</h1>
+<p>当主节点客观下线时，需要选举出一个哨兵节点做为哨兵领导者，以完成后续选出新的主节点的工作。</p>
+<p>这个选举的大体思路是：</p>
+<ul>
+<li>每个哨兵节点通过向其他哨兵节点发送&quot;sentinel is-master-down-by addr&quot;命令来申请成为哨兵领导者。</li>
+<li>而每个哨兵节点在收到一个&quot;sentinel is-master-down-by addr&quot;命令时，只允许给第一个节点投票，其他节点的该命令都会被拒绝。</li>
 <li>如果一个哨兵节点收到了半数以上的同意票，则成为哨兵领导者。</li>
 <li>如果前面三步在一定时间内都没有选出一个哨兵领导者，将重新开始下一次选举。</li>
 </ul>
-
 <p>可以看到，这个选举领导者的流程很像raft中选举leader的流程。</p>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/sentinel-leader.png" alt="sentinel-leader" title="sentinel-leader" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/sentinel-leader.png" alt="sentinel-leader" title="sentinel-leader"></p>
 <h1 id="选出新的主节点">选出新的主节点</h1>
-
 <p>在剩下的redis从节点中，按照以下顺序来选择新的主节点：</p>
-
 <ul>
 <li>过滤掉“不健康”的数据节点：比如主观下线、断线的从节点、五秒内没有回复过哨兵节点ping命令的节点、与主节点失联的从节点。</li>
 <li>选择slave-priority（从节点优先级）最高的从节点，如果存在则返回不存在则继续后面的流程。</li>
 <li>选择复制偏移量最大的从节点，这意味着这个从节点上面的数据最完整，如果存在则返回不存在则继续后面的流程。</li>
 <li>到了这里，所有剩余从节点的状态都是一样的，选择runid最小的从节点。</li>
 </ul>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/new-leader.png" alt="new-leader" title="new-leader" /></p>
-
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/new-leader.png" alt="new-leader" title="new-leader"></p>
 <h1 id="提升新的主节点">提升新的主节点</h1>
-
 <p>选择了新的主节点之后，还需要最后的流程让该节点成为新的主节点：</p>
-
 <ul>
 <li>哨兵领导者向上一步选出的从节点发出“slaveof no one”命令，让该节点成为主节点。</li>
 <li>哨兵领导者向剩余的从节点发送命令，让它们成为新主节点的从节点。</li>
 <li>哨兵节点集合会将原来的主节点更新为从节点，当其恢复之后命令它去复制新的主节点的数据。</li>
 </ul>
-
-<p><img src="/media/imgs/20190409-redis-sentinel/new-master.png" alt="new-master" title="new-master" /></p>
-
-    </div>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190409-redis-sentinel/new-master.png" alt="new-master" title="new-master"></p>
 
     
-    <div class="post-copyright">
-  <p class="copyright-item">
-    <span class="item-title">Author</span>
-    <span class="item-content">codedump</span>
-  </p>
-  <p class="copyright-item">
-    <span class="item-title">LastMod</span>
-    <span class="item-content">2019-04-21</span>
-  </p>
-  
-  <p class="copyright-item">
-    <span class="item-title">License</span>
-    <span class="item-content">本作品采用<a rel="license" href="http://creativecommons.org/licenses/by/4.0/">知识共享署名 4.0 国际许可协议</a>进行许可。 转载时请注明原文链接，图片使用<a href="https://www.omnigroup.com/omnigraffle/">OmniGraffle</a>进行绘制。</span>
-  </p>
-</div>
-  
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/">← prev</a>
     
     
-<div class="post-reward">
-  <input type="checkbox" name="reward" id="reward" hidden />
-  <label class="reward-button" for="reward">打赏</label>
-  <div class="qr-code">
-    
-    
-      <label class="qr-code-image" for="reward">
-        <img class="image" src="/media/imgs/reward/wechat.png">
-        <span>微信支付</span>
-      </label>
+    <a class="link" href="https://www.codedump.info/post/20190501-lua-stream/">next →</a>
     
   </div>
-</div>
-        
-      
-      <h1>相关文章</h1>
+
+    
+<h1>相关文章</h1>
 
 <h1>邮件订阅</h1>
 
@@ -466,42 +277,53 @@ if (!doNotTrack) {
   </form>
 </div>
 
-<h1>微信公众号</h1>
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/redis/">redis</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
 
-<footer class="post-footer">
-  <div class="post-tags">
-      
-      <a href="/tags/redis/">redis</a>
-      
-    </div>
+  </div>
 
-
-
-      
-      <nav class="post-nav">
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
         
-          <a class="prev" href="/post/20190501-lua-stream/">
-            <i class="iconfont icon-left"></i>
-            <span class="prev-text nav-default">OpenResty Lua Stream实现分析</span>
-            <span class="prev-text nav-mobile">Prev</span>
-          </a>
-        
-          <a class="next" href="/post/20190406-ddia-chapter09-consistency-and-consensus/">
-            <span class="next-text nav-default">《数据密集型应用系统设计》第九章《一致性与共识》笔记</span>
-            <span class="next-text nav-mobile">Next</span>
-            <i class="iconfont icon-right"></i>
-          </a>
-      </nav>
-    </footer>
-
-
-
-  </article>
-        </div>
-        
-  <div id="disqus_thread"></div>
+      </div>
+      <div id="disqus_thread"></div>
     <script type="text/javascript">
     (function() {
       
@@ -518,72 +340,56 @@ if (!doNotTrack) {
 
   
 
-	
-  <div class="post bg-white">
+  
     <script src="https://utteranc.es/client.js"
-          repo="lichuang/lichuang.github.io"
-          issue-term="pathname"
-          theme="github-light"
-          crossorigin="anonymous"
-          async>
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
     </script>
-  </div>    
     <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
 
-  
-
-      </div>
-    </main>
-
-    <footer id="footer" class="footer">
-      <div class="social-links">
-      <a href="https://github.com/lichuang" class="iconfont icon-github" title="github"></a>
-      <a href="https://weibo.com/lichuang" class="iconfont icon-weibo" title="weibo"></a>
-      <a href="https://www.zhihu.com/people/codedump" class="iconfont icon-zhihu" title="zhihu"></a>
-      <a href="https://www.douban.com/people/Lichuang/" class="iconfont icon-douban" title="douban"></a>
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
-</div>
-
-<div class="copyright">
-  <span class="power-by">
-    Powered by <a class="hexo-link" href="https://gohugo.io">Hugo</a>
-  </span>
-  <span class="division">|</span>
-  <span class="theme-info">
-    Theme - 
-    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
-  </span>
-
-  
-
-  <span class="copyright-year">
-    &copy; 
-    
-      2018 - 
-    2022
-    <span class="heart">
-      <i class="iconfont icon-heart"></i>
-    </span>
-    <span class="author">codedump</span>
-  </span>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_SVG"></script>
-    </footer>
-
-    <div class="back-to-top" id="back-to-top">
-      <i class="iconfont icon-up"></i>
     </div>
-  </div>
+  </main>
+
+
   
-<script src="/lib/highlight/highlight.pack.js?v=20171001"></script><script type="text/javascript" src="/lib/jquery/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="/lib/slideout/slideout-1.0.1.min.js"></script>
-  <script type="text/javascript" src="/lib/fancybox/jquery.fancybox-3.1.20.min.js"></script>
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
+<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
 
 
-<script type="text/javascript" src="/dist/even.min.js?v=3.2.0"></script>
 
+  
+  
 
+  
+  
 <script type="application/javascript">
 var doNotTrack = false;
 if (!doNotTrack) {
@@ -594,21 +400,9 @@ if (!doNotTrack) {
 }
 </script>
 <script async src='https://www.google-analytics.com/analytics.js'></script>
-<script id="baidu_analytics">
-  var _hmt = _hmt || [];
-  (function() {
-    if (window.location.hostname === 'localhost') return;
-    var hm = document.createElement("script"); hm.async = true;
-    hm.src = "https://hm.baidu.com/hm.js?f23d5f22e2f2472e1e8f23afb0523e40";
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(hm, s);
-  })();
-</script>
-
-
-
 
 
 
 </body>
+
 </html>

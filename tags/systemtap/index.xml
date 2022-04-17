@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>systemtap on codedump的网络日志</title>
@@ -6,18 +6,185 @@
     <description>Recent content in systemtap on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 18 Feb 2020 17:37:01 +0800</lastBuildDate>
-    
-	<atom:link href="https://www.codedump.info/tags/systemtap/index.xml" rel="self" type="application/rss+xml" />
-    
-    
+    <lastBuildDate>Tue, 18 Feb 2020 17:37:01 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/systemtap/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Systemtap中内核trace事件的实现</title>
       <link>https://www.codedump.info/post/20200218-linux-traceevent/</link>
       <pubDate>Tue, 18 Feb 2020 17:37:01 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20200218-linux-traceevent/</guid>
-      <description>概述 内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是</description>
+      
+      <description>&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是&lt;code&gt;kernel.trace&lt;/code&gt;类型的probe事件，可以使用命令来查看系统所有的trace point：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;kernel.trace(&amp;#34;*&amp;#34;)&amp;#39; | more
+kernel.trace(&amp;#34;9p:9p_client_req&amp;#34;) $clnt:struct p9_client* $type:int8_t $tag:int
+kernel.trace(&amp;#34;9p:9p_client_res&amp;#34;) $clnt:struct p9_client* $type:int8_t $tag:int $err:int
+kernel.trace(&amp;#34;9p:9p_protocol_dump&amp;#34;) $clnt:struct p9_client* $pdu:struct p9_fcall*
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;换言之，通过systemtap能够对这些已经静态注册的内核调用记录点进行监控、跟踪。&lt;/p&gt;
+&lt;p&gt;以下来解释trace point在内核的实现以及与systemtap相关的内容。&lt;/p&gt;
+&lt;h1 id=&#34;数据结构&#34;&gt;数据结构&lt;/h1&gt;
+&lt;p&gt;内核通过&lt;code&gt;DECLARE_TRACE&lt;/code&gt;来声明一个trace point：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;DECLARE_TRACE(subsys_eventname,
+	TP_PROTO(int firstarg, struct task_struct *p),
+	TP_ARGS(firstarg, p));
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;subsys_eventname是定义trace事件的唯一字符串，又能拆解成两部分：subsys就是子系统的名称，而eventname是事件名称。比如下面将作为实例的&lt;code&gt;softirq_entry&lt;/code&gt;，就定义了一个在&lt;code&gt;softirq&lt;/code&gt;子系统中的&lt;code&gt;entry&lt;/code&gt;事件。&lt;/li&gt;
+&lt;li&gt;TP_PROTO(int firstarg, struct task_struct *p)：定义了传入trace函数的参数原型。&lt;/li&gt;
+&lt;li&gt;TP_ARGS(firstarg, p)：定义了参数名称，其类型与TP_PROTO中的类型一一对应。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这个宏的定义如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// include/linux/tracepoint.h
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#080&#34;&gt;#define DECLARE_TRACE(name, proto, args)				\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			cpu_online(raw_smp_processor_id()),		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			PARAMS(void *__data, proto),			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			PARAMS(__data, args))
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;其中的宏&lt;code&gt;__DECLARE_TRACE&lt;/code&gt;定义如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;#define __DECLARE_TRACE(name, proto, args, cond, data_proto, data_args) \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	extern struct tracepoint __tracepoint_##name;			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline void trace_##name(proto)				\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		if (static_key_false(&amp;amp;__tracepoint_##name.key))		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			__DO_TRACE(&amp;amp;__tracepoint_##name,		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;				TP_PROTO(data_proto),			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;				TP_ARGS(data_args),			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;				TP_CONDITION(cond), 0);			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		if (IS_ENABLED(CONFIG_LOCKDEP) &amp;amp;&amp;amp; (cond)) {		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			rcu_read_lock_sched_notrace();			\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			rcu_dereference_sched(__tracepoint_##name.funcs);\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;			rcu_read_unlock_sched_notrace();		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		}							\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	__DECLARE_TRACE_RCU(name, PARAMS(proto), PARAMS(args),		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		PARAMS(cond), PARAMS(data_proto), PARAMS(data_args))	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline int						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	register_trace_##name(void (*probe)(data_proto), void *data)	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		return tracepoint_probe_register(&amp;amp;__tracepoint_##name,	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;						(void *)probe, data);	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline int						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;				   int prio)				\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		return tracepoint_probe_register_prio(&amp;amp;__tracepoint_##name, \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;					      (void *)probe, data, prio); \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline int						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	unregister_trace_##name(void (*probe)(data_proto), void *data)	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		return tracepoint_probe_unregister(&amp;amp;__tracepoint_##name,\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;						(void *)probe, data);	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline void						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	check_trace_callback_type_##name(void (*cb)(data_proto))	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static inline bool						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	trace_##name##_enabled(void)					\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	{								\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		return static_key_false(&amp;amp;__tracepoint_##name.key);	\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可以看到，这个宏做了如下的事情：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;声明了一个类型为&lt;code&gt;tracepoint&lt;/code&gt;的结构体变量&lt;code&gt;__tracepoint_##name&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;定义了几个相关的函数，分别用于处理trace event、注册、注销等。其中需要重点关注的是宏&lt;code&gt;trace_##name&lt;/code&gt;，这里定义了对对应的traceevent进行跟踪的函数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;其中，宏里面一个字符串跟着&lt;code&gt;##name&lt;/code&gt;表示这个字符串与name的连接形成的字符串。&lt;/p&gt;
+&lt;p&gt;这里的结构体&lt;code&gt;tracepoint&lt;/code&gt;定义如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// include/linux/tracepoint-defs.h
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; tracepoint {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;name;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;/* Tracepoint name */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; static_key key;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;regfunc)(&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;unregfunc)(&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; tracepoint_func __rcu &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;funcs;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;该结构体中分别定义了：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;traceevent名称。&lt;/li&gt;
+&lt;li&gt;注册、注销、被触发时的处理函数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上只是声明了&lt;code&gt;tracepoint&lt;/code&gt;结构体变量，而具体定义变量的宏是&lt;code&gt;DEFINE_TRACE&lt;/code&gt;：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// include/linux/tracepoint.h
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#080&#34;&gt;#define DEFINE_TRACE(name)						\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	DEFINE_TRACE_FN(name, NULL, NULL);
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;#define DEFINE_TRACE_FN(name, reg, unreg)				 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static const char __tpstrtab_##name[]				 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	__attribute__((section(&amp;#34;__tracepoints_strings&amp;#34;))) = #name;	 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	struct tracepoint __tracepoint_##name				 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	__attribute__((section(&amp;#34;__tracepoints&amp;#34;))) =			 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		{ __tpstrtab_##name, STATIC_KEY_INIT_FALSE, reg, unreg, NULL };\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	static struct tracepoint * const __tracepoint_ptr_##name __used	 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	__attribute__((section(&amp;#34;__tracepoints_ptrs&amp;#34;))) =		 \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;		&amp;amp;__tracepoint_##name;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;因此，&lt;code&gt;DEFINE_TRACE&lt;/code&gt;的作用就是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在&lt;code&gt;__tracepoints_strings&lt;/code&gt;section中定义了字符串数组变量&lt;code&gt;__tpstrtab_##name&lt;/code&gt;，其值为name。&lt;/li&gt;
+&lt;li&gt;在&lt;code&gt;__tracepoints&lt;/code&gt;section中定义了结构体tracepoint变量&lt;code&gt;__tracepoint_##name&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上解释了trace point相关的数据结构、宏、变量等，下面以一个实例来展开说明。&lt;/p&gt;
+&lt;h1 id=&#34;实例&#34;&gt;实例&lt;/h1&gt;
+&lt;p&gt;这里以软中断被调用时的入口trace event为例，其定义如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;DEFINE_EVENT(softirq, softirq_entry,
+
+	TP_PROTO(unsigned int vec_nr),
+
+	TP_ARGS(vec_nr)
+);
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里的宏&lt;code&gt;DEFINE_EVENT&lt;/code&gt;不过是前面&lt;code&gt;DECLARE_TRACE&lt;/code&gt;宏的一个包装：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;#define DEFINE_EVENT(template, name, proto, args)		\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;	DECLARE_TRACE(name, PARAMS(proto), PARAMS(args))
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;从上面的讨论可以知道，这里声明了一个名为&lt;code&gt;__tracepoint_softirq_entry&lt;/code&gt;的&lt;code&gt;tracepoint&lt;/code&gt;类型结构体。而根据我们前面对宏的展开分析，&lt;code&gt;trace_##name&lt;/code&gt;也就是这里展开的&lt;code&gt;trace_softirq_entry&lt;/code&gt;是对这个trace event进行调用的入口，果然在&lt;code&gt;__do_softirq&lt;/code&gt;函数中看到了它的身影：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// kernel/softirq.c
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;asmlinkage __visible &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; __softirq_entry &lt;span style=&#34;color:#00a000&#34;&gt;__do_softirq&lt;/span&gt;(&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  trace_softirq_entry(vec_nr);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h1 id=&#34;systemtap相关&#34;&gt;systemtap相关&lt;/h1&gt;
+&lt;p&gt;这里需要注意的另一个问题是，每个systemtap中的kernel.trace当时可以知道的参数，除了trace event本身的参数之外，还有当时所在嵌入函数内部的变量，比如这里的&lt;code&gt;softirq_entry&lt;/code&gt;这个probe，在systemtap对应的tapset中是这样的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe softirq.entry = kernel.trace(&amp;#34;irq_softirq_entry&amp;#34;) !,
+     		      kernel.trace(&amp;#34;softirq_entry&amp;#34;) ?
+{
+	# kernels &amp;lt; 2.6.37
+	h = @choose_defined($h, 0)
+	vec = @choose_defined($vec, 0)
+	action = (@defined($h) ? @cast($h,&amp;#34;softirq_action&amp;#34;,&amp;#34;kernel&amp;lt;linux/interrupt.h&amp;gt;&amp;#34;)-&amp;gt;action : 0)
+	# kernels &amp;gt;= 2.6.37
+	vec_nr = @choose_defined($vec_nr, 0)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里可以的变量&lt;code&gt;h&lt;/code&gt;类型是在内核中的头文件&lt;code&gt;&amp;lt;linux/interrupt.h&amp;gt;&lt;/code&gt;中定义的&lt;code&gt;softirq_action&lt;/code&gt;，因为这个变量就是在上面的函数&lt;code&gt;__do_softirq&lt;/code&gt;中定义的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// kernel/softirq.c
+asmlinkage __visible void __softirq_entry __do_softirq(void)
+{
+  // ...
+  struct softirq_action *h;
+
+  // ...
+  trace_softirq_entry(vec_nr);
+  // ...
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;所以，要看一个systemtap的kernel.trace能引用哪些变量，除了看其自身，还包括看其所嵌入函数的上下文中的变量，最好直接到对应的tapset的说明，因为-L只能打印出这个kernel.trace自身定义的变量：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;kernel.trace(&amp;#34;softirq_entry&amp;#34;)&amp;#39;
+kernel.trace(&amp;#34;irq:softirq_entry&amp;#34;) $vec_nr:unsigned int
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;总结&#34;&gt;总结：&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;内核中的trace事件以&lt;code&gt;trace_*&lt;/code&gt;来命名。&lt;/li&gt;
+&lt;li&gt;看到systemtap中的&lt;code&gt;&#39;kernel.trace(&amp;quot;xx&amp;quot;)&#39;&lt;/code&gt;，其对应的内核代码可以使用&lt;code&gt;trace_xx&lt;/code&gt;来搜索，通过阅读这个trace事件所嵌入的代码也可以或者这个probe事件能打印的变量。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;参考资料&#34;&gt;参考资料&lt;/h1&gt;
+&lt;ul&gt;
+&lt;li&gt;tracepoint.txt：内核自带文档，路径&amp;quot;Documentation/trace/tracepoint.txt&amp;quot;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.ibm.com/developerworks/cn/linux/1609_houp_ftrace/index.html&#34;&gt;ftrace 中 eventtracing 的实现原理&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;man tapset：可以查看当前systemtap自带定义的tapset详细定义。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://sourceware.org/systemtap/tapsets/&#34;&gt;SystemTap Tapset Reference Manual&lt;/a&gt;：tapset手册的线上版本。&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
     </item>
     
     <item>
@@ -26,7 +193,839 @@
       <pubDate>Tue, 28 Jan 2020 11:56:56 +0800</pubDate>
       
       <guid>https://www.codedump.info/post/20200128-systemtap-by-example/</guid>
-      <description>我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个awesome-</description>
+      
+      <description>&lt;p&gt;我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个&lt;a href=&#34;https://github.com/lichuang/awesome-systemtap-cn&#34;&gt;awesome-systemtap-cn&lt;/a&gt;项目，收集systemtap相关的优秀学习资源，欢迎提供其他更好的参考资料。&lt;/p&gt;
+&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病人就好比是在运行的系统，很多时候查看一些问题需要在系统在运行的时候来观察，这时候就需要这类动态跟踪工具。与之对应的是，类似gdb这样的调试工具，其工作原理是让进程在某些断点暂停下来，查看进程的行为，这种技术称为“静态调试”。&lt;/p&gt;
+&lt;p&gt;关于动态跟踪技术，推荐阅读&lt;a href=&#34;https://openresty.org/posts/dynamic-tracing/&#34;&gt;《动态追踪技术漫谈》&lt;/a&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200128-systemtap-by-example/Smileytap.svg_.png&#34; alt=&#34;Smileytap.svg&#34; title=&#34;systemtap&#34;&gt;&lt;/p&gt;
+&lt;p&gt;本文旨在通过实例，快速解释systemtap脚本语言的最常见用法和语法。&lt;/p&gt;
+&lt;h1 id=&#34;工作原理&#34;&gt;工作原理&lt;/h1&gt;
+&lt;p&gt;如下图，systemtap使用.stp脚本语言，由命令行&lt;code&gt;stap&lt;/code&gt;编译生成对应的内核模块，动态放入内核中执行：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200128-systemtap-by-example/systemtap.gif&#34; alt=&#34;systemtap&#34; title=&#34;systemtap&#34;&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;stap 流程从将脚本转换成解析树开始 (pass 1)。&lt;/li&gt;
+&lt;li&gt;然后使用细化（elaboration）步骤 (pass 2) 中关于当前运行的内核的符号信息解析符号。&lt;/li&gt;
+&lt;li&gt;接下来，转换流程将解析树转换成 C 源代码 (pass 3) 并使用解析后的信息和 tapset 脚本（SystemTap 定义的库，包含有用的功能）。&lt;/li&gt;
+&lt;li&gt;stap 的最后步骤是构造使用本地内核模块构建进程的内核模块 (pass 4)。&lt;/li&gt;
+&lt;li&gt;有了可用的内核模块之后，stap 完成了自己的任务，并将控制权交给其他两个实用程序 SystemTap：staprun 和 stapio。这两个实用程序协调工作，负责将模块安装到内核中并将输出发送到 stdout (pass 5)。如果在 shell 中按组合键 Ctrl-C 或脚本退出，将执行清除进程，这将导致卸载模块并退出所有相关的实用程序。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h1 id=&#34;stap命令行参数&#34;&gt;stap命令行参数&lt;/h1&gt;
+&lt;h2 id=&#34;-x-pid&#34;&gt;-x PID&lt;/h2&gt;
+&lt;p&gt;-x用于传递PID参数给systemtap脚本，这样在脚本内部可以通过target()函数拿到这个传递进来的参数：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// $ sudo stap x-param.stp -x 10
+// 输出：pid:10
+probe begin
+{
+  printf(&amp;#34;pid:%d\n&amp;#34;, target())
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;-t-seconds&#34;&gt;-T seconds&lt;/h2&gt;
+&lt;p&gt;-T 参数后面可以带上秒数，这样脚本在这个时间之后自动退出，这样可以设置脚本执行的时间。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// $ sudo stap T-params.stp -T 3
+// 输出：time:2
+global count
+
+probe timer.s(1) {
+  count += 1
+}
+
+probe end {
+  printf(&amp;#34;time:%d\n&amp;#34;, count)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;-l和-l&#34;&gt;-L和-l&lt;/h2&gt;
+&lt;p&gt;这两个参数大体作用一样，都可以列举出二进制文件对应的函数在哪里（所在文件和行数），所不同的是，-L比-l还多了一些信息：可以打印出函数局部变量的信息。&lt;/p&gt;
+&lt;p&gt;比如下面这个简单的C代码：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;#include&lt;/span&gt; &lt;span style=&#34;color:#080&#34;&gt;&amp;lt;stdio.h&amp;gt;&lt;/span&gt;&lt;span style=&#34;color:#080&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;func1&lt;/span&gt;(&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; a, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; b) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; a&lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt;b;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;func&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; a,b,c;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  c &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; func1(a,b);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  printf(&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;c:%d&lt;/span&gt;&lt;span style=&#34;color:#b62;font-weight:bold&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;&lt;/span&gt;, c);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  func();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;使用两个大小写不同的-l参数的输出如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;) $a:int $b:int $c:int
+
+$ sudo stap -l &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;需要注意的是，要探测的二进制文件必须有调试信息，比如上面的test.c编译出来的a.out文件，需要使用-g参数编译这样才能带上调试信息，否则输出就是这样的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;还要注意的是，有一些编译优化级别可能会把局部变量优化掉，比如上面的文件分别使用O0和O2编译，看到的结果就不一样了：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ gcc test.c -g -O0
+$ sudo stap -L &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;) $a:int $b:int $c:int
+
+
+$ gcc test.c -g -O2
+$ sudo stap -L &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;有了这两个命令行参数，搭配&lt;code&gt;grep&lt;/code&gt;命令很容易的查询到相应的探针。&lt;/p&gt;
+&lt;p&gt;查询应用层程序探针：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;*&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;__do_global_dtors_aux&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;__libc_csu_fini&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;__libc_csu_init&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;_fini&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;_init&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;_start&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;deregister_tm_clones&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;frame_dummy&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func1@/home/codedump/source/systemtap-examples/src/test.c:3&amp;#34;) $a:int $b:int
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;) $d:int $n:char const* $a:int $b:int $c:int
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;main@/home/codedump/source/systemtap-examples/src/test.c:16&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;register_tm_clones&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;查询内核中包含&lt;code&gt;tcp_&lt;/code&gt;的探针：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -L &amp;#39;kernel.function(&amp;#34;*&amp;#34;)&amp;#39; | grep tcp_ | more
+kernel.function(&amp;#34;__parse_nl_addr@/build/linux-hwe-dAr4iK/linux-hwe-4.15.0/net/ipv4/tcp_metrics.c:785&amp;#34;) $addr:struct inetpeer_addr* $hash:unsigned int* $optional:int $v4:int $v6:int
+kernel.function(&amp;#34;__pskb_trim_head@/build/linux-hwe-dAr4iK/linux-hwe-4.15.0/net/ipv4/tcp_output.c:1398&amp;#34;) $skb:struct sk_buff* $len:int
+kernel.function(&amp;#34;__tcp_ack_snd_check@/build/linux-hwe-dAr4iK/linux-hwe-4.15.0/net/ipv4/tcp_input.c:5062&amp;#34;) $sk:struct sock* $ofo_possible:int
+kernel.function(&amp;#34;__tcp_add_write_queue_tail@/build/linux-hwe-dAr4iK/linux-hwe-4.15.0/include/net/tcp.h:1647&amp;#34;)
+kernel.function(&amp;#34;__tcp_alloc_md5sig_pool@/build/linux-hwe-dAr4iK/linux-hwe-4.15.0/net/ipv4/tcp.c:3371&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;-g-varval&#34;&gt;-G VAR=VAL&lt;/h2&gt;
+&lt;p&gt;-G命令行参数，可以设置全局变量VAR的值为VAL，相应地就可以作为开关来控制脚本的行为，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// sudo stap G-params.stp -G flag=1
+// flag has set
+global flag=0
+
+probe begin {
+  if (flag == 0) {
+    printf(&amp;#34;flag not set\n&amp;#34;)
+  } else {
+    printf(&amp;#34;flag has set\n&amp;#34;)
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;探测点&#34;&gt;探测点&lt;/h1&gt;
+&lt;p&gt;由于systemtap用于动态跟踪探测，所以首先的第一步就是在语言中定义探测点，在systemtap中被称为“probe”。其基本语法是：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe event { statement }
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，“event”分为两种：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;同步事件：发生在进程执行某一条确定的命令时的事件。&lt;/li&gt;
+&lt;li&gt;异步事件：不是执行到指定的指令或代码位置，这一类包括计时器，定时器等。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下分开解释。&lt;/p&gt;
+&lt;h2 id=&#34;同步事件&#34;&gt;同步事件&lt;/h2&gt;
+&lt;p&gt;同步事件有好多种，同步事件的探测点又分为以下几个组成部分：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;前缀部分，定义所在的模块：可以是内核，还可以是内核模块，还可以是用户进程，还可以是systemtap在tapset中预定义的探测点。&lt;/li&gt;
+&lt;li&gt;中间部分，定义所在的函数：函数可以通过函数名指定，也可以根据文件名:行号指定。&lt;/li&gt;
+&lt;li&gt;后缀部分，定义调用时机：可以在函数调用时触发，也可以在函数返回时触发。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;根据以上几个划分，再来拆解“探测点”就相对容易了。&lt;/p&gt;
+&lt;h3 id=&#34;模块&#34;&gt;模块&lt;/h3&gt;
+&lt;p&gt;其中几类的语法分别是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;内核：语法为kernel.function(PATTERN)，即以“kernel”开头来指定的就是内核中的函数。&lt;/li&gt;
+&lt;li&gt;内核模块：语法为module(MPATTERN).function(PATTERN)，即以“module(MPATTERN)”开头来指定的就是内核模块中的函数。&lt;/li&gt;
+&lt;li&gt;用户进程：语法为process(PROCESSPATH).function(PATTERN)，即以“process(PROCESSPATH)”开头来指定的就是用户进程的函数。&lt;/li&gt;
+&lt;li&gt;异步调用的模块：比如begin、end、timer等。&lt;/li&gt;
+&lt;li&gt;如果不是以上的格式，那么大概率就是systemtap自带的tapset中已经定义的探测点，实际上这些还是封装了以上几种调用的别名（alias）探测点，后面将谈到探测点的别名定义。tapset于systemtap的意义，就好比libc库于C程序的意义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;所在的函数&#34;&gt;所在的函数&lt;/h3&gt;
+&lt;p&gt;所在的函数，可以通过两种方式指定：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;function(PATTERN)&lt;/li&gt;
+&lt;li&gt;statement(PATTERN)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;PATTERN由三部分组成：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;函数名（必填）。&lt;/li&gt;
+&lt;li&gt;@文件名：选填。&lt;/li&gt;
+&lt;li&gt;如果存在“@文件名”的情况下，还可以选填行号。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;即PATTERN的格式是：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;func[@file][:linenumber]
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，函数名这部分可以使用通配符（wildcarded）来定义文件的名字以及函数的名字，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;# 所有内核中以sys_前缀开头的函数
+kernel.function(&amp;#34;sys_*)
+
+# nginx用户进程中名为ngx_http_process_*的函数
+process(&amp;#34;/home/admin/nginx/bin/nginx&amp;#34;).function(&amp;#34;ngx_http_process_*&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;有时候如果不确定函数的名字，那么就可以使用前面的-L和-l命令来辅助查询，比如还是上面test.c的例子：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -l &amp;#39;process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;fu*&amp;#34;)&amp;#39;
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func1@/home/codedump/source/systemtap-examples/src/test.c:3&amp;#34;)
+process(&amp;#34;/home/codedump/source/systemtap-examples/src/a.out&amp;#34;).function(&amp;#34;func@/home/codedump/source/systemtap-examples/src/test.c:7&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;使用&lt;code&gt;statement&lt;/code&gt;可以很方便定位到具体的某一行代码执行前后，变量的变化情况，比如下面这个最简单的C代码：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;#include&lt;/span&gt; &lt;span style=&#34;color:#080&#34;&gt;&amp;lt;stdio.h&amp;gt;&lt;/span&gt;&lt;span style=&#34;color:#080&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;main&lt;/span&gt;(&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; argc, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;argv[])
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt; a;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	a &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	printf(&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;a:%d&lt;/span&gt;&lt;span style=&#34;color:#b62;font-weight:bold&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;&lt;/span&gt;, a);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	a &lt;span style=&#34;color:#666&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;2&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	printf(&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;a:%d&lt;/span&gt;&lt;span style=&#34;color:#b62;font-weight:bold&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;&lt;/span&gt;, a);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;使用下面这个systemtap脚本针对代码中的第8行和第10行打印当时变量a的值：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe process(&amp;#34;./a.out&amp;#34;).statement(&amp;#34;main@./cc_stap_test.c:8&amp;#34;)
+{
+    printf(&amp;#34;systemtap probe line 8 a:%d\n&amp;#34;, $a);
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).statement(&amp;#34;main@./cc_stap_test.c:10&amp;#34;)
+{
+    printf(&amp;#34;systemtap probe line 10 a:%d\n&amp;#34;, $a);
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap cc_stap_test.stp -c ./a.out
+a:1
+a:2
+systemtap probe line 8 a:1
+systemtap probe line 10 a:2
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;调用时机&#34;&gt;调用时机&lt;/h3&gt;
+&lt;p&gt;有了以上两个要素，已经可以在具体的函数、文件行中定义探测点了，但是有时候针对某一个具体函数，想在不同的时机定义探测点，比如函数被调用和调用返回的时候，那么可以在后面以后缀的方式定义出来：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe kernel.function(&amp;#34;*@net/socket.c&amp;#34;).call {
+  printf (&amp;#34;%s -&amp;gt; %s\n&amp;#34;, thread_indent(1), probefunc())
+}
+probe kernel.function(&amp;#34;*@net/socket.c&amp;#34;).return {
+  printf (&amp;#34;%s &amp;lt;- %s\n&amp;#34;, thread_indent(-1), probefunc())
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;比如这两个探测点，分别在socket.c中的任何函数被调用以及返回的时候被调用。&lt;/p&gt;
+&lt;h2 id=&#34;异步事件&#34;&gt;异步事件&lt;/h2&gt;
+&lt;p&gt;常见的异步事件是begin、end、never、timers。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;begin、end分别在脚本开始执行以及结束执行的时候被调用。&lt;/li&gt;
+&lt;li&gt;timers用于定义定时器探测点，常见的格式timer.s(1)来定义每秒触发的探测点。&lt;/li&gt;
+&lt;li&gt;never定义的探测点不会被调用到，很多时候加这个探测点只是为了检查一些语法错误。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这里统一用一个例子来说明：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// sudo stap begin.stp -T 2
+// 输出：
+// probe begin
+// in timer
+// probe end
+
+probe begin {
+  printf(&amp;#34;probe begin\n&amp;#34;)
+}
+
+probe end {
+  printf(&amp;#34;probe end\n&amp;#34;)
+}
+
+probe timer.s(1) {
+  printf(&amp;#34;in timer\n&amp;#34;)
+}
+
+probe never {
+  printf(&amp;#34;never do this\n&amp;#34;)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;以下图片简单总结探针事件的划分：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200128-systemtap-by-example/probe-event.png&#34; alt=&#34;probe-event&#34; title=&#34;probe-event&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;探测点别名alias&#34;&gt;探测点别名（alias）&lt;/h2&gt;
+&lt;p&gt;除了以上的探测点之后，还可以通过探测点别名技术将多个探测点的处理行为合并在一个处理函数中，比如tapset scheduler中是这么定义scheduler.cpu_off这个探测点的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe scheduler.cpu_off =
+	kernel.trace(&amp;#34;sched_switch&amp;#34;) !,
+	kernel.function(&amp;#34;context_switch&amp;#34;)
+{
+    name = &amp;#34;cpu_off&amp;#34;
+    task_prev = $prev
+    task_next = $next
+    idle = __is_idle()
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，新定义的别名探测点scheduler.cpu_off将内核的两个探测点kernel.trace(&amp;ldquo;sched_switch&amp;rdquo;)和kernel.function(&amp;ldquo;context_switch&amp;rdquo;)的处理行为合并在了一起。&lt;/p&gt;
+&lt;p&gt;需要注意的是，&lt;code&gt;kernel.trace(&amp;quot;sched_switch&amp;quot;) &lt;/code&gt;这个探测点的后面加上了&lt;code&gt;!&lt;/code&gt;，这表示这个探测点可能由于版本的差异是不存在的，但是一旦存在，那么将不再解析这个探测点以后的以&lt;code&gt;,&lt;/code&gt;隔开的其他探测点，所以&lt;code&gt;!&lt;/code&gt;一定用在多个以&lt;code&gt;,&lt;/code&gt;分隔开的探测点列表中。相应地，还有&lt;code&gt;?&lt;/code&gt;后缀，也是表示这个探测点可能不存在，但是与前面的区别是，即便存在这种探测点也不影响其他探测点的检测，所以&lt;code&gt;?&lt;/code&gt;后缀的探测点可以独立存在。&lt;/p&gt;
+&lt;h3 id=&#34;探测点动态定义&#34;&gt;探测点动态定义&lt;/h3&gt;
+&lt;p&gt;此外，还可以根据命令行参数来指定探测点，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;function trace(entry_p)
+{
+  printf(&amp;#34;%s%s%s\n&amp;#34;,
+         thread_indent (entry_p),
+         (entry_p&amp;gt;0?&amp;#34;-&amp;gt;&amp;#34;:&amp;#34;&amp;lt;-&amp;#34;),
+         ppfunc ())
+}
+
+probe $1.call   { trace(1) }
+probe $1.return { trace(-1) }
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这个脚本可以根据脚本中传入的第一个参数，来打印其调用情况，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ stap callgraph.stp &amp;#39;kernel.function(&amp;#34;sys_open&amp;#34;)&amp;#39;
+
+     0 nscd(23451):-&amp;gt;SyS_open
+     6 nscd(23451):&amp;lt;-SyS_open
+     0 nscd(23451):-&amp;gt;SyS_open
+     7 nscd(23451):&amp;lt;-SyS_open
+     0 roxterm(21323):-&amp;gt;SyS_open
+    43 roxterm(21323):&amp;lt;-SyS_open
+     0 roxterm(21323):-&amp;gt;SyS_open
+  2604 roxterm(21323):&amp;lt;-SyS_open
+     0 systemd-udevd(637):-&amp;gt;SyS_open
+   268 systemd-udevd(637):&amp;lt;-SyS_open
+     0 roxterm(21323):-&amp;gt;SyS_open
+    24 roxterm(21323):&amp;lt;-SyS_open
+[...]
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;变量&#34;&gt;变量&lt;/h1&gt;
+&lt;h2 id=&#34;目标变量target-variables&#34;&gt;目标变量（Target Variables）&lt;/h2&gt;
+&lt;p&gt;目标变量指的是当前代码位置可见的变量，官方文档对这个概念的解释是：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;The probe events that map to actual locations in the code (for example kernel.function(“function”) and kernel.statement(“statement”)) allow the use of target variables to obtain the value of variables visible at that location in the code. You can use the -L option to list the target variable available at a probe point.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;比如前面提过的，可以使用-L命令行参数，拿到一个探测点的位置及相关的变量：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;stap -L &amp;#39;kernel.function(&amp;#34;vfs_read&amp;#34;)&amp;#39;
+kernel.function(&amp;#34;vfs_read@fs/read_write.c:277&amp;#34;) $file:struct file* $buf:char* $count:size_t $pos:loff_t*
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，给出变量相关信息的时候，是以如下格式给出的：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$变量名:变量类型
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;比如这里的&lt;code&gt;$file:struct file*&lt;/code&gt;。&lt;/p&gt;
+&lt;h2 id=&#34;全局变量&#34;&gt;全局变量&lt;/h2&gt;
+&lt;p&gt;如果不是在当前代码位置的变量，此时可以通过这种格式拿到：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;@var(&amp;#34;varname@src/file.c&amp;#34;)
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// test2.c
+#include &amp;lt;stdio.h&amp;gt;
+
+int g = 100;
+int func1(int a, int b) {
+  g = 102;
+  return a+b;
+}
+
+int func(int d, const char *n) {
+  int a,b,c;
+
+  g = 101;
+  a = 1;
+  b = 3;
+  c = func1(a,b);
+  return c;
+}
+
+int main() {
+  func(100, &amp;#34;test&amp;#34;);
+  return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;stp脚本如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;).call {
+	printf(&amp;#34;call func:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;) {
+	printf(&amp;#34;func:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;).return {
+	printf(&amp;#34;return func:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func1&amp;#34;).call {
+	printf(&amp;#34;call func1:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func1&amp;#34;) {
+	printf(&amp;#34;func1:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+
+probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func1&amp;#34;).return {
+	printf(&amp;#34;return func1:g=%d\n&amp;#34;, @var(&amp;#34;g@test.c&amp;#34;))
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;执行&lt;code&gt;sudo stap t.stap -c ./a.out&lt;/code&gt;得到下面的结果：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;call func:g=100
+func:g=100
+call func1:g=101
+func1:g=101
+return func1:g=102
+return func:g=102
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;打印结构体内容&#34;&gt;打印结构体内容&lt;/h2&gt;
+&lt;p&gt;有一些变量，本身是一个结构体，如果想打印其成员信息，但是又不知道结构体的成员分布的情况，可以首先使用&lt;code&gt;$变量名$&lt;/code&gt;，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;).return {printf(&amp;#34;%s\n&amp;#34;, $file$); exit(); }&amp;#39;
+
+{.f_u={...}, .f_path={...}, .f_inode=0xffff8eaf11a9ef80, .f_op=0xffff8eafef9a7100, .f_lock={...}, .f_write_hint=0, .f_count={...}, .f_flags=34818, .f_mode=491551, .f_pos_lock={...}, .f_pos=0, .f_owner={...}, .f_cred=0xffff8eafed747f00, .f_ra={...}, .f_version=0, .f_security=0xffff8eafbfb5f708, .private_data=0x0, .f_ep_links={...}, .f_tfile_llink={...}, .f_mapping=0xffff8eaf11a9f0f8, .f_wb_err=0}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这样就一目了然知道这个结构体的构成了。&lt;/p&gt;
+&lt;p&gt;而如果需要打印某个成员的信息，就可以使用&lt;code&gt;-&amp;gt;&lt;/code&gt;操作符，注意在systemtap中，无论是指针还是引用都使用&lt;code&gt;-&amp;gt;&lt;/code&gt;来查看成员：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;).return {printf(&amp;#34;%d\n&amp;#34;, $file-&amp;gt;private_data); exit(); }&amp;#39;
+
+0
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里还有另一个知识点，即一个成员可能又是一个结构体，如果要一层一层“扒掉”成员的外衣，就需要在后面加&lt;code&gt;$&lt;/code&gt;符号，每多一个&lt;code&gt;$&lt;/code&gt;符号，就扒掉一层外衣，例子：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;).return {printf(&amp;#34;%s\n&amp;#34;, $file-&amp;gt;f_pos_lock$); exit(); }&amp;#39; -w
+{.owner={...}, .wait_lock={...}, .osq={...}, .wait_list={...}}
+
+$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;).return {printf(&amp;#34;%s\n&amp;#34;, $file-&amp;gt;f_pos_lock$$); exit(); }&amp;#39; -w
+{.owner={.counter=-124589570406976}, .wait_lock={&amp;lt;union&amp;gt;={.rlock={.raw_lock={&amp;lt;union&amp;gt;={.val={.counter=0}, &amp;lt;class&amp;gt;={.locked=&amp;#39;\000&amp;#39;, .pending=&amp;#39;\000&amp;#39;}, &amp;lt;class&amp;gt;={.locked_pending=0, .tail=0}}}}}}, .osq={.tail={.counter=0}}, .wait_list={.next=0xffff8eaf34c8cc58, .prev=0xffff8eaf34c8cc58}}
+
+$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;).return {printf(&amp;#34;%s\n&amp;#34;, $file-&amp;gt;f_pos_lock$$$); exit(); }&amp;#39; -w
+{.owner={.counter=-124589338874240}, .wait_lock={&amp;lt;union&amp;gt;={.rlock={.raw_lock={&amp;lt;union&amp;gt;={.val={.counter=0}, &amp;lt;class&amp;gt;={.locked=&amp;#39;\000&amp;#39;, .pending=&amp;#39;\000&amp;#39;}, &amp;lt;class&amp;gt;={.locked_pending=0, .tail=0}}}}}}, .osq={.tail={.counter=0}}, .wait_list={.next=0xffff8eaf42b71458, .prev=0xffff8eaf42b71458}}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;结合打印全局变量和打印结构体成员这两个知识点，如果想知道全局变量的结构体成员分布，就需要：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;@var(&amp;#34;全局变量名@src/file.c&amp;#34;)$
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;) {
+           printf (&amp;#34;current files_stat max_files: %s\n&amp;#34;,
+                   @var(&amp;#34;files_stat@fs/file_table.c&amp;#34;)$);
+           exit(); }&amp;#39;
+current files_stat max_files: {.nr_files=0, .nr_free_files=0, .max_files=774499}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;然后用这个格式打印全局变量结构体成员数据：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;@var(&amp;#34;全局变量名@src/file.c&amp;#34;)-&amp;gt;结构体成员名称
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;vfs_read&amp;#34;) {
+           printf (&amp;#34;current files_stat max_files: %d\n&amp;#34;,
+                   @var(&amp;#34;files_stat@fs/file_table.c&amp;#34;)-&amp;gt;max_files);
+           exit(); }&amp;#39;
+current files_stat max_files: 774499
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;类型转换typecasting&#34;&gt;类型转换（Typecasting）&lt;/h2&gt;
+&lt;p&gt;当指针为void*指针时，如果知道它的确切类型，可以通过类型转换来输出其信息：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;@cast(p, &amp;#34;type_name&amp;#34;[, &amp;#34;module&amp;#34;])-&amp;gt;member
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在这里，&lt;code&gt;type_name&lt;/code&gt;是类型名称，而可选的module是模块+文件信息，好让systemtap知道到哪里找到这个类型信息，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;@cast(tv, “timeval”, “&amp;lt;sys/time.h&amp;gt;”)-&amp;gt;tvsec
+@cast(task, “taskstruct”, “kernel&amp;lt;linux/sched.h&amp;gt;”)-&amp;gt;tgid
+@cast(task, “taskstruct”, “kernel&amp;lt;linux/sched.h&amp;gt;&amp;lt;linux/fsstruct.h&amp;gt;”)-&amp;gt;fs-&amp;gt;umask
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;所以可以如下例打印：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;do_dentry_open&amp;#34;) {printf(&amp;#34;%d\n&amp;#34;, @cast($f, &amp;#34;file&amp;#34;, &amp;#34;kernel&amp;lt;linux/fs.h&amp;gt;&amp;#34; )-&amp;gt;f_flags); exit(); }&amp;#39;
+32768
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在使用&lt;code&gt;@cast&lt;/code&gt;转换类型之后，同样可以在后面加上&lt;code&gt;$&lt;/code&gt;打印更多详细信息：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap -e &amp;#39;probe kernel.function(&amp;#34;do_dentry_open&amp;#34;) {printf(&amp;#34;%s\n&amp;#34;, @cast($f, &amp;#34;file&amp;#34;, &amp;#34;kernel&amp;lt;linux/fs.h&amp;gt;&amp;#34;)$); exit(); }&amp;#39;
+{.f_u={...}, .f_path={...}, .f_inode=0x0, .f_op=0x0, .f_lock={...}, .f_write_hint=0, .f_count={...}, .f_flags=32768, .f_mode=0, .f_pos_lock={...}, .f_pos=0, .f_owner={...}, .f_cred=0xffff8eafef8f80c0, .f_ra={...}, .f_version=0, .f_security=0xffff8eafeb5c09c0, .private_data=0x0, .f_ep_links={...}, .f_tfile_llink={...}, .f_mapping=0x0, .f_wb_err=0}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;code&gt;@cast&lt;/code&gt;操作符同样也可以用在应用程序中，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;#include &amp;lt;stdio.h&amp;gt;
+
+typedef struct Test {
+  int a;
+  int b;
+} Test;
+
+int func(void *p) {
+  printf(&amp;#34;in func\n&amp;#34;);
+}
+
+int main() {
+  Test t = {.a=101,.b=102};
+  func(&amp;amp;t);
+  return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;可以如下打印：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;).call {
+	printf(&amp;#34;call func:g=%d\n&amp;#34;, @cast($p, &amp;#34;Test&amp;#34;)-&amp;gt;a)
+}
+
+/*输出：
+in func
+call func:g=101
+*/
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;打印局部变量&#34;&gt;打印局部变量&lt;/h2&gt;
+&lt;p&gt;可以使用如下几个变量来打印函数局部变量：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;$$vars：打印函数的所有局部变量以及传递进来的函数参数。&lt;/li&gt;
+&lt;li&gt;$$parms：$$vars的子集，打印函数传递进来的函数参数。&lt;/li&gt;
+&lt;li&gt;$$locals：$$vars的子集，打印函数的所有局部变量。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200128-systemtap-by-example/vars.png&#34; alt=&#34;vars&#34; title=&#34;vars&#34;&gt;&lt;/p&gt;
+&lt;p&gt;同样的，在这些变量后面也可以加上&lt;code&gt;$&lt;/code&gt;美观打印：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;#include &amp;lt;stdio.h&amp;gt;
+
+int func1(int a, int b) {
+  return a+b;
+}
+
+int func(int d, const char *n) {
+  int a,b,c;
+
+  a = 1;
+  b = 3;
+  c = func1(a,b);
+  return c;
+}
+
+int main() {
+  func(100, &amp;#34;test&amp;#34;);
+  return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;脚本如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;).call {
+	printf(&amp;#34;call func:vars=%s\n&amp;#34;, $$vars)
+	printf(&amp;#34;call func:vars=%s\n&amp;#34;, $$vars$)
+	printf(&amp;#34;call func:params=%s\n&amp;#34;, $$parms)
+	printf(&amp;#34;call func:params=%s\n&amp;#34;, $$parms$)
+	printf(&amp;#34;call func:locals=%s\n&amp;#34;, $$locals)
+	printf(&amp;#34;call func:locals=%s\n&amp;#34;, $$locals$)
+}
+
+/*
+sudo stap t.stap -c ./a.out
+call func:vars=d=0x64 n=0x4005c4 a=0x0 b=0x4003e0 c=0x0
+call func:vars=d=100 n=&amp;#34;test&amp;#34; a=0 b=4195296 c=0
+call func:params=d=0x64 n=0x4005c4
+call func:params=d=100 n=&amp;#34;test&amp;#34;
+call func:locals=a=0x0 b=0x4003e0 c=0x0
+call func:locals=a=0 b=4195296 c=0  
+ */
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;另外，如果需要打印函数的返回值，可以使用&lt;code&gt;$$return&lt;/code&gt;变量，但是要注意这个变量只能在&lt;code&gt;.return&lt;/code&gt;中使用，毕竟既然是要打印函数返回值，就要在函数返回的时候才能知道，使用下面的脚本来看上面C程序的返回值：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe process(&amp;#34;./a.out&amp;#34;).function(&amp;#34;func&amp;#34;).return {
+	printf(&amp;#34;call func:return=%s\n&amp;#34;, $$return)
+	printf(&amp;#34;call func:return=%s\n&amp;#34;, $$return$)
+}
+
+/*
+$ sudo stap t.stap -c ./a.out
+call func:return=return=0x4
+call func:return=return=4
+ */
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;关联数组associative-arrays&#34;&gt;关联数组（Associative Arrays）&lt;/h1&gt;
+&lt;p&gt;准确的说，systemtap中没有数组这个概念，关联数组就是systemtap中的字典（dict）。&lt;/p&gt;
+&lt;p&gt;字典有可能是嵌套型的字典，比如C++代码中&lt;code&gt;dict[keya][keyb]&lt;/code&gt;，即一个字典中的值又是另一个字典。systemtap中的关联数组也可以做到类似的效果，但是语法略有不同，多个层级的键之间使用&lt;code&gt;,&lt;/code&gt;分隔，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;bt[execname(),tid(),$mem,sprint_ubacktrace()] = 1
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这段代码用C++类似表达就是：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;bt[execname()][tid()][$mem,sprint_ubacktrace()] = 1
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在systemtap中，最多允许嵌套9个键。&lt;/p&gt;
+&lt;p&gt;关联数组的常规操作，并无什么特别的地方，如下代码所示：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// 赋值
+array_name[index_expression] = value
+
+// 读取
+delta = gettimeofday_s() - foo[tid()]
+
+// 递增
+array_name[index_expression] ++
+
+// 删除数组中的某一项
+delete array_name[index_expression]
+
+// 删除整个关联数组
+delete array_name
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;遍历关联数组&#34;&gt;遍历关联数组&lt;/h2&gt;
+&lt;p&gt;最简单的遍历关联数组的方式，可以使用&lt;code&gt;foreach&lt;/code&gt;表达式：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;foreach (element in array_name)
+  statement
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;例子：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads 
+
+// 以进程名字为键，记录下每个进程调用vfs.read的次数
+probe vfs.read {
+  reads[execname()] ++ 
+} 
+
+// 每隔3秒打印一次
+probe timer.s(3) {
+  foreach (count in reads)
+    printf(&amp;#34;%s : %d \n&amp;#34;, count, reads[count])
+  delete reads 
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap vfs-read-1.stp -T 4
+stapio : 21
+docker-containe : 12
+dockerd : 12
+gmain : 7
+rtkit-daemon : 1
+compiz : 6
+systemd-journal : 1
+gdbus : 6
+upstart-dbus-br : 4
+nm-applet : 3
+avahi-daemon : 29
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;除了常规的遍历之外，&lt;code&gt;foreach&lt;/code&gt;操作符还可以指定遍历的顺序，以及遍历的数量。&lt;/p&gt;
+&lt;h3 id=&#34;修改遍历关联数组顺序&#34;&gt;修改遍历关联数组顺序&lt;/h3&gt;
+&lt;p&gt;上面的脚本文件稍作修改：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads 
+
+// 以进程名字为键，记录下每个进程调用vfs.read的次数
+probe vfs.read {
+  reads[execname()] ++ 
+} 
+
+// 每隔3秒打印一次
+probe timer.s(3) {
+  foreach (count in reads+)
+    printf(&amp;#34;%s : %d \n&amp;#34;, count, reads[count])
+  delete reads 
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;即在&lt;code&gt;foreach&lt;/code&gt;所遍历的关联数组名称后面加上&lt;code&gt;+&lt;/code&gt;，表示按照键递增的顺序来遍历数组，输出为：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap vfs-read-1.stp -T 4
+systemd-journal : 1
+indicator-datet : 3
+gmain : 4
+upstart-dbus-br : 5
+unity-panel-ser : 6
+compiz : 7
+docker-containe : 12
+dockerd : 12
+stapio : 21
+gdbus : 23
+avahi-daemon : 28
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;相反的，如果使用&lt;code&gt;-&lt;/code&gt;则表示是递减顺序来遍历。&lt;/p&gt;
+&lt;h3 id=&#34;限定遍历关联数组数量&#34;&gt;限定遍历关联数组数量&lt;/h3&gt;
+&lt;p&gt;除此之外，还可以在&lt;code&gt;foreach&lt;/code&gt;操作符中，使用&lt;code&gt;limit 数量&lt;/code&gt;来限制遍历关联数组中元素的数量：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads
+
+// 以进程名字为键，记录下每个进程调用vfs.read的次数
+probe vfs.read {
+  reads[execname()] ++
+}
+
+// 每隔3秒打印一次
+probe timer.s(3) {
+  foreach (count in reads+ limit 2)
+    printf(&amp;#34;%s : %d \n&amp;#34;, count, reads[count])
+  delete reads
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出就只有两项了：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap vfs-read-1.stp -T 4
+systemd-journal : 1
+systemd-logind : 1
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;测试元素存在性&#34;&gt;测试元素存在性&lt;/h2&gt;
+&lt;p&gt;除此之外，还可以使用&lt;code&gt;in&lt;/code&gt;操作符测试一个元素是否在关联数组中，语法如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;if([index_expression] in array_name) statement
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;例子：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads
+
+probe vfs.read { 
+  reads[execname()] ++ 
+}
+
+probe timer.s(3) {
+  printf(&amp;#34;=======\n&amp;#34;) 
+  foreach (count in reads+)
+    printf(&amp;#34;%s : %d \n&amp;#34;, count, reads[count]) 
+  if([&amp;#34;stapio&amp;#34;] in reads) {
+    printf(&amp;#34;stapio read detected, exiting\n&amp;#34;)
+    exit() 
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap vfs-read-1.stp -T 4
+=======
+systemd-journal : 1
+rtkit-daemon : 1
+nm-applet : 3
+gmain : 4
+upstart-dbus-br : 4
+compiz : 5
+gdbus : 6
+docker-containe : 12
+dockerd : 12
+avahi-daemon : 19
+stapio : 21
+stapio read detected, exiting
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;计算统计集合statistical-aggregates&#34;&gt;计算统计集合（Statistical Aggregates）&lt;/h1&gt;
+&lt;h2 id=&#34;常规操作&#34;&gt;常规操作&lt;/h2&gt;
+&lt;p&gt;systemtap中的变量，除了具备其他语言中常见的操作之外，还有一个其他语言没有的特色，可以作为统计集合来存储数据。即一个变量，可以存储多个数据，后期可以对这个变量的数据进行常规的统计计算。&lt;/p&gt;
+&lt;p&gt;一个变量要存储统计数据，此时不能使用&lt;code&gt;=&lt;/code&gt;来赋值，需要使用&lt;code&gt;&amp;lt;&amp;lt;&amp;lt;&lt;/code&gt;操作符。比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads 
+
+probe vfs.read 
+{ 
+  reads[execname()] &amp;lt;&amp;lt;&amp;lt; $count 
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里的$count是内核中vfs_read函数传入的参数，存储的读取数据的数量：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C&#34; data-lang=&#34;C&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;ssize_t vfs_read(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; file &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;file, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;char&lt;/span&gt; __user &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;buf, size_t count, loff_t &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;pos)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样，这个systemtap脚本就针对同一个进程，就把这个进程所有调用vfs_read函数的count值记录了下来。&lt;/p&gt;
+&lt;p&gt;下面来具体看看systemtap都提供了针对统计数据的哪些操作。常规的操作有以下几种：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@count(variable)：返回同一个变量中存储的数据数量。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@sum(variable)：返回同一个变量中存储的数据总和。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@min(variable)：返回同一个变量存储的最小数据。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@max(variable)：返回同一个变量中存储的最大数据。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@avg(variable)：返回同一个变量中存储的数据均值。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;@variance(variable)：返回同一个变量中存储的数据方差。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;以上的操作符，又被称为抽取函数（extractor function），即可以输入一个存有统计数据的变量，相应返回一些数据。&lt;/p&gt;
+&lt;h2 id=&#34;打印柱状图数据&#34;&gt;打印柱状图数据&lt;/h2&gt;
+&lt;p&gt;还可以使用&lt;code&gt;@hist_log&lt;/code&gt;来打印以2为底指数分布的直方图：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global histogram
+ 
+probe begin {
+  printf(&amp;#34;Capturing...\n&amp;#34;)
+}
+ 
+probe netdev.receive {
+  histogram &amp;lt;&amp;lt;&amp;lt; length
+}
+ 
+probe netdev.transmit {
+  histogram &amp;lt;&amp;lt;&amp;lt; length
+}
+ 
+probe end {
+  printf( &amp;#34;\n&amp;#34; )
+  print( @hist_log(histogram) )
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap hist_log.stp -T 2
+Capturing...
+
+value |-------------------------------------------------- count
+    8 |                                                   0
+   16 |                                                   0
+   32 |@@                                                 2
+   64 |@                                                  1
+  128 |                                                   0
+  256 |                                                   0
+  512 |                                                   0
+ 1024 |@@@@                                               4
+ 2048 |                                                   0
+ 4096 |                                                   0
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;除了&lt;code&gt;@hist_log&lt;/code&gt;之外，还可以使用&lt;code&gt;@hist_linear(v, start, stop, interval)&lt;/code&gt;来打印start-stop区间interval间隔的直方图&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global reads
+
+probe netdev.receive {
+	reads &amp;lt;&amp;lt;&amp;lt; length
+}
+
+probe end {
+	print(@hist_linear(reads, 0, 1024, 200))
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里打印的是分布在[0,1024]，并且每个柱子的数据间间隔100的柱状图，输出如下：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap hist_linear.stp -T 2
+value |-------------------------------------------------- count
+    0 |@@@@@@@@@@@@@                                      13
+  200 |@@@@                                                4
+  400 |                                                    0
+  600 |                                                    0
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;常用函数&#34;&gt;常用函数&lt;/h1&gt;
+&lt;p&gt;本节来介绍systemtap中常用的一些函数。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;tid()：当前线程ID。&lt;/li&gt;
+&lt;li&gt;uid()：当前用户ID。&lt;/li&gt;
+&lt;li&gt;cpu()：当前CPU编号。&lt;/li&gt;
+&lt;li&gt;ctime()：当前UNIX epoch秒数。&lt;/li&gt;
+&lt;li&gt;pp()：当前探测点的描述字符串。&lt;/li&gt;
+&lt;li&gt;execname()：当前运行的进程名称。&lt;/li&gt;
+&lt;li&gt;probefunc()：探测点函数名称。&lt;/li&gt;
+&lt;li&gt;target()：在stap使用&lt;code&gt;-c command&lt;/code&gt;或者&lt;code&gt;-x process&lt;/code&gt;命令时，target()能拿到进程的pid。&lt;/li&gt;
+&lt;li&gt;name：返回系统调用的名称字符串，仅能在syscall类型的探针处理函数中使用。&lt;/li&gt;
+&lt;li&gt;thread_indent(delta)：它可以输出当前probe所处的可执行程序名称、线程id、函数执行的相对时间和执行的次数（通过空格的数量）信息，它的返回值就是一个字符串。参数delta是在每次调用时增加或移除的空白数量。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这里其他的都好理解，thread_indent需要一个例子来说明：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe kernel.function(&amp;#34;*@net/socket.c&amp;#34;).call
+{
+  printf (&amp;#34;%s -&amp;gt; %s\n&amp;#34;, thread_indent(1), probefunc())
+}
+probe kernel.function(&amp;#34;*@net/socket.c&amp;#34;).return
+{
+  printf (&amp;#34;%s &amp;lt;- %s\n&amp;#34;, thread_indent(-1), probefunc())
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;0 ftp(7223): -&amp;gt; sys_socketcall
+1159 ftp(7223):  -&amp;gt; sys_socket
+2173 ftp(7223):   -&amp;gt; __sock_create
+2286 ftp(7223):    -&amp;gt; sock_alloc_inode
+2737 ftp(7223):    &amp;lt;- sock_alloc_inode
+3349 ftp(7223):    -&amp;gt; sock_alloc
+3389 ftp(7223):    &amp;lt;- sock_alloc
+3417 ftp(7223):   &amp;lt;- __sock_create
+4117 ftp(7223):   -&amp;gt; sock_create
+4160 ftp(7223):   &amp;lt;- sock_create
+4301 ftp(7223):   -&amp;gt; sock_map_fd
+4644 ftp(7223):    -&amp;gt; sock_map_file
+4699 ftp(7223):    &amp;lt;- sock_map_file
+4715 ftp(7223):   &amp;lt;- sock_map_fd
+4732 ftp(7223):  &amp;lt;- sys_socket
+4775 ftp(7223): &amp;lt;- sys_socketcall
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;可以看到，thread_indent()搭配&lt;code&gt;.call&lt;/code&gt;和&lt;code&gt;.return&lt;/code&gt;，美化输出了函数调用的流程。&lt;/p&gt;
+&lt;p&gt;以下再演示一下&lt;code&gt;name&lt;/code&gt;的使用，这个变量仅能用在&lt;code&gt;syscall&lt;/code&gt;类的探针中，以下脚本每隔一秒打印出当前20个被调用最多的系统调用数量：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global syscalls_count
+
+probe syscall_any {
+  syscalls_count[name] &amp;lt;&amp;lt;&amp;lt; 1
+}
+
+function print_systop () {
+  printf (&amp;#34;%25s %10s\n&amp;#34;, &amp;#34;SYSCALL&amp;#34;, &amp;#34;COUNT&amp;#34;)
+  foreach (syscall in syscalls_count- limit 20) {
+    printf(&amp;#34;%25s %10d\n&amp;#34;, syscall, @count(syscalls_count[syscall]))
+  }
+  delete syscalls_count
+}
+
+probe timer.s(1) {
+  print_systop ()
+  printf(&amp;#34;--------------------------------------------------------------\n&amp;#34;)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;输出：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;$ sudo stap syscall.stp -T 2
+                  SYSCALL      COUNT
+                    ioctl        127
+               epoll_wait         47
+                    futex         42
+                 pselect6         29
+                     read         28
+                    write         17
+                  recvmsg         16
+                     poll         14
+           rt_sigprocmask          8
+                    fcntl          6
+                   writev          5
+                    ppoll          5
+                 recvfrom          4
+                setitimer          4
+        inotify_add_watch          3
+                   select          3
+                nanosleep          2
+          timerfd_settime          2
+            clock_gettime          2
+                ftruncate          1
+--------------------------------------------------------------
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;defined和choose_defined&#34;&gt;@defined和@choose_defined&lt;/h1&gt;
+&lt;p&gt;由于版本变化，有一些变量可能在新版本中不存在了，此时可以使用&lt;code&gt;@define&lt;/code&gt;来检查变量是否存在：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe vm.pagefault = kernel.function(&amp;#34;__handle_mm_fault@mm/memory.c&amp;#34;) ?,
+                     kernel.function(&amp;#34;handle_mm_fault@mm/memory.c&amp;#34;) ?
+{
+  write_access = (@defined($flags) ? $flags &amp;amp; FAULT_FLAG_WRITE : $write_access)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;上面的脚本根据是否存在变量flag，来给write_access不同的赋值。&lt;/p&gt;
+&lt;p&gt;此外还有&lt;code&gt;@choose_defined($a,$b)&lt;/code&gt;，其作用相当于：&lt;code&gt;@defined($a)? $a : $b&lt;/code&gt;，例子：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;probe vm.pagefault = kernel.function(&amp;#34;handle_mm_fault@mm/memory.c&amp;#34;)
+{
+  write_access = @choose_defined($write_access, 0)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;h1 id=&#34;entry&#34;&gt;@entry&lt;/h1&gt;
+&lt;p&gt;在&lt;code&gt;.return&lt;/code&gt;探针中，有一个特殊的操作符&lt;code&gt;@entry&lt;/code&gt;，用于存储该探针的入口处的表达式的值，可以使用这个操作符，完成比如计算探针函数执行时间计算等工作，比如：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;global sloth = 50
+      
+probe vfs.open.return {
+  time = gettimeofday_us()-@entry(gettimeofday_us())
+  if (time &amp;gt;= sloth)
+    printf(&amp;#34;%s[%d] %d %s\n&amp;#34;, execname(), tid(), time, pathname)
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这个脚本在&lt;code&gt;vfs.open.return&lt;/code&gt;探针处理函数中，通过&lt;code&gt;@entry&lt;/code&gt;操作符，计算完成vfs.open操作的时间差，如果超过设置的阈值50就打印相关信息。&lt;/p&gt;
+&lt;h1 id=&#34;嵌入c代码&#34;&gt;嵌入C代码&lt;/h1&gt;
+&lt;p&gt;systemtap中支持嵌入C代码，使用guru模式（-g参数），在“%{“和“%}&amp;ldquo;标记之间就能嵌入C代码，其中访问参数的值以&lt;code&gt;STAP_ARG_+参数名&lt;/code&gt;的形式，而返回值以&lt;code&gt;STAP_RETVALUE=xxx&lt;/code&gt;的形式。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;%{
+	#include &amp;lt;linux/in.h&amp;gt;
+	#include &amp;lt;linux/ip.h&amp;gt;
+%} /* &amp;lt;-- top level */
+
+function read_iphdr:long(skb:long)
+%{
+	struct iphdr *iph = ip_hdr((struct sk_buff *)STAP_ARG_skb);
+	STAP_RETVALUE = (long)iph;
+%}
+
+/* Determines whether an IP packet is TCP, based on the iphdr: */
+function is_tcp_packet:long(iphdr)
+{
+	protocol = @cast(iphdr, &amp;#34;iphdr&amp;#34;)-&amp;gt;protocol
+	return (protocol == %{ IPPROTO_TCP %}) /* &amp;lt;-- expression */
+}
+
+probe begin {
+	printf(&amp;#34;SystemTap start!\n&amp;#34;);
+}
+
+probe kernel.function(&amp;#34;ip_local_deliver&amp;#34;) {
+	iph = read_iphdr(pointer_arg(1));
+	printf(&amp;#34;tcp packet ? %s\n&amp;#34;, is_tcp_packet(iph) ? &amp;#34;yes&amp;#34; : &amp;#34;no&amp;#34;);
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这里的read_iphdr函数，其处理函数就使用的是嵌入C代码完成。&lt;/p&gt;
+</description>
+      
     </item>
     
   </channel>
