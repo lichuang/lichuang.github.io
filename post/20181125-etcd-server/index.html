@@ -145,7 +145,7 @@
 <li>etcd server：对外接收客户端的请求，对应etcd代码中的etcdserver目录，其中还有一个raft.go的模块与etcd-raft库进行通信。etcdserver中与存储相关的模块是applierV3，这里封装了V3版本的数据存储，WAL（write ahead log），用于写数据日志，etcd启动时会根据这部分内容进行恢复。</li>
 <li>etcd raft：etcd的raft库，前面的文章已经具体分析过这部分代码。除了与本节点的etcd server通信之外，还与集群中的其他etcd server进行交互做一致性数据同步的工作（在图中集群中其他etcd服务用橙色的椭圆表示）。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-server.png" alt="etcd server" title="etcd server"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-server.png" alt="etcd server" title="etcd server"></p>
 <p>在上图中，一个请求与一个etcd集群交互的主要流程分为两大部分：</p>
 <ol>
 <li>写数据到某个etcd server中。</li>
@@ -179,7 +179,7 @@
 <h1 id="etcd-server与raft的交互">etcd server与raft的交互</h1>
 <p>EtcdServer结构体，负责对外与客户端进行通信。内部有一个raftNode结构的成员，负责与etcd的raft库进行交互。</p>
 <p>etcd V3版本的API，通过GRPC协议与客户端进行交互，其相关代码在etcdserver/v3_server.go中。以一次Put请求为例，最后将会调用的代码在函数EtcdServer::processInternalRaftRequestOnce中，代码的主要流程分析如下。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-flowchart.png" alt="etcd flowchart" title="etcd flowchart"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-flowchart.png" alt="etcd flowchart" title="etcd flowchart"></p>
 <ol>
 <li>拿到当前raft中的apply和commit索引，如果commit索引比apply索引超出太多，说明当前有很多数据都没有apply，返回ErrTooManyRequests错误。</li>
 <li>调用s.reqIDGen.Next()函数生成一个针对当前请求的ID，注意这个ID并不是一个随机数而是一个严格递增的整数。同时将请求序列化为byte数据，这会做为raft的数据进行存储。</li>
@@ -223,12 +223,12 @@ b.  如果channel返回，说明已经提交成功。</li>
 <p>etcd使用两个目录分别存放WAL文件以及快照文件。其中，WAL文件的文件名格式是“16位的WAL文件编号-该WAL第一条entry数据的index号.wal”，这样就能从WAL文件名知道该WAL文件中保存的entry数据至少大于什么索引号。而快照文件名的格式则是“16位的快照数据最后一条日志记录任期号-16位的快照数据最后一条记录的索引号.snap”。</p>
 <p>Etcd会管理WAL目录中的所有WAL文件，但是在生成快照文件之后，在快照数据之前的WAL文件将被清除掉，保证磁盘不会一直增长。</p>
 <p>比如当前etcd中有三个WAL文件，可以从这些文件的文件名知道其中存放数据的索引范围。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-wal1.png" alt="etcd wal1" title="etcd wal1"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-wal1.png" alt="etcd wal1" title="etcd wal1"></p>
 <p>在生成快照文件之后，此时就只剩一个WAL文件和一个快照文件了：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-wal2.png" alt="etcd wal2" title="etcd wal2"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-wal2.png" alt="etcd wal2" title="etcd wal2"></p>
 <p>那么，又是在什么情况下生成快照文件呢？Etcdserver在主循环中通过监听channel获知当前raft协议返回的Ready数据，此时会做判断如果当前保存的快照数据索引距离上一次已经超过一个阈值（EtcdServer.snapCount），此时就从raft的存储中生成一份当前的快照数据，写入快照文件成功之后，就可以将这之前的WAL文件释放了。</p>
 <p>以上流程和对应的具体函数见下面的流程图。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-snapshot.png" alt="etcd snapshot" title="etcd snapshot"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-snapshot.png" alt="etcd snapshot" title="etcd snapshot"></p>
 <h1 id="backend-store的实现">backend store的实现</h1>
 <h2 id="revision概念">revision概念</h2>
 <p>Etcd存储数据时，并不是像其他的KV存储那样，存放数据的键做为key，而是以数据的revision做为key，键值做为数据来存放。如何理解revision这个概念，以下面的例子来说明。</p>
@@ -240,9 +240,9 @@ b.  如果channel返回，说明已经提交成功。</li>
   revision={2,1}, key=key2, value=update2
 </code></pre><p>其中revision有两部分组成，第一部分成为main revision，每次事务递增1；第二部分称为sub revision，一个事务内的一次操作递增1。
 两者结合，就能保证每次key唯一而且是递增的。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-revision.png" alt="etcd revision" title="etcd revision"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-revision.png" alt="etcd revision" title="etcd revision"></p>
 <p>但是，就客户端看来，每次操作的时候是根据Key来进行操作的，所以这里就需要一个Key映射到当前revision的操作了，为了做到这个映射关系，Etcd引入了一个内存中的Btree索引，整个操作过程如下面的流程所示。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-keyindex.png" alt="etcd keyindex" title="etcd keyindex"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex.png" alt="etcd keyindex" title="etcd keyindex"></p>
 <p>查询时，先通过内存中的btree索引来查询该key对应的keyIndex结构体，然后再根据这个结构体才能去boltdb中查询真实的数据返回。</p>
 <p>所以，下面先展开讨论这个keyIndex结构体和btree索引。</p>
 <h2 id="keyindex结构">keyIndex结构</h2>
@@ -260,12 +260,12 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>revs：存放该generation中存放的revision数组。</li>
 </ul>
 <p>以下图来说明keyIndex结构体：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" alt="etcd keyindex struct" title="etcd keyindex struct"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" alt="etcd keyindex struct" title="etcd keyindex struct"></p>
 <p>如上图所示，存放的键为test的keyIndex结构。</p>
 <p>它的generations数组有两条记录，其中generations[0]在revision 1.0时创建，当revision2.1的时候进行tombstone操作，因此该generation的created是1.0；对应的generations[1]在revision3.3时创建，紧跟着就做了tombstone操作。</p>
 <p>所以该keyIndex.modifiled成员存放的是3.3，因为这是这条数据最后一次被修改的revision。</p>
 <p>一个已经被tombstone的generation是可以被删除的，如果整个generations数组都已经被删除空了，那么整个keyIndex记录也可以被删除了。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-generation-compact.png" alt="etcd generation_compact" title="etcd generation compact"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-generation-compact.png" alt="etcd generation_compact" title="etcd generation compact"></p>
 <p>如上图所示，keyIndex.compact(n)函数可以对keyIndex数据进行压缩操作，将删除满足main revision &lt; n的数据。</p>
 <ul>
 <li>compact(2)：找到了generations[0]的1.0 revision的数据进行了删除。</li>
@@ -301,7 +301,7 @@ b.  如果channel返回，说明已经提交成功。</li>
 <p>从上面的命令可以看出，一个Lease可以与多个键值对应，由这个Lease通过管理与其绑定的键值数据的生命周期。</p>
 <p>etcd中，将Lease ID存放在名为“lease”的Bucket中，注意在这里只存放Lease相关的数据，其键值为：&lt;Lease ID，序列化后的Lease数据包括TTL、ID&gt;，之所以不存放与Lease绑定的键值，是因为这些键值已经存放到另外的Bucket里了，写入数据的时候也会将这些键值绑定的Lease ID写入，这样在恢复数据的时候就可以将键值与Lease ID绑定的关系写入内存中。</p>
 <p>即：Lease这边需要持久化的数据只有Lease ID与TTL值，而键值对这边会持久化所绑定的Lease ID，这样在启动恢复的时候可以将两者对应的关系恢复到内存中。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-lease-store.png" alt="etcd lease_store" title="etcd lease store"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-lease-store.png" alt="etcd lease_store" title="etcd lease store"></p>
 <p>明白了以上关系再来理解Lessor的实现就很简单了。</p>
 <p>lessor中主要包括以下的成员：</p>
 <ul>
@@ -326,7 +326,7 @@ b.  如果channel返回，说明已经提交成功。</li>
 </ul>
 <p>在store结构体初始化时，根据传入的backend.Backend，初始化backend.BatchTx结构，后面的任何涉及到事务的操作，都可以通过这个backend.BatchTx来进行。</p>
 <p>其实有了前面的准备，理解store结构做的事情已经不难，以一次Put操作为例，其流程主要如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-store-put.png" alt="etcd store_put" title="etcd store put"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-store-put.png" alt="etcd store_put" title="etcd store put"></p>
 <h1 id="applierv3">applierV3</h1>
 <p>EtcdServer内部实现中，实际使用的是applierV3接口来进行持久化数据的操作。</p>
 <p>这个接口有以下几个实现，但是其中applierV3backend的实现是最重要的，其内部使用了前面提到的KV接口来进行数据的处理。</p>
@@ -339,7 +339,7 @@ b.  如果channel返回，说明已经提交成功。</li>
 </ul>
 <h1 id="综述">综述</h1>
 <p>下图将上面涉及到的关键数据结构串联在一起，看看EtcdServer在收到Raft库通过Ready channel通知的可以持久化数据之后，都做了什么操作。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20181125-etcd-server/etcd-raft-flow.png" alt="etcd raft_flow" title="etcd raft flow"></p>
+<p><img src="/media/imgs/20181125-etcd-server/etcd-raft-flow.png" alt="etcd raft_flow" title="etcd raft flow"></p>
 <ol>
 <li>raft库通过Ready Channel通知上层的raftNode哪些数据可以进行持久化。</li>
 <li>raftNode启动之后也是会启动一个Goroutine来一直监听这个Ready Channel，以便收到可以持久化数据的通知。</li>
@@ -373,7 +373,7 @@ b.  如果channel返回，说明已经提交成功。</li>
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/raft/">raft</a>
@@ -467,8 +467,8 @@ b.  如果channel返回，说明已经提交成功。</li>
   </div>
 
   <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
-<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
+<a class=link href=https://twitter.com/lichuang>Twitter</a> or
 <a class=link href=/index.xml>RSS</a> |
 <a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
 </span>

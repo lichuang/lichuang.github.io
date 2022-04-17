@@ -398,7 +398,7 @@
 <h2 id="raft库日志存储相关结构">raft库日志存储相关结构</h2>
 <h3 id="unstable">unstable</h3>
 <p>顾名思义，unstable数据结构用于还没有被用户层持久化的数据，而其中又包括两部分，如下图所示。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180922-etcd-raft/unstable.png" alt="unstable" title="unstable"></p>
+<p><img src="/media/imgs/20180922-etcd-raft/unstable.png" alt="unstable" title="unstable"></p>
 <p>在上图中，前半部分是快照数据，而后半部分是日志条目组成的数组entries，另外unstable.offset成员保存的是entries数组中的第一条数据在raft日志中的索引，即第i条entries数组数据在raft日志中的索引为i + unstable.offset。</p>
 <p>这两个部分，并不同时存在，同一时间只有一个部分存在。其中，快照数据仅当当前节点在接收从leader发送过来的快照数据时存在，在接收快照数据的时候，entries数组中是没有数据的；除了这种情况之外，就只会存在entries数组的数据了。因此，当接收完毕快照数据进入正常的接收日志流程时，快照数据将被置空。</p>
 <p>理解了以上unstable中数据的分布情况，就不难理解unstable各个函数成员的作用了，下面逐一进行解释。</p>
@@ -441,7 +441,7 @@
 </ul>
 <p>需要说明的是，一条日志数据，首先需要被提交（committed）成功，然后才能被应用（applied）到状态机中。因此，以下不等式一直成立：applied &lt;= committed。</p>
 <p>raftLog结构体中，几部分数据的排列如下图所示。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180922-etcd-raft/raftlog.png" alt="raftlog" title="raftlog"></p>
+<p><img src="/media/imgs/20180922-etcd-raft/raftlog.png" alt="raftlog" title="raftlog"></p>
 <p>这个数据排布的情况，可以从raftLog的初始化函数中看出来：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">func</span> <span style="color:#00a000">newLog</span>(storage Storage, logger Logger) <span style="color:#666">*</span>raftLog {
 </span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> storage <span style="color:#666">==</span> <span style="color:#a2f;font-weight:bold">nil</span> {
@@ -1490,7 +1490,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 </li>
 </ol>
 <p>需要特别说明的是，处理读请求时，实际上leader需要确保当前自己是不是leader、该读请求对应的commit索引是否得到了半数投票，而当一个节点刚成为leader的时候，如果没有提交过任何数据，那么在它所在的这个任期（term）内的commit索引当时是并不知道的，因此在成为leader之后，需要马上提交一个no-op的空日志，这样拿到该任期的第一个commit索引。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180922-etcd-raft/msgreadindex-1.png" alt="msgreadindex-1" title="msgreadindex-1"></p>
+<p><img src="/media/imgs/20180922-etcd-raft/msgreadindex-1.png" alt="msgreadindex-1" title="msgreadindex-1"></p>
 <p>上图中，在leader收到MsgReadIndex后：</p>
 <ul>
 <li>向readOnly中添加与这次请求ctx相关的数据：
@@ -1551,7 +1551,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <li>接收快照状态：此时Next = max(pr.Match+1, pendingSnapshot+1)</li>
 <li>当该follower不在Replicate状态时，说明不是正常的接收副本状态。此时当leader与follower同步leader上的日志时，可能出现覆盖的情况，即此时follower上面假设Match为3，但是索引为3的数据会被leader覆盖，此时Next指针可能会一直回溯到与leader上日志匹配的位置，再开始正常同步日志，此时也会出现Next != Match + 1的情况出现。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180922-etcd-raft/next-match.jpg" alt="next-match" title="next-match"></p>
+<p><img src="/media/imgs/20180922-etcd-raft/next-match.jpg" alt="next-match" title="next-match"></p>
 <p>如上图所示，节点s1上最大日志索引为2，即Match = 2，Next = 3。
 但是，由于新选出来的leader s2，其最大日志索引为3，此时s3需要同步日志到s1上，发现s1上的日志与自己的不匹配，所以会一直找到两者最开始匹配的索引位置，即最终找到索引1，因此会保存s1的Next索引为1，而Match还是2（因为此时还没有修改s1上的日志）。当最终s1上的数据与s2同步时，此时Next = 4，Match=3。</p>
 <h2 id="流量控制">流量控制</h2>
@@ -1585,7 +1585,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/etcd/">etcd</a>
@@ -1680,8 +1680,8 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
   </div>
 
   <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
-<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
+<a class=link href=https://twitter.com/lichuang>Twitter</a> or
 <a class=link href=/index.xml>RSS</a> |
 <a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
 </span>

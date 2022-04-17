@@ -158,7 +158,7 @@
 <p>The write-ahead log or &ldquo;wal&rdquo; file is a roll-forward journal that records transactions that have been committed but not yet applied to the main database.</p>
 </blockquote>
 <p>即WAL文件中存储的是被修改但是还没有写入数据库文件的页面内容。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/page-backup.png" alt="两种页面备份机制" title="两种页面备份机制"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/page-backup.png" alt="两种页面备份机制" title="两种页面备份机制"></p>
 <p>WAL整体的实现机制，分为以下几个流程：</p>
 <ul>
 <li>对页面的修改，可以只写入到WAL文件中就认为完成，不必一定要落盘到数据库文件才能算完成，这个设定保证了WAL的修改操作比journal性能有很大的提升。</li>
@@ -175,7 +175,7 @@
 </ul>
 <p>换言之，一个WAL中，可能先后存储了多个事务的写入。</p>
 <p>由于WAL文件保存的<strong class=chinese>修改页面</strong>的内容，同一个页面，可能在一次事务中被多次修改，如下所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/wal-and-index.png" alt="WAL及WAL页面索引数据" title="WAL及WAL页面索引数据"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-and-index.png" alt="WAL及WAL页面索引数据" title="WAL及WAL页面索引数据"></p>
 <p>WAL存储了四个页面数据，其中页面编号1被修改了两次。</p>
 <p>如果在这个写操作完成之后，需要读这些页面的内容，都需要读到最新的内容。所以，WAL还有一个对应的<code>WAL页面索引</code>数据，这部分索引数据存储在内存中，作用是根据页面编号，知道该页面编号对应的最新内容，存储在WAL文件中的具体位置，以取得某个页面的最新页面内容；如果在这个内存索引中查不到的数据，都需要到数据库文件中读取。</p>
 <h2 id="checkpoint">checkpoint</h2>
@@ -185,7 +185,7 @@
 <p>前面提到了，WAL机制的一个优势在于：在写未完成之前，可以允许同时并发多个读操作，来看看这一点是如何做到的。</p>
 <p>在每次读操作开始之前，都会记录下来当前最后提交事务的提交记录，这条记录被称为“end mark”。因为WAL会随着写操作的进行不断增加，通过读操作的“end mark”，就能知道对于这个读操作而言，页面内容应该以当前WAL内容为准，还是以数据库文件为准。</p>
 <p>以下图为例来做个说明：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/read-concurrency.png" alt="读并发的实现" title="读并发的实现"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/read-concurrency.png" alt="读并发的实现" title="读并发的实现"></p>
 <p>在上图中：</p>
 <ul>
 <li>WAL文件中先后记录了两个写事务，其中第一个写事务修改了页面编号1、2，已经提交完成；还有一个在进行还未完成的写事务，修改了页面编号1。</li>
@@ -229,7 +229,7 @@
 </li>
 </ul>
 <p>WAL文件头，只会在每次写事务中写入一次，而帧可能在一次写事务中多多个，取决于这一次写事务修改了多少页面。如下图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/wal-format.png" alt="WAL文件结构" title="WAL文件结构"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-format.png" alt="WAL文件结构" title="WAL文件结构"></p>
 <p>上图中，依次存储了两次写事务的数据，其中第一次写了两帧数据，第二次写了一帧数据。</p>
 <p>有了以上的概念，下面详细看WAL文件的结构。</p>
 <h3 id="wal文件头格式">WAL文件头格式</h3>
@@ -368,7 +368,7 @@
 <h2 id="wal页面索引">WAL页面索引</h2>
 <h3 id="结构">结构</h3>
 <p>前面分析WAL文件结构的时候，提到保存一页数据的内容被称为“帧（frame）”，帧的编号从1开始顺序递增，每一帧内容存储的页面内容可能会发生变化，如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/wal-frame.png" alt="帧与页面的对应关系" title="帧与页面的对应关系"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-frame.png" alt="帧与页面的对应关系" title="帧与页面的对应关系"></p>
 <p>图中，依次有四帧页面数据，帧数与页面的对应关系依次是：(1,1)，(2,3)，(3,5)，(4,4)。假设随着运行，第一帧对应的页面1被写入了数据库，那么第一帧的空间就会被复用来存储别的页面的内容。</p>
 <p>所以，WAL页面索引中，需要存储帧数与页面编号之间的对应关系，这样就能：</p>
 <ul>
@@ -388,14 +388,14 @@
 <li>iZero：保存了当前索引页面第一帧的帧数。</li>
 </ul>
 <p>这么看来有一些抽象，我们以下图来做解释wal-index文件的结构：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/wal-index-format.png" alt="WAL-Index索引文件结构图" title="WAL-Index索引文件结构图"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-index-format.png" alt="WAL-Index索引文件结构图" title="WAL-Index索引文件结构图"></p>
 <p>如上图所示，其中：</p>
 <ul>
 <li>wal索引文件一页大小为32KB，需要注意的是：不要把wal索引文件的一页与数据库文件的一页搞混，两者并不一定相同，但是都为2的次方，数据库文件的一页可以编译期修改，但是wal索引文件的一页大小写死为32KB。</li>
 <li>第一页相对有些特殊，因为最开始的136字节是wal索引文件头，所以相对的，剩下用来存储索引数据的空间就会变少一些。索引文件头的内容，留待后面再详细解释。</li>
 <li>每一页存储的数据中，<code>aPgno</code>大小为4096（第一页只有4062，因为有头部用到的空间），<code>aHash</code>的大小为8192。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/WalHashLoc.png" alt="页面索引数据的构成" title="页面索引数据的构成"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/WalHashLoc.png" alt="页面索引数据的构成" title="页面索引数据的构成"></p>
 <p>这几个常量，由下面这几个宏来定义：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 每一页aPgno数组大小
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define HASHTABLE_NPAGE      4096                 </span><span style="color:#080;font-style:italic">/* Must be power of 2 */</span><span style="color:#080">
@@ -647,7 +647,7 @@
 </span></span></code></pre></div></li>
 </ul>
 <p>下图展示了这个过程的大体示意：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/frame-pageno.png" alt="添加帧数与页面编号对应关系的流程" title="添加帧数与页面编号对应关系的流程"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/frame-pageno.png" alt="添加帧数与页面编号对应关系的流程" title="添加帧数与页面编号对应关系的流程"></p>
 <p>举个例子来说明上面的流程，假设要存储的对应关系是帧数5000存储的是页面编号5：</p>
 <ul>
 <li>
@@ -679,7 +679,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>从后往前遍历这些页面，每个页面中到<code>WalHashLoc-&gt;aHash</code>中，根据页面编号的hash值来查找。</li>
 <li>这个流程一直到找到页面，或者全部遍历完毕为止。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/sqlite3WalFindFrame.png" alt="根据页面编号查找帧的流程" title="根据页面编号查找帧的流程"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/sqlite3WalFindFrame.png" alt="根据页面编号查找帧的流程" title="根据页面编号查找帧的流程"></p>
 <p>从这个流程可以看到：查找页面对应帧数的流程，最坏的情况下可能遍历了所有索引页面，虽然其中的查找过程会根据页面编号的hash值来查找。于是一个重要的结论就出来了：<strong>WAL的实现，其中有一个缺点是，当WAL文件很大时，对应的索引页面也会很大，在索引中查找页面编号的流程就会变久。</strong></p>
 <h2 id="锁的实现">锁的实现</h2>
 <h3 id="数据结构">数据结构</h3>
@@ -848,7 +848,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </li>
 </ul>
 <p>以下图为例来说明情况，为了简化说明，一个页面存储的一对KV的信息。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/read-wal.png" alt="读操作看到的数据库文件和wal" title="读操作看到的数据库文件和wal"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/read-wal.png" alt="读操作看到的数据库文件和wal" title="读操作看到的数据库文件和wal"></p>
 <p>在上图中：</p>
 <ul>
 <li>有三个写事务，其中：
@@ -943,7 +943,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </span></span><span style="display:flex;"><span>      nDelay <span style="color:#666">=</span> (cnt <span style="color:#666">-</span> <span style="color:#666">9</span>) <span style="color:#666">*</span> (cnt <span style="color:#666">-</span> <span style="color:#666">9</span>) <span style="color:#666">*</span> <span style="color:#666">39</span>;
 </span></span><span style="display:flex;"><span>    sqlite3OsSleep(pWal<span style="color:#666">-&gt;</span>pVfs, nDelay);
 </span></span><span style="display:flex;"><span>  }
-</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/walTryBeginRead.png" alt="walTryBeginRead函数流程" title="walTryBeginRead函数流程"></p>
+</span></span></code></pre></div><p><img src="/media/imgs/20220106-sqlite-btree-4-wal/walTryBeginRead.png" alt="walTryBeginRead函数流程" title="walTryBeginRead函数流程"></p>
 <p>可以从加读锁的流程看到：</p>
 <ul>
 <li>sqlite的WAL机制，最大只能支持同时有<code>WAL_NREADER</code>个读操作并发。</li>
@@ -975,7 +975,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>最后，更新<code>mxFrame</code>的值为WAL文件当前的最大帧数。</li>
 </ul>
 <p>还是以一个例子来说明这个流程。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/write-wal.png" alt="写事务修改WAL文件和WAL索引数据" title="写事务修改WAL文件和WAL索引数据"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/write-wal.png" alt="写事务修改WAL文件和WAL索引数据" title="写事务修改WAL文件和WAL索引数据"></p>
 <p>如上图所示，精简了很多情况，假设从WAL文件的开头开始写脏页面了，图中的写事务一共写了三次页面：</p>
 <ul>
 <li>写入<code>y=200</code>：这时候将这个内容写入WAL文件中的第一帧，更新wal索引中y页面的帧数为1，而此时x还没有内容。写完毕之后，更新<code>mxFrame=1</code>。</li>
@@ -987,7 +987,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <h3 id="总体流程">总体流程</h3>
 <p>有了前面读、写操作的了解，接着来了解一下checkpoint操作是如何实现的。</p>
 <p>我们回顾一下<code>checkpoint</code>操作要完成的事情：由于wal日志中存储的，都是每次写事务被修改的页面，因此<code>checkpoint</code>操作就是将wal日志中被修改的页面写入数据库文件中。也是因为这个原因，因此<code>checkpoint</code>也被称为<code>backfill（回填）</code>操作。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/checkpoint.png" alt="checkpoint操作" title="checkpoint操作"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint.png" alt="checkpoint操作" title="checkpoint操作"></p>
 <p>从上面的读写流程的分析里看出：</p>
 <ul>
 <li>同时能支持多个读事务，每个读事务都有一个<code>readMark</code>值，用来区分这个读操作读到在WAL中存储的某个页面时，是以wal的页面为准，还是应该到数据库文件中读取这个页面。</li>
@@ -998,7 +998,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>不能将未提交写事务的修改，回填到数据库文件中。</li>
 <li>对于正在进行的读操作，不能将超过该读操作的<code>readMark</code>值的帧，回填到数据库文件中，需要等待读操作完成才能回填这部分数据。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220106-sqlite-btree-4-wal/checkpoint-readmark.png" alt="checkpoint操作" title="checkpoint操作"></p>
+<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint-readmark.png" alt="checkpoint操作" title="checkpoint操作"></p>
 <p>第一点很好理解，因为未提交的写事务，可能只修改了一部分，如果在未提交这个写事务之前，就把这一部分回填到数据库文件中，会造成读出来的这部分数据驴头不对马嘴。比如一个写事务的修改，是将A账号的100转账到B账号上，于是这个写事务就涉及两个修改：</p>
 <ul>
 <li>A：扣除100。</li>
@@ -1107,7 +1107,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>
@@ -1203,8 +1203,8 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   </div>
 
   <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/queensferryme>GitHub</a>,
-<a class=link href=https://twitter.com/queensferryme>Twitter</a> or
+    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
+<a class=link href=https://twitter.com/lichuang>Twitter</a> or
 <a class=link href=/index.xml>RSS</a> |
 <a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
 </span>
