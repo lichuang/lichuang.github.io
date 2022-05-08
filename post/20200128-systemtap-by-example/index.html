@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="通过实例快速入门Systemtap" />
@@ -128,17 +152,72 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#-x-pid">-x PID</a></li>
+    <li><a href="#-t-seconds">-T seconds</a></li>
+    <li><a href="#-l和-l">-L和-l</a></li>
+    <li><a href="#-g-varval">-G VAR=VAL</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#同步事件">同步事件</a>
+      <ul>
+        <li><a href="#模块">模块</a></li>
+        <li><a href="#所在的函数">所在的函数</a></li>
+        <li><a href="#调用时机">调用时机</a></li>
+      </ul>
+    </li>
+    <li><a href="#异步事件">异步事件</a></li>
+    <li><a href="#探测点别名alias">探测点别名（alias）</a>
+      <ul>
+        <li><a href="#探测点动态定义">探测点动态定义</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li><a href="#目标变量target-variables">目标变量（Target Variables）</a></li>
+    <li><a href="#全局变量">全局变量</a></li>
+    <li><a href="#打印结构体内容">打印结构体内容</a></li>
+    <li><a href="#类型转换typecasting">类型转换（Typecasting）</a></li>
+    <li><a href="#打印局部变量">打印局部变量</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#遍历关联数组">遍历关联数组</a>
+      <ul>
+        <li><a href="#修改遍历关联数组顺序">修改遍历关联数组顺序</a></li>
+        <li><a href="#限定遍历关联数组数量">限定遍历关联数组数量</a></li>
+      </ul>
+    </li>
+    <li><a href="#测试元素存在性">测试元素存在性</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#常规操作">常规操作</a></li>
+    <li><a href="#打印柱状图数据">打印柱状图数据</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <p>我这段时间好好学习了一下Systemtap相关的使用，这篇文章算是学习过程中总结的一些笔记，我另外在github上创建了一个<a href="https://github.com/lichuang/awesome-systemtap-cn">awesome-systemtap-cn</a>项目，收集systemtap相关的优秀学习资源，欢迎提供其他更好的参考资料。</p>
 <h1 id="概述">概述</h1>
 <p>systemtap是一款“动态跟踪（dynamic tracing）”工具，为什么需要这类工具？打一个比方，这类工具就好比医生的听诊器，病人就好比是在运行的系统，很多时候查看一些问题需要在系统在运行的时候来观察，这时候就需要这类动态跟踪工具。与之对应的是，类似gdb这样的调试工具，其工作原理是让进程在某些断点暂停下来，查看进程的行为，这种技术称为“静态调试”。</p>
 <p>关于动态跟踪技术，推荐阅读<a href="https://openresty.org/posts/dynamic-tracing/">《动态追踪技术漫谈》</a>。</p>
-<p><img src="/media/imgs/20200128-systemtap-by-example/Smileytap.svg_.png" alt="Smileytap.svg" title="systemtap"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200128-systemtap-by-example/Smileytap.svg_.png" alt="Smileytap.svg" title="systemtap"></p>
 <p>本文旨在通过实例，快速解释systemtap脚本语言的最常见用法和语法。</p>
 <h1 id="工作原理">工作原理</h1>
 <p>如下图，systemtap使用.stp脚本语言，由命令行<code>stap</code>编译生成对应的内核模块，动态放入内核中执行：</p>
-<p><img src="/media/imgs/20200128-systemtap-by-example/systemtap.gif" alt="systemtap" title="systemtap"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200128-systemtap-by-example/systemtap.gif" alt="systemtap" title="systemtap"></p>
 <ol>
 <li>stap 流程从将脚本转换成解析树开始 (pass 1)。</li>
 <li>然后使用细化（elaboration）步骤 (pass 2) 中关于当前运行的内核的符号信息解析符号。</li>
@@ -359,7 +438,7 @@ probe never {
   printf(&#34;never do this\n&#34;)
 }
 </code></pre><p>以下图片简单总结探针事件的划分：</p>
-<p><img src="/media/imgs/20200128-systemtap-by-example/probe-event.png" alt="probe-event" title="probe-event"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200128-systemtap-by-example/probe-event.png" alt="probe-event" title="probe-event"></p>
 <h2 id="探测点别名alias">探测点别名（alias）</h2>
 <p>除了以上的探测点之后，还可以通过探测点别名技术将多个探测点的处理行为合并在一个处理函数中，比如tapset scheduler中是这么定义scheduler.cpu_off这个探测点的：</p>
 <pre tabindex="0"><code>probe scheduler.cpu_off =
@@ -552,7 +631,7 @@ call func:g=101
 <li>$$parms：$$vars的子集，打印函数传递进来的函数参数。</li>
 <li>$$locals：$$vars的子集，打印函数的所有局部变量。</li>
 </ul>
-<p><img src="/media/imgs/20200128-systemtap-by-example/vars.png" alt="vars" title="vars"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200128-systemtap-by-example/vars.png" alt="vars" title="vars"></p>
 <p>同样的，在这些变量后面也可以加上<code>$</code>美观打印：</p>
 <pre tabindex="0"><code>#include &lt;stdio.h&gt;
 
@@ -985,7 +1064,7 @@ probe kernel.function(&#34;ip_local_deliver&#34;) {
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
@@ -1016,7 +1095,7 @@ probe kernel.function(&#34;ip_local_deliver&#34;) {
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -1025,7 +1104,7 @@ probe kernel.function(&#34;ip_local_deliver&#34;) {
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

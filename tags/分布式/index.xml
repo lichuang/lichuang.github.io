@@ -6,7 +6,230 @@
     <description>Recent content in 分布式 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sat, 01 Jan 2022 15:02:50 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 07 May 2022 17:57:08 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</title>
+      <link>https://www.codedump.info/post/20220507-weekly-14/</link>
+      <pubDate>Sat, 07 May 2022 17:57:08 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220507-weekly-14/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法二实践篇&#34;&gt;重读Raft论文中的集群成员变更算法（二）：实践篇&lt;/h1&gt;
+&lt;h2 id=&#34;单步成员变更存在的问题&#34;&gt;单步成员变更存在的问题&lt;/h2&gt;
+&lt;h3 id=&#34;正确性问题&#34;&gt;正确性问题&lt;/h3&gt;
+&lt;p&gt;单步变更成员时，可能出现正确性问题。如下面的例子所示，最开始时，系统的成员是&lt;code&gt;{a,b,c,d}&lt;/code&gt;这四个节点的集合，要将节点&lt;code&gt;u&lt;/code&gt;和&lt;code&gt;v&lt;/code&gt;加入集群，按照单步变更成员的做法，依次会经历：&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u,v}&lt;/code&gt;的变化，每次将一个节点加入到集群里。&lt;/p&gt;
+&lt;p&gt;上面的步骤看起来很美好，但是考虑下面的例子，在变更过程中leader节点发生了变化的情况：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;C₀ = {a, b, c, d}
+Cᵤ = C₁ ∪ {u}
+Cᵥ = C₁ ∪ {v}
+
+Lᵢ: Leader in term `i`
+Fᵢ: Follower in term `i`
+☒ : crash
+
+    |
+ u  |         Cᵤ                  F₂  Cᵤ
+--- | ----------------------------------
+ a  | C₀  L₀  Cᵤ  ☒               L₂  Cᵤ
+ b  | C₀  F₀          F₁          F₂  Cᵤ
+ c  | C₀  F₀          F₁  Cᵥ          Cᵤ
+ d  | C₀              L₁  Cᵥ  ☒       Cᵤ
+--- | ----------------------------------
+ v  |                     Cᵥ                  time
+    +--------------------------------------------&amp;gt;
+          t₁  t₂  t₃  t₄  t₅  t₆  t₇  t₈
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;（引用自&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;）&lt;/p&gt;
+&lt;p&gt;上面的流程中，纵坐标是集群中的节点，横坐标是不同的时间（注意不是任期），&lt;code&gt;Li&lt;/code&gt;表示在任期i时候的leader节点，&lt;code&gt;Fi&lt;/code&gt;表示在任期i时候的follower节点。&lt;/p&gt;
+&lt;p&gt;上图的流程阐述如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;t1：a节点被选为任期0的leader，而b、c节点为follower。&lt;/li&gt;
+&lt;li&gt;t2：将节点u加入集群，但是这条加入集群的日志，仅达到了a和u节点，由于这条日志并没有半数以上通过，所以这时候节点u还并未成功加入集群。&lt;/li&gt;
+&lt;li&gt;t3：节点a宕机。&lt;/li&gt;
+&lt;li&gt;t4：由于原先的leader宕机，于是集群需要选出新的leader，选出来的新leader是节点d，这是任期1时候的leader。&lt;/li&gt;
+&lt;li&gt;t5：节点v加入集群，加入集群的日志，到达了节点c、d、v上面，可以看到由于这条日志到了此时集群的半数以上节点上（因为这时候节点a宕机，因此只有三个节点在服务，于是只有有2个节点同意就认为可被提交），所以实际是已经提交的，即v加入集群的操作是成功的。&lt;/li&gt;
+&lt;li&gt;t6：leader d宕机。&lt;/li&gt;
+&lt;li&gt;t7：宕机的节点a恢复服务，看到本地有将节点u加入到集群的日志，于是它认为节点u、b是这个任期的follower节点。&lt;/li&gt;
+&lt;li&gt;t8：此时节点d恢复服务，而leader a将之前把节点u加入集群的日志同步给当前集群的所有节点，这造成了之前v加入集群且已被提交的日志丢失。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;出现这个问题，本质是因为：上一任leader的变更日志，还未同步到集群半数以上节点就宕机，这时候新一任leader就进行成员变更，这样导致了形成两个不同的集群，产生脑裂将已经提交的日志被覆盖。&lt;/p&gt;
+&lt;p&gt;Raft作者在&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;描述了这一现象。&lt;/p&gt;
+&lt;p&gt;解决的办法也很简单：即每次新当选的leader不允许直接提交在它本地的日志，而必须先提交一个no-op日志，才能开始同步。这个问题的描述，在之前的博客有描述：&lt;a href=&#34;https://www.codedump.info/post/20211011-raft-propose-prev-term/&#34;&gt;为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;可用性问题&#34;&gt;可用性问题&lt;/h3&gt;
+&lt;p&gt;除了以上正确性问题，单步变更还有可能出现可用性问题：当需要替换的节点在同一机房的时候，如果这个机房网络与集群中其他机房的网络断开，就会导致无法选出leader，以致于集群无法提供服务。来看下面的例子。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220507-weekly-14/availability.png&#34; alt=&#34;availability&#34; title=&#34;availability&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中，原先集群中有三个节点分别位于三个机房：机房1的节点a、机房2的节点b、机房3的节点c。现在由于各种原因，想把机房1的节点a下线，换成同机房的节点d到集群中继续服务。&lt;/p&gt;
+&lt;p&gt;可以看到，这个替换操作涉及到一个节点的加入和一个节点的离开，可能有如下两种可能的步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;先加入新节点d再删除节点a：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;先删除节点a再加入新节点d：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两种步骤各有优劣，第二种方案的问题是：中间只有两个节点在服务，一旦这时候又发生宕机，则集群就不可用了。&lt;/p&gt;
+&lt;p&gt;第一种方案中，按照上图中的例子，如果正好要替换的a、d节点都位于同一个机房里面，那么假如这个机房的网络也与其它机房隔离，那么只有两个节点在服务，这时候在四节点（中间步骤）的条件下也无法服务。&lt;/p&gt;
+&lt;p&gt;以上是单步变更中可能出现的两类问题。可以看到，尽管单步变更算法看起来实现简单，但是实则有很多细节需要注意。虽然Raft论文中认为单步变更是更简单的办法，但是现在主流的实现都使用了Joint Consensus（联合共识）算法。&lt;/p&gt;
+&lt;h2 id=&#34;joint-consensus算法如何解决可用性问题&#34;&gt;Joint Consensus算法如何解决可用性问题&lt;/h2&gt;
+&lt;p&gt;针对上面提到的：替换同一机房中的不同节点，中间过程中可能由于这个机房被网络隔离，导致的集群不可用（选不出leader）问题，来看看Joint Consensus算法是如何解决的。&lt;/p&gt;
+&lt;p&gt;先来回顾一下步骤，如果使用Joint Consensus算法，需要经历两阶段提交：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;然后提交&lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把集合换成这里的例子，就是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;{a,b,c}&lt;/code&gt; $\bigcup$ &lt;code&gt;{a,b,c,d}&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;然后提交 &lt;code&gt;{a,b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看这两阶段中可能出现宕机的情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;第一阶段时leader节点宕机，这个leader节点只有可能是两种情况，其集群配置还是&lt;code&gt;C_Old&lt;/code&gt;，或者已经收到了&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;：由于这时候这个leader并没有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，因此那些已有&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合的follower这部分的日志将被截断，成员变更失败，回退回&lt;code&gt;C_Old&lt;/code&gt;集合。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：这意味这个leader已经有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，在第二阶段时leader节点宕机，也不会导致选不出leader的情况，可以类似推导。&lt;/p&gt;
+&lt;p&gt;可见：直接使用Joint Consensus算法并不会存在单步变更时的可用性问题。&lt;/p&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft集群的单步变更算法，虽然看起来”简单“，但是实践起来有不少细节需要注意。&lt;/li&gt;
+&lt;li&gt;虽然论文里提到单步变更算法比之Joint Consensus算法更为简单，很多开源的Raft实现都已经以Joint Consensus算法做为默认的实现了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;（之前写过etcd 3.5版本的实现解析，见：&lt;a href=&#34;https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/&#34;&gt;etcd 3.5版本的joint consensus实现解析 - codedump的网络日志&lt;/a&gt;）&lt;/p&gt;
+&lt;h2 id=&#34;参考资料&#34;&gt;参考资料&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/VKu7fBLliztx3tzvzYDkqw&#34;&gt;Raft成员变更的工程实践&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/ongardie/a11f32b70581e20d6bcd&#34;&gt;Safety of Raft single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/peterbourgon/raft/blob/master/JOINT-CONSENSUS.md&#34;&gt;raft/JOINT-CONSENSUS.md at master · peterbourgon/raft&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
+    <item>
+      <title>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</title>
+      <link>https://www.codedump.info/post/20220417-weekly-13/</link>
+      <pubDate>Sun, 17 Apr 2022 15:16:30 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220417-weekly-13/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法一理论篇&#34;&gt;重读Raft论文中的集群成员变更算法（一）：理论篇&lt;/h1&gt;
+&lt;p&gt;“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《&lt;a href=&#34;https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf&#34;&gt;Consensus: Bridging Theory and Practice&lt;/a&gt;》中有专门的一节来讲解这部分内容。&lt;/p&gt;
+&lt;h2 id=&#34;安全性&#34;&gt;安全性&lt;/h2&gt;
+&lt;p&gt;首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.2.png&#34; alt=&#34;4.2&#34; title=&#34;4.2&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图的图示中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。&lt;/li&gt;
+&lt;li&gt;如果直接如图中这样变更，由于每个节点的时间窗口并不一致，可能就会出现这种情况：
+&lt;ul&gt;
+&lt;li&gt;在某一时刻，节点1、2还使用的是旧集群（只含有{1,2,3}）的成员配置，而3、4、5已经是新集群（含有{1,2,3,4,5}）的成员配置了。&lt;/li&gt;
+&lt;li&gt;这样就可能出现还使用旧集群节点配置的1、2选出了一个leader，以及已经使用了新集群配置的节点3、4、5选出了另一个leader的情况，于是违反了上面阐述的“安全性”要求。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;需要说明的是，在上面这个错误的示例中，是由于有两类行为同时出现才导致的错误：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。&lt;/li&gt;
+&lt;li&gt;直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/cluster-membership-change.png&#34; alt=&#34;cluster-membership-change&#34; title=&#34;cluster-membership-change&#34;&gt;&lt;/p&gt;
+&lt;p&gt;于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;要么一次性严格限制只变更一个节点。&lt;/li&gt;
+&lt;li&gt;如果实在想一次变更多个节点，那就不能直接变更，需要经过一个中间状态的过渡之后才能完成同时变更多个节点的操作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下分别来阐述这两种不同的实现。&lt;/p&gt;
+&lt;h2 id=&#34;一次变更单个节点&#34;&gt;一次变更单个节点&lt;/h2&gt;
+&lt;p&gt;如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。&lt;/p&gt;
+&lt;p&gt;论文中以下面几个例子来说明这样操作的正确性：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.3.png&#34; alt=&#34;4.3&#34; title=&#34;4.3&#34;&gt;&lt;/p&gt;
+&lt;p&gt;这几个图，是在两个维度上做示范的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;增、删操作。&lt;/li&gt;
+&lt;li&gt;原集群节点数量是奇数还是偶数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两个维度的组合一共就是上面的4中情况，但是无论哪一种情况，由于都保证了“新、旧集合的quorum集合是有重合的”这个条件，于是不会选出不一样的leader来。&lt;/p&gt;
+&lt;h2 id=&#34;一次变更多个节点&#34;&gt;一次变更多个节点&lt;/h2&gt;
+&lt;p&gt;从上面的例子中可以看到：只要能保证一次只变更一个节点，是可以直接（directly）变更的。即：无需中间状态，直接从A集合变更到A+1集合，因为这两个集合的quorum肯定有重合。&lt;/p&gt;
+&lt;p&gt;但是，在一次需要变更多个节点的情况下，就不能这样直接变更，因为会出现最开始示例的那样同时选出两个leader的情况。于是，为了解决这个问题，需要引入一个中间状态：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;假设原先的集群节点集合为C_Old，新的集群节点集合为C_New，那么首先变更配置到{C_Old,C_New}，也就是新旧集群节点集合的并集。&lt;/li&gt;
+&lt;li&gt;上面这次变更提交之后，再向集群变更配置到C_New。在这次变更提交之后，那些不在C_New节点集合中的节点，收到这个变更时，自动下线退出集群。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。&lt;/p&gt;
+&lt;p&gt;从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.8.png&#34; alt=&#34;4.8&#34; title=&#34;4.8&#34;&gt;&lt;/p&gt;
+&lt;h3 id=&#34;failover&#34;&gt;Failover&lt;/h3&gt;
+&lt;p&gt;我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。&lt;/p&gt;
+&lt;p&gt;第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;只有C_Old节点集合的节点：由于这时候这个leader并没有第一阶段提交的{C_Old,C_New}节点集合变更，因此那些已有{C_Old,C_New}节点集合的follower这部分的日志将被截断，成员变更失败，回退回C_Old集合。&lt;/li&gt;
+&lt;li&gt;有{C_Old,C_New}节点集合的节点：这意味这个leader已经有第一阶段提交的{C_Old,C_New}节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，也可以去推导一下在第二阶段出现leader宕机时，选出来的leader只可能具备两种情况，但是这两种情况都不可能选出多个leader。&lt;/p&gt;
+&lt;h2 id=&#34;集群变更何时生效&#34;&gt;集群变更何时生效？&lt;/h2&gt;
+&lt;p&gt;以上讲解完毕两种不同的集群变更方式，下面来聊一聊集群变更何时生效。&lt;/p&gt;
+&lt;p&gt;在Raft、Paxos这类状态机模型的一致性算法中，将任何变更操作都认为是一个命令（Command），命令的处理流程是这样的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;状态机收到命令，首先在自己本地将命令持久化。&lt;/li&gt;
+&lt;li&gt;然后广播给集群中的其他节点。&lt;/li&gt;
+&lt;li&gt;当收到集群半数以上节点的应答时，认为命令是可以被提交（commit）的，于是可以生效将这些已经被提交的日志传给应用层的状态机使用了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上流程可以看到：一条命令，只有在“提交（commit）”之后才能“生效（apply）”。&lt;/p&gt;
+&lt;p&gt;在Raft中，“成员变更”这个操作，也是一类命令，即：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-rust&#34; data-lang=&#34;rust&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#00f&#34;&gt;Command&lt;/span&gt;&lt;span style=&#34;color:#bbb&#34;&gt; &lt;/span&gt;{&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;LogEntry,&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;MembershipChange,&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;&lt;/span&gt;};&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样设计的好处在于：处理成员变更操作，和一般的日志并没有区别，于是不存在一个特定的时间被称为“处理成员变更的时间”，在这个时间里停止响应一般的命令。&lt;/p&gt;
+&lt;p&gt;但是与一般命令不同的是，“成员变更”操作并不需要等到多数通过才能生效。注意，对于一般命令而言，要“生效”必须首先“提交”，而集群变更类命令的生效没有这个依赖关系。&lt;/p&gt;
+&lt;p&gt;即，在Raft的成员变更流程中，节点在收到一个新集群节点配置之后，是马上生效的，无需等待半数以上通过。&lt;/p&gt;
+&lt;p&gt;这是在阅读Raft论文这一部分内容时，经常被忽略的部分。为什么集群变更类指令，可以这么做，以及这样做会不会出问题？&lt;/p&gt;
+&lt;p&gt;为了安全性，Raft在进行集群变更操作时，无论是“单次变更一个节点”还是“一次变更多个节点”，在不同的阶段都不能有重叠（overlap）的情况出现，因为重叠意味着可能违反前面提到的安全性。比如将一个集群节点集合从{1,2,3}变更为{1,4,5}，如果使用这两种方式，步骤分别是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;单次变更一个节点：{1,2,3}-&amp;gt;{1,2,3,4} （增加节点4）-&amp;gt;{1,2,3,4,5} （增加节点5）-&amp;gt;{1,3,4,5} （删除节点2）-&amp;gt; {1,4,5} （删除节点3）。&lt;/li&gt;
+&lt;li&gt;单次变更多个节点：{1,2,3}（C_Old）-&amp;gt; {1,2,3,4,5}（{C_Old,C_New}）-&amp;gt; {1,4,5}（C_Old,C_New）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以看到，无论采用哪一种方式，都会有多个步骤。由leader来决定当前的步骤，其判断的标准是：前一步修改的日志，是否已经被提交（半数以上同意）。所以，如果成员变更类的日志在提交之后才生效的话，leader就需要再多一个步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先确认日志已经被提交到半数以上节点。&lt;/li&gt;
+&lt;li&gt;在这之后，再确认这个成员变更已经在节点上生效。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;而后面的这个确认，是可以避免的。因为根据前面&lt;code&gt;failover&lt;/code&gt;部分的分析，无论哪一种情况出现，即便在变更的过程中leader宕机，也不会出现选出多个leader的情况。&lt;/p&gt;
+&lt;p&gt;于是，对于成员变更类的日志来说，Raft的规则是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;多次提交不能重叠（overlap），即如果当前已经有还未提交的成员变更日志，在它提交之前不允许提交新的成员变更修改。&lt;/li&gt;
+&lt;li&gt;成员变更的生效，无需等待提交，每个节点在收到这类日志的时候，就能马上修改本节点上的成员为最新的这个配置。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft算法要求任何时候都要保证安全性（safety）：不能在同一时间在集群中存在两个不同的leader节点。&lt;/li&gt;
+&lt;li&gt;如果以下两个操作同时发生，就有可能违反安全性：
+&lt;ul&gt;
+&lt;li&gt;一次变更多个节点。&lt;/li&gt;
+&lt;li&gt;直接变更集群的节点集合。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;由这两个限制出发，分别有以下两种实现成员变更的算法：
+&lt;ul&gt;
+&lt;li&gt;限制每次只变更一个节点，这种情况下可以直接变更成员。&lt;/li&gt;
+&lt;li&gt;每次可以变更任意数量的节点，但是必须通过两阶段提交完成才能生效：第一次从C_Old变成{C_Old,C_New}节点集合，第二次从{C_Old,C_New}变成C_New。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;“成员变更”类命令，在Raft算法看来也是一条日志。但是与普通日志命令不同的是，成员变更类日志的生效，无需等待这条日志提交了才能生效，可以在收到之后马上生效。&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
     <item>
       <title>etcd 3.5版本的joint consensus实现解析</title>
       <link>https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/</link>
@@ -1784,276 +2007,6 @@ location / {
 &lt;li&gt;检查写入是否影响即将完成的读取。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h4 id=&#34;检测是否读取了过期的mvcc对象&#34;&gt;检测是否读取了过期的MVCC对象&lt;/h4&gt;
-</description>
-      
-    </item>
-    
-    <item>
-      <title>《数据密集型应用系统设计》第六章数据分区笔记</title>
-      <link>https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/</link>
-      <pubDate>Tue, 02 Apr 2019 22:17:24 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/</guid>
-      
-      <description>&lt;h1 id=&#34;键值数据的分区&#34;&gt;键值数据的分区&lt;/h1&gt;
-&lt;h2 id=&#34;基于关键字区间的分区&#34;&gt;基于关键字区间的分区&lt;/h2&gt;
-&lt;p&gt;给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些关键字。&lt;/p&gt;
-&lt;p&gt;关键字的区间段不一定要均匀分布，这是因为数据本身可能就不是均匀的。比如，某些分区包含以A和B开头字母的键，而某些分区包含了T、U、V、X、Y和Z开始的单词。&lt;/p&gt;
-&lt;p&gt;基于关键字的区间分区的缺点是某些访问模式会导致热点（hot spot）。比如关键字是时间戳，分区对应一个时间范围，那么可能会出现所有的写入操作都集中在同一个分区（比如当天的分区），而其他分区始终处于空闲状态。&lt;/p&gt;
-&lt;p&gt;为了避免类似的问题，需要使用时间戳以外的其他内容作为关键字的第一项。&lt;/p&gt;
-&lt;h2 id=&#34;基于关键字hash值分区&#34;&gt;基于关键字Hash值分区&lt;/h2&gt;
-&lt;p&gt;基于关键字Hash值分区，可以解决上面提到的数据倾斜和热点问题，但是丧失了良好的区间查询特性。&lt;/p&gt;
-&lt;h2 id=&#34;负载倾斜和热点&#34;&gt;负载倾斜和热点&lt;/h2&gt;
-&lt;p&gt;基于关键字Hash值分区的办法，可以减轻数据热点问题，但是不能完全避免这类问题。一种常见的极端场景是，社交网络上某个名人有几百万的粉丝，当其发布一些热点事件时可能会引起访问风暴。此时，Hash起不到任何分流的作用。&lt;/p&gt;
-&lt;p&gt;大部分系统解决不了这个问题，只能通过应用层来解决这类问题。比如某个关键字被确认是热点，一个简单的技术就是在关键字的开头或结尾处添加随机数，这样将访问分配到不同的分区上。但是随之而来的问题就是，之后的任何读取都需要额外的工作，必须将这些分区上的读取数据进行合并。&lt;/p&gt;
-&lt;h1 id=&#34;分区与二级索引&#34;&gt;分区与二级索引&lt;/h1&gt;
-&lt;p&gt;键值类数据库的分区相对还简单一些，但是如果涉及到二级索引就变得复杂了。二级索引主要的挑战在于：它们不能规整的映射到分区中。&lt;/p&gt;
-&lt;h2 id=&#34;基于文档分区的二级索引&#34;&gt;基于文档分区的二级索引&lt;/h2&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg&#34; alt=&#34;figure 6-4&#34; title=&#34;figure 6-4&#34;&gt;&lt;/p&gt;
-&lt;p&gt;上图中，数据根据ID 进行分区，但是实际查询的时候，还可以按照颜色和厂商进行过滤，所以每个分区上面还创建了颜色和厂商的索引。每次往分区中写入新数据时，自动创建这些二级索引。&lt;/p&gt;
-&lt;p&gt;在这种索引方式中，每个分区完全独立。各自维护自己的二级索引。因此文档索引也成为本地索引，而不是全局索引。&lt;/p&gt;
-&lt;p&gt;但是读取的时候，需要查询所有的分区数据然后进行合并才返回给客户端，这种叫分散/聚集（scatter/gather）。&lt;/p&gt;
-&lt;h2 id=&#34;基于词条的二级索引&#34;&gt;基于词条的二级索引&lt;/h2&gt;
-&lt;p&gt;可以对所有的数据构建全局索引，而不是每个分区维护自己的本地索引。而且吧，为了避免成为瓶颈，不能将全局索引放在一个节点上，否则又破坏了分区均衡的目标，因此全局索引数据也需要进行分区。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg&#34; alt=&#34;figure 6-5&#34; title=&#34;figure 6-5&#34;&gt;&lt;/p&gt;
-&lt;p&gt;上图中，所有数据分区中的颜色进行了分区，比如从a到r开始的颜色放在了分区0中，从s到z的颜色放在了分区1中，类似的，厂商索引也被分区。这种索引方式成为词条分区（term-partitioned）。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;优点：读取高效，不需要采用scatter/gather方式对所有分区都进行查询；&lt;/li&gt;
-&lt;li&gt;缺点：写入速度慢并且非常复杂，主要是因为单个文档需要更新的时候，里面可能涉及多个二级索引，而二级索引又放在不同的节点上。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;在实践中，对全局二级索引数据的更新一般都是异步进行的。&lt;/p&gt;
-&lt;h1 id=&#34;分区再平衡rebalancing-partitions&#34;&gt;分区再平衡（Rebalancing Partitions）&lt;/h1&gt;
-&lt;p&gt;实际中，数据会发生某些变化，这时候需要将数据和请求从一个节点转移到另一个节点。这样的一个迁移负载的过程称为再平衡（rebalance）。&lt;/p&gt;
-&lt;p&gt;分区再平衡至少需要满足：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;平衡之后，负载、数据存储、读写请求能够在集群范围内更均匀分布。&lt;/li&gt;
-&lt;li&gt;再平衡过程中，数据库可以继续处理客户端的读写请求。&lt;/li&gt;
-&lt;li&gt;避免不必要的负载迁移。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;下面谈各种再平衡策略。&lt;/p&gt;
-&lt;h2 id=&#34;为什么不能用取模&#34;&gt;为什么不能用取模？&lt;/h2&gt;
-&lt;p&gt;对节点数进行取模的方式，最大的问题在于如果节点的数据发生了变化，会导致很多关键字从现有的节点迁移到另一个节点。&lt;/p&gt;
-&lt;h2 id=&#34;固定数量的分区&#34;&gt;固定数量的分区&lt;/h2&gt;
-&lt;p&gt;创建远超实际节点数的分区数，然后给每个节点分配多个分区。比如只有10个节点的集群，划分了1000个逻辑分区。&lt;/p&gt;
-&lt;p&gt;如果集群中添加了一个新节点，该新节点就可以从每个现有节点上匀走几个分区，直到分区再次达到全局平衡。&lt;/p&gt;
-&lt;p&gt;这个方式的优点在于，关键字与逻辑分区的映射关系一开始就固定下来了，节点数量的变更只是改变了逻辑分区分布在哪些节点上。节点间迁移分区数据需要时间，这个过程中，就分区依然可以处理客户端的读写请求。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg&#34; alt=&#34;figure 6-6&#34; title=&#34;figure 6-6&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;动态分区&#34;&gt;动态分区&lt;/h2&gt;
-&lt;h2 id=&#34;按节点比例分区&#34;&gt;按节点比例分区&lt;/h2&gt;
-&lt;h1 id=&#34;自动与手动再平衡操作&#34;&gt;自动与手动再平衡操作&lt;/h1&gt;
-&lt;h1 id=&#34;请求路由&#34;&gt;请求路由&lt;/h1&gt;
-&lt;p&gt;当客户端需要发起请求时，如果知道应该连接哪个节点？如果发生了分区再平衡，分区与节点的对应关系发生了变化。&lt;/p&gt;
-&lt;p&gt;这类问题属于典型的服务发现（service discover）问题。服务发现问题不限于数据库中，任何需要通过网络访问的系统都有这样的需求，尤其是服务目标需要支持高可用时。&lt;/p&gt;
-&lt;p&gt;一般有以下三种处理策略。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;客户端可以发送请求给任意节点，如果节点不能处理请求则路由到可以处理该请求的分区，应答之后再回复客户端。&lt;/li&gt;
-&lt;li&gt;所有客户端的请求发送到一个路由层，由该路由层决定请求应该转发到哪个分区。&lt;/li&gt;
-&lt;li&gt;客户端需要感知分区与节点之间的映射关系。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;但是不管是上面的哪种方案，核心问题都是：做为路由决策的组件，如何知道分区与节点的对应关系以及其变化情况？&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg&#34; alt=&#34;figure 6-7&#34; title=&#34;figure 6-7&#34;&gt;&lt;/p&gt;
-&lt;p&gt;很多分布式系统依赖于独立的协调服务（比如zookeeper、etcd等）跟踪集群范围内的元数据（metadata）。如下图所示，每个节点都像zookeeper注册自己，zookeeper维护了分区到节点的最终映射关系。而其他参与者（比如路由层或者分区感知的客户端）向zookeeper订阅此信息。当分区信息发生了增删时，zookeeper会主动通知，这样就能够保持最新的状态。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg&#34; alt=&#34;figure 6-8&#34; title=&#34;figure 6-8&#34;&gt;&lt;/p&gt;
-&lt;p&gt;还有另一种策略，在节点之间使用gossip协议来同步集群状态的变化，请求可以发送到任何节点，由该节点负责将其转发到正确的节点上。&lt;/p&gt;
-</description>
-      
-    </item>
-    
-    <item>
-      <title>《数据密集型应用系统设计》第五章数据复制笔记</title>
-      <link>https://www.codedump.info/post/20181118-ddia-chapter05-replication/</link>
-      <pubDate>Mon, 01 Apr 2019 18:19:22 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20181118-ddia-chapter05-replication/</guid>
-      
-      <description>&lt;h1 id=&#34;主从复制&#34;&gt;主从复制&lt;/h1&gt;
-&lt;p&gt;集群中有一个主节点，写操作都必须经过主节点完成，读操作主从节点都可以处理。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-1.jpg&#34; alt=&#34;figure 5-1&#34; title=&#34;figure 5-1&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;同步复制和异步复制&#34;&gt;同步复制和异步复制&lt;/h2&gt;
-&lt;h3 id=&#34;同步复制&#34;&gt;同步复制&lt;/h3&gt;
-&lt;p&gt;数据在副本上落盘才返回。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;优点：保证在副本上的数据是最新数据。&lt;/li&gt;
-&lt;li&gt;缺点：延迟高，响应慢。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;异步复制&#34;&gt;异步复制&lt;/h3&gt;
-&lt;p&gt;数据不保证在副本上落盘。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;优点：延迟低&lt;/li&gt;
-&lt;li&gt;不能保证在副本上的数据最新。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;不能把集群中所有节点设置为同步节点，因为这样的话任何一个节点的停滞都会导致整个集群的不可用。像Paxos、Raft算法，都要求集群中大多数节点返回就可以了。部分同步、部分异步的集群配置成为半同步（semi-sync）的集群配置。&lt;/p&gt;
-&lt;h2 id=&#34;新增新的从节点&#34;&gt;新增新的从节点&lt;/h2&gt;
-&lt;ol&gt;
-&lt;li&gt;主节点生成快照数据&lt;/li&gt;
-&lt;li&gt;主节点将快照数据发送到从节点。&lt;/li&gt;
-&lt;li&gt;从节点请求主节点快照数据之后的数据。&lt;/li&gt;
-&lt;li&gt;重复上面三步直到从节点追上主节点的进度。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id=&#34;处理节点失效&#34;&gt;处理节点失效&lt;/h2&gt;
-&lt;h3 id=&#34;从节点失效&#34;&gt;从节点失效&lt;/h3&gt;
-&lt;p&gt;从节点崩溃恢复之后按照前面新增新的从节点的步骤来追上主节点的数据进度。&lt;/p&gt;
-&lt;h3 id=&#34;主节点失效&#34;&gt;主节点失效&lt;/h3&gt;
-&lt;p&gt;主节点失败时需要提升某个从节点为新的主节点，同时需要通知客户端新的主节点。&lt;/p&gt;
-&lt;p&gt;自动切换主节点的步骤通常如下：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;确认主节点失效。大部分系统采用基于超时的机制，主从节点直接发送心跳消息，主节点在某个时间内都没有响应，则认为主节点已经失效。&lt;/li&gt;
-&lt;li&gt;选举新的主节点。通过选举的方式（超过半数以上的从节点达成共识）来选举新的主节点，新的主节点是与旧的主节点数据差异最小的一个，最小化数据丢失的风险。&lt;/li&gt;
-&lt;li&gt;重新配置使新的主节点上线。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;除了以上步骤之外，还有以下问题需要考虑：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;如果使用异步复制机制，而且在失效之前，新的主节点并没有收到旧的主节点的所有数据，那么在旧的主节点重新上线之后，未完成复制的数据将被丢弃。&lt;/li&gt;
-&lt;li&gt;&lt;/li&gt;
-&lt;li&gt;可能会出现集群同时存在两个主节点的情况，也就是所谓的脑裂（split brain）现象，此时两个主节点都认为自己是主节点并且都能接收客户端的写数据请求，会导致数据丢失或者破坏。&lt;/li&gt;
-&lt;li&gt;如何设置合理的超时时间来判断主节点失效？如果太大意味着总体恢复时间长，如果太小意味着某些情况下可能主节点并未失效但是被误判为失效了，比如网络峰值导致延迟高等原因，这样会导致很多不必要的主节点切换。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;上述的问题，包括节点失效、网络不可靠、副本一致性、持久性、可用性与延迟之间的各种细微的权衡，正是分布式系统核心的基本问题。&lt;/p&gt;
-&lt;h2 id=&#34;复制日志的实现&#34;&gt;复制日志的实现&lt;/h2&gt;
-&lt;h3 id=&#34;基于语句的复制&#34;&gt;基于语句的复制&lt;/h3&gt;
-&lt;p&gt;主节点记录所执行的每个写请求并将该语句做为日志发送给从节点。但是有些场景并不适合这么做，比如：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;调用任何非确定函数的语句，比如NOW()获得当前时间，RAND()返回一个随机数。&lt;/li&gt;
-&lt;li&gt;语句中使用了自增列，或者依赖于当前数据库的数据。&lt;/li&gt;
-&lt;li&gt;有副作用的语句，在每个副本上面执行的效果不一样。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;基于预写日志wal&#34;&gt;基于预写日志(WAL)&lt;/h3&gt;
-&lt;p&gt;将对数据库的操作写入日志，传送到从节点上然后执行，得到与主节点相同的数据副本。&lt;/p&gt;
-&lt;h3 id=&#34;基于行的逻辑日志复制&#34;&gt;基于行的逻辑日志复制&lt;/h3&gt;
-&lt;p&gt;所谓的逻辑日志，就是复制与存储引擎采用不同的日志格式，这样复制与存储逻辑剥离，这种日志称为逻辑日志，与物理存储引擎的数据区分开。由于逻辑日志与存储引擎逻辑上解耦，因此可以更好的向后兼容，也更好的能被外部程序解析。&lt;/p&gt;
-&lt;p&gt;对于关系型数据库，其逻辑日志是一系列用来描述数据表行级别的写请求：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;插入行：日志包括所有相关列的新值。&lt;/li&gt;
-&lt;li&gt;删除行：日志中保证要有足够的信息来唯一标识待删除的行，通常是主键。&lt;/li&gt;
-&lt;li&gt;更新行：日志中保证要有足够的信息来唯一标识待更新的行，同时也有所有列的新值。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;复制滞后replication-lag问题&#34;&gt;复制滞后（replication lag）问题&lt;/h1&gt;
-&lt;p&gt;如果一个应用正好从一个异步复制的从节点上读取数据，则可能读取不到最新的数据，这是因为主从节点的数据不一致导致的。理论上不一致状态在时间上并没有上限。以下描述几个复制滞后导致的问题。&lt;/p&gt;
-&lt;h2 id=&#34;读自己的写reading-your-own-writes&#34;&gt;读自己的写（reading your own writes）&lt;/h2&gt;
-&lt;p&gt;用户在写入数据不久就马上查看数据，而新数据并未到达从节点，这样在用户看来可能读到了旧的数据。这样情况需要“写后读一致性（read-after-write consistency）”，该机制保证每次用户读到的都是自己最近的更新数据，但是对其他用户则没有任何保证。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-3.jpg&#34; alt=&#34;figure 5-3&#34; title=&#34;figure 5-3&#34;&gt;&lt;/p&gt;
-&lt;p&gt;在上图中，用户1234首先向主节点写入数据，SQL执行成功之后返回，而此时用户再次向从节点2发起读刚才写入数据的请求，但是却读到了旧的数据。&lt;/p&gt;
-&lt;p&gt;有以下方案实现写后读一致性。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;如果用户访问可能会被修改的内容，从主节点读取。比如社交网络的本用户首页信息只会被本人修改，访问用户自己的首页信息通过主节点，而访问其他用户的首页信息则走的从节点。&lt;/li&gt;
-&lt;li&gt;如果应用大部分内容都可能被所有用户修改，则上述方法不太适用。此时需要其他机制来判断哪些请求需要走主节点，比如更新后一分钟之内的请求都走的主节点。&lt;/li&gt;
-&lt;li&gt;客户端可以记住自己最近更新数据的时间戳，在请求数据时带上时间戳，如果副本上没有至少包含该时间戳的数据则转发给其他副本处理，直到能处理为止。但是在这里，“时间戳”可以是逻辑时钟（比如用来指示写入数据的日志序列号）或者实际系统时钟（而使用系统时间又将时间同步变成了一个关键点）。&lt;/li&gt;
-&lt;li&gt;如果副本分布在多数据中心，必须将请求路由到主节点所在的数据中心。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;单调读monotonic-reads&#34;&gt;单调读（monotonic reads）&lt;/h2&gt;
-&lt;p&gt;单调读一致性保证不会发生多次读同一条数据出现回滚（moving backward）的现象。这个是比强一致性弱，但是比最终一致性强的保证。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-4.jpg&#34; alt=&#34;figure 5-4&#34; title=&#34;figure 5-4&#34;&gt;&lt;/p&gt;
-&lt;p&gt;在上图中，用户2345发起了两次读请求，第一次向从节点1发起的请求拿到了最新的数据，但是第二次向从节点2发起的请求得到了旧的数据，这在用户看来，数据发生了“回滚”。&lt;/p&gt;
-&lt;p&gt;单调读一致性可以确保不会发生这种异常。当读取数据时，单调读保证：如果某个用户进行多次读取，则绝对不会看到数据回滚现象，即在读取到新值之后又发生读取到旧值的情况。&lt;/p&gt;
-&lt;p&gt;实现单调读一致性的一种方式每个用户的每次读取都从固定的同一副本上进行读取。&lt;/p&gt;
-&lt;h2 id=&#34;前缀一致读consistent-prefix-reads&#34;&gt;前缀一致读（consistent prefix reads）&lt;/h2&gt;
-&lt;p&gt;前缀一致性读保证，对于一系列按照某个顺序发生的写请求，读取这些内容时也会按照当时写入的顺序来。&lt;/p&gt;
-&lt;p&gt;例如，正常情况下，是如下的对话：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;poons先生：cake小姐，您能看见多远的未来？&lt;/li&gt;
-&lt;li&gt;cacke小姐：通常约10秒，poons先生。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-5.jpg&#34; alt=&#34;figure 5-5&#34; title=&#34;figure 5-5&#34;&gt;&lt;/p&gt;
-&lt;p&gt;但是在上图中，从观察者角度，数据的先后顺序发生了混淆，导致了逻辑上的混乱。&lt;/p&gt;
-&lt;p&gt;这种问题是分区情况下出现的特殊问题，在分布式数据库中，不同的分区独立运行，因此不存在全局写入顺序，这就导致用户从数据库中读取数据时，可能看到数据库某部分的旧值和一部分的新值。&lt;/p&gt;
-&lt;p&gt;实现前缀一致性的一种方案是确保任何具有因果顺序关系的写入都交给一个分区来完成，但是该方案真实实现起来效率不高。&lt;/p&gt;
-&lt;h2 id=&#34;复制滞后的解决方案&#34;&gt;复制滞后的解决方案&lt;/h2&gt;
-&lt;h1 id=&#34;多主节点复制&#34;&gt;多主节点复制&lt;/h1&gt;
-&lt;h2 id=&#34;适用场景&#34;&gt;适用场景&lt;/h2&gt;
-&lt;h3 id=&#34;多数据中心&#34;&gt;多数据中心&lt;/h3&gt;
-&lt;p&gt;为了容忍整个数据中心级别故障或更接近用户，可以把数据库的副本横跨多个数据中心。在每个数据中心内，采用常规的主从复制方案；而在数据中心之间，由各个数据中心的主节点来负责同其他数据中心的主节点进行数据的交换、更新。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-6.jpg&#34; alt=&#34;figure 5-6&#34; title=&#34;figure 5-6&#34;&gt;&lt;/p&gt;
-&lt;p&gt;主从复制的优缺点：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;优点&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;性能：每个写操作可以在本地数据中心就近快速响应，采用异步复制方式将变化同步到其他数据中心。&lt;/li&gt;
-&lt;li&gt;容忍数据中心失败：单个数据中心失败，不影响其他数据中心的继续运行。&lt;/li&gt;
-&lt;li&gt;容忍网络问题：主从复制模型中写操作是同步操作，对数据中心之间的网络性能和稳定性等要求更高。多主节点模型采用异步复制，可以更好的容忍这类问题。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;缺点：多个数据中心可能同时修改同一份数据，造成写冲突。&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;离线客户端操作&#34;&gt;离线客户端操作&lt;/h3&gt;
-&lt;p&gt;每个客户端可以认为是一个独立的数据中心，这样用户就可以在离线的状态下使用客户端，而在网络恢复之后再将数据同步到服务器。&lt;/p&gt;
-&lt;h3 id=&#34;协作编辑&#34;&gt;协作编辑&lt;/h3&gt;
-&lt;p&gt;允许多个用户同时编辑文档，如google docs。这样每个用户就是一个独立的数据中心了。&lt;/p&gt;
-&lt;h2 id=&#34;处理写冲突&#34;&gt;处理写冲突&lt;/h2&gt;
-&lt;p&gt;多主复制最大的问题就是要解决写冲突，如下图所示。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-7.jpg&#34; alt=&#34;figure 5-7&#34; title=&#34;figure 5-7&#34;&gt;&lt;/p&gt;
-&lt;p&gt;两个用户同时编辑wiki页面，发生了写冲突。&lt;/p&gt;
-&lt;h3 id=&#34;同步与异步冲突检测&#34;&gt;同步与异步冲突检测&lt;/h3&gt;
-&lt;p&gt;如果是主从复制数据库，第二个写请求会被阻塞到第一个写请求完成。而在多主从复制模型下，两个写请求都是成功的，并且只有在之后才能检测到写冲突，而那时候要用户来解决冲突已经为时已晚了。&lt;/p&gt;
-&lt;p&gt;如果要多主从复制模型来做到同步检测冲突，又失去了多主节点的优势：允许每个主节点接受写请求。&lt;/p&gt;
-&lt;p&gt;因此如果确实想要做到同步检测写冲突，应该考虑使用单主节点的模型而不是多主从节点模型。&lt;/p&gt;
-&lt;h3 id=&#34;避免冲突&#34;&gt;避免冲突&lt;/h3&gt;
-&lt;p&gt;如果应用层能保证针对特定的一条记录，每次修改都经过同一个主节点，就能避免写冲突问题。&lt;/p&gt;
-&lt;p&gt;但是，在数据中心发生故障，不得不路由请求到另外的数据中心，或者用户漫游到了另一个位置，更靠近另一个数据中心等场景下，冲突避免不再有效。&lt;/p&gt;
-&lt;h3 id=&#34;收敛于一致状态&#34;&gt;收敛于一致状态&lt;/h3&gt;
-&lt;p&gt;有以下方式解决冲突的收敛：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;给每个写入分配唯一的ID，如时间戳、足够长的随机数、UUID等，规定只有高ID的写入做为胜利者。如果是基于时间戳的对比，这种技术被称为后写入者获胜（last write win），但是很容易造成数据丢失。&lt;/li&gt;
-&lt;li&gt;给每个副本分配一个唯一的ID，并制定规则比如最高ID的副本写入成功，这种方式也会导致数据丢失。&lt;/li&gt;
-&lt;li&gt;以某种方式将这些值合并在一起。&lt;/li&gt;
-&lt;li&gt;使用预定义的格式将这些冲突的值返回给应用层，由应用层来解决。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;自定义冲突解决逻辑&#34;&gt;自定义冲突解决逻辑&lt;/h3&gt;
-&lt;p&gt;解决冲突最合适的方式还是依靠应用层，可以在写入或者读取时执行。&lt;/p&gt;
-&lt;h2 id=&#34;拓扑结构&#34;&gt;拓扑结构&lt;/h2&gt;
-&lt;h1 id=&#34;无主节点复制&#34;&gt;无主节点复制&lt;/h1&gt;
-&lt;p&gt;放弃主节点，允许所有节点处理来自客户端的写请求，如Dynamo、Riak等。&lt;/p&gt;
-&lt;h2 id=&#34;节点失效时写入数据库&#34;&gt;节点失效时写入数据库&lt;/h2&gt;
-&lt;p&gt;对于无主节点复制的集群而言，当向有三个副本的集群写入数据时，只要其中有两个副本写入完成则认为写入成功，而可以容忍其中一个节点的失效。那么当这个失效节点重新上线时，则可能读到已经过期的数据。为了解决这个问题，当客户端从集群中读取数据时，并不是只向一个副本发起请求，而是并行地发送到多个副本，客户端可以根据数据版本号来确定哪个数据最新。&lt;/p&gt;
-&lt;h2 id=&#34;读写quorum&#34;&gt;读写quorum&lt;/h2&gt;
-&lt;p&gt;在有三个副本的情况下，如果有两个副本写入成功，那么意味着最多有一个副本可能包含旧的值，此时如果向至少两个副本发起读请求，通过版本号可以确定至少有一个包含新的值。&lt;/p&gt;
-&lt;p&gt;推而广之，如果有n个副本，写入需要w个节点确认，读取必须至少查询r个节点，则只需要w+r&amp;gt;n，那么读取的节点中一定包含新值。&lt;/p&gt;
-&lt;p&gt;上述参数通常是可以配置，比如n取奇数值，而r、w去(n+1)/2。也可以根据业务需求灵活配置，比如对于读多写少的业务，设置w=n或者r=1，这样读取速度更快，但是只要一个节点的写入失败而导致quorum写入失败。&lt;/p&gt;
-&lt;h2 id=&#34;quorum一致性的局限性&#34;&gt;quorum一致性的局限性&lt;/h2&gt;
-&lt;h2 id=&#34;检测并发写&#34;&gt;检测并发写&lt;/h2&gt;
-&lt;p&gt;请求在不同节点上可能会呈现出不同的顺序，如下图所示：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-12.jpg&#34; alt=&#34;figure 5-12&#34; title=&#34;figure 5-12&#34;&gt;&lt;/p&gt;
-&lt;p&gt;客户端A和B同时发起向主键X的写请求：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;节点1收到客户端A的写请求，但是由于节点紧接着就失效了，没有收到客户端B的写请求。&lt;/li&gt;
-&lt;li&gt;节点2首先收到A的写请求，接着才收到B的写请求。&lt;/li&gt;
-&lt;li&gt;节点3与2相反，先收到B再收到A的写请求。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;如果处理方式仅仅是每次收到新的写请求就简单覆盖原来的值，那么这些节点永远也无法达成一致。&lt;/p&gt;
-&lt;p&gt;所以需要一种更合理的方式来解决并发写冲突。&lt;/p&gt;
-&lt;h3 id=&#34;最后写入者胜出last-write-win简称lww&#34;&gt;最后写入者胜出（Last Write Win，简称LWW）&lt;/h3&gt;
-&lt;p&gt;为每个写请求附件一个时间戳，然后选择最新即最大的时间戳，丢弃较早时间戳的写入，这种方案称为Last Write Win。&lt;/p&gt;
-&lt;p&gt;这种方案的问题在于：物理时间本身就不可信任，一个机器上的时间到了另一个机器上并不就精准。另外，牺牲了部分的写入数据，比如某客户端写入时返回成功，但是会被后面并发写入但是被认为更晚时间的写入给覆盖掉，这样这部分认为写入成功的数据就丢失了。&lt;/p&gt;
-&lt;p&gt;要确保LWW无副作用的唯一办法是：之写入一次然后写入值视为不可变。这样就能避免对同一个主键的覆盖。例如，cassandra的推荐使用方式是使用UUID做为主键，这样每个写操作都针对不同的、系统唯一的主键。&lt;/p&gt;
-&lt;h3 id=&#34;happen-before关系与并发&#34;&gt;Happen-before关系与并发&lt;/h3&gt;
-&lt;p&gt;两件事情A、B只有三种可能存在的关系：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;A在B之前发生。&lt;/li&gt;
-&lt;li&gt;B在A之前发生。&lt;/li&gt;
-&lt;li&gt;A、B并发进行。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;一件事情在另一件事情之前发生，说明两者之间存在依赖关系。比如A说了一句话，而B需要对这句话进行回应，回应这个事件就依赖于A说话这个事件，此时B的回应依赖于A的话，因此B的回应肯定发生A说话之后。&lt;/p&gt;
-&lt;p&gt;如果两件事情之间没有依赖关系，那么先后顺序是无所谓的，即并发进行。&lt;/p&gt;
-&lt;p&gt;来看一个实际的例子，两个客户端同时向一个购物车添加物品：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20181118-ddia-chapter05-replication/figure5-13.jpg&#34; alt=&#34;figure 5-13&#34; title=&#34;figure 5-13&#34;&gt;&lt;/p&gt;
-&lt;p&gt;流程如下：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;客户端1首先将牛奶放入购物车，服务器分配版本号1，将值与版本号一起返回给客户端。&lt;/li&gt;
-&lt;li&gt;客户端2将鸡蛋放入购物车，因为此时客户端2并不知道客户端1已经放入了牛奶，因此认为鸡蛋是购物车中的唯一物品。服务器写入并分配版本号2，将鸡蛋和牛奶存储为两个单独的值，最后将版本号2和值返回给客户端2。&lt;/li&gt;
-&lt;li&gt;同理，客户端1再次写入时也没有意识到2已经修改了购物车，此时它想继续添加免费，认为此时购物车的内容应该是[牛奶,面粉]，因此将这个值与版本号1一起发给服务器。服务器收到之后，意识到是针对版本号1做的修改，即将[牛奶]修改成[牛奶面粉]，但是另一个值[鸡蛋]则是新的并发操作。因此，服务器分配了一个新的版本号3，版本号3的值[牛奶,面粉]覆盖版本1的[牛奶]，同时保留版本号2的值[鸡蛋]，一起返回给客户端1。&lt;/li&gt;
-&lt;li&gt;客户端2想加入火腿，而它也不知道客户端1添加了面粉。其收到的最后一个响应中服务器给的值是[牛奶]和[鸡蛋]，因此进行了合并并且加入自己要添加的火腿，向服务器发送了版本号2以及新的值[鸡蛋,牛奶,火腿]。服务器检测到版本号2将覆盖原来的值[鸡蛋]，但是与[牛奶,面粉]是同时发生，所以设置了版本号4并将这些值一起返回给客户端2。&lt;/li&gt;
-&lt;li&gt;最后，客户端1想添加培根，在以前的版本3中从服务器收到了值[牛奶,面粉]和[鸡蛋]，所以进行了合并，将添加了培根以及合并之后的值[牛奶,面粉,鸡蛋,培根]和版本号3来覆盖[牛奶,面粉]，但是由于与[鸡蛋，牛奶，火腿]并发，所以服务器会保留这些值。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;服务器判断操作是否并发的依据主要依靠版本号：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;服务器为每个主键维护一个版本号，每当主键新值写入时递增版本号，并将新版本号与写入的值一起保存。&lt;/li&gt;
-&lt;li&gt;当客户端读取主键时，服务器将返回所有（未被覆盖）当前值以及最新的版本号，且要求写入之前，客户端必须先发送读请求。&lt;/li&gt;
-&lt;li&gt;客户端写主键，写请求必须包含之前读到的版本号、读到的值和新值合并后的集合。写请求的响应可以像读请求一样，返回所有值，这样就可以像购物车例子那样一步步链接起多个写入的值。&lt;/li&gt;
-&lt;li&gt;当服务器收到带有特定版本的写入时，覆盖该版本号或更低版本的所有值（因为知道这些值已经被合并到新传入的值集合中），但必须保留更高版本号的所有值（因为这些值与当前的写操作属于并发）。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;这种方案不会让写入的值丢失，但是需要在客户端做合并操作，将多个写入的值进行合并。&lt;/p&gt;
 </description>
       
     </item>

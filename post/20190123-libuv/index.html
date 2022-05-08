@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="Libuv代码简单分析" />
@@ -124,6 +148,43 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#uv__io_t">uv__io_t</a></li>
+    <li><a href="#queue">queue</a></li>
+    <li><a href="#uv_timer_t">uv_timer_t</a></li>
+    <li><a href="#uv_handle_t及其子类">uv_handle_t及其子类</a>
+      <ul>
+        <li><a href="#uv_async_t">uv_async_t</a></li>
+        <li><a href="#uv_prepare_t">uv_prepare_t</a></li>
+        <li><a href="#uv_check_t">uv_check_t</a></li>
+        <li><a href="#uv_idle_t">uv_idle_t</a></li>
+      </ul>
+    </li>
+    <li><a href="#uv_req_t及其子类">uv_req_t及其子类</a></li>
+    <li><a href="#uv_loop_t">uv_loop_t</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#事件循环">事件循环</a>
+      <ul>
+        <li><a href="#新增的io事件">新增的IO事件</a></li>
+        <li><a href="#pending队列">pending队列</a></li>
+        <li><a href="#checkidle和prepare队列">check、idle和prepare队列</a></li>
+        <li><a href="#小结">小结</a></li>
+      </ul>
+    </li>
+    <li><a href="#uv_req_t的处理">uv_req_t的处理</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <p>本文基于libuv 1.x版本进行简单的分析。</p>
@@ -199,7 +260,7 @@
 <li>uv_stream_t继承自uv_handle_t，所以在它结构体定义的开始部分先放的就是前面的宏UV_HANDLE_FIELDS。另外，uv_stream_t本身的成员定义又放在了宏UV_STREAM_FIELDS里。</li>
 <li>uv_tcp_t继承自uv_stream_t，所以它结构体开始部分依次是宏UV_HANDLE_FIELDS，再到宏UV_STREAM_FIELDS。</li>
 </ul>
-<p><img src="/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
 <p>可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>  uv_tcp_t <span style="color:#666">*</span>tcp;
 </span></span><span style="display:flex;"><span>
@@ -231,7 +292,7 @@
 </tbody>
 </table>
 <p>以下简单列出了handle相关类来：</p>
-<p><img src="/media/imgs/20190123-libuv/uv_handler_t.png" alt="uv_handler_t" title="uv_handler_t"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190123-libuv/uv_handler_t.png" alt="uv_handler_t" title="uv_handler_t"></p>
 <p>以下解释几个特殊的handler。</p>
 <h3 id="uv_async_t">uv_async_t</h3>
 <p>该结构体用于线程之间消息通知之用。</p>
@@ -274,7 +335,7 @@
 <li>每个事件机制都会使用的数据，即公有数据。</li>
 <li>每个事件机制独立的数据，使用宏UV_LOOP_PRIVATE_FIELDS，区分了unix和win两种平台的实现。而在unix版本的宏UV_LOOP_PRIVATE_FIELDS定义的最后部分，又引入了宏UV_PLATFORM_LOOP_FIELDS，用于定义不同unix操作系统相关的数据。</li>
 </ul>
-<p><img src="/media/imgs/20190123-libuv/uv_loop_t.png" alt="uv_loop_t" title="uv_loop_t"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190123-libuv/uv_loop_t.png" alt="uv_loop_t" title="uv_loop_t"></p>
 <p>下面简单说明一下uv_loop_t公用的成员。</p>
 <table>
 <thead>
@@ -378,7 +439,7 @@
 <p>而idle和prepare队列的区别在于，如果idle队列不为空，那么将会使用0做为poll操作的超时时间。</p>
 <h3 id="小结">小结</h3>
 <p>以<a href="http://docs.libuv.org/en/v1.x/design.html">libuv官网文档</a>中的一幅图来总结loop主循环的流程：</p>
-<p><img src="/media/imgs/20190123-libuv/loop_iteration.png" alt="loop_iteration" title="loop_iteration"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190123-libuv/loop_iteration.png" alt="loop_iteration" title="loop_iteration"></p>
 <ol>
 <li>每次loop循环开始的时候，首先更新时间，以减少这部分系统调用次数。</li>
 <li>如果loop当前不活跃，则直接退出函数了。如何判断是否活跃：看是否存在活跃的handler、活跃的请求。</li>
@@ -455,7 +516,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
@@ -484,7 +545,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -493,7 +554,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

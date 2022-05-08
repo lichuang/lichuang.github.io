@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="Nginx源码阅读笔记-接收HTTP请求流程" />
@@ -124,13 +148,29 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#ngx_http_init_connection">ngx_http_init_connection</a></li>
+    <li><a href="#ngx_http_wait_request_handler">ngx_http_wait_request_handler</a></li>
+    <li><a href="#ngx_http_process_request_line">ngx_http_process_request_line</a></li>
+    <li><a href="#ngx_http_process_request_headers">ngx_http_process_request_headers</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <p>前面已经描述过nginx的事件模块了，接下来具体分析nginx如何接收一个HTTP请求，下一部分接着解析nginx解析HTTP请求的流程。</p>
 <h1 id="协议状态机编程模式">协议状态机编程模式</h1>
 <p>TCP协议是一种流协议（stream protocol），这意味着数据是以字节流形式给数据接收者的，一次网络接收不一定能接收完毕，需要上面的应用层根据自己协议的情况来解析处理。它的数据没有边界，需要应用层自己根据协议来判断边界的存在。</p>
 <p>如果两次请求，分开为几次接收，但是某次接收的数据中，有跨两次请求的数据，这就是所谓的“粘包(sticky-package)”问题。如下图所示：</p>
-<p><img src="/media/imgs/20190131-nginx-read-http-request/sticky-package-problem.png" alt="sticky-package-problem" title="sticky-package-problem"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190131-nginx-read-http-request/sticky-package-problem.png" alt="sticky-package-problem" title="sticky-package-problem"></p>
 <p>结合epoll之类的事件派发器来设计一个TCP协议的服务器时，因为并不能确保每一次接收数据，都能完整的接收到协议所需的所有数据。因此一般而言，写一个高性能服务器的协议解析部分，会以状态机的方式来实现，即定义了协议数据的每个部分，如下伪代码所示：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 定义协议头数据
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">typedef</span> <span style="color:#a2f;font-weight:bold">struct</span> header_t {
@@ -220,7 +260,7 @@
 <p>类似的，nginx中ngx_listening_t来表示监听socket，其中的成员handler也是区分了不同的协议有不同的注册回调函数。</p>
 <p>如果这个监听端口，处理的是HTTP请求，那么注册进去的回调函数就是ngx_http_init_connection，这样在接收到一个HTTP请求时就会回调该函数进行处理。</p>
 <p>完整的流程图如下所示：</p>
-<p><img src="/media/imgs/20190131-nginx-read-http-request/nginx-read-http-statemachine.png" alt="nginx-read-http-statemachine" title="nginx-read-http-statemachine"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190131-nginx-read-http-request/nginx-read-http-statemachine.png" alt="nginx-read-http-statemachine" title="nginx-read-http-statemachine"></p>
 <p>接下来按照上面的流程图具体看接收HTTP请求的流程中对应的几个回调函数。</p>
 <h2 id="ngx_http_init_connection">ngx_http_init_connection</h2>
 <p>这个函数是接收到HTTP请求之后的第一个回调函数，用于初始化请求连接相关的一些数据，主要做的工作是：</p>
@@ -323,7 +363,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/nginx/">nginx</a>
@@ -352,7 +392,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -361,7 +401,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

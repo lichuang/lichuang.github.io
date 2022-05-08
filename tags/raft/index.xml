@@ -6,7 +6,230 @@
     <description>Recent content in raft on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sat, 01 Jan 2022 15:02:50 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/raft/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 07 May 2022 17:57:08 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/raft/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</title>
+      <link>https://www.codedump.info/post/20220507-weekly-14/</link>
+      <pubDate>Sat, 07 May 2022 17:57:08 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220507-weekly-14/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法二实践篇&#34;&gt;重读Raft论文中的集群成员变更算法（二）：实践篇&lt;/h1&gt;
+&lt;h2 id=&#34;单步成员变更存在的问题&#34;&gt;单步成员变更存在的问题&lt;/h2&gt;
+&lt;h3 id=&#34;正确性问题&#34;&gt;正确性问题&lt;/h3&gt;
+&lt;p&gt;单步变更成员时，可能出现正确性问题。如下面的例子所示，最开始时，系统的成员是&lt;code&gt;{a,b,c,d}&lt;/code&gt;这四个节点的集合，要将节点&lt;code&gt;u&lt;/code&gt;和&lt;code&gt;v&lt;/code&gt;加入集群，按照单步变更成员的做法，依次会经历：&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u,v}&lt;/code&gt;的变化，每次将一个节点加入到集群里。&lt;/p&gt;
+&lt;p&gt;上面的步骤看起来很美好，但是考虑下面的例子，在变更过程中leader节点发生了变化的情况：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;C₀ = {a, b, c, d}
+Cᵤ = C₁ ∪ {u}
+Cᵥ = C₁ ∪ {v}
+
+Lᵢ: Leader in term `i`
+Fᵢ: Follower in term `i`
+☒ : crash
+
+    |
+ u  |         Cᵤ                  F₂  Cᵤ
+--- | ----------------------------------
+ a  | C₀  L₀  Cᵤ  ☒               L₂  Cᵤ
+ b  | C₀  F₀          F₁          F₂  Cᵤ
+ c  | C₀  F₀          F₁  Cᵥ          Cᵤ
+ d  | C₀              L₁  Cᵥ  ☒       Cᵤ
+--- | ----------------------------------
+ v  |                     Cᵥ                  time
+    +--------------------------------------------&amp;gt;
+          t₁  t₂  t₃  t₄  t₅  t₆  t₇  t₈
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;（引用自&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;）&lt;/p&gt;
+&lt;p&gt;上面的流程中，纵坐标是集群中的节点，横坐标是不同的时间（注意不是任期），&lt;code&gt;Li&lt;/code&gt;表示在任期i时候的leader节点，&lt;code&gt;Fi&lt;/code&gt;表示在任期i时候的follower节点。&lt;/p&gt;
+&lt;p&gt;上图的流程阐述如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;t1：a节点被选为任期0的leader，而b、c节点为follower。&lt;/li&gt;
+&lt;li&gt;t2：将节点u加入集群，但是这条加入集群的日志，仅达到了a和u节点，由于这条日志并没有半数以上通过，所以这时候节点u还并未成功加入集群。&lt;/li&gt;
+&lt;li&gt;t3：节点a宕机。&lt;/li&gt;
+&lt;li&gt;t4：由于原先的leader宕机，于是集群需要选出新的leader，选出来的新leader是节点d，这是任期1时候的leader。&lt;/li&gt;
+&lt;li&gt;t5：节点v加入集群，加入集群的日志，到达了节点c、d、v上面，可以看到由于这条日志到了此时集群的半数以上节点上（因为这时候节点a宕机，因此只有三个节点在服务，于是只有有2个节点同意就认为可被提交），所以实际是已经提交的，即v加入集群的操作是成功的。&lt;/li&gt;
+&lt;li&gt;t6：leader d宕机。&lt;/li&gt;
+&lt;li&gt;t7：宕机的节点a恢复服务，看到本地有将节点u加入到集群的日志，于是它认为节点u、b是这个任期的follower节点。&lt;/li&gt;
+&lt;li&gt;t8：此时节点d恢复服务，而leader a将之前把节点u加入集群的日志同步给当前集群的所有节点，这造成了之前v加入集群且已被提交的日志丢失。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;出现这个问题，本质是因为：上一任leader的变更日志，还未同步到集群半数以上节点就宕机，这时候新一任leader就进行成员变更，这样导致了形成两个不同的集群，产生脑裂将已经提交的日志被覆盖。&lt;/p&gt;
+&lt;p&gt;Raft作者在&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;描述了这一现象。&lt;/p&gt;
+&lt;p&gt;解决的办法也很简单：即每次新当选的leader不允许直接提交在它本地的日志，而必须先提交一个no-op日志，才能开始同步。这个问题的描述，在之前的博客有描述：&lt;a href=&#34;https://www.codedump.info/post/20211011-raft-propose-prev-term/&#34;&gt;为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;可用性问题&#34;&gt;可用性问题&lt;/h3&gt;
+&lt;p&gt;除了以上正确性问题，单步变更还有可能出现可用性问题：当需要替换的节点在同一机房的时候，如果这个机房网络与集群中其他机房的网络断开，就会导致无法选出leader，以致于集群无法提供服务。来看下面的例子。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220507-weekly-14/availability.png&#34; alt=&#34;availability&#34; title=&#34;availability&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中，原先集群中有三个节点分别位于三个机房：机房1的节点a、机房2的节点b、机房3的节点c。现在由于各种原因，想把机房1的节点a下线，换成同机房的节点d到集群中继续服务。&lt;/p&gt;
+&lt;p&gt;可以看到，这个替换操作涉及到一个节点的加入和一个节点的离开，可能有如下两种可能的步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;先加入新节点d再删除节点a：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;先删除节点a再加入新节点d：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两种步骤各有优劣，第二种方案的问题是：中间只有两个节点在服务，一旦这时候又发生宕机，则集群就不可用了。&lt;/p&gt;
+&lt;p&gt;第一种方案中，按照上图中的例子，如果正好要替换的a、d节点都位于同一个机房里面，那么假如这个机房的网络也与其它机房隔离，那么只有两个节点在服务，这时候在四节点（中间步骤）的条件下也无法服务。&lt;/p&gt;
+&lt;p&gt;以上是单步变更中可能出现的两类问题。可以看到，尽管单步变更算法看起来实现简单，但是实则有很多细节需要注意。虽然Raft论文中认为单步变更是更简单的办法，但是现在主流的实现都使用了Joint Consensus（联合共识）算法。&lt;/p&gt;
+&lt;h2 id=&#34;joint-consensus算法如何解决可用性问题&#34;&gt;Joint Consensus算法如何解决可用性问题&lt;/h2&gt;
+&lt;p&gt;针对上面提到的：替换同一机房中的不同节点，中间过程中可能由于这个机房被网络隔离，导致的集群不可用（选不出leader）问题，来看看Joint Consensus算法是如何解决的。&lt;/p&gt;
+&lt;p&gt;先来回顾一下步骤，如果使用Joint Consensus算法，需要经历两阶段提交：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;然后提交&lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把集合换成这里的例子，就是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;{a,b,c}&lt;/code&gt; $\bigcup$ &lt;code&gt;{a,b,c,d}&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;然后提交 &lt;code&gt;{a,b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看这两阶段中可能出现宕机的情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;第一阶段时leader节点宕机，这个leader节点只有可能是两种情况，其集群配置还是&lt;code&gt;C_Old&lt;/code&gt;，或者已经收到了&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;：由于这时候这个leader并没有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，因此那些已有&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合的follower这部分的日志将被截断，成员变更失败，回退回&lt;code&gt;C_Old&lt;/code&gt;集合。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：这意味这个leader已经有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，在第二阶段时leader节点宕机，也不会导致选不出leader的情况，可以类似推导。&lt;/p&gt;
+&lt;p&gt;可见：直接使用Joint Consensus算法并不会存在单步变更时的可用性问题。&lt;/p&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft集群的单步变更算法，虽然看起来”简单“，但是实践起来有不少细节需要注意。&lt;/li&gt;
+&lt;li&gt;虽然论文里提到单步变更算法比之Joint Consensus算法更为简单，很多开源的Raft实现都已经以Joint Consensus算法做为默认的实现了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;（之前写过etcd 3.5版本的实现解析，见：&lt;a href=&#34;https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/&#34;&gt;etcd 3.5版本的joint consensus实现解析 - codedump的网络日志&lt;/a&gt;）&lt;/p&gt;
+&lt;h2 id=&#34;参考资料&#34;&gt;参考资料&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/VKu7fBLliztx3tzvzYDkqw&#34;&gt;Raft成员变更的工程实践&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/ongardie/a11f32b70581e20d6bcd&#34;&gt;Safety of Raft single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/peterbourgon/raft/blob/master/JOINT-CONSENSUS.md&#34;&gt;raft/JOINT-CONSENSUS.md at master · peterbourgon/raft&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
+    <item>
+      <title>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</title>
+      <link>https://www.codedump.info/post/20220417-weekly-13/</link>
+      <pubDate>Sun, 17 Apr 2022 15:16:30 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220417-weekly-13/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法一理论篇&#34;&gt;重读Raft论文中的集群成员变更算法（一）：理论篇&lt;/h1&gt;
+&lt;p&gt;“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《&lt;a href=&#34;https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf&#34;&gt;Consensus: Bridging Theory and Practice&lt;/a&gt;》中有专门的一节来讲解这部分内容。&lt;/p&gt;
+&lt;h2 id=&#34;安全性&#34;&gt;安全性&lt;/h2&gt;
+&lt;p&gt;首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.2.png&#34; alt=&#34;4.2&#34; title=&#34;4.2&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图的图示中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。&lt;/li&gt;
+&lt;li&gt;如果直接如图中这样变更，由于每个节点的时间窗口并不一致，可能就会出现这种情况：
+&lt;ul&gt;
+&lt;li&gt;在某一时刻，节点1、2还使用的是旧集群（只含有{1,2,3}）的成员配置，而3、4、5已经是新集群（含有{1,2,3,4,5}）的成员配置了。&lt;/li&gt;
+&lt;li&gt;这样就可能出现还使用旧集群节点配置的1、2选出了一个leader，以及已经使用了新集群配置的节点3、4、5选出了另一个leader的情况，于是违反了上面阐述的“安全性”要求。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;需要说明的是，在上面这个错误的示例中，是由于有两类行为同时出现才导致的错误：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。&lt;/li&gt;
+&lt;li&gt;直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/cluster-membership-change.png&#34; alt=&#34;cluster-membership-change&#34; title=&#34;cluster-membership-change&#34;&gt;&lt;/p&gt;
+&lt;p&gt;于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;要么一次性严格限制只变更一个节点。&lt;/li&gt;
+&lt;li&gt;如果实在想一次变更多个节点，那就不能直接变更，需要经过一个中间状态的过渡之后才能完成同时变更多个节点的操作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下分别来阐述这两种不同的实现。&lt;/p&gt;
+&lt;h2 id=&#34;一次变更单个节点&#34;&gt;一次变更单个节点&lt;/h2&gt;
+&lt;p&gt;如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。&lt;/p&gt;
+&lt;p&gt;论文中以下面几个例子来说明这样操作的正确性：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.3.png&#34; alt=&#34;4.3&#34; title=&#34;4.3&#34;&gt;&lt;/p&gt;
+&lt;p&gt;这几个图，是在两个维度上做示范的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;增、删操作。&lt;/li&gt;
+&lt;li&gt;原集群节点数量是奇数还是偶数。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两个维度的组合一共就是上面的4中情况，但是无论哪一种情况，由于都保证了“新、旧集合的quorum集合是有重合的”这个条件，于是不会选出不一样的leader来。&lt;/p&gt;
+&lt;h2 id=&#34;一次变更多个节点&#34;&gt;一次变更多个节点&lt;/h2&gt;
+&lt;p&gt;从上面的例子中可以看到：只要能保证一次只变更一个节点，是可以直接（directly）变更的。即：无需中间状态，直接从A集合变更到A+1集合，因为这两个集合的quorum肯定有重合。&lt;/p&gt;
+&lt;p&gt;但是，在一次需要变更多个节点的情况下，就不能这样直接变更，因为会出现最开始示例的那样同时选出两个leader的情况。于是，为了解决这个问题，需要引入一个中间状态：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;假设原先的集群节点集合为C_Old，新的集群节点集合为C_New，那么首先变更配置到{C_Old,C_New}，也就是新旧集群节点集合的并集。&lt;/li&gt;
+&lt;li&gt;上面这次变更提交之后，再向集群变更配置到C_New。在这次变更提交之后，那些不在C_New节点集合中的节点，收到这个变更时，自动下线退出集群。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。&lt;/p&gt;
+&lt;p&gt;从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.8.png&#34; alt=&#34;4.8&#34; title=&#34;4.8&#34;&gt;&lt;/p&gt;
+&lt;h3 id=&#34;failover&#34;&gt;Failover&lt;/h3&gt;
+&lt;p&gt;我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。&lt;/p&gt;
+&lt;p&gt;第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;只有C_Old节点集合的节点：由于这时候这个leader并没有第一阶段提交的{C_Old,C_New}节点集合变更，因此那些已有{C_Old,C_New}节点集合的follower这部分的日志将被截断，成员变更失败，回退回C_Old集合。&lt;/li&gt;
+&lt;li&gt;有{C_Old,C_New}节点集合的节点：这意味这个leader已经有第一阶段提交的{C_Old,C_New}节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，也可以去推导一下在第二阶段出现leader宕机时，选出来的leader只可能具备两种情况，但是这两种情况都不可能选出多个leader。&lt;/p&gt;
+&lt;h2 id=&#34;集群变更何时生效&#34;&gt;集群变更何时生效？&lt;/h2&gt;
+&lt;p&gt;以上讲解完毕两种不同的集群变更方式，下面来聊一聊集群变更何时生效。&lt;/p&gt;
+&lt;p&gt;在Raft、Paxos这类状态机模型的一致性算法中，将任何变更操作都认为是一个命令（Command），命令的处理流程是这样的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;状态机收到命令，首先在自己本地将命令持久化。&lt;/li&gt;
+&lt;li&gt;然后广播给集群中的其他节点。&lt;/li&gt;
+&lt;li&gt;当收到集群半数以上节点的应答时，认为命令是可以被提交（commit）的，于是可以生效将这些已经被提交的日志传给应用层的状态机使用了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上流程可以看到：一条命令，只有在“提交（commit）”之后才能“生效（apply）”。&lt;/p&gt;
+&lt;p&gt;在Raft中，“成员变更”这个操作，也是一类命令，即：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-rust&#34; data-lang=&#34;rust&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#00f&#34;&gt;Command&lt;/span&gt;&lt;span style=&#34;color:#bbb&#34;&gt; &lt;/span&gt;{&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;LogEntry,&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;MembershipChange,&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;&lt;/span&gt;};&lt;span style=&#34;color:#bbb&#34;&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样设计的好处在于：处理成员变更操作，和一般的日志并没有区别，于是不存在一个特定的时间被称为“处理成员变更的时间”，在这个时间里停止响应一般的命令。&lt;/p&gt;
+&lt;p&gt;但是与一般命令不同的是，“成员变更”操作并不需要等到多数通过才能生效。注意，对于一般命令而言，要“生效”必须首先“提交”，而集群变更类命令的生效没有这个依赖关系。&lt;/p&gt;
+&lt;p&gt;即，在Raft的成员变更流程中，节点在收到一个新集群节点配置之后，是马上生效的，无需等待半数以上通过。&lt;/p&gt;
+&lt;p&gt;这是在阅读Raft论文这一部分内容时，经常被忽略的部分。为什么集群变更类指令，可以这么做，以及这样做会不会出问题？&lt;/p&gt;
+&lt;p&gt;为了安全性，Raft在进行集群变更操作时，无论是“单次变更一个节点”还是“一次变更多个节点”，在不同的阶段都不能有重叠（overlap）的情况出现，因为重叠意味着可能违反前面提到的安全性。比如将一个集群节点集合从{1,2,3}变更为{1,4,5}，如果使用这两种方式，步骤分别是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;单次变更一个节点：{1,2,3}-&amp;gt;{1,2,3,4} （增加节点4）-&amp;gt;{1,2,3,4,5} （增加节点5）-&amp;gt;{1,3,4,5} （删除节点2）-&amp;gt; {1,4,5} （删除节点3）。&lt;/li&gt;
+&lt;li&gt;单次变更多个节点：{1,2,3}（C_Old）-&amp;gt; {1,2,3,4,5}（{C_Old,C_New}）-&amp;gt; {1,4,5}（C_Old,C_New）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以看到，无论采用哪一种方式，都会有多个步骤。由leader来决定当前的步骤，其判断的标准是：前一步修改的日志，是否已经被提交（半数以上同意）。所以，如果成员变更类的日志在提交之后才生效的话，leader就需要再多一个步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先确认日志已经被提交到半数以上节点。&lt;/li&gt;
+&lt;li&gt;在这之后，再确认这个成员变更已经在节点上生效。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;而后面的这个确认，是可以避免的。因为根据前面&lt;code&gt;failover&lt;/code&gt;部分的分析，无论哪一种情况出现，即便在变更的过程中leader宕机，也不会出现选出多个leader的情况。&lt;/p&gt;
+&lt;p&gt;于是，对于成员变更类的日志来说，Raft的规则是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;多次提交不能重叠（overlap），即如果当前已经有还未提交的成员变更日志，在它提交之前不允许提交新的成员变更修改。&lt;/li&gt;
+&lt;li&gt;成员变更的生效，无需等待提交，每个节点在收到这类日志的时候，就能马上修改本节点上的成员为最新的这个配置。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft算法要求任何时候都要保证安全性（safety）：不能在同一时间在集群中存在两个不同的leader节点。&lt;/li&gt;
+&lt;li&gt;如果以下两个操作同时发生，就有可能违反安全性：
+&lt;ul&gt;
+&lt;li&gt;一次变更多个节点。&lt;/li&gt;
+&lt;li&gt;直接变更集群的节点集合。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;由这两个限制出发，分别有以下两种实现成员变更的算法：
+&lt;ul&gt;
+&lt;li&gt;限制每次只变更一个节点，这种情况下可以直接变更成员。&lt;/li&gt;
+&lt;li&gt;每次可以变更任意数量的节点，但是必须通过两阶段提交完成才能生效：第一次从C_Old变成{C_Old,C_New}节点集合，第二次从{C_Old,C_New}变成C_New。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;“成员变更”类命令，在Raft算法看来也是一条日志。但是与普通日志命令不同的是，成员变更类日志的生效，无需等待这条日志提交了才能生效，可以在收到之后马上生效。&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
     <item>
       <title>etcd 3.5版本的joint consensus实现解析</title>
       <link>https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/</link>

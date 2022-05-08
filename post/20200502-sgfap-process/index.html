@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程" />
@@ -124,6 +148,33 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#进程的状态">进程的状态</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#写时复制机制">写时复制机制</a></li>
+    <li><a href="#fork的实现">fork的实现</a>
+      <ul>
+        <li><a href="#_do_fork函数流程">_do_fork函数流程</a></li>
+        <li><a href="#copy_process函数的流程">copy_process函数的流程</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li><a href="#孤儿进程和僵尸进程">孤儿进程和僵尸进程</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
@@ -146,7 +197,7 @@
 <p>本篇从进程开始讲起，涉及内核管理进程的数据结构、与进程创建和执行相关的系统调用、进程的状态。</p>
 <h1 id="数据结构">数据结构</h1>
 <p>Linux内核使用<code>task_struct</code>结构体来描述一个进程的所有信息。考虑这个结构体的内容太多，这里并不打算全部列举出来，到讲解需要涉及到的时候才提出其中的某些成员详细说明，这里只列出最关键的几个成员：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/task_struct.png" alt="task_struct" title="task_struct"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/task_struct.png" alt="task_struct" title="task_struct"></p>
 <p>其中：</p>
 <ul>
 <li>state：用于表示进程的状态，下面将展开讨论。</li>
@@ -165,7 +216,7 @@
 <li>TASK_STOPPED：进程被停止执行，当进程接收到SIGSTOP、SIGTTIN、SIGTSTP或者SIGTTOU信号之后就会进入该状态。</li>
 </ul>
 <p>这几个状态之间，转换关系如下图所示：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/taskstate.png" alt="taskstate" title="taskstate"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/taskstate.png" alt="taskstate" title="taskstate"></p>
 <p>上面的状态转换图中，休眠状态（SLEEPING）包括了<code>TASK_INTERRUPTIBLE</code>和<code>TASK_UNINTERRUPTIBLE</code>，并没有做区分；另外，按照前面的讲述，<code>TASK_RUNNING</code>状态区分了就绪以及在运行状态，由于这两者都是<code>TASK_RUNNING</code>状态，所以分到了同一组里，又因为需要细化这两者之间的状态，内部也有状态之间的迁移。</p>
 <p>根据上面的状态转换图，进程状态的转换有这几种情况：</p>
 <ol>
@@ -199,7 +250,7 @@
 <p>前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。</p>
 <p>因此，Linux内核在实现时，使用了写时复制的技术（Copy On Write，简称COW），子进程在刚开始创建时与父进程共享同样的地址空间，仅当子进程要修改父进程地址空间的内容时才创建新的地址空间，从而使父子进程有各自的拷贝。</p>
 <p>Redis在生成RDB快照文件时，就利用了Linux写时复制机制。生成快照文件时，Redis主进程<code>fork</code>创建一个子进程，根据这里的解释，此时子进程的内存地址就是共享的父进程的空间。这样，父进程可以继续服务请求，而子进程跟进进程创建时候的内存信息，生成快照文件，结束了之后自行退出即可。</p>
-<p><img src="/media/imgs/20200502-sgfap-process/redis.png" alt="redis" title="redis"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/redis.png" alt="redis" title="redis"></p>
 <h2 id="fork的实现">fork的实现</h2>
 <p>除了<code>fork</code>函数之外，还有另外几个提供给用户态用于创建进程相关的函数。</p>
 <ul>
@@ -207,11 +258,11 @@
 <li>clone：<code>pthread</code>函数族使用clone来创建轻量级进程。</li>
 </ul>
 <p>这三个函数，内部实际上最终都调用<code>_do_fork</code>的内核函数完成创建子进程的工作：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/fork.png" alt="fork" title="fork"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/fork.png" alt="fork" title="fork"></p>
 <p>下面就展开简单分析<code>_do_fork</code>函数的实现。</p>
 <h3 id="_do_fork函数流程">_do_fork函数流程</h3>
 <p>创建新进程，调用的是<code>_do_fork</code>函数，其主要流程如下图：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/do_fork.png" alt="do_fork" title="do_fork"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/do_fork.png" alt="do_fork" title="do_fork"></p>
 <p>以下就这几个核心流程来做分析。</p>
 <h4 id="copy_process">copy_process</h4>
 <p><code>copy_process</code>函数中完成复制进程数据相关的工作，下面再展开对这个函数的详细分析。</p>
@@ -244,7 +295,7 @@
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，父进程等待子进程执行exec函数来替换地址空间。在这里，会用到前面初始化的<code>completion</code>结构体，用于父进程等待子进程执行完毕。</p>
 <h3 id="copy_process函数的流程">copy_process函数的流程</h3>
 <p><code>copy_process</code>函数负责在创建子进程时拷贝父进程的相关信息，即创建好子进程的<code>task_struct</code>结构体，其主要流程如下图所示：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/copy_process.png" alt="copy_process" title="copy_process"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/copy_process.png" alt="copy_process" title="copy_process"></p>
 <ul>
 <li>调用函数dup_task_struct，复制父进程的task_struct结构体信息。此时，子进程与父进程的描述符是完全相同的。</li>
 <li>初始化task_struct结构体信息。</li>
@@ -279,7 +330,7 @@
 <li>当这个标志位为0时：说明需要从父进程复制一份该类型资源数据，子进程复制完毕之后，将该资源计数赋值为1，而父进程资源计数维持不变。</li>
 <li>当这个标志位为1时：说明子进程共享父进程的该类型资源数据，此时该资源计数递增1即可。</li>
 </ul>
-<p><img src="/media/imgs/20200502-sgfap-process/clone_res.png" alt="clone_res" title="clone_res"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200502-sgfap-process/clone_res.png" alt="clone_res" title="clone_res"></p>
 <p>这里调用了如下的<code>copy_*</code>函数完成工作：</p>
 <ul>
 <li><code>copy_semundo</code>函数：如果<code>COPY_SYSVSEM</code>置位，则使用父进程的System V信号量。</li>
@@ -434,7 +485,7 @@ father process is exiting.
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
@@ -463,7 +514,7 @@ father process is exiting.
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -472,7 +523,7 @@ father process is exiting.
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  
+  <meta name="author" content="codedump">
+
+  
+  
+  <meta name="description" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇">
+  
+
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
+
+  
+  
+  <meta name="keywords" content=" Raft  周刊  一致性算法 ">
+  
+
+  
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
+
+  
+  <meta property="og:title" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇" />
+<meta property="og:description" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://www.codedump.info/post/20220507-weekly-14/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2022-05-07T17:57:08+08:00" />
+<meta property="article:modified_time" content="2022-05-07T17:57:08+08:00" />
+
+
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20220507-weekly-14/">
+
+  
+  
+  <meta itemprop="name" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇">
+<meta itemprop="description" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇"><meta itemprop="datePublished" content="2022-05-07T17:57:08+08:00" />
+<meta itemprop="dateModified" content="2022-05-07T17:57:08+08:00" />
+<meta itemprop="wordCount" content="2674">
+<meta itemprop="keywords" content="周刊,raft,分布式," />
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇"/>
+<meta name="twitter:description" content="周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇"/>
+
+
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
+
+  <nav>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">归档</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/tags/">标签</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/categories/">分类</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+  </nav>
+</header>
+
+    
+<main id="main" class="post">
+  
+  
+  <h1>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%91%A8%E5%88%8A'>#周刊</a>
+    
+    <a class="link" href='https://www.codedump.info/tags/raft'>#raft</a>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F'>#分布式</a>
+    
+  </div>
+  
+  
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#单步成员变更存在的问题">单步成员变更存在的问题</a>
+      <ul>
+        <li><a href="#正确性问题">正确性问题</a></li>
+        <li><a href="#可用性问题">可用性问题</a></li>
+      </ul>
+    </li>
+    <li><a href="#joint-consensus算法如何解决可用性问题">Joint Consensus算法如何解决可用性问题</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
+  <article class="content">
+    
+    <hr>
+<p>引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。</p>
+<hr>
+<h1 id="重读raft论文中的集群成员变更算法二实践篇">重读Raft论文中的集群成员变更算法（二）：实践篇</h1>
+<h2 id="单步成员变更存在的问题">单步成员变更存在的问题</h2>
+<h3 id="正确性问题">正确性问题</h3>
+<p>单步变更成员时，可能出现正确性问题。如下面的例子所示，最开始时，系统的成员是<code>{a,b,c,d}</code>这四个节点的集合，要将节点<code>u</code>和<code>v</code>加入集群，按照单步变更成员的做法，依次会经历：<code>{a,b,c,d}</code>-&gt;<code>{a,b,c,d,u}</code>-&gt;<code>{a,b,c,d,u,v}</code>的变化，每次将一个节点加入到集群里。</p>
+<p>上面的步骤看起来很美好，但是考虑下面的例子，在变更过程中leader节点发生了变化的情况：</p>
+<pre tabindex="0"><code>C₀ = {a, b, c, d}
+Cᵤ = C₁ ∪ {u}
+Cᵥ = C₁ ∪ {v}
+
+Lᵢ: Leader in term `i`
+Fᵢ: Follower in term `i`
+☒ : crash
+
+    |
+ u  |         Cᵤ                  F₂  Cᵤ
+--- | ----------------------------------
+ a  | C₀  L₀  Cᵤ  ☒               L₂  Cᵤ
+ b  | C₀  F₀          F₁          F₂  Cᵤ
+ c  | C₀  F₀          F₁  Cᵥ          Cᵤ
+ d  | C₀              L₁  Cᵥ  ☒       Cᵤ
+--- | ----------------------------------
+ v  |                     Cᵥ                  time
+    +--------------------------------------------&gt;
+          t₁  t₂  t₃  t₄  t₅  t₆  t₇  t₈
+</code></pre><p>（引用自<a href="https://blog.openacid.com/distributed/raft-bug/">TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog</a>）</p>
+<p>上面的流程中，纵坐标是集群中的节点，横坐标是不同的时间（注意不是任期），<code>Li</code>表示在任期i时候的leader节点，<code>Fi</code>表示在任期i时候的follower节点。</p>
+<p>上图的流程阐述如下：</p>
+<ul>
+<li>t1：a节点被选为任期0的leader，而b、c节点为follower。</li>
+<li>t2：将节点u加入集群，但是这条加入集群的日志，仅达到了a和u节点，由于这条日志并没有半数以上通过，所以这时候节点u还并未成功加入集群。</li>
+<li>t3：节点a宕机。</li>
+<li>t4：由于原先的leader宕机，于是集群需要选出新的leader，选出来的新leader是节点d，这是任期1时候的leader。</li>
+<li>t5：节点v加入集群，加入集群的日志，到达了节点c、d、v上面，可以看到由于这条日志到了此时集群的半数以上节点上（因为这时候节点a宕机，因此只有三个节点在服务，于是只有有2个节点同意就认为可被提交），所以实际是已经提交的，即v加入集群的操作是成功的。</li>
+<li>t6：leader d宕机。</li>
+<li>t7：宕机的节点a恢复服务，看到本地有将节点u加入到集群的日志，于是它认为节点u、b是这个任期的follower节点。</li>
+<li>t8：此时节点d恢复服务，而leader a将之前把节点u加入集群的日志同步给当前集群的所有节点，这造成了之前v加入集群且已被提交的日志丢失。</li>
+</ul>
+<p>出现这个问题，本质是因为：上一任leader的变更日志，还未同步到集群半数以上节点就宕机，这时候新一任leader就进行成员变更，这样导致了形成两个不同的集群，产生脑裂将已经提交的日志被覆盖。</p>
+<p>Raft作者在<a href="https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J">bug in single-server membership changes</a>描述了这一现象。</p>
+<p>解决的办法也很简单：即每次新当选的leader不允许直接提交在它本地的日志，而必须先提交一个no-op日志，才能开始同步。这个问题的描述，在之前的博客有描述：<a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志</a></p>
+<h3 id="可用性问题">可用性问题</h3>
+<p>除了以上正确性问题，单步变更还有可能出现可用性问题：当需要替换的节点在同一机房的时候，如果这个机房网络与集群中其他机房的网络断开，就会导致无法选出leader，以致于集群无法提供服务。来看下面的例子。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220507-weekly-14/availability.png" alt="availability" title="availability"></p>
+<p>在上图中，原先集群中有三个节点分别位于三个机房：机房1的节点a、机房2的节点b、机房3的节点c。现在由于各种原因，想把机房1的节点a下线，换成同机房的节点d到集群中继续服务。</p>
+<p>可以看到，这个替换操作涉及到一个节点的加入和一个节点的离开，可能有如下两种可能的步骤：</p>
+<ul>
+<li>先加入新节点d再删除节点a：<code>{a,b,c}</code>-&gt;<code>{a,b,c,d}</code>-&gt;<code>{b,c,d}</code>。</li>
+<li>先删除节点a再加入新节点d：<code>{a,b,c}</code>-&gt;<code>{b,c}</code>-&gt;<code>{b,c,d}</code>。</li>
+</ul>
+<p>两种步骤各有优劣，第二种方案的问题是：中间只有两个节点在服务，一旦这时候又发生宕机，则集群就不可用了。</p>
+<p>第一种方案中，按照上图中的例子，如果正好要替换的a、d节点都位于同一个机房里面，那么假如这个机房的网络也与其它机房隔离，那么只有两个节点在服务，这时候在四节点（中间步骤）的条件下也无法服务。</p>
+<p>以上是单步变更中可能出现的两类问题。可以看到，尽管单步变更算法看起来实现简单，但是实则有很多细节需要注意。虽然Raft论文中认为单步变更是更简单的办法，但是现在主流的实现都使用了Joint Consensus（联合共识）算法。</p>
+<h2 id="joint-consensus算法如何解决可用性问题">Joint Consensus算法如何解决可用性问题</h2>
+<p>针对上面提到的：替换同一机房中的不同节点，中间过程中可能由于这个机房被网络隔离，导致的集群不可用（选不出leader）问题，来看看Joint Consensus算法是如何解决的。</p>
+<p>先来回顾一下步骤，如果使用Joint Consensus算法，需要经历两阶段提交：</p>
+<ul>
+<li>首先提交<code>C_Old</code>$\bigcup$  <code>C_New</code>。</li>
+<li>然后提交<code>C_New</code>。</li>
+</ul>
+<p>把集合换成这里的例子，就是：</p>
+<ul>
+<li>首先提交<code>{a,b,c}</code> $\bigcup$ <code>{a,b,c,d}</code> 。</li>
+<li>然后提交 <code>{a,b,c,d}</code>。</li>
+</ul>
+<p>来看这两阶段中可能出现宕机的情况：</p>
+<ul>
+<li>第一阶段时leader节点宕机，这个leader节点只有可能是两种情况，其集群配置还是<code>C_Old</code>，或者已经收到了<code>C_Old</code>$\bigcup$  <code>C_New</code>：
+<ul>
+<li><code>C_Old</code>：由于这时候这个leader并没有第一阶段提交的<code>C_Old</code>$\bigcup$  <code>C_New</code>节点集合变更，因此那些已有<code>C_Old</code>$\bigcup$  <code>C_New</code>节点集合的follower这部分的日志将被截断，成员变更失败，回退回<code>C_Old</code>集合。</li>
+<li><code>C_Old</code>$\bigcup$  <code>C_New</code>：这意味这个leader已经有第一阶段提交的<code>C_Old</code>$\bigcup$  <code>C_New</code>节点集合变更，可以继续将未完成的成员变更流程走完。</li>
+</ul>
+</li>
+</ul>
+<p>类似的，在第二阶段时leader节点宕机，也不会导致选不出leader的情况，可以类似推导。</p>
+<p>可见：直接使用Joint Consensus算法并不会存在单步变更时的可用性问题。</p>
+<h2 id="总结">总结</h2>
+<ul>
+<li>Raft集群的单步变更算法，虽然看起来”简单“，但是实践起来有不少细节需要注意。</li>
+<li>虽然论文里提到单步变更算法比之Joint Consensus算法更为简单，很多开源的Raft实现都已经以Joint Consensus算法做为默认的实现了。</li>
+</ul>
+<p>（之前写过etcd 3.5版本的实现解析，见：<a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/">etcd 3.5版本的joint consensus实现解析 - codedump的网络日志</a>）</p>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li><a href="https://mp.weixin.qq.com/s/VKu7fBLliztx3tzvzYDkqw">Raft成员变更的工程实践</a></li>
+<li><a href="https://blog.openacid.com/distributed/raft-bug/">TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog</a></li>
+<li><a href="https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J">bug in single-server membership changes</a></li>
+<li><a href="https://gist.github.com/ongardie/a11f32b70581e20d6bcd">Safety of Raft single-server membership changes</a></li>
+<li><a href="https://github.com/peterbourgon/raft/blob/master/JOINT-CONSENSUS.md">raft/JOINT-CONSENSUS.md at master · peterbourgon/raft</a></li>
+</ul>
+
+    
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20220417-weekly-13/">← prev</a>
+    
+    
+    <a class="link" href="https://www.codedump.info/post/20200122-series-pages/">next →</a>
+    
+  </div>
+
+    
+<h1>相关文章</h1><li><strong> 17049-04-17: </strong> <a href="https://www.codedump.info/post/20220417-weekly-13/">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>  </li><li><strong> 1019-01-01: </strong> <a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/">etcd 3.5版本的joint consensus实现解析</a>  </li><li><strong> 11109-10-11: </strong> <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a>  </li><li><strong> 28069-06-28: </strong> <a href="https://www.codedump.info/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a>  </li><li><strong> 15059-05-15: </strong> <a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a>  </li><li><strong> 25119-11-25: </strong> <a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a>  </li><li><strong> 22099-09-22: </strong> <a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a>  </li><li><strong> 21099-09-21: </strong> <a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a>  </li>
+
+<h1>邮件订阅</h1>
+
+<div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+    <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
+  </form>
+</div>
+
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/%E5%91%A8%E5%88%8A/">周刊</a>
+          <a href="/tags/raft/">raft</a>
+          <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
+    
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
+    
+  </div>
+
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
+        
+      </div>
+      <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+  
+    <script src="https://utteranc.es/client.js"
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+    </div>
+  </main>
+
+
+  
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
+<a class=link href=https://twitter.com/lichuang>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
+
+
+
+  
+  
+
+  
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+</body>
+
+</html>

@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇" />
@@ -44,7 +68,7 @@
 <meta itemprop="description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇"><meta itemprop="datePublished" content="2022-04-17T15:16:30+08:00" />
 <meta itemprop="dateModified" content="2022-04-17T15:16:30+08:00" />
 <meta itemprop="wordCount" content="3569">
-<meta itemprop="keywords" content="周刊,存储引擎," />
+<meta itemprop="keywords" content="周刊,raft,分布式," />
 
   
   <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
@@ -121,9 +145,32 @@
     
     <a class="link" href='https://www.codedump.info/tags/%E5%91%A8%E5%88%8A'>#周刊</a>
     
-    <a class="link" href='https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E'>#存储引擎</a>
+    <a class="link" href='https://www.codedump.info/tags/raft'>#raft</a>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F'>#分布式</a>
     
   </div>
+  
+  
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#安全性">安全性</a></li>
+    <li><a href="#一次变更单个节点">一次变更单个节点</a></li>
+    <li><a href="#一次变更多个节点">一次变更多个节点</a>
+      <ul>
+        <li><a href="#failover">Failover</a></li>
+      </ul>
+    </li>
+    <li><a href="#集群变更何时生效">集群变更何时生效？</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav></div>
+  </details>
   
   
   <article class="content">
@@ -135,7 +182,7 @@
 <p>“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《<a href="https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf">Consensus: Bridging Theory and Practice</a>》中有专门的一节来讲解这部分内容。</p>
 <h2 id="安全性">安全性</h2>
 <p>首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：</p>
-<p><img src="/media/imgs/20220417-weekly-13/4.2.png" alt="4.2" title="4.2"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.2.png" alt="4.2" title="4.2"></p>
 <p>在上图的图示中：</p>
 <ul>
 <li>旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。</li>
@@ -151,7 +198,7 @@
 <li>一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。</li>
 <li>直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。</li>
 </ul>
-<p><img src="/media/imgs/20220417-weekly-13/cluster-membership-change.png" alt="cluster-membership-change" title="cluster-membership-change"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/cluster-membership-change.png" alt="cluster-membership-change" title="cluster-membership-change"></p>
 <p>于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：</p>
 <ul>
 <li>要么一次性严格限制只变更一个节点。</li>
@@ -161,7 +208,7 @@
 <h2 id="一次变更单个节点">一次变更单个节点</h2>
 <p>如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。</p>
 <p>论文中以下面几个例子来说明这样操作的正确性：</p>
-<p><img src="/media/imgs/20220417-weekly-13/4.3.png" alt="4.3" title="4.3"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.3.png" alt="4.3" title="4.3"></p>
 <p>这几个图，是在两个维度上做示范的：</p>
 <ul>
 <li>增、删操作。</li>
@@ -177,7 +224,7 @@
 </ul>
 <p>可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。</p>
 <p>从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：</p>
-<p><img src="/media/imgs/20220417-weekly-13/4.8.png" alt="4.8" title="4.8"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220417-weekly-13/4.8.png" alt="4.8" title="4.8"></p>
 <h3 id="failover">Failover</h3>
 <p>我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。</p>
 <p>第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：</p>
@@ -245,12 +292,12 @@
     <a class="link" href="https://www.codedump.info/post/20220410-weekly-12/">← prev</a>
     
     
-    <a class="link" href="https://www.codedump.info/post/20200122-series-pages/">next →</a>
+    <a class="link" href="https://www.codedump.info/post/20220507-weekly-14/">next →</a>
     
   </div>
 
     
-<h1>相关文章</h1><li><strong> 10049-04-10: </strong> <a href="https://www.codedump.info/post/20220410-weekly-12/">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</a>  </li><li><strong> 27039-03-27: </strong> <a href="https://www.codedump.info/post/20220327-weekly-11/">周刊（第11期）：mmap适用于存储引擎吗？</a>  </li>
+<h1>相关文章</h1><li><strong> 7059-05-07: </strong> <a href="https://www.codedump.info/post/20220507-weekly-14/">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>  </li><li><strong> 1019-01-01: </strong> <a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/">etcd 3.5版本的joint consensus实现解析</a>  </li><li><strong> 11109-10-11: </strong> <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a>  </li><li><strong> 28069-06-28: </strong> <a href="https://www.codedump.info/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a>  </li><li><strong> 15059-05-15: </strong> <a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a>  </li><li><strong> 25119-11-25: </strong> <a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a>  </li><li><strong> 22099-09-22: </strong> <a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a>  </li><li><strong> 21099-09-21: </strong> <a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a>  </li>
 
 <h1>邮件订阅</h1>
 
@@ -262,11 +309,12 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%91%A8%E5%88%8A/">周刊</a>
-          <a href="/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">存储引擎</a>
+          <a href="/tags/raft/">raft</a>
+          <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
           </div><div class="comment">
     
     <div id="disqus_thread"></div>
@@ -292,7 +340,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -301,7 +349,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

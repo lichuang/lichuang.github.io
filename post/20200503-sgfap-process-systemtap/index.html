@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为" />
@@ -124,6 +148,23 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#off-cpu">off CPU</a></li>
+    <li><a href="#on-cpu">on CPU</a></li>
+    <li><a href="#off-cpu的时间计算以及调用栈">off cpu的时间计算以及调用栈</a></li>
+    <li><a href="#on-cpu的时间计算以及调用栈">on cpu的时间计算以及调用栈</a></li>
+    <li><a href="#火焰图">火焰图</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <blockquote>
@@ -139,7 +180,7 @@
 <li>而所有不处于可运行状态的进程，并不占用CPU资源，这些进程都等待被相关的事件比如网络IO唤醒，唤醒之后的进程更改状态为可运行状态，同时加入到就绪队列中，然后才能被调度器算法选择执行。</li>
 </ul>
 <p>因此，一个进程的整个生命周期中，虽然看上去进程一直存在，但是并不是所有时候都占用CPU资源。根据CPU占用资源与否，或者说当前是否在运行，分为<code>on cpu</code>和<code>off cpu</code>状态：</p>
-<p><img src="/media/imgs/20200503-sgfap-process-systemtap/onoffcpu.png" alt="onoffcpu" title="onoffcpu"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-systemtap/onoffcpu.png" alt="onoffcpu" title="onoffcpu"></p>
 <p>上图中就一个进程执行的时间线做了简单的阶段划分，其中省略掉了进程被创建出来和最后退出时的情况，仅列出占用CPU资源状态的切换。</p>
 <ul>
 <li>进程占用CPU获得执行权的时候，称为<code>on cpu</code>时间。</li>
@@ -245,7 +286,7 @@ probe timer.s($1) {
 }
 </code></pre><p>内核函数在<code>finish_task_switch</code>在完成进程切换时被调用，其中的参数<code>task_prev</code>记录的是被切换出去的进程<code>task_struct</code>结构体指针。</p>
 <p>需要注意的是，<code>scheduler.cpu_off</code>是在<code>context_switch</code>函数中被触发，而<code>scheduler.cpu_on</code>是在<code>finish_task_switch</code>函数中被触发，<code>context_switch</code>函数中调用了<code>finish_task_switch</code>函数来完成进程上下文切换的工作，这时候才意味着新的进程真正获得了执行权。</p>
-<p><img src="/media/imgs/20200503-sgfap-process-systemtap/context_switch_probe.png" alt="context_switch_probe" title="context_switch_probe"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-systemtap/context_switch_probe.png" alt="context_switch_probe" title="context_switch_probe"></p>
 <p>因此，可以认为：</p>
 <ul>
 <li><code>scheduler.cpu_off</code>：在这个调用点上一个执行进程失去执行权。</li>
@@ -431,20 +472,20 @@ probe timer.s(2) {
 # 生成火焰图的svg文件
 ./flamegraph.pl flame.cbt &gt; flame.svg
 </code></pre><p>以上的流程总结如下：</p>
-<p><img src="/media/imgs/20200503-sgfap-process-systemtap/hotpot.png" alt="hotpot" title="hotpot"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-systemtap/hotpot.png" alt="hotpot" title="hotpot"></p>
 <p>下图是火焰图的一个示例，火焰图分为以下几个部分：</p>
 <ul>
 <li>横轴：函数调用的时间占比。直观来看，横轴上越宽的函数调用，其采样到的数据就越多，这样才能直观的看到“热点”在哪些函数调用上。</li>
 <li>纵轴：函数的调用栈信息。</li>
 </ul>
-<p><img src="/media/imgs/20200503-sgfap-process-systemtap/hotpot-example.svg" alt="hotpot-example" title="hotpot-example"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-systemtap/hotpot-example.svg" alt="hotpot-example" title="hotpot-example"></p>
 <h1 id="进程状态的切换">进程状态的切换</h1>
 <p>前面几个部分，已经可以观测出来进程在<code>on cpu</code>和<code>off cpu</code>上面花费的时间、执行热点、调用栈等信息了，但是程序在非执行时间，其实还可以细分为以下几个状态：</p>
 <ul>
 <li>进程的执行权是被抢占的，本身并没有任何放弃执行权的操作。此时就意味着，进程还一直在就绪队列中，只不过被优先级更高的进程抢占了执行权。</li>
 <li>进程因为等待IO、主动休眠等原因，让出了执行权，此时还可以细分为进程是休眠还是在等待IO事件完成后再唤醒进程执行。</li>
 </ul>
-<p><img src="/media/imgs/20200503-sgfap-process-systemtap/offcpu.png" alt="offcpu" title="offcpu"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-systemtap/offcpu.png" alt="offcpu" title="offcpu"></p>
 <p>本节中来看看如何使用systemtap脚本来具体统计程序在这几个细分状态中的执行时间。</p>
 <p>先从描述进程的<code>task_struct</code>结构体信息说起，这部分在前面专门讲解<code>task_struct</code>结构体的部分有专门介绍，这里仅作简单的回顾。</p>
 <p><code>task_struct</code>结构体中，成员<code>state</code>用来表示进程当前的状态，有以下几个互斥的值：</p>
@@ -591,7 +632,7 @@ probe kernel.trace(&#34;sched_wakeup&#34;)
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
@@ -620,7 +661,7 @@ probe kernel.trace(&#34;sched_wakeup&#34;)
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -629,7 +670,7 @@ probe kernel.trace(&#34;sched_wakeup&#34;)
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

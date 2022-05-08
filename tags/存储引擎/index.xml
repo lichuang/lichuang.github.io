@@ -6,127 +6,7 @@
     <description>Recent content in 存储引擎 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 Apr 2022 15:16:30 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</title>
-      <link>https://www.codedump.info/post/20220417-weekly-13/</link>
-      <pubDate>Sun, 17 Apr 2022 15:16:30 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20220417-weekly-13/</guid>
-      
-      <description>&lt;hr&gt;
-&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1 id=&#34;重读raft论文中的集群成员变更算法一理论篇&#34;&gt;重读Raft论文中的集群成员变更算法（一）：理论篇&lt;/h1&gt;
-&lt;p&gt;“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《&lt;a href=&#34;https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf&#34;&gt;Consensus: Bridging Theory and Practice&lt;/a&gt;》中有专门的一节来讲解这部分内容。&lt;/p&gt;
-&lt;h2 id=&#34;安全性&#34;&gt;安全性&lt;/h2&gt;
-&lt;p&gt;首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.2.png&#34; alt=&#34;4.2&#34; title=&#34;4.2&#34;&gt;&lt;/p&gt;
-&lt;p&gt;在上图的图示中：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。&lt;/li&gt;
-&lt;li&gt;如果直接如图中这样变更，由于每个节点的时间窗口并不一致，可能就会出现这种情况：
-&lt;ul&gt;
-&lt;li&gt;在某一时刻，节点1、2还使用的是旧集群（只含有{1,2,3}）的成员配置，而3、4、5已经是新集群（含有{1,2,3,4,5}）的成员配置了。&lt;/li&gt;
-&lt;li&gt;这样就可能出现还使用旧集群节点配置的1、2选出了一个leader，以及已经使用了新集群配置的节点3、4、5选出了另一个leader的情况，于是违反了上面阐述的“安全性”要求。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;需要说明的是，在上面这个错误的示例中，是由于有两类行为同时出现才导致的错误：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。&lt;/li&gt;
-&lt;li&gt;直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/cluster-membership-change.png&#34; alt=&#34;cluster-membership-change&#34; title=&#34;cluster-membership-change&#34;&gt;&lt;/p&gt;
-&lt;p&gt;于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;要么一次性严格限制只变更一个节点。&lt;/li&gt;
-&lt;li&gt;如果实在想一次变更多个节点，那就不能直接变更，需要经过一个中间状态的过渡之后才能完成同时变更多个节点的操作。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;以下分别来阐述这两种不同的实现。&lt;/p&gt;
-&lt;h2 id=&#34;一次变更单个节点&#34;&gt;一次变更单个节点&lt;/h2&gt;
-&lt;p&gt;如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。&lt;/p&gt;
-&lt;p&gt;论文中以下面几个例子来说明这样操作的正确性：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.3.png&#34; alt=&#34;4.3&#34; title=&#34;4.3&#34;&gt;&lt;/p&gt;
-&lt;p&gt;这几个图，是在两个维度上做示范的：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;增、删操作。&lt;/li&gt;
-&lt;li&gt;原集群节点数量是奇数还是偶数。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;两个维度的组合一共就是上面的4中情况，但是无论哪一种情况，由于都保证了“新、旧集合的quorum集合是有重合的”这个条件，于是不会选出不一样的leader来。&lt;/p&gt;
-&lt;h2 id=&#34;一次变更多个节点&#34;&gt;一次变更多个节点&lt;/h2&gt;
-&lt;p&gt;从上面的例子中可以看到：只要能保证一次只变更一个节点，是可以直接（directly）变更的。即：无需中间状态，直接从A集合变更到A+1集合，因为这两个集合的quorum肯定有重合。&lt;/p&gt;
-&lt;p&gt;但是，在一次需要变更多个节点的情况下，就不能这样直接变更，因为会出现最开始示例的那样同时选出两个leader的情况。于是，为了解决这个问题，需要引入一个中间状态：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;假设原先的集群节点集合为C_Old，新的集群节点集合为C_New，那么首先变更配置到{C_Old,C_New}，也就是新旧集群节点集合的并集。&lt;/li&gt;
-&lt;li&gt;上面这次变更提交之后，再向集群变更配置到C_New。在这次变更提交之后，那些不在C_New节点集合中的节点，收到这个变更时，自动下线退出集群。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。&lt;/p&gt;
-&lt;p&gt;从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220417-weekly-13/4.8.png&#34; alt=&#34;4.8&#34; title=&#34;4.8&#34;&gt;&lt;/p&gt;
-&lt;h3 id=&#34;failover&#34;&gt;Failover&lt;/h3&gt;
-&lt;p&gt;我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。&lt;/p&gt;
-&lt;p&gt;第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;只有C_Old节点集合的节点：由于这时候这个leader并没有第一阶段提交的{C_Old,C_New}节点集合变更，因此那些已有{C_Old,C_New}节点集合的follower这部分的日志将被截断，成员变更失败，回退回C_Old集合。&lt;/li&gt;
-&lt;li&gt;有{C_Old,C_New}节点集合的节点：这意味这个leader已经有第一阶段提交的{C_Old,C_New}节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;类似的，也可以去推导一下在第二阶段出现leader宕机时，选出来的leader只可能具备两种情况，但是这两种情况都不可能选出多个leader。&lt;/p&gt;
-&lt;h2 id=&#34;集群变更何时生效&#34;&gt;集群变更何时生效？&lt;/h2&gt;
-&lt;p&gt;以上讲解完毕两种不同的集群变更方式，下面来聊一聊集群变更何时生效。&lt;/p&gt;
-&lt;p&gt;在Raft、Paxos这类状态机模型的一致性算法中，将任何变更操作都认为是一个命令（Command），命令的处理流程是这样的：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;状态机收到命令，首先在自己本地将命令持久化。&lt;/li&gt;
-&lt;li&gt;然后广播给集群中的其他节点。&lt;/li&gt;
-&lt;li&gt;当收到集群半数以上节点的应答时，认为命令是可以被提交（commit）的，于是可以生效将这些已经被提交的日志传给应用层的状态机使用了。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;以上流程可以看到：一条命令，只有在“提交（commit）”之后才能“生效（apply）”。&lt;/p&gt;
-&lt;p&gt;在Raft中，“成员变更”这个操作，也是一类命令，即：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-rust&#34; data-lang=&#34;rust&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#00f&#34;&gt;Command&lt;/span&gt;&lt;span style=&#34;color:#bbb&#34;&gt; &lt;/span&gt;{&lt;span style=&#34;color:#bbb&#34;&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;LogEntry,&lt;span style=&#34;color:#bbb&#34;&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;	&lt;/span&gt;MembershipChange,&lt;span style=&#34;color:#bbb&#34;&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#bbb&#34;&gt;&lt;/span&gt;};&lt;span style=&#34;color:#bbb&#34;&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样设计的好处在于：处理成员变更操作，和一般的日志并没有区别，于是不存在一个特定的时间被称为“处理成员变更的时间”，在这个时间里停止响应一般的命令。&lt;/p&gt;
-&lt;p&gt;但是与一般命令不同的是，“成员变更”操作并不需要等到多数通过才能生效。注意，对于一般命令而言，要“生效”必须首先“提交”，而集群变更类命令的生效没有这个依赖关系。&lt;/p&gt;
-&lt;p&gt;即，在Raft的成员变更流程中，节点在收到一个新集群节点配置之后，是马上生效的，无需等待半数以上通过。&lt;/p&gt;
-&lt;p&gt;这是在阅读Raft论文这一部分内容时，经常被忽略的部分。为什么集群变更类指令，可以这么做，以及这样做会不会出问题？&lt;/p&gt;
-&lt;p&gt;为了安全性，Raft在进行集群变更操作时，无论是“单次变更一个节点”还是“一次变更多个节点”，在不同的阶段都不能有重叠（overlap）的情况出现，因为重叠意味着可能违反前面提到的安全性。比如将一个集群节点集合从{1,2,3}变更为{1,4,5}，如果使用这两种方式，步骤分别是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;单次变更一个节点：{1,2,3}-&amp;gt;{1,2,3,4} （增加节点4）-&amp;gt;{1,2,3,4,5} （增加节点5）-&amp;gt;{1,3,4,5} （删除节点2）-&amp;gt; {1,4,5} （删除节点3）。&lt;/li&gt;
-&lt;li&gt;单次变更多个节点：{1,2,3}（C_Old）-&amp;gt; {1,2,3,4,5}（{C_Old,C_New}）-&amp;gt; {1,4,5}（C_Old,C_New）。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;可以看到，无论采用哪一种方式，都会有多个步骤。由leader来决定当前的步骤，其判断的标准是：前一步修改的日志，是否已经被提交（半数以上同意）。所以，如果成员变更类的日志在提交之后才生效的话，leader就需要再多一个步骤：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;首先确认日志已经被提交到半数以上节点。&lt;/li&gt;
-&lt;li&gt;在这之后，再确认这个成员变更已经在节点上生效。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;而后面的这个确认，是可以避免的。因为根据前面&lt;code&gt;failover&lt;/code&gt;部分的分析，无论哪一种情况出现，即便在变更的过程中leader宕机，也不会出现选出多个leader的情况。&lt;/p&gt;
-&lt;p&gt;于是，对于成员变更类的日志来说，Raft的规则是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;多次提交不能重叠（overlap），即如果当前已经有还未提交的成员变更日志，在它提交之前不允许提交新的成员变更修改。&lt;/li&gt;
-&lt;li&gt;成员变更的生效，无需等待提交，每个节点在收到这类日志的时候，就能马上修改本节点上的成员为最新的这个配置。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;Raft算法要求任何时候都要保证安全性（safety）：不能在同一时间在集群中存在两个不同的leader节点。&lt;/li&gt;
-&lt;li&gt;如果以下两个操作同时发生，就有可能违反安全性：
-&lt;ul&gt;
-&lt;li&gt;一次变更多个节点。&lt;/li&gt;
-&lt;li&gt;直接变更集群的节点集合。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;由这两个限制出发，分别有以下两种实现成员变更的算法：
-&lt;ul&gt;
-&lt;li&gt;限制每次只变更一个节点，这种情况下可以直接变更成员。&lt;/li&gt;
-&lt;li&gt;每次可以变更任意数量的节点，但是必须通过两阶段提交完成才能生效：第一次从C_Old变成{C_Old,C_New}节点集合，第二次从{C_Old,C_New}变成C_New。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;“成员变更”类命令，在Raft算法看来也是一条日志。但是与普通日志命令不同的是，成员变更类日志的生效，无需等待这条日志提交了才能生效，可以在收到之后马上生效。&lt;/li&gt;
-&lt;/ul&gt;
-</description>
-      
-    </item>
-    
+    <lastBuildDate>Sun, 10 Apr 2022 11:38:16 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</title>
       <link>https://www.codedump.info/post/20220410-weekly-12/</link>
@@ -2635,6 +2515,283 @@ typedef struct sqlite3_pcache sqlite3_pcache;
 &lt;li&gt;boltdb同时允许一个写操作事务和多个读操作事务，实现&lt;code&gt;MVCC&lt;/code&gt;操作的核心是使用了&lt;code&gt;append B+树&lt;/code&gt;的方式：即写事务不直接覆盖需要修改的页面内容，而是写到新分配的空闲页面中，这样读操作即便读到了有内容修改的页面也还是上一个事务的内容，直到写事务提交时才一次性加锁修改数据库的元信息使修改生效。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;整体来看，代码量很精简，核心只有几千行的Go代码，也是生产级别的存储引擎，在这里学习到了B+树的实现以及&lt;code&gt;MVCC&lt;/code&gt;实现的方式，学习的性价比还是很高的。&lt;/p&gt;
+</description>
+      
+    </item>
+    
+    <item>
+      <title>boltdb 1.3.0实现分析（三）</title>
+      <link>https://www.codedump.info/post/20200725-boltdb-3/</link>
+      <pubDate>Sat, 25 Jul 2020 11:26:33 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20200725-boltdb-3/</guid>
+      
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20180921-raft/&#34;&gt;Raft算法原理&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20180922-etcd-raft/&#34;&gt;etcd Raft库解析&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20181125-etcd-server/&#34;&gt;Etcd存储的实现&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200609-btree-1/&#34;&gt;B树、B+树索引算法原理（上）&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200615-btree-2/&#34;&gt;B树、B+树索引算法原理（下）&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;本文的写作，主要参考了&lt;a href=&#34;https://www.jianshu.com/p/b86a69892990&#34;&gt;《区块的持久化之BoltDB》系列文章&lt;/a&gt;以及&lt;a href=&#34;https://youjiali1995.github.io/storage/boltdb&#34;&gt;boltdb 源码分析&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;在前面的文章里，分别介绍了boltdb的几种页面格式、Bucket以及Cursor结构，本文介绍boltdb的事务（Transaction）。&lt;/p&gt;
+&lt;h1 id=&#34;概述&#34;&gt;概述&lt;/h1&gt;
+&lt;p&gt;boltdb支持事务的&lt;code&gt;ACID&lt;/code&gt;特性，使用&lt;code&gt;MVCC&lt;/code&gt;来做并发控制，同时可以执行一个写事务和多个读事务：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;原子性（Atomicity）：未提交的写事务操作都在内存中。在提交写事务的时候，按照B+树数据、freelist、meta元数据的顺序写入文件。在meta元信息写入之前，都可以进行回滚（rollback）操作，只有meta元信息写入成功才能认为写操作执行成功。&lt;/li&gt;
+&lt;li&gt;隔离性（Isolation）：每个读事务开始的时候获得一个版本号，读事务涉及到的页面不会被同时进行的写事务所覆盖；而每次写事务都会更新一个版本号。&lt;/li&gt;
+&lt;li&gt;持久性（Durability）：写事务在提交的时候，会将这次写操作修改的数据（dirty page）分配新的页面，写入文件持久化。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;本节首先讲解boltdb的事务基本实现，下一节讲解boltdb事务如何实现&lt;code&gt;MVCC&lt;/code&gt;。&lt;/p&gt;
+&lt;h1 id=&#34;事务初始化&#34;&gt;事务初始化&lt;/h1&gt;
+&lt;p&gt;boltdb中，任何一次读写操作，都有一个事务与之对应。这时候首先会调用&lt;code&gt;DB.Begin&lt;/code&gt;函数返回一个事务，而传入的参数会根据情况分别创建写和读事务：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (db &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB) &lt;span style=&#34;color:#00a000&#34;&gt;Begin&lt;/span&gt;(writable &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt;) (&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx, &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;error&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; writable {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; db.&lt;span style=&#34;color:#00a000&#34;&gt;beginRWTx&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; db.&lt;span style=&#34;color:#00a000&#34;&gt;beginTx&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可以看到，根据是否是写事务，会分别调用&lt;code&gt;beginRWTx&lt;/code&gt;和&lt;code&gt;beginTx&lt;/code&gt;来创建读写事务和只读事务。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;DB&lt;/code&gt;结构体中，仅有一个写事务成员，而读事务则可以同时存在多个，因此同一个时间只能有一个写事务：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;type&lt;/span&gt; DB &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	rwtx     &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx				&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 同一时间只能有一个未完成的写事务
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	txs      []&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx			&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 保存未完成的读事务的，读事务可以有多个，写事务一个时间只能有一个，就在rwtx里面
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}  
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200725-boltdb-3/beginTx.png&#34; alt=&#34;beginTx&#34; title=&#34;beginTx&#34;&gt;&lt;/p&gt;
+&lt;p&gt;了解了在&lt;code&gt;DB&lt;/code&gt;中如何使用事务，下面来看事务结构体的定义：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;type&lt;/span&gt; Tx &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	writable       &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 是否写事务
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	managed        &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	db             &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 对应的db
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	meta           &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;meta	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 对应的meta数据指针
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	root           Bucket	
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	pages          &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;map&lt;/span&gt;[pgid]&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;page	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 涉及到的page
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	stats          TxStats
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	commitHandlers []&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt;()	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// commit回调函数数组
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	WriteFlag &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;int&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;成员释义如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;writable：是否是可写的事务。&lt;/li&gt;
+&lt;li&gt;managed：表示当前的事务操作是否被db托管，即通过db的成员函数来读写数据库。boltdb还支持直接调用事务相关的成员函数来读写的，此时managed字段为false。&lt;/li&gt;
+&lt;li&gt;db：指向当前读写操作的db对象。&lt;/li&gt;
+&lt;li&gt;meta：开始事务时，会首先从db中初始化meta信息。&lt;/li&gt;
+&lt;li&gt;root：事务开始时的根Bucket，&lt;a href=&#34;https://www.codedump.info/post/20200711-boltdb-2/&#34;&gt;上一节&lt;/a&gt;中介绍了Bucket相关信息。&lt;/li&gt;
+&lt;li&gt;pages：存储该事务操作中读写所涉及到page。&lt;/li&gt;
+&lt;li&gt;stats：事务操作统计相关。&lt;/li&gt;
+&lt;li&gt;commitHandlers：存储事务在提交之后的回调函数。&lt;/li&gt;
+&lt;li&gt;WriteFlag: 复制或移动数据库文件时，指定的文件打开模式。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;上面这些成员中，最重要的就是&lt;code&gt;meta&lt;/code&gt;和&lt;code&gt;root&lt;/code&gt;字段，下面接着看看事务的初始化流程。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (tx &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx) &lt;span style=&#34;color:#00a000&#34;&gt;init&lt;/span&gt;(db &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	tx.db = db
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	tx.pages = &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Copy the meta page since it can be changed by the writer.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	tx.meta = &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;meta{}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// tx的meta数据拷贝当前的db meta数据
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	db.&lt;span style=&#34;color:#00a000&#34;&gt;meta&lt;/span&gt;().&lt;span style=&#34;color:#a2f&#34;&gt;copy&lt;/span&gt;(tx.meta)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Copy over the root bucket.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	tx.root = &lt;span style=&#34;color:#00a000&#34;&gt;newBucket&lt;/span&gt;(tx)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	tx.root.bucket = &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;bucket{}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;tx.root.bucket = tx.meta.root
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Increment the transaction id and add a page cache for writable transactions.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; tx.writable {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 如果是写操作，需要分配页面数组内存
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		tx.pages = &lt;span style=&#34;color:#a2f&#34;&gt;make&lt;/span&gt;(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;map&lt;/span&gt;[pgid]&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;page)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 递增一个事务id
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		tx.meta.txid &lt;span style=&#34;color:#666&#34;&gt;+=&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;txid&lt;/span&gt;(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;首先来看&lt;code&gt;meta&lt;/code&gt;的初始化流程。前面提到，&lt;code&gt;db&lt;/code&gt;数据结构中，存在两个&lt;code&gt;meta&lt;/code&gt;信息分别存储在数据库文件的第一和第二个页面，在&lt;code&gt;db.meta&lt;/code&gt;函数中，将选择两者中校验有效且事务ID更大的&lt;code&gt;meta&lt;/code&gt;返回：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (db &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB) &lt;span style=&#34;color:#00a000&#34;&gt;meta&lt;/span&gt;() &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;meta {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// We have to return the meta with the highest txid which doesn&amp;#39;t fail
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// validation. Otherwise, we can cause errors when in fact the database is
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// in a consistent state. metaA is the one with the higher txid.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	metaA &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; db.meta0
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	metaB &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; db.meta1
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; db.meta1.txid &amp;gt; db.meta0.txid {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		metaA = db.meta1
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		metaB = db.meta0
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Use higher meta page if valid. Otherwise fallback to previous, if valid.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; metaA.&lt;span style=&#34;color:#00a000&#34;&gt;validate&lt;/span&gt;(); err &lt;span style=&#34;color:#666&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; metaA
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	} &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;else&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; metaB.&lt;span style=&#34;color:#00a000&#34;&gt;validate&lt;/span&gt;(); err &lt;span style=&#34;color:#666&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; metaB
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// This should never be reached, because both meta1 and meta0 were validated
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// on mmap() and we do fsync() on every write.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f&#34;&gt;panic&lt;/span&gt;(&lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;bolt.DB.meta(): invalid meta pages&amp;#34;&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;可以看到有两个&lt;code&gt;meta&lt;/code&gt;页面的原因在于：由于轮换使用两个&lt;code&gt;meta&lt;/code&gt;页面，这样两次不同的写事务操作，分别对应这两个&lt;code&gt;meta&lt;/code&gt;页面中的一个，假如其中一次失败了，也只是影响了其中一个页面。&lt;/p&gt;
+&lt;p&gt;拿到了这一次操作的&lt;code&gt;meta&lt;/code&gt;信息之后，就是根据这些信息来初始化&lt;code&gt;root&lt;/code&gt;的Bucket信息：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (tx &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx) &lt;span style=&#34;color:#00a000&#34;&gt;init&lt;/span&gt;(db &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ....
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  tx.root = &lt;span style=&#34;color:#00a000&#34;&gt;newBucket&lt;/span&gt;(tx)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  tx.root.bucket = &lt;span style=&#34;color:#666&#34;&gt;&amp;amp;&lt;/span&gt;bucket{}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;tx.root.bucket = tx.meta.root
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;在这里，根据拷贝出来的&lt;code&gt;meta&lt;/code&gt;信息，调用&lt;code&gt;newBucket&lt;/code&gt;函数创建了&lt;code&gt;Bucket&lt;/code&gt;返回到&lt;code&gt;tx.root&lt;/code&gt;中。一个&lt;code&gt;Bucket&lt;/code&gt;的&lt;code&gt;bucket&lt;/code&gt;成员，其内容是&lt;code&gt;Bucket&lt;/code&gt;的根节点page id以及序列号：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;type&lt;/span&gt; bucket &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;struct&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 根节点的page id
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	root pgid &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// page id of the bucket&amp;#39;s root-level page
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 单调递增的序列号
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	sequence &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;uint64&lt;/span&gt; &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// monotonically incrementing, used by NextSequence()
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;因此上面的流程就是：使用当前的&lt;code&gt;meta&lt;/code&gt;元信息，创建了一个&lt;code&gt;Bucket&lt;/code&gt;，该&lt;code&gt;Bucket&lt;/code&gt;的根节点page id以及序列号也都是从当前db的根&lt;code&gt;Bucket&lt;/code&gt;中拷贝的。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;tx.init&lt;/code&gt;函数的最后，根据是否写事务，将拷贝回来的&lt;code&gt;meta&lt;/code&gt;信息的事务id递增1：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (tx &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx) &lt;span style=&#34;color:#00a000&#34;&gt;init&lt;/span&gt;(db &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;DB) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ....
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Increment the transaction id and add a page cache for writable transactions.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; tx.writable {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 如果是写操作，需要分配页面数组内存
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		tx.pages = &lt;span style=&#34;color:#a2f&#34;&gt;make&lt;/span&gt;(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;map&lt;/span&gt;[pgid]&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;page)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 递增一个事务id
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;		tx.meta.txid &lt;span style=&#34;color:#666&#34;&gt;+=&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;txid&lt;/span&gt;(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这样，在最后写事务完成之后，将&lt;code&gt;meta&lt;/code&gt;信息写回磁盘时，就比原先的事务ID加一。&lt;/p&gt;
+&lt;h1 id=&#34;事务提交&#34;&gt;事务提交&lt;/h1&gt;
+&lt;p&gt;前面介绍了事务的初始化流程，由于boltdb内部是一个B+树结构，所以boltdb中涉及到读写的流程就不再阐述，基本就是一个B+树的读写流程，如果不清楚这部分的原理，可以去补充一下B+树相关的知识：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200609-btree-1/&#34;&gt;B树、B+树索引算法原理（上）&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200615-btree-2/&#34;&gt;B树、B+树索引算法原理（下）&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;在这一小节，只介绍读写流程完毕之后的事务提交流程，这部分内容在&lt;code&gt;Tx.Commit&lt;/code&gt;函数中实现。boltdb的事务提交流程大体分为以下几步：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;B+树的重平衡及节点分裂。&lt;/li&gt;
+&lt;li&gt;调整freelist页面信息。&lt;/li&gt;
+&lt;li&gt;将meta信息写回磁盘。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200725-boltdb-3/commitTx.png&#34; alt=&#34;commitTx&#34; title=&#34;commitTx&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;b树的重平衡及节点分裂&#34;&gt;B+树的重平衡及节点分裂&lt;/h2&gt;
+&lt;p&gt;在写操作过程中，中间可能会造成树的不平衡，因此在操作完毕之后，需要对整个B+树进行重平衡（rebalance）操作。重平衡操作的原理比较复杂，是一个从叶子节点一直往上进行重平衡操作，直到满足B+树平衡条件的流程。算法的原理不在这里阐述，具体可以参考 &lt;a href=&#34;https://www.codedump.info/post/20200615-btree-2/#%E5%88%A0%E9%99%A4%E7%AE%97%E6%B3%95&#34;&gt;B树、B+树索引算法原理（下）#删除算法&lt;/a&gt;。基本上boltdb的重平衡操作也是这个流程，也就不在这里展开了。&lt;/p&gt;
+&lt;p&gt;重平衡完毕之后，boltdb还会将大小超过阈值的节点，分裂成多个节点，其大体流程是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Bucket遍历自己的所有子Bucket，进行&lt;code&gt;spill&lt;/code&gt;分裂操作。如果分裂成功，就需要在父Bucket中更新该子Bucket的信息。&lt;/li&gt;
+&lt;li&gt;Bucket从自己的根节点开始，进行&lt;code&gt;spill&lt;/code&gt;分裂操作。&lt;/li&gt;
+&lt;li&gt;节点的&lt;code&gt;spill&lt;/code&gt;操作，将遍历该节点的所有子节点，如果一个子节点大小超过阈值就进行分裂；否则分裂结束。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;如果在分裂操作中，产生了新的页面，则这个时候就会在&lt;code&gt;freelist&lt;/code&gt;中分配页面给这些新的页面。由于每次写事务的&lt;code&gt;freelist&lt;/code&gt;信息，在事务提交之前是在内存里的，所以一旦写失败，这些&lt;code&gt;freelist&lt;/code&gt;信息就回退，并不影响其他的操作。&lt;/p&gt;
+&lt;h2 id=&#34;调整freelist页面信息&#34;&gt;调整freelist页面信息&lt;/h2&gt;
+&lt;p&gt;到了这一步，前面的两个调整：重平衡和分裂页面操作已经完成，过程中可能产生了新的页面，也就是&lt;code&gt;freelist&lt;/code&gt;信息会有改变，因此要相应的调整&lt;code&gt;freelist&lt;/code&gt;页面信息。&lt;/p&gt;
+&lt;p&gt;在这里首先来看看&lt;code&gt;freelist&lt;/code&gt;中如何维护页面的分配信息，&lt;code&gt;freelist&lt;/code&gt;中包括以下三个成员：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ids：保存当前可用的页面ID数组。&lt;/li&gt;
+&lt;li&gt;pending：pending是一个map，键是事务id，值为页面ID数组，存储的是每个事务操作时候涉及到的页面ID。&lt;/li&gt;
+&lt;li&gt;cache：cache是一个map，键为页面ID，值为布尔值，可以从这里快速查看一个页面当前是否空闲。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以上三个成员中，&lt;code&gt;cache&lt;/code&gt;是方便快速查找页面空闲情况的数据，可以理解为可用页面的索引；&lt;code&gt;ids&lt;/code&gt;是存储可用页面ID的数组，每次分配一个页面出去就要对应的修改这个数组；最后，&lt;code&gt;pending&lt;/code&gt;就是存储一个事务操作过程中间的数据。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20200725-boltdb-3/freelist.png&#34; alt=&#34;freelist&#34; title=&#34;freelist&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中，&lt;code&gt;freelist&lt;/code&gt;页面在磁盘中存储的当前页面&lt;code&gt;id&lt;/code&gt;的分配数组，每一次初始化时将可用页面ID读入&lt;code&gt;ids&lt;/code&gt;数组之后，都会再调用&lt;code&gt;freelist.reindex&lt;/code&gt;函数来重建索引数据：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (f &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;freelist) &lt;span style=&#34;color:#00a000&#34;&gt;reindex&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	f.cache = &lt;span style=&#34;color:#a2f&#34;&gt;make&lt;/span&gt;(&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;map&lt;/span&gt;[pgid]&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;bool&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; _, id &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;range&lt;/span&gt; f.ids {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		f.cache[id] = &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; _, pendingIDs &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;range&lt;/span&gt; f.pending {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; _, pendingID &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;range&lt;/span&gt; pendingIDs {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			f.cache[pendingID] = &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;如果事务需要回滚，实际上是将&lt;code&gt;pending&lt;/code&gt;中的页面返还回去，重新变成空闲页面：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// rollback removes the pages from a given pending tx.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (f &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;freelist) &lt;span style=&#34;color:#00a000&#34;&gt;rollback&lt;/span&gt;(txid txid) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Remove page ids from cache.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 回滚就是把所有待释放的id删除，表示不释放了
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;for&lt;/span&gt; _, id &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;range&lt;/span&gt; f.pending[txid] {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f&#34;&gt;delete&lt;/span&gt;(f.cache, id)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Remove pages from pending list.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 然后删除这个事务的pending数组
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f&#34;&gt;delete&lt;/span&gt;(f.pending, txid)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;有了对&lt;code&gt;freelist&lt;/code&gt;相关的了解，回到事务提交操作修改&lt;code&gt;freelist&lt;/code&gt;部分，其代码如下：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (tx &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx) &lt;span style=&#34;color:#00a000&#34;&gt;Commit&lt;/span&gt;() &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;error&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 释放freelist
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	tx.db.freelist.&lt;span style=&#34;color:#00a000&#34;&gt;free&lt;/span&gt;(tx.meta.txid, tx.db.&lt;span style=&#34;color:#00a000&#34;&gt;page&lt;/span&gt;(tx.meta.freelist))
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 分配一个freelist
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	p, err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; tx.&lt;span style=&#34;color:#00a000&#34;&gt;allocate&lt;/span&gt;((tx.db.freelist.&lt;span style=&#34;color:#00a000&#34;&gt;size&lt;/span&gt;() &lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt; tx.db.pageSize) &lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; err &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		tx.&lt;span style=&#34;color:#00a000&#34;&gt;rollback&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; err
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; tx.db.freelist.&lt;span style=&#34;color:#00a000&#34;&gt;write&lt;/span&gt;(p); err &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		tx.&lt;span style=&#34;color:#00a000&#34;&gt;rollback&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; err
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;}  
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;在这里：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先根据事务ID将原有存储&lt;code&gt;freelist&lt;/code&gt;页面信息的页面释放掉。&lt;/li&gt;
+&lt;li&gt;分配存储这一次写事务的页面信息页面。&lt;/li&gt;
+&lt;li&gt;写入这一次的页面信息。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;将meta信息写回磁盘&#34;&gt;将meta信息写回磁盘&lt;/h2&gt;
+&lt;p&gt;最后，在更新完毕新的&lt;code&gt;freelist&lt;/code&gt;页面信息之后，就可以把本次操作之后的&lt;code&gt;meta&lt;/code&gt;元信息也写回磁盘了。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-Go&#34; data-lang=&#34;Go&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// writeMeta writes the meta to the disk.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 更新meta数据到磁盘
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;func&lt;/span&gt; (tx &lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;Tx) &lt;span style=&#34;color:#00a000&#34;&gt;writeMeta&lt;/span&gt;() &lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;error&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Create a temporary buffer for the meta page.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 分配缓冲区，大小为一个页面
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	buf &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#a2f&#34;&gt;make&lt;/span&gt;([]&lt;span style=&#34;color:#0b0;font-weight:bold&#34;&gt;byte&lt;/span&gt;, tx.db.pageSize)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 转换成page结构体
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	p &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; tx.db.&lt;span style=&#34;color:#00a000&#34;&gt;pageInBuffer&lt;/span&gt;(buf, &lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 将事务的meta数据写入page中
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	tx.meta.&lt;span style=&#34;color:#00a000&#34;&gt;write&lt;/span&gt;(p)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Write the meta page to file.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// 缓冲的数据写入文件
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; _, err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; tx.db.ops.&lt;span style=&#34;color:#00a000&#34;&gt;writeAt&lt;/span&gt;(buf, &lt;span style=&#34;color:#a2f&#34;&gt;int64&lt;/span&gt;(p.id)&lt;span style=&#34;color:#666&#34;&gt;*&lt;/span&gt;&lt;span style=&#34;color:#a2f&#34;&gt;int64&lt;/span&gt;(tx.db.pageSize)); err &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; err
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; !tx.db.NoSync &lt;span style=&#34;color:#666&#34;&gt;||&lt;/span&gt; IgnoreNoSync {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;if&lt;/span&gt; err &lt;span style=&#34;color:#666&#34;&gt;:=&lt;/span&gt; &lt;span style=&#34;color:#00a000&#34;&gt;fdatasync&lt;/span&gt;(tx.db); err &lt;span style=&#34;color:#666&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; err
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;// Update statistics.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#080;font-style:italic&#34;&gt;&lt;/span&gt;	tx.stats.Write&lt;span style=&#34;color:#666&#34;&gt;++&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#a2f;font-weight:bold&#34;&gt;nil&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h1 id=&#34;总结&#34;&gt;总结&lt;/h1&gt;
+&lt;p&gt;总结下来，boltdb的写事务操作流程大体如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;使用当前db数据来初始化事务：复制一份当前的meta元信息、初始化根Bucket信息、自增事务ID。&lt;/li&gt;
+&lt;li&gt;对B+树进行写操作，这部分在未提交之前都是存储在内存中的数据。&lt;/li&gt;
+&lt;li&gt;写操作完成之后，提交写事务：
+&lt;ul&gt;
+&lt;li&gt;平衡B+树、对超过阈值的节点进行分裂操作。分裂过程中产生的新页面将从&lt;code&gt;freelist&lt;/code&gt;中分配出来。&lt;/li&gt;
+&lt;li&gt;给&lt;code&gt;freelist&lt;/code&gt;分配新的页面。&lt;/li&gt;
+&lt;li&gt;到了这里，将B+树和&lt;code&gt;freelist&lt;/code&gt;数据写入文件。&lt;/li&gt;
+&lt;li&gt;更新meta元信息写入文件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
 </description>
       
     </item>

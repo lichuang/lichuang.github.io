@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="Nginx源码阅读笔记-查询HTTP配置流程" />
@@ -124,6 +148,28 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#ngx_http_core_loc_conf_s结构体">ngx_http_core_loc_conf_s结构体</a></li>
+    <li><a href="#ngx_http_location_queue_t">ngx_http_location_queue_t</a></li>
+    <li><a href="#ngx_http_location_tree_node_t">ngx_http_location_tree_node_t</a></li>
+    <li><a href="#构建location查找树的流程">构建location查找树的流程</a>
+      <ul>
+        <li><a href="#ngx_http_init_locations">ngx_http_init_locations</a></li>
+        <li><a href="#ngx_http_init_static_location_trees">ngx_http_init_static_location_trees</a></li>
+      </ul>
+    </li>
+    <li><a href="#查找location流程">查找location流程</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <h1 id="概述">概述</h1>
@@ -134,7 +180,7 @@
 <li>server块：在server块内部的配置。</li>
 <li>location块：在location块内部分配置。</li>
 </ul>
-<p><img src="/media/imgs/20190212-nginx-http-config/http_config.jpg" alt="http_config" title="http_config"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190212-nginx-http-config/http_config.jpg" alt="http_config" title="http_config"></p>
 <p>解析HTTP模块的入口函数是ngx_http_block，这一点可以从http指令相关的配置看出：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>{ ngx_string(<span style="color:#b44">&#34;http),</span>
 </span></span><span style="display:flex;"><span>  NGX_MAIN_CONF<span style="color:#666">|</span>NGX_CONF_BLOCK<span style="color:#666">|</span>NGX_CONF_NOARGS,
@@ -180,7 +226,7 @@
 </tr>
 </tbody>
 </table>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx_http_module.png" alt="ngx_http_module" title="ngx_http_module"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190212-nginx-http-config/ngx_http_module.png" alt="ngx_http_module" title="ngx_http_module"></p>
 <p>另外，由于HTTP块内的一些配置，作用域可以在多种块中，因此需要涉及到合并配置的流程，即：</p>
 <ul>
 <li>如果子作用域某配置项在解析过程中未被赋值，则将父作用域的 相同的配置项值拷贝至此配置项里；</li>
@@ -449,7 +495,7 @@
 <li>继续针对x开始的剩余队列节点递归调用ngx_http_create_locations_list函数。</li>
 </ul>
 <p>如下图所示就是ngx_http_create_locations_list调用前后的效果：</p>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-list.png" alt="ngx-location-create-locations-list" title="ngx-location-create-locations-list"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-list.png" alt="ngx-location-create-locations-list" title="ngx-location-create-locations-list"></p>
 <h4 id="ngx_http_create_location_trees">ngx_http_create_location_trees</h4>
 <p>ngx_http_create_location_trees在上面的基础上构造location查找树</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> ngx_http_location_tree_node_t <span style="color:#666">*</span>
@@ -540,7 +586,7 @@
 <li>将inclusive类型的location放入到成员tree中。</li>
 </ul>
 <p>如下图所示就是ngx-location-create-locations-tree调用前后的效果：</p>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-tree.png" alt="ngx-location-create-locations-tree" title="ngx-location-create-locations-tree"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-tree.png" alt="ngx-location-create-locations-tree" title="ngx-location-create-locations-tree"></p>
 <h2 id="查找location流程">查找location流程</h2>
 <p>请求的 location 匹配，在请求处理的 FIND_CONFIG 阶段相对应的 checker ngx_http_core_find_config_phase 函数中完成。ngx_http_core_find_config_phase 函数调用 ngx_http_core_find_location 函数完成实际的匹配工作。</p>
 <p>本质上就是根据前面构建好的树结构，进行二分查找，不再阐述。</p>
@@ -575,7 +621,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/nginx/">nginx</a>
@@ -604,7 +650,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -613,7 +659,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

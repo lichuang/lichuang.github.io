@@ -6,7 +6,7 @@
     <description>Recent content on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 Apr 2022 15:16:30 +0800</lastBuildDate><atom:link href="https://www.codedump.info/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 07 May 2022 17:57:08 +0800</lastBuildDate><atom:link href="https://www.codedump.info/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>博客系列文章索引</title>
       <link>https://www.codedump.info/post/20200122-series-pages/</link>
@@ -140,6 +140,109 @@
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
+    <item>
+      <title>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</title>
+      <link>https://www.codedump.info/post/20220507-weekly-14/</link>
+      <pubDate>Sat, 07 May 2022 17:57:08 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220507-weekly-14/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法二实践篇&#34;&gt;重读Raft论文中的集群成员变更算法（二）：实践篇&lt;/h1&gt;
+&lt;h2 id=&#34;单步成员变更存在的问题&#34;&gt;单步成员变更存在的问题&lt;/h2&gt;
+&lt;h3 id=&#34;正确性问题&#34;&gt;正确性问题&lt;/h3&gt;
+&lt;p&gt;单步变更成员时，可能出现正确性问题。如下面的例子所示，最开始时，系统的成员是&lt;code&gt;{a,b,c,d}&lt;/code&gt;这四个节点的集合，要将节点&lt;code&gt;u&lt;/code&gt;和&lt;code&gt;v&lt;/code&gt;加入集群，按照单步变更成员的做法，依次会经历：&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u,v}&lt;/code&gt;的变化，每次将一个节点加入到集群里。&lt;/p&gt;
+&lt;p&gt;上面的步骤看起来很美好，但是考虑下面的例子，在变更过程中leader节点发生了变化的情况：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;C₀ = {a, b, c, d}
+Cᵤ = C₁ ∪ {u}
+Cᵥ = C₁ ∪ {v}
+
+Lᵢ: Leader in term `i`
+Fᵢ: Follower in term `i`
+☒ : crash
+
+    |
+ u  |         Cᵤ                  F₂  Cᵤ
+--- | ----------------------------------
+ a  | C₀  L₀  Cᵤ  ☒               L₂  Cᵤ
+ b  | C₀  F₀          F₁          F₂  Cᵤ
+ c  | C₀  F₀          F₁  Cᵥ          Cᵤ
+ d  | C₀              L₁  Cᵥ  ☒       Cᵤ
+--- | ----------------------------------
+ v  |                     Cᵥ                  time
+    +--------------------------------------------&amp;gt;
+          t₁  t₂  t₃  t₄  t₅  t₆  t₇  t₈
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;（引用自&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;）&lt;/p&gt;
+&lt;p&gt;上面的流程中，纵坐标是集群中的节点，横坐标是不同的时间（注意不是任期），&lt;code&gt;Li&lt;/code&gt;表示在任期i时候的leader节点，&lt;code&gt;Fi&lt;/code&gt;表示在任期i时候的follower节点。&lt;/p&gt;
+&lt;p&gt;上图的流程阐述如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;t1：a节点被选为任期0的leader，而b、c节点为follower。&lt;/li&gt;
+&lt;li&gt;t2：将节点u加入集群，但是这条加入集群的日志，仅达到了a和u节点，由于这条日志并没有半数以上通过，所以这时候节点u还并未成功加入集群。&lt;/li&gt;
+&lt;li&gt;t3：节点a宕机。&lt;/li&gt;
+&lt;li&gt;t4：由于原先的leader宕机，于是集群需要选出新的leader，选出来的新leader是节点d，这是任期1时候的leader。&lt;/li&gt;
+&lt;li&gt;t5：节点v加入集群，加入集群的日志，到达了节点c、d、v上面，可以看到由于这条日志到了此时集群的半数以上节点上（因为这时候节点a宕机，因此只有三个节点在服务，于是只有有2个节点同意就认为可被提交），所以实际是已经提交的，即v加入集群的操作是成功的。&lt;/li&gt;
+&lt;li&gt;t6：leader d宕机。&lt;/li&gt;
+&lt;li&gt;t7：宕机的节点a恢复服务，看到本地有将节点u加入到集群的日志，于是它认为节点u、b是这个任期的follower节点。&lt;/li&gt;
+&lt;li&gt;t8：此时节点d恢复服务，而leader a将之前把节点u加入集群的日志同步给当前集群的所有节点，这造成了之前v加入集群且已被提交的日志丢失。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;出现这个问题，本质是因为：上一任leader的变更日志，还未同步到集群半数以上节点就宕机，这时候新一任leader就进行成员变更，这样导致了形成两个不同的集群，产生脑裂将已经提交的日志被覆盖。&lt;/p&gt;
+&lt;p&gt;Raft作者在&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;描述了这一现象。&lt;/p&gt;
+&lt;p&gt;解决的办法也很简单：即每次新当选的leader不允许直接提交在它本地的日志，而必须先提交一个no-op日志，才能开始同步。这个问题的描述，在之前的博客有描述：&lt;a href=&#34;https://www.codedump.info/post/20211011-raft-propose-prev-term/&#34;&gt;为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;可用性问题&#34;&gt;可用性问题&lt;/h3&gt;
+&lt;p&gt;除了以上正确性问题，单步变更还有可能出现可用性问题：当需要替换的节点在同一机房的时候，如果这个机房网络与集群中其他机房的网络断开，就会导致无法选出leader，以致于集群无法提供服务。来看下面的例子。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220507-weekly-14/availability.png&#34; alt=&#34;availability&#34; title=&#34;availability&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中，原先集群中有三个节点分别位于三个机房：机房1的节点a、机房2的节点b、机房3的节点c。现在由于各种原因，想把机房1的节点a下线，换成同机房的节点d到集群中继续服务。&lt;/p&gt;
+&lt;p&gt;可以看到，这个替换操作涉及到一个节点的加入和一个节点的离开，可能有如下两种可能的步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;先加入新节点d再删除节点a：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;先删除节点a再加入新节点d：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两种步骤各有优劣，第二种方案的问题是：中间只有两个节点在服务，一旦这时候又发生宕机，则集群就不可用了。&lt;/p&gt;
+&lt;p&gt;第一种方案中，按照上图中的例子，如果正好要替换的a、d节点都位于同一个机房里面，那么假如这个机房的网络也与其它机房隔离，那么只有两个节点在服务，这时候在四节点（中间步骤）的条件下也无法服务。&lt;/p&gt;
+&lt;p&gt;以上是单步变更中可能出现的两类问题。可以看到，尽管单步变更算法看起来实现简单，但是实则有很多细节需要注意。虽然Raft论文中认为单步变更是更简单的办法，但是现在主流的实现都使用了Joint Consensus（联合共识）算法。&lt;/p&gt;
+&lt;h2 id=&#34;joint-consensus算法如何解决可用性问题&#34;&gt;Joint Consensus算法如何解决可用性问题&lt;/h2&gt;
+&lt;p&gt;针对上面提到的：替换同一机房中的不同节点，中间过程中可能由于这个机房被网络隔离，导致的集群不可用（选不出leader）问题，来看看Joint Consensus算法是如何解决的。&lt;/p&gt;
+&lt;p&gt;先来回顾一下步骤，如果使用Joint Consensus算法，需要经历两阶段提交：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;然后提交&lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把集合换成这里的例子，就是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;{a,b,c}&lt;/code&gt; $\bigcup$ &lt;code&gt;{a,b,c,d}&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;然后提交 &lt;code&gt;{a,b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看这两阶段中可能出现宕机的情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;第一阶段时leader节点宕机，这个leader节点只有可能是两种情况，其集群配置还是&lt;code&gt;C_Old&lt;/code&gt;，或者已经收到了&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;：由于这时候这个leader并没有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，因此那些已有&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合的follower这部分的日志将被截断，成员变更失败，回退回&lt;code&gt;C_Old&lt;/code&gt;集合。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：这意味这个leader已经有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，在第二阶段时leader节点宕机，也不会导致选不出leader的情况，可以类似推导。&lt;/p&gt;
+&lt;p&gt;可见：直接使用Joint Consensus算法并不会存在单步变更时的可用性问题。&lt;/p&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft集群的单步变更算法，虽然看起来”简单“，但是实践起来有不少细节需要注意。&lt;/li&gt;
+&lt;li&gt;虽然论文里提到单步变更算法比之Joint Consensus算法更为简单，很多开源的Raft实现都已经以Joint Consensus算法做为默认的实现了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;（之前写过etcd 3.5版本的实现解析，见：&lt;a href=&#34;https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/&#34;&gt;etcd 3.5版本的joint consensus实现解析 - codedump的网络日志&lt;/a&gt;）&lt;/p&gt;
+&lt;h2 id=&#34;参考资料&#34;&gt;参考资料&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/VKu7fBLliztx3tzvzYDkqw&#34;&gt;Raft成员变更的工程实践&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/ongardie/a11f32b70581e20d6bcd&#34;&gt;Safety of Raft single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/peterbourgon/raft/blob/master/JOINT-CONSENSUS.md&#34;&gt;raft/JOINT-CONSENSUS.md at master · peterbourgon/raft&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 </description>
       
@@ -1156,102 +1259,6 @@ rr -M replay -p pid
 &lt;/ul&gt;
 &lt;h3 id=&#34;linux早期内核实现解析&#34;&gt;Linux早期内核实现解析&lt;/h3&gt;
 &lt;p&gt;许多年以前，赵炯博士在网上公开过一份文档，基本上&lt;strong&gt;逐行&lt;/strong&gt;讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，在官网的页面&lt;a href=&#34;http://www.oldlinux.org/book.html&#34;&gt;Early Linux Kernel Analisys and Comments&lt;/a&gt;也提供了这份文档电子版的下载链接：http://www.oldlinux.org/download/clk011c-1.9.5.pdf，也有对应的公开发行物：&lt;a href=&#34;https://book.douban.com/subject/3229243/&#34;&gt;Linux内核完全剖析 (豆瓣)&lt;/a&gt;。&lt;/p&gt;
-</description>
-      
-    </item>
-    
-    <item>
-      <title>周刊（第5期）：从存储模型聊一聊时序数据库的应用场景</title>
-      <link>https://www.codedump.info/post/20220211-weekly-5/</link>
-      <pubDate>Fri, 11 Feb 2022 22:27:57 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20220211-weekly-5/</guid>
-      
-      <description>&lt;hr&gt;
-&lt;p&gt;引言：本期介绍时序数据库的存储模型，只有理解了时序数据的存储模型，才能更好的了解时序数据库的优缺点以及其适用场景。&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1 id=&#34;从存储模型聊一聊时序数据库的应用场景&#34;&gt;从存储模型聊一聊时序数据库的应用场景&lt;/h1&gt;
-&lt;p&gt;想写本文，是因为看到了知乎上的一篇文章：&lt;a href=&#34;https://zhuanlan.zhihu.com/p/453556881&#34;&gt;投资数据库领域：2021年总结（NoSQL、图、时序） - 知乎&lt;/a&gt;，里面谈到了时序数据库：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;但缺陷是实际的市场空间较小。跟通用型数据库，尤其是OLAP数据库相比，时序数据库最大的差异点在于对于时间维度建立了独特的索引与优化，而其他所谓schemaless等特性在OLAP数据库上都能做到，不存在技术障碍。这也就是为什么其实在公司做时序场景的数据库选型的时候会直接将时序数据库与一些OLAP数据库（比如ClickHouse）做比较。如果要把时序数据库往更宽的场景发展，那就是想好如何与那么多的通用型数据库做竞争了。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;由于之前有过短暂一段时间的时序数据库从业经历，所以想从我的理解聊聊时序数据库的应用场景。&lt;/p&gt;
-&lt;p&gt;要了解应用场景，需要首先对时序数据库的存储模型有个大概的了解，在下文中我尽量不涉及到太艰深的技术术语来描述我的理解。由于我从业时序数据库的时间并不长，所以有可能理解会有偏差。&lt;/p&gt;
-&lt;p&gt;何谓“时序数据（time-series data）”？就我个人粗浅的理解，就是任何一定会带上时间戳（timestamp）维度的数据。日常生活里，在微博、微信等社交媒体的发现就可以理解时序数据，因为它们肯定都有一个发言时间，所以有时候会把个人看到的微博等称为“时间线（timeline）”。对应到工业领域，比如一个电表每小时上报的用电量也是时序数据，比如服务器监控时每隔15分钟采集的性能数据也是时序数据。&lt;/p&gt;
-&lt;p&gt;由于时序数据天然有“时间“这个维度，为了更好的优化其写入性能，通常专门存储时序数据的存储引擎会按照时间分块、按列来存储数据，如下图：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220211-weekly-5/time-series-model.png&#34; alt=&#34;数据库文件的物理页面组织和逻辑页面结构&#34; title=&#34;数据库文件的物理页面组织和逻辑页面结构&#34;&gt;&lt;/p&gt;
-&lt;p&gt;上图中，演示用的数据格式有三列：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;时间戳。&lt;/li&gt;
-&lt;li&gt;A指标。&lt;/li&gt;
-&lt;li&gt;B指标。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;通常，时序数据库存储时，会按照时间来划分块（block）：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;块的大小固定。&lt;/li&gt;
-&lt;li&gt;在同一个块时间区的数据，会存储到同一个块中。&lt;/li&gt;
-&lt;li&gt;而块内部，将除了时间维度之外的其他的列，将其中相同列的数据存储在一起。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;这样做的好处是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;由于时序数据的特点，写入的数据也是在时间上连续的，因此通常写入的时候按照上面的设计就能落在同一个块中。&lt;/li&gt;
-&lt;li&gt;不同行但是同一列的数据，都是相同类型的，将相同类型的数据紧邻放在一起，更容易进行压缩。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;换言之，这样做换来的好处是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;在时序数据的写入场景下，写入速度很快。&lt;/li&gt;
-&lt;li&gt;由于同类型数据放在一起，压缩性能也很好。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;这些都是相对于传统BTree类存储引擎而言的，因为这类型的数据写入更像append操作，这是必然会更快的。&lt;/p&gt;
-&lt;p&gt;但是注意到没有，这样存储数据之后，最大的问题是：查询时只有时间这个维度做了索引，而除去时间维度之外的其他列都没有做索引。&lt;/p&gt;
-&lt;p&gt;这样导致的问题是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;任何查询都要带上时间参数才能管用。比如：“请查询过去一个小时里哪五分钟的CPU最高”这样的查询是可以的，但是更多其他的查询是不知道时间维度，或者说查询者就是不知道具体时间才想来查询的，比如“我是什么时候达成了累计跑步100公里成就的？”这类探索型、且没有时间维度的查询。&lt;/li&gt;
-&lt;li&gt;即便是带上了时间维度的查询可行，由于没有对其他维度做索引，所以查询时的处理，更多的是按照时间维度查询出数据、再进行聚合计算，比如上面的“请查询过去一个小时里哪五分钟的CPU最高”这个查询，只能先把过去一小时的CPU数据全部查出来，然后逐个计算才能算出哪5分钟的CPU最高了。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;总结下来：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;时序数据库根据时序数据的特点设计和优化了时序数据库的存储模型，对比传统的关系数据库存储模型来说，优势是写入速度快、压缩比高。&lt;/li&gt;
-&lt;li&gt;但这样的存储只有时间这个维度，换言之由于没有其他维度的索引数据，导致对不带有时间维度或者时间跨度大的查询支持的不够友好。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;回到最开始引用的文章，了解了时序数据库的存储特点，也就能解释为何作者认为纯粹的时序数据库场景不大了。&lt;/p&gt;
-&lt;p&gt;好像大部分时候，事情也是这样的：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;在一个维度优化到极致，可能其他维度就做的不够好，不存在各个维度都能做得很好的产品，因为不同维度之间也会彼此有制约，更多时候要看使用者自己的场景取舍，并不存在适用于一切场景的产品。&lt;/li&gt;
-&lt;li&gt;所谓”优势“，在换了上下文和场景之后，也可能会变成劣势。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;相关推荐&#34;&gt;相关推荐&lt;/h1&gt;
-&lt;h2 id=&#34;writing-a-time-series-database-from-scratch--fabian-reinartzhttpsfabxcorgtsdb&#34;&gt;&lt;a href=&#34;https://fabxc.org/tsdb/&#34;&gt;Writing a Time Series Database from Scratch | Fabian Reinartz&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;&lt;a href=&#34;https://prometheus.io/&#34;&gt;Prometheus&lt;/a&gt;项目的核心开发者写的文章，介绍了如何从头实现一个时序数据库的存储引擎，可做为上面文章更深入的补充。&lt;/p&gt;
-&lt;h2 id=&#34;cmu在2017年时组织的时序数据库系列讲座&#34;&gt;CMU在2017年时组织的时序数据库系列讲座&lt;/h2&gt;
-&lt;p&gt;邀请了一系列业内时序数据库的从业人员来分享，见：&lt;a href=&#34;https://db.cs.cmu.edu/seminar2017/&#34;&gt;Time Series Database Lectures – Fall 2017&lt;/a&gt;&lt;/p&gt;
-&lt;h2 id=&#34;阿里云数据库内核月报分类整理httpsgithubcomtangwzdb-monthly&#34;&gt;&lt;a href=&#34;https://github.com/tangwz/db-monthly&#34;&gt;阿里云数据库内核月报分类整理&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;阿里云数据库内核团队的月报提供了很多学习数据库技术的资料、文章，这个github将每个月的月报进行了分类整理，推荐收藏。&lt;/p&gt;
-&lt;h2 id=&#34;how-does-a-database-work--lets-build-a-simple-databasehttpscstackgithubiodb_tutorial&#34;&gt;&lt;a href=&#34;https://cstack.github.io/db_tutorial/&#34;&gt;How Does a Database Work? | Let’s Build a Simple Database&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;自己动手打造一个简单的数据库，应该有很多地方参考了&lt;a href=&#34;https://sqlite.org/index.html&#34;&gt;SQLite&lt;/a&gt;的实现，本博客也深度解析了sqlite的btree实现，见：&lt;a href=&#34;https://www.codedump.info/post/20211217-sqlite-btree-0/&#34;&gt;sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志&lt;/a&gt;。&lt;/p&gt;
-&lt;p&gt;上面这个项目是使用C语言实现的，类似的打造简易数据库来学习原理的项目还有其他语言的版本：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Java版本：&lt;a href=&#34;https://github.com/awelm/simpledb&#34;&gt;awelm/simpledb: A simple database built from scratch that has some the basic RDBMS features (SQL query parser, transactions, query optimizer)&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;Rust版本：&lt;a href=&#34;https://github.com/erikgrinaker/toydb&#34;&gt;erikgrinaker/toydb: Distributed SQL database in Rust, written as a learning project&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
-&lt;h2 id=&#34;河西走廊-httpsmoviedoubancomsubject24736278&#34;&gt;&lt;a href=&#34;https://movie.douban.com/subject/24736278/&#34;&gt;《河西走廊 》&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;非常棒的介绍河西走廊的历史纪录片，2017年在甘肃旅游，就是一路沿着河西走廊过来的，一边旅游一边看这部纪录片。&lt;/p&gt;
-&lt;h2 id=&#34;浮生一日httpsspacebilibilicom110930331&#34;&gt;&lt;a href=&#34;https://space.bilibili.com/110930331&#34;&gt;《浮生一日》&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;B站上纯纯甘的节目《浮生一日》是我每期都会看的节目，主题是每次采访跟踪一个不同行业素人的生活。&lt;/p&gt;
-&lt;p&gt;最开始知道这个栏目是看了&lt;a href=&#34;https://www.bilibili.com/video/BV1V54y1h7Zr?spm_id_from=333.999.0.0&#34;&gt;【浮生一日】北京国企外卖小哥的真实一天&lt;/a&gt;，背景是这位小哥由于疫情原因失业，所以找了一份国企的工作；媳妇买P2P赔光了积蓄，赶上老人得病要治疗，所以晚上得出来兼职跑跑外卖。&lt;/p&gt;
-&lt;p&gt;里面有句话让我感动：“结婚时面对自己媳妇儿最漂亮的时候，你说我愿意和你同甘共苦，然后现在又开始责怪她，那当初又何必说这四个字呢？”&lt;/p&gt;
-&lt;p&gt;这个栏目里还有各色不同职业的人：程序员、投资者、早餐摊位主人&amp;hellip;等等。&lt;/p&gt;
-&lt;p&gt;不同的职业，都有各自不同的生活轨道和选择。&lt;/p&gt;
-&lt;p&gt;油管上有&lt;a href=&#34;https://www.youtube.com/channel/UCIs3-LcOCdpiGve6yu1-Fug&#34;&gt;同名频道&lt;/a&gt;。&lt;/p&gt;
-&lt;h2 id=&#34;porterio&#34;&gt;porter.io&lt;/h2&gt;
-&lt;p&gt;&lt;a href=&#34;porter.io&#34;&gt;porter.io&lt;/a&gt; 是基于Github关注项目推荐相关文章发送邮件通知的应用：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;“We analyse your Github footprint, filter Hacker News items according to your taste, and deliver them to your mailbox.”&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;我通过这个应用，还是被推荐才看到了不少有价值的文章的的。&lt;/p&gt;
-&lt;h2 id=&#34;独立开发变现周刊httpswwwezindiecomweekly&#34;&gt;&lt;a href=&#34;https://www.ezindie.com/weekly&#34;&gt;独立开发变现周刊&lt;/a&gt;&lt;/h2&gt;
-&lt;p&gt;每周更新推荐一些独立开发变现的产品。&lt;/p&gt;
 </description>
       
     </item>

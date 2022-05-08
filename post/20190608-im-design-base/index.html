@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="IM服务器设计-基础" />
@@ -124,12 +148,48 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#数据存储">数据存储</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#统一登录系统">统一登录系统</a></li>
+    <li><a href="#登录授权auth">登录授权（auth）</a></li>
+    <li><a href="#登出logout">登出（logout）</a></li>
+    <li><a href="#踢人kickout">踢人（kickout）</a></li>
+    <li><a href="#客户端上报消息c2s消息">客户端上报消息（c2s消息）</a></li>
+    <li><a href="#应用服务器推送消息s2c消息">应用服务器推送消息（s2c消息）</a></li>
+    <li><a href="#单对单聊天c2c消息">单对单聊天（c2c消息）</a></li>
+    <li><a href="#群聊消息c2g消息">群聊消息（c2g消息）</a></li>
+    <li><a href="#登录后拉取离线消息流程">登录后拉取离线消息流程</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#协议格式">协议格式</a></li>
+    <li><a href="#认证auth">认证（auth）</a></li>
+    <li><a href="#登出logout-1">登出（logout）</a></li>
+    <li><a href="#踢人kickout-1">踢人（kickout）</a></li>
+    <li><a href="#心跳包">心跳包</a></li>
+    <li><a href="#单对单消息c2c">单对单消息（c2c）</a></li>
+    <li><a href="#群聊c2g">群聊（c2g）</a></li>
+    <li><a href="#拉离线消息pull">拉离线消息（pull）</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
 <p>主要内容相当部分参考了 <a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a>一文，在此之上补充了更好的消息存储设计以及集群设计。</p>
 <h1 id="整体架构">整体架构</h1>
-<p><img src="/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch"></p>
 <p>以上架构图中，分为几个部分：</p>
 <ul>
 <li>客户端：支持IOS、Android系统。</li>
@@ -152,7 +212,7 @@
 <h1 id="核心交互流程">核心交互流程</h1>
 <h2 id="统一登录系统">统一登录系统</h2>
 <h2 id="登录授权auth">登录授权（auth）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-login.png" alt="im-login" title="im login"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-login.png" alt="im-login" title="im login"></p>
 <ol>
 <li>客户端通过统一登录系统验证登录密码等。</li>
 <li>SSO验证客户端用户名密码之后，生成登录token并返回给客户端。</li>
@@ -169,7 +229,7 @@
 <li>gate向客户端返回授权结果。</li>
 </ol>
 <h2 id="登出logout">登出（logout）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-logout.png" alt="im-logout" title="im logout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-logout.png" alt="im-logout" title="im logout"></p>
 <ol>
 <li>客户端向gate发出logout请求。</li>
 <li>gate设置客户端UID对应的peer无效，然后应答客户端登出成功。</li>
@@ -178,7 +238,7 @@
 </ol>
 <h2 id="踢人kickout">踢人（kickout）</h2>
 <p>用户请求授权时，可能在另一个设备（同类型设备，比如一台苹果手机登录时发现一台安卓手机也在登录这个账号）开着软件处于登录状态。这种情况需要系统将那个设备踢下线。</p>
-<p><img src="/media/imgs/20190608-im-design-base/im-kickout.png" alt="im-kickout" title="im kickout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-kickout.png" alt="im-kickout" title="im kickout"></p>
 <p>新的客户端登陆流程同上面的登陆认证流程，只不过在auth模块完成认证之后，会做如下的操作：</p>
 <ul>
 <li>根据UID到redis中查询路由数据，如果不存在说明前面没有登陆过，那么就像登陆流程一样返回即可。</li>
@@ -186,7 +246,7 @@
 <li>gate接收到踢人请求，踢掉客户端之后断掉与客户端的连接。</li>
 </ul>
 <h2 id="客户端上报消息c2s消息">客户端上报消息（c2s消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2smsg.png" alt="im-c2smsg" title="im c2s msg"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2smsg.png" alt="im-c2smsg" title="im c2s msg"></p>
 <ol>
 <li>客户端向gate发送c2s消息数据。</li>
 <li>gate应答客户端。</li>
@@ -195,7 +255,7 @@
 <li>appserver消费MQ消息做处理。</li>
 </ol>
 <h2 id="应用服务器推送消息s2c消息">应用服务器推送消息（s2c消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-s2cmsg.png" alt="im-s2cmsg" title="im s2c msg"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-s2cmsg.png" alt="im-s2cmsg" title="im s2c msg"></p>
 <ol>
 <li>业务服务器向逻辑服务器发送s2c消息。</li>
 <li>逻辑服务器的s2c模块从redis中查询UID的路由数据，知道该用户在哪个gate上面登陆。</li>
@@ -205,7 +265,7 @@
 <li>gate向逻辑服务器ack s2c消息。</li>
 </ol>
 <h2 id="单对单聊天c2c消息">单对单聊天（c2c消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2cmsg.png" alt="im-c2cmsg" title="im c2c msg"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2cmsg.png" alt="im-c2cmsg" title="im c2c msg"></p>
 <ol>
 <li>客户端向gate发送c2c消息。</li>
 <li>gate向逻辑服务器发送c2c消息。</li>
@@ -221,7 +281,7 @@
 </ol>
 <p>注意第7步中，逻辑服务器的c2c模块在向gate转发c2c消息之后，需要加上定时器，如果在指定时间没有收到最后客户端的应答，需要重发。尝试几次重发都失败则放弃，等待下次用户登录了拉取离线消息。</p>
 <h2 id="群聊消息c2g消息">群聊消息（c2g消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2gmsg.png" alt="im-c2gmsg" title="im c2g msg"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-c2gmsg.png" alt="im-c2gmsg" title="im c2g msg"></p>
 <ol>
 <li>客户端A向gate发送c2g消息。</li>
 <li>gate向逻辑服务器发送c2g消息。</li>
@@ -236,7 +296,7 @@
 <li>c2g模块修改发送消息库该消息已读。</li>
 </ol>
 <h2 id="登录后拉取离线消息流程">登录后拉取离线消息流程</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg"></p>
 <ol>
 <li>客户端请求离线消息，其中会带上的字段是：客户端uid、当前客户端上保存的最大消息id（msgid）、每次最多获取多少离线消息（size）。当msgid为0的时候，由服务器自行查询当前的离线消息返回给客户端；否则服务器只会返回该消息id以后的消息。在这个例子中，假设第一次请求时，msgid为0，即由服务器查询需要给客户端返回哪些离线消息。</li>
 <li>im服务器查询uid为100的用户的前10（因为size=10）的离线消息，具体来说就是去消息接收表中查询uid=100且read flag为false的前10条消息。这里假设第一次查询返回的消息中，最大消息id为100。</li>
@@ -248,7 +308,7 @@
 <p>如果每次拉取的离线消息都等于拉取离线消息数量，客户端会一直重复拉取离线消息流程，直到拉取完毕。</p>
 <h1 id="协议设计">协议设计</h1>
 <h2 id="协议格式">协议格式</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-protocol-format.png" alt="im-protocol-format" title="im protocol format"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-protocol-format.png" alt="im-protocol-format" title="im protocol format"></p>
 <p>协议分为包头和包体两部分，其中包体为固定的大小，包括：</p>
 <ul>
 <li>version（4字节）：协议版本号。</li>
@@ -379,7 +439,7 @@ message C2SPullMessageResponse {
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">系统设计</a>
@@ -408,7 +468,7 @@ message C2SPullMessageResponse {
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -417,7 +477,7 @@ message C2SPullMessageResponse {
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

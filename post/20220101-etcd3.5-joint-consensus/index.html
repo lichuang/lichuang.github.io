@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="etcd 3.5版本的joint consensus实现解析" />
@@ -126,6 +150,41 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#集群节点变更的问题">集群节点变更的问题</a></li>
+    <li><a href="#单节点成员变更one-server-confchange">单节点成员变更（One Server ConfChange）</a></li>
+    <li><a href="#多节点联合共识joint-consensus">多节点联合共识（Joint Consensus）</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#learner">learner</a></li>
+    <li><a href="#数据结构">数据结构</a>
+      <ul>
+        <li><a href="#每个节点的进度数据progress结构体">每个节点的进度数据（Progress结构体）</a></li>
+        <li><a href="#集群配置config结构体">集群配置（Config结构体）</a></li>
+        <li><a href="#集群整体监控progresstracker结构体">集群整体监控（ProgressTracker结构体）</a></li>
+        <li><a href="#负责提交配置流程changer结构体">负责提交配置流程（Changer结构体）</a></li>
+      </ul>
+    </li>
+    <li><a href="#流程">流程</a>
+      <ul>
+        <li><a href="#enterjoint">EnterJoint</a></li>
+        <li><a href="#leavejoint">LeaveJoint</a></li>
+        <li><a href="#例子">例子</a></li>
+      </ul>
+    </li>
+    <li><a href="#自动提交">自动提交</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <h1 id="概述">概述</h1>
@@ -139,7 +198,7 @@
 <p>本文先就这两种实现方式进行原理上的讲解。</p>
 <h2 id="集群节点变更的问题">集群节点变更的问题</h2>
 <p>要保证Raft协议的安全性，就是要保证任意时刻，集群中只有唯一的<code>leader</code>节点。如果不加限制条件，那么动态向当前运行集群增删节点的操作，有可能会导致存在多个<code>leader</code>的情况。如下图所示：</p>
-<p><img src="/media/imgs/20220101-etcd3.5-joint-Consensus/multi-server.png" alt="集群节点变更问题" title="集群节点变更问题"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220101-etcd3.5-joint-Consensus/multi-server.png" alt="集群节点变更问题" title="集群节点变更问题"></p>
 <p>图中有两种颜色的配置，绿色表示旧的集群配置（<code>C_old</code>），蓝色表示新的集群配置（<code>C_new</code>），如果不加任何限制，直接将配置启用，由于不同的集群节点之间，存在时间差，那么可能出现这样的情况：</p>
 <ul>
 <li>Server{1,2}：当前都使用旧的集群配置，所以可能选出server1为集群的leader。</li>
@@ -148,7 +207,7 @@
 <p>由上图可以看到：如果不加任何限制，直接应用新的集群配置，由于时间差的原因，可能导致集群中出现两个不同leader的情况。</p>
 <h2 id="单节点成员变更one-server-confchange">单节点成员变更（One Server ConfChange）</h2>
 <p>“单节点成员变更”，意指每次只添加或删除一个节点，这样就能保证集群的安全性，不会在同一时间出现多个<code>leader</code>的情况。之所以能有这个保证，是因为每次变更一个节点，那么新旧两种配置的半数节点（majorrity）肯定存在交集。以下图来说明：</p>
-<p><img src="/media/imgs/20220101-etcd3.5-joint-Consensus/one-server-confchange.png" alt="单节点成员变更" title="单节点成员变更"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220101-etcd3.5-joint-Consensus/one-server-confchange.png" alt="单节点成员变更" title="单节点成员变更"></p>
 <p>上图演示了向偶数或奇数的集群增删一个节点的所有可能情况。不论哪种情况，新旧配置都有交集，在每个任期只能投出一张票的情况下，是不会出现多<code>leader</code>的情况的。</p>
 <p>有了上面的理论基础，下面来看<code>单节点集群变更</code>的全流程，当下发集群节点变更配置时，新的配置会以一种特殊的日志方式进行提交，即：</p>
 <ul>
@@ -176,7 +235,7 @@
 <li>再提交新节点集合<code>C_new</code>。</li>
 </ul>
 <p>以下图来说明，这几个阶段中，集群的安全性都得到了保证：</p>
-<p><img src="/media/imgs/20220101-etcd3.5-joint-Consensus/Joint-Consensus.png" alt="多节点联合共识" title="多节点联合共识"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220101-etcd3.5-joint-Consensus/Joint-Consensus.png" alt="多节点联合共识" title="多节点联合共识"></p>
 <ol>
 <li><code>C_{old,new}</code>配置提交之前：在做个阶段，集群中的节点，要么处于<code>C_old</code>配置下，要么处于<code>C_new,old</code>配置之下。此时，如果集群的<code>leader</code>节点宕机，那么将会基于<code>C_old</code>或者<code>C_new,old</code>配置来选出新的<code>leader</code>，而不会仅仅基于<code>C_new</code>，因此不会选出不同的<code>leader</code>。</li>
 <li><code>C_{old,new}</code>配置提交之后，<code>C_new</code>下发之前：如果这时候<code>leader</code>宕机，只会基于<code>C_{old,new}</code>的配置选出<code>leader</code>，因此也不会选出不同的<code>leader</code>。</li>
@@ -234,7 +293,7 @@
 <li>该节点原先是集群的<code>voter</code>：并不是直接加入到<code>Learner</code>集合的，而是首先提交到<code>LearnersNext</code>集合中，同样也是等待这个新的集群配置被成功之后，才移动到<code>Learner</code>集合中。否则，如果直接修改加入到<code>Learner</code>集合中，可能导致集群的安全性受到影响。比如一个三节点{a,b,c}的集群，原先有只挂了一个节点还能继续工作；现在由于各种原因，想将节点c降级为<code>learner</code>，将节点d加入到集群中，如果直接将c节点降级为<code>learner</code>，就会导致在这个流程里一旦一个节点不可用，整个集群就不可用了。</li>
 <li>该节点原先不是集群中的成员：这种节点由于之前并不存在，并不影响集群的安全性，这时候可以直接移动到<code>Learner</code>中。</li>
 </ul>
-<p><img src="/media/imgs/20220101-etcd3.5-joint-Consensus/add-learner.png" alt="单节点成员变更" title="单节点成员变更"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220101-etcd3.5-joint-Consensus/add-learner.png" alt="单节点成员变更" title="单节点成员变更"></p>
 <p>所以：<code>Voters</code>两个配置，与两种<code>Learner</code>集合，必须满足以下的关系（见函数<code>checkInvariants</code>）：</p>
 <ul>
 <li>在<code>LearnersNext</code>中的节点，表示未提交的集群配置中待添加<code>learner</code>节点集合的节点：
@@ -418,7 +477,7 @@
   </div>
 
     
-<h1>相关文章</h1><li><strong> 11109-10-11: </strong> <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a>  </li><li><strong> 28069-06-28: </strong> <a href="https://www.codedump.info/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a>  </li><li><strong> 15059-05-15: </strong> <a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a>  </li><li><strong> 25119-11-25: </strong> <a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a>  </li><li><strong> 22099-09-22: </strong> <a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a>  </li><li><strong> 21099-09-21: </strong> <a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a>  </li>
+<h1>相关文章</h1><li><strong> 7059-05-07: </strong> <a href="https://www.codedump.info/post/20220507-weekly-14/">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>  </li><li><strong> 17049-04-17: </strong> <a href="https://www.codedump.info/post/20220417-weekly-13/">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>  </li><li><strong> 11109-10-11: </strong> <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a>  </li><li><strong> 28069-06-28: </strong> <a href="https://www.codedump.info/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a>  </li><li><strong> 15059-05-15: </strong> <a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a>  </li><li><strong> 25119-11-25: </strong> <a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a>  </li><li><strong> 22099-09-22: </strong> <a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a>  </li><li><strong> 21099-09-21: </strong> <a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a>  </li>
 
 <h1>邮件订阅</h1>
 
@@ -430,7 +489,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/raft/">raft</a>
@@ -460,7 +519,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -469,7 +528,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

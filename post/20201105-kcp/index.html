@@ -24,6 +24,30 @@
 
   
   
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
 
   
   <meta property="og:title" content="KCP 1.4源码分析" />
@@ -124,6 +148,58 @@
   </div>
   
   
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#arq的两种模式">ARQ的两种模式</a>
+      <ul>
+        <li><a href="#停等arq协议stop-and-wait">停等ARQ协议（stop-and-wait）</a></li>
+        <li><a href="#连续arq协议continuous-arq">连续ARQ协议（Continuous ARQ）</a></li>
+        <li><a href="#拥塞窗口">拥塞窗口</a></li>
+        <li><a href="#滑动窗口">滑动窗口</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li><a href="#报文定义">报文定义</a></li>
+    <li><a href="#kcp结构体">KCP结构体</a></li>
+    <li><a href="#几个队列">几个队列</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#概述-1">概述</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#ikcp_cmd_ack">IKCP_CMD_ACK</a></li>
+    <li><a href="#ikcp_cmd_push">IKCP_CMD_PUSH</a></li>
+    <li><a href="#ikcp_cmd_wask">IKCP_CMD_WASK</a></li>
+    <li><a href="#ikcp_cmd_wins">IKCP_CMD_WINS</a></li>
+    <li><a href="#快速应答处理">快速应答处理</a></li>
+    <li><a href="#更新参数">更新参数</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#处理ack应答">处理ACK应答</a></li>
+    <li><a href="#探测对端窗口">探测对端窗口</a></li>
+    <li><a href="#流控">流控</a></li>
+    <li><a href="#发送数据">发送数据</a></li>
+    <li><a href="#更新参数-1">更新参数</a>
+      <ul>
+        <li><a href="#快速重传">快速重传</a></li>
+        <li><a href="#超时丢包">超时丢包</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
   <article class="content">
     
     <h1 id="概述">概述</h1>
@@ -140,7 +216,7 @@
 <h3 id="停等arq协议stop-and-wait">停等ARQ协议（stop-and-wait）</h3>
 <p>停等ARQ协议，意味着每个数据在发送出去之后，在没有收到对端的接收回复之前，将一直等待下去，而不会继续发送新的数据包。如果超时还未收到应答，就会自动重传数据包，以保证数据的可靠性。</p>
 <p>下图是两种情况下停等协议的示意图：</p>
-<p><img src="/media/imgs/20201105-kcp/stop-and-wait.png" alt="stop-and-wait" title="stop-and-wait"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20201105-kcp/stop-and-wait.png" alt="stop-and-wait" title="stop-and-wait"></p>
 <ul>
 <li>上图：正常不出错情况下运行的停等协议，消息2必须在发送方收到了消息1的对端确认回复之后才能发送出去。</li>
 <li>下图：出错情况下运行的停等协议，发送方发现消息1超时还未收到应答，就触发了针对消息1的重传机制。在这之前消息2都不会被发出去。</li>
@@ -302,7 +378,7 @@
 <li>rcv_buf、nrcv_buf：接收缓冲区及其大小。</li>
 </ul>
 <p>为什么发送和接收两端，既有缓冲区又有队列？在KCP中，队列是应用层可以直接进行读写的区域，而缓冲区则是KCP协议层接收和发送数据的区域了，如图所示：</p>
-<p><img src="/media/imgs/20201105-kcp/kcp-queue-buf.png" alt="kcp-queue-buf" title="kcp-queue-buf"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20201105-kcp/kcp-queue-buf.png" alt="kcp-queue-buf" title="kcp-queue-buf"></p>
 <p>在发送报文时，用户层调用<code>ikcp_send</code>函数，该函数最终会分配报文结构体指针，然后添加到发送队列<code>snd_queue</code>的末尾；而在KCP协议栈真正调用系统接口发送数据出去的时候，将从<code>snd_queue</code>队列中将报文取出，放入<code>snd_buf</code>缓冲区中再进行发送。接收报文的流程反之，这里就不再阐述了。</p>
 <h1 id="核心流程">核心流程</h1>
 <p>了解了相关的数据结构，这里开始分析核心流程。先来看看整体的框架。</p>
@@ -320,7 +396,7 @@
 <li>ikcp_update：用户层调用该函数，来驱动KCP协议栈进行具体的协议收发、拥塞控制等流程，这些流程实际最终由函数<code>ikcp_flush</code>完成，但是用户层并不会直接调用这个函数。</li>
 </ul>
 <p>整个流程中涉及到的函数及流程如下图：</p>
-<p><img src="/media/imgs/20201105-kcp/ikcp.png" alt="ikcp" title="ikcp"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20201105-kcp/ikcp.png" alt="ikcp" title="ikcp"></p>
 <p>（出自：<a href="https://blog.csdn.net/yongkai0214/article/details/85156452">KCP 协议与源码分析（一）_老雍的博客-CSDN博客_kcp</a>）</p>
 <p>在这里先对上图做简单的解释，下面再展开详细的分析：</p>
 <ul>
@@ -531,7 +607,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
@@ -560,7 +636,7 @@
     
     
     
-
+    
         <script src="https://utteranc.es/client.js"
             repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
             issue-term="pathname"
@@ -569,7 +645,7 @@
             async>
     </script>
   
-
+    
   </div>
 
   <main id="main" class="main">

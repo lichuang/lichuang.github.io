@@ -6,7 +6,110 @@
     <description>Recent content in 周刊 on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 Apr 2022 15:16:30 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 07 May 2022 17:57:08 +0800</lastBuildDate><atom:link href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</title>
+      <link>https://www.codedump.info/post/20220507-weekly-14/</link>
+      <pubDate>Sat, 07 May 2022 17:57:08 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220507-weekly-14/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;重读raft论文中的集群成员变更算法二实践篇&#34;&gt;重读Raft论文中的集群成员变更算法（二）：实践篇&lt;/h1&gt;
+&lt;h2 id=&#34;单步成员变更存在的问题&#34;&gt;单步成员变更存在的问题&lt;/h2&gt;
+&lt;h3 id=&#34;正确性问题&#34;&gt;正确性问题&lt;/h3&gt;
+&lt;p&gt;单步变更成员时，可能出现正确性问题。如下面的例子所示，最开始时，系统的成员是&lt;code&gt;{a,b,c,d}&lt;/code&gt;这四个节点的集合，要将节点&lt;code&gt;u&lt;/code&gt;和&lt;code&gt;v&lt;/code&gt;加入集群，按照单步变更成员的做法，依次会经历：&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d,u,v}&lt;/code&gt;的变化，每次将一个节点加入到集群里。&lt;/p&gt;
+&lt;p&gt;上面的步骤看起来很美好，但是考虑下面的例子，在变更过程中leader节点发生了变化的情况：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;C₀ = {a, b, c, d}
+Cᵤ = C₁ ∪ {u}
+Cᵥ = C₁ ∪ {v}
+
+Lᵢ: Leader in term `i`
+Fᵢ: Follower in term `i`
+☒ : crash
+
+    |
+ u  |         Cᵤ                  F₂  Cᵤ
+--- | ----------------------------------
+ a  | C₀  L₀  Cᵤ  ☒               L₂  Cᵤ
+ b  | C₀  F₀          F₁          F₂  Cᵤ
+ c  | C₀  F₀          F₁  Cᵥ          Cᵤ
+ d  | C₀              L₁  Cᵥ  ☒       Cᵤ
+--- | ----------------------------------
+ v  |                     Cᵥ                  time
+    +--------------------------------------------&amp;gt;
+          t₁  t₂  t₃  t₄  t₅  t₆  t₇  t₈
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;（引用自&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;）&lt;/p&gt;
+&lt;p&gt;上面的流程中，纵坐标是集群中的节点，横坐标是不同的时间（注意不是任期），&lt;code&gt;Li&lt;/code&gt;表示在任期i时候的leader节点，&lt;code&gt;Fi&lt;/code&gt;表示在任期i时候的follower节点。&lt;/p&gt;
+&lt;p&gt;上图的流程阐述如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;t1：a节点被选为任期0的leader，而b、c节点为follower。&lt;/li&gt;
+&lt;li&gt;t2：将节点u加入集群，但是这条加入集群的日志，仅达到了a和u节点，由于这条日志并没有半数以上通过，所以这时候节点u还并未成功加入集群。&lt;/li&gt;
+&lt;li&gt;t3：节点a宕机。&lt;/li&gt;
+&lt;li&gt;t4：由于原先的leader宕机，于是集群需要选出新的leader，选出来的新leader是节点d，这是任期1时候的leader。&lt;/li&gt;
+&lt;li&gt;t5：节点v加入集群，加入集群的日志，到达了节点c、d、v上面，可以看到由于这条日志到了此时集群的半数以上节点上（因为这时候节点a宕机，因此只有三个节点在服务，于是只有有2个节点同意就认为可被提交），所以实际是已经提交的，即v加入集群的操作是成功的。&lt;/li&gt;
+&lt;li&gt;t6：leader d宕机。&lt;/li&gt;
+&lt;li&gt;t7：宕机的节点a恢复服务，看到本地有将节点u加入到集群的日志，于是它认为节点u、b是这个任期的follower节点。&lt;/li&gt;
+&lt;li&gt;t8：此时节点d恢复服务，而leader a将之前把节点u加入集群的日志同步给当前集群的所有节点，这造成了之前v加入集群且已被提交的日志丢失。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;出现这个问题，本质是因为：上一任leader的变更日志，还未同步到集群半数以上节点就宕机，这时候新一任leader就进行成员变更，这样导致了形成两个不同的集群，产生脑裂将已经提交的日志被覆盖。&lt;/p&gt;
+&lt;p&gt;Raft作者在&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;描述了这一现象。&lt;/p&gt;
+&lt;p&gt;解决的办法也很简单：即每次新当选的leader不允许直接提交在它本地的日志，而必须先提交一个no-op日志，才能开始同步。这个问题的描述，在之前的博客有描述：&lt;a href=&#34;https://www.codedump.info/post/20211011-raft-propose-prev-term/&#34;&gt;为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;可用性问题&#34;&gt;可用性问题&lt;/h3&gt;
+&lt;p&gt;除了以上正确性问题，单步变更还有可能出现可用性问题：当需要替换的节点在同一机房的时候，如果这个机房网络与集群中其他机房的网络断开，就会导致无法选出leader，以致于集群无法提供服务。来看下面的例子。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220507-weekly-14/availability.png&#34; alt=&#34;availability&#34; title=&#34;availability&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中，原先集群中有三个节点分别位于三个机房：机房1的节点a、机房2的节点b、机房3的节点c。现在由于各种原因，想把机房1的节点a下线，换成同机房的节点d到集群中继续服务。&lt;/p&gt;
+&lt;p&gt;可以看到，这个替换操作涉及到一个节点的加入和一个节点的离开，可能有如下两种可能的步骤：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;先加入新节点d再删除节点a：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{a,b,c,d}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;先删除节点a再加入新节点d：&lt;code&gt;{a,b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c}&lt;/code&gt;-&amp;gt;&lt;code&gt;{b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两种步骤各有优劣，第二种方案的问题是：中间只有两个节点在服务，一旦这时候又发生宕机，则集群就不可用了。&lt;/p&gt;
+&lt;p&gt;第一种方案中，按照上图中的例子，如果正好要替换的a、d节点都位于同一个机房里面，那么假如这个机房的网络也与其它机房隔离，那么只有两个节点在服务，这时候在四节点（中间步骤）的条件下也无法服务。&lt;/p&gt;
+&lt;p&gt;以上是单步变更中可能出现的两类问题。可以看到，尽管单步变更算法看起来实现简单，但是实则有很多细节需要注意。虽然Raft论文中认为单步变更是更简单的办法，但是现在主流的实现都使用了Joint Consensus（联合共识）算法。&lt;/p&gt;
+&lt;h2 id=&#34;joint-consensus算法如何解决可用性问题&#34;&gt;Joint Consensus算法如何解决可用性问题&lt;/h2&gt;
+&lt;p&gt;针对上面提到的：替换同一机房中的不同节点，中间过程中可能由于这个机房被网络隔离，导致的集群不可用（选不出leader）问题，来看看Joint Consensus算法是如何解决的。&lt;/p&gt;
+&lt;p&gt;先来回顾一下步骤，如果使用Joint Consensus算法，需要经历两阶段提交：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;然后提交&lt;code&gt;C_New&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把集合换成这里的例子，就是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先提交&lt;code&gt;{a,b,c}&lt;/code&gt; $\bigcup$ &lt;code&gt;{a,b,c,d}&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;然后提交 &lt;code&gt;{a,b,c,d}&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看这两阶段中可能出现宕机的情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;第一阶段时leader节点宕机，这个leader节点只有可能是两种情况，其集群配置还是&lt;code&gt;C_Old&lt;/code&gt;，或者已经收到了&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;：由于这时候这个leader并没有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，因此那些已有&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合的follower这部分的日志将被截断，成员变更失败，回退回&lt;code&gt;C_Old&lt;/code&gt;集合。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;：这意味这个leader已经有第一阶段提交的&lt;code&gt;C_Old&lt;/code&gt;$\bigcup$  &lt;code&gt;C_New&lt;/code&gt;节点集合变更，可以继续将未完成的成员变更流程走完。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;类似的，在第二阶段时leader节点宕机，也不会导致选不出leader的情况，可以类似推导。&lt;/p&gt;
+&lt;p&gt;可见：直接使用Joint Consensus算法并不会存在单步变更时的可用性问题。&lt;/p&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Raft集群的单步变更算法，虽然看起来”简单“，但是实践起来有不少细节需要注意。&lt;/li&gt;
+&lt;li&gt;虽然论文里提到单步变更算法比之Joint Consensus算法更为简单，很多开源的Raft实现都已经以Joint Consensus算法做为默认的实现了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;（之前写过etcd 3.5版本的实现解析，见：&lt;a href=&#34;https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/&#34;&gt;etcd 3.5版本的joint consensus实现解析 - codedump的网络日志&lt;/a&gt;）&lt;/p&gt;
+&lt;h2 id=&#34;参考资料&#34;&gt;参考资料&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/VKu7fBLliztx3tzvzYDkqw&#34;&gt;Raft成员变更的工程实践&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://blog.openacid.com/distributed/raft-bug/&#34;&gt;TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://groups.google.com/g/raft-dev/c/t4xj6dJTP6E/m/d2D9LrWRza8J&#34;&gt;bug in single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/ongardie/a11f32b70581e20d6bcd&#34;&gt;Safety of Raft single-server membership changes&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/peterbourgon/raft/blob/master/JOINT-CONSENSUS.md&#34;&gt;raft/JOINT-CONSENSUS.md at master · peterbourgon/raft&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+      
+    </item>
+    
     <item>
       <title>周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</title>
       <link>https://www.codedump.info/post/20220417-weekly-13/</link>
@@ -1114,123 +1217,6 @@ rr -M replay -p pid
 &lt;p&gt;我通过这个应用，还是被推荐才看到了不少有价值的文章的的。&lt;/p&gt;
 &lt;h2 id=&#34;独立开发变现周刊httpswwwezindiecomweekly&#34;&gt;&lt;a href=&#34;https://www.ezindie.com/weekly&#34;&gt;独立开发变现周刊&lt;/a&gt;&lt;/h2&gt;
 &lt;p&gt;每周更新推荐一些独立开发变现的产品。&lt;/p&gt;
-</description>
-      
-    </item>
-    
-    <item>
-      <title>周刊（第4期）：为什么我还在看中国足球</title>
-      <link>https://www.codedump.info/post/20220204-weekly-4/</link>
-      <pubDate>Fri, 04 Feb 2022 21:55:23 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20220204-weekly-4/</guid>
-      
-      <description>&lt;hr&gt;
-&lt;p&gt;引言：虎年大年初一的晚上，一场脆败发生在世界杯亚洲区预选赛中国客场对越南队的比赛上。如今，“你居然还在看中国男足”，仿佛已成一句骂人的质问。本期从我角度来谈谈，我眼中的中国足球，以及说说我为什么还一直在关注这个领域。&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1 id=&#34;我为什么还在看中国足球&#34;&gt;我为什么还在看中国足球&lt;/h1&gt;
-&lt;p&gt;我从94年开始看球，中国足球绝大部分的重要比赛都看了：94年亚运会决赛输给乌兹别克斯坦、97年大连金州被伊朗逆转、2002年世界杯出线&amp;hellip;太多了，数不过来，算是从我开始看球之后就一直有关注中国足球。&lt;/p&gt;
-&lt;p&gt;在看国足比赛二十多年之后，慢慢地从一个参与者、评论者的角色，切换到了近似于第三方视角的观察者角色。切换到这个视角之后，让我能从里面各种情绪里抽离出来，当然高兴的时候也会像个普通球迷那样欢乐，比如2017年世界杯预选赛击败韩国这样的比赛。&lt;/p&gt;
-&lt;p&gt;我国虽然在奥运会上取得了看似很好的成绩，金牌数总是保持前列，但是有一说一，并不算是体育大国，更别提强国了。&lt;/p&gt;
-&lt;p&gt;只看我们占优势、能取得好成绩的项目，大多有这样的特点：小众、冷门，这样的特点直接导致这样的项目，实际是商业化程度很低的领域。这样的领域，国外参与的人不会太多，也因此可以继续沿用以前我们擅长的打法：集中力量办大事，换到体育这个领域，就是所谓的“举国体制”。&lt;/p&gt;
-&lt;p&gt;这样做的好处是，能用较少的资源拿到不错的效果，因为大部分人只关注金银牌这些数字，并不关心你怎么拿到的。这个策略，用知乎上一个回答的话来说叫“田忌赛马”，见：&lt;a href=&#34;https://www.zhihu.com/question/414037344/answer/1713991758&#34;&gt;为什么中国的其他运动项目那么强，到了男足这里就不行呢？&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;在商业化、职业化很好的体育项目，比如足球、篮球、网球等等领域，我们的成绩就不这么好了，李娜、姚明、刘翔是少数在这些领域拿得出手的世界级运动员。（后面会专门谈谈女足）&lt;/p&gt;
-&lt;p&gt;一言以蔽之：举国体制从目前的成绩来看，并不适合职业化、商业化很好的体育项目。&lt;/p&gt;
-&lt;p&gt;“足球是体育工业化的集大成者”（见&lt;a href=&#34;https://www.zhihu.com/question/310636566/answer/1720809481&#34;&gt;(为什么整个中国都知道中国足球的问题，为什么还是没有办法解决？ - 知乎&lt;/a&gt;），所以它不像其他领域那样，需要长期的积累和基础。&lt;/p&gt;
-&lt;p&gt;所以，男足的存在，在我看来更多像是一个“大型的社会实验”，我在这个实验中，看到不同的政策、体制、行政干预、市场行为等对这个运动的影响，看到各方参与者、评论者、媒体的所作所为，从中能看到某些我们社会的缩影。&lt;/p&gt;
-&lt;p&gt;男足也是“客观规律”的具象化代言人（见&lt;a href=&#34;https://weibo.com/1573046985/Ldz5zvYdY&#34;&gt;中国男足挺好的，理直&amp;hellip; - @祝佳音的微博 - 微博&lt;/a&gt;）：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;男足不跟你讲这些虚的，不按科学规律办事就是不行。给钱诱惑也不行，立规矩骂人也不行，做思想工作说服不行，临时加班加练也不行。富贵不能淫威武不能屈，不行就是不行。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;相对其他很多领域，足球的成绩更透明、公开，足球运动一直在提醒我要尊重“客观规律”。&lt;/p&gt;
-&lt;p&gt;足球在中国，属于“参与度很低，但是关注度高”的体育项目。在这样的领域：看起来中超火爆的时候现场能有几万球迷现场观赛，看起来花了很多钱、投入了很多人力，但是只要没有按照足球的“客观规律”办事，成绩马上就能打脸，公开透明。&lt;/p&gt;
-&lt;p&gt;规则透明、结果公开，等等这些都是我一直还在关注这个“大型社会实验”的原因。&lt;/p&gt;
-&lt;h2 id=&#34;番外&#34;&gt;番外&lt;/h2&gt;
-&lt;p&gt;番外篇里，试图简单科普关于中国足球相关的几个常见问题。&lt;/p&gt;
-&lt;h3 id=&#34;14亿人里为什么就选不出11个能踢球的人&#34;&gt;“14亿人里为什么就选不出11个能踢球的人？”&lt;/h3&gt;
-&lt;p&gt;这是最常见的问题了，用类比的方式试图回答一下，这就好比问：“这么大一块沙漠为什么就种不出几棵树来？”。显然很多人并没有意识到，我国在足球从业人员领域属于“沙漠”，只是看起来热闹，仅此而已。&lt;/p&gt;
-&lt;p&gt;我们的选材不是从14亿里选，而是足球注册球员里面选（中国好像只有几万足球从业人口），这个基数对比足球发达国家差的很多。&lt;/p&gt;
-&lt;h3 id=&#34;怎么看待女足的成绩比男足好这么多&#34;&gt;怎么看待女足的成绩比男足好这么多？&lt;/h3&gt;
-&lt;p&gt;女足有过比男足更光辉的历史：奥运会银牌、世界杯亚军。但是需要认识到，这些成绩的取得，已经年代久远，距离现在有20多年了。&lt;/p&gt;
-&lt;p&gt;取得这些成绩很大的原因是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;由于宗教、妇女地位等原因，参与女足运动的国家并不多。&lt;/li&gt;
-&lt;li&gt;当时职业化的女足并不多。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;比如在亚洲，男足要打世界杯预选赛、亚洲杯决赛这样的比赛，都要先进行一轮预选赛，因为有50多个国家参与；而女足对应的比赛，则无需预选赛，因为参与的队伍实在不多，比如一大批相对落后的国家派不出女足，比如阿拉伯国家也不让女足参赛（这次女足亚洲杯伊朗倒是参赛了）。&lt;/p&gt;
-&lt;p&gt;另外，说到女足职业化。随着欧美女足职业联赛的发展，她们的水平提高了很多，此消彼长，这就是后来北京奥运会、东京奥运会大比分输球，以及世界排名一路滑到19名的原因。&lt;/p&gt;
-&lt;p&gt;做一个可能不正确的类比：10个人参加的比赛里，取得第3名的成绩，确实比50个人参加的比赛里取得第10名，看起来好看一些。&lt;/p&gt;
-&lt;p&gt;但是，即便抛开职业化、商业化、参赛队伍基数等因素，有一说一，女足的精气神确实比男足要高出一大截来，尤其在春节密集得看了几场男足、女足的比赛对比就更明显了。&lt;/p&gt;
-&lt;p&gt;豆瓣上有人整理了本届女足亚洲杯现役国家队成员的介绍：&lt;a href=&#34;https://www.douban.com/group/topic/258215115/?_dtcc=1&amp;amp;_i=4158490DTua3Gc&#34;&gt;中国女足现役国家队队员介绍（亚洲杯来了）&lt;/a&gt;&lt;/p&gt;
-&lt;h3 id=&#34;是否一定要搞好足球&#34;&gt;是否一定要“搞好足球”？&lt;/h3&gt;
-&lt;p&gt;这个问题见仁见智，我不认为一定有“搞好足球”的必要，毕竟比这个事情重要的事情还有很多，“足球”也并不能代表一个国家的综合国力。&lt;/p&gt;
-&lt;p&gt;我比较同意知乎这个回答里的几段话：&lt;a href=&#34;https://www.zhihu.com/question/310636566/answer/1830192531&#34;&gt;为什么整个中国都知道中国足球的问题，为什么还是没有办法解决？ - 知乎&lt;/a&gt;&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;因为和整个国家要解决的问题来比，中国足球不重要。&lt;/p&gt;
-&lt;p&gt;&amp;hellip;&lt;/p&gt;
-&lt;p&gt;有基建重要吗？有国防重要吗？有教育重要吗？有医疗重要吗？有扶贫攻坚重要吗？有抗击疫情重要吗？……三百六十行，至少得有三百行排在竞技体育前面好不好？&lt;/p&gt;
-&lt;p&gt;中国人喜欢足球吗？中国人只喜欢看足球，而且是可有可无的那种喜欢。真喜欢踢，投身足球事业的不会只有这么点。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;但是不同意回答里的这句话：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;中国足球的问题不是没有办法解决，要解决中国足球的问题，集国家力量有一万种办法解决。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;毕竟我们还从来没有解决过，实事求是。&lt;/p&gt;
-&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
-&lt;p&gt;总结一下我的观点：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;足球属于商业化、职业化程度很高的竞技体育项目，“举国体制”从目前来看不适用于这样的领域。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;足球在中国属于“参与度低、关注度高”的项目，看着很热闹，实际真正参与、从业的人并不多。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;因为早期我们只关注奥运会的金银牌，所以集中力量发展冷门项目更容易出成绩。大部分人只关注简单的数字、金银牌，不会关注背后的难易程度，“10个人参加的比赛里，取得第3名的成绩，确实比50个人参加的比赛里取得第10名，看起来好看一些。”&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;我并不认为，有一定要“搞好足球”的必要性，至少现在没有，因为还有更重要的事情需要做。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;足球在我看来是“大型社会实验”，是“客观规律的具象代言人”，规则透明、结果公开，所以我一直关注这个领域。&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;只此青绿千里江山图和王希孟&#34;&gt;《只此青绿》、《千里江山图》和王希孟&lt;/h1&gt;
-&lt;p&gt;虎年春晚个人认为最好的节目是脱胎于传世名画&lt;a href=&#34;https://baike.baidu.com/item/%E5%8D%83%E9%87%8C%E6%B1%9F%E5%B1%B1%E5%9B%BE/386355&#34;&gt;《千里江山图》&lt;/a&gt;的舞剧&lt;a href=&#34;https://www.youtube.com/watch?v=OZlUvIV50Ww&#34;&gt;《只此青绿》&lt;/a&gt;：&lt;/p&gt;
-&lt;p&gt;最近几年看了好几个讲述《千里江山图》的纪录片，比如&lt;a href=&#34;https://www.youtube.com/watch?v=UYz1njDuqr4&#34;&gt;[国家宝藏]王希孟《千里江山图》卷&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;宋徽宗赵佶固然是一个糟糕的皇帝，历史惨案“靖康之耻”大半的锅都是他的。但是也不能否认他在艺术上的成就，发掘、培养了天才少年王希孟，才能最后让《千里江山图》传世千年。可惜的是，王希孟就这一幅作品，后世再没有关于这个人的更多资料了。&lt;/p&gt;
-&lt;p&gt;赵佶后来把这幅画赏赐给了蔡京，蔡京跋里能勉强看到一些王希孟作画时的信息：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;此卷政和三年閏四月一日賜。希孟年十八嵗，昔在畫學為生徒，召入禁中文書庫，數以畫獻，未甚工。上知其性可教，遂誨諭之，親授其法，不踰半嵗，乃以此圖進，上嘉之，因以賜臣京，謂天下士在作之而已。今希孟已死，展卷深為悼惜。政和五年季春望太師魯國公臣京謹記&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;这几句话里交代了几个信息：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;王希孟作画的时候才18岁。&lt;/li&gt;
-&lt;li&gt;最开始，王希孟并不出色，但是赵佶看他潜力不错，于是亲自传授技法。&lt;/li&gt;
-&lt;li&gt;王希孟完成这幅画，只用了不到半年的时间。要知道，《千里江山图》可是长达20米的巨幅画作。&lt;/li&gt;
-&lt;li&gt;蔡京题跋的时候，王希孟已经死了。（&lt;code&gt;今希孟已死，展卷深為悼惜&lt;/code&gt;）&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;我特别喜欢陈丹青在&lt;a href=&#34;https://v.youku.com/v_show/id_XMTI2MDk4MTA5Ng==.html?spm=a2h0c.8166622.PhoneSokuProgram_1.dselectbutton_16&amp;amp;showid=cc117696c7cb11e4b432&#34;&gt;局部 第一季 千里江山图&lt;/a&gt;里评价十八岁王希孟的这段话：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;通常成年的老熟的大师，喜欢做减法，也就是所谓取舍和概括，可十八岁英年的王希孟呢，他是忙着做加法。人在十八岁年纪，才会有这股子雄心和细心，一点不乱。不枝蔓，不繁杂，通篇贵气，清秀逼人。那就是他的天赋了。&lt;/p&gt;
-&lt;p&gt;&amp;hellip;&lt;/p&gt;
-&lt;p&gt;十八岁干的事，多半其实是不自知的，他好也好在不自知。照西洋人的说法，那是上帝让他干了这件事情。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;我回想起来我在这个岁数的时候，也是在“做加法”，天地广阔任我遨游；年纪大了，慢慢知道自己的边界在哪里，于是慢慢“做减法”，减掉自己做不到的事情。&lt;/p&gt;
-&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
-&lt;h2 id=&#34;武侠风格的滑雪创意短片&#34;&gt;武侠风格的滑雪创意短片&lt;/h2&gt;
-&lt;p&gt;冬奥会正在进行中，B站上看到一个很有意思的武侠风格的滑雪创意短片：&lt;a href=&#34;https://www.bilibili.com/video/BV16q4y1h7v7&#34;&gt;我悍刀愿称你为最行&lt;/a&gt;。&lt;/p&gt;
-&lt;h2 id=&#34;置身事内&#34;&gt;《置身事内》&lt;/h2&gt;
-&lt;p&gt;一本讲解中国政经体制的好书，强烈推荐，看完之后能对国家层面宏观的很多政策等有更好的理解，比如城市化、土地财政政策、城市化等等。&lt;/p&gt;
-&lt;p&gt;&lt;a href=&#34;https://book.douban.com/subject/35546622/&#34;&gt;置身事内 (豆瓣)&lt;/a&gt;&lt;/p&gt;
-&lt;h2 id=&#34;paxos原理的直观解释&#34;&gt;Paxos原理的直观解释&lt;/h2&gt;
-&lt;p&gt;这是目前看到这么多的Paxos原理解释的文章里写的最清晰的一篇了：&lt;/p&gt;
-&lt;p&gt;&lt;a href=&#34;https://blog.openacid.com/algo/paxos/&#34;&gt;可靠分布式系统-paxos的直观解释 - OpenACID Blog&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;其他很多文章多是囫囵吞枣式的论文翻译，这篇文章有作者自己的理解和解释（图示、例子）。&lt;/p&gt;
-&lt;h2 id=&#34;testing-distributed-systems&#34;&gt;Testing Distributed Systems&lt;/h2&gt;
-&lt;p&gt;&lt;a href=&#34;https://asatarin.github.io/testing-distributed-systems/&#34;&gt;Testing Distributed Systems | Curated list of resources on testing distributed systems&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;列举了各种分布式系统、数据库的测试方案。&lt;/p&gt;
-&lt;h3 id=&#34;heading&#34;&gt;&lt;/h3&gt;
 </description>
       
     </item>
