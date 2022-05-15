@@ -201,7 +201,7 @@
 <li>缓存页面使用的内存不够用时，应该如何处理？</li>
 </ul>
 <p>我们首先来了解一下“页面缓存”模块的总体划分：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache.png" alt="页面缓存功能的模块划分" title="页面缓存功能的模块划分"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache.png" alt="页面缓存功能的模块划分" title="页面缓存功能的模块划分"></p>
 <p>按照上图的划分，页面缓存模块分为以下几部分：</p>
 <ul>
 <li>页面缓存管理器：实现了页面缓存的总体算法流程，以及提供对外的接口，但是具体到“页面缓存算法”的实现，则有赖于下面这个可用户定制的<code>sqlite3_pcache_methods2</code>。这部分功能在代码<code>pcache.c</code>中。</li>
@@ -213,13 +213,13 @@
 <li>“页面缓存管理器”：定义了管理页面缓存的接口、总体流程，维护管理目前在用的脏页面。</li>
 <li>“页面缓存算法”：维护其它不在使用但还在内存中的页面，负责其淘汰、回收等实现。由“sqlite3_pcache_methods2”结构体实现，用户可以定制自己实现的“sqlite3_pcache_methods2”，系统也提供默认的实现。当内存不足以分配时，需要淘汰不常用的页面，这时候需要使用“页面缓存管理器”注册的回调函数来淘汰页面。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache_module.png" alt="页面缓存两个模块的功能划分" title="页面缓存两个模块的功能划分"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/pagecache_module.png" alt="页面缓存两个模块的功能划分" title="页面缓存两个模块的功能划分"></p>
 <p>简而言之，如果把当前在内存中的页面划分为以下两类，那么：</p>
 <ul>
 <li>当前在使用的页面：即与页面编号对应的页面，由“页面缓存管理器”维护。</li>
 <li>当前还未使用、但也在内存中的页面：即随时准备拿出来存储从磁盘中读出来的数据的页面，由“页面缓存算法”维护，比如淘汰、回收、复用等。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png" alt="两种页面的划分" title="两种页面的划分"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/page_cache_memory.png" alt="两种页面的划分" title="两种页面的划分"></p>
 <p>下面，就开始“页面缓存”这几部分功能的具体讲解。</p>
 <h1 id="管理页面">管理页面</h1>
 <h2 id="页面相关的数据数据结构">页面相关的数据数据结构</h2>
@@ -280,7 +280,7 @@ struct PgHdr {
 <li>pDirty、pDirtyNext、pDirtyPrev这几个成员维护的脏页面相关的指针。</li>
 <li>flags维护的页面标志位，通过这些标志位来区分应该对页面进行什么操作。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/PgHdr.png" alt="内存中脏页面的组织" title="内存中脏页面的组织"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/PgHdr.png" alt="内存中脏页面的组织" title="内存中脏页面的组织"></p>
 <h3 id="sqlite3_pcache_page数据结构">sqlite3_pcache_page数据结构</h3>
 <p>上面的<code>PgHdr</code>结构体中，还有第一个成员，即<code>sqlite3_pcache_page</code>类型的pPage指针没有讲解，这里展开解释。</p>
 <p>前面概述部分提到，“页面缓存算法”的实现，是可以交给用户自定义的，这就带来一个问题：每个自定义的实现，内部实现的管理页面的结构体可能并不相同。于是，就要类似C++中的面向对象机制一样，先声明一个“页面”的基类，基类中定义最基础的成员变量，这样做之后有这样的好处：页面管理模块，所有的操作都能针对这个基类来进行，而不需要管具体实现中的差异。</p>
@@ -333,7 +333,7 @@ struct sqlite3_pcache_page {
   // ...
 }
 </code></pre><p>总结起来，如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/sqlite3_pcache_page.png" alt="sqlite3_pcache_page" title="sqlite3_pcache_page"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/sqlite3_pcache_page.png" alt="sqlite3_pcache_page" title="sqlite3_pcache_page"></p>
 <h2 id="页面所在的数据结构">页面所在的数据结构</h2>
 <p>缓存中的页面，可能存在于以下三种数据结构中：</p>
 <ul>
@@ -341,7 +341,7 @@ struct sqlite3_pcache_page {
 <li>hash数组：作用是以页面编号为键来查询页面，由默认的“页面缓存算法”来维护。</li>
 <li>LRU链表：越是常被访问的页面，在LRU链表中就越往前，从LRU链表中淘汰数据都是从链表尾部开始的，也是由默认的“页面缓存算法”来维护。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211217-sqlite-btree-1-pagecache/page_ds.png" alt="页面所在的三种数据结构" title="页面所在的三种数据结构"></p>
+<p><img src="/media/imgs/20211217-sqlite-btree-1-pagecache/page_ds.png" alt="页面所在的三种数据结构" title="页面所在的三种数据结构"></p>
 <h3 id="脏页面链表">脏页面链表</h3>
 <p>这个页面链表叫“脏页面（dirty page）链表”实际上并不十分准确，这会让人误以为这个链表上的页面全都是脏页面，实际上是可能存在干净的页面的。更准确的说法，是当前系统在使用的页面，都维护在这个页面链表中。</p>
 <p>操作这个链表的入口函数是<code>pcacheManageDirtyList</code>，其传入的参数一个是<code>PgHdr</code>类型的指针，另一个用于指定行为，有以下三种：</p>
@@ -510,7 +510,7 @@ typedef struct sqlite3_pcache sqlite3_pcache;
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>

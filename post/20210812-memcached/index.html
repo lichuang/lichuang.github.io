@@ -165,7 +165,7 @@
 <p>在前面的<a href="https://www.codedump.info/post/20210701-memcached/">Memcached的存储原理解析</a>一文中，简单分析了memcached的存储原理，但是最近在照搬memcached的实现原理到项目中时，发现前面的梳理还不够细致，有一些细节没有谈及，因此重新整理一篇文章。</p>
 <h1 id="slab">slab</h1>
 <p>memcached是根据slab为基础单位来管理空闲空间的。slab的大体原理如下图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储"></p>
+<p><img src="/media/imgs/20210812-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储"></p>
 <p>slabs.c中定义了类型为<code>slabclass_t</code>、大小为<code>MAX_NUMBER_OF_SLAB_CLASSES</code>的数组<code>slabclass</code>，用于分级存储。</p>
 <p>数组中的每个<code>slabclass_t</code>元素，其能分配出去的内存大小递增，由如下的规则决定：</p>
 <ul>
@@ -207,7 +207,7 @@
 <li>元素被访问一次就会被放到LRU链表的头部，这样即便这个元素可以被淘汰，也会需要很久才会淘汰掉这个元素。</li>
 <li>由于上面的原因，从链表尾部开始找可以淘汰的元素时，实际可能访问到的是一些虽然不常被访问，但是还没到淘汰时间（即有效时间TTL还未过期）的数据，这样会一直沿着链表往前找很久才能找到适合淘汰的元素。由于这个查找被淘汰元素的过程是需要加锁保护的，加锁时间一长影响了系统的并发。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现"></p>
+<p><img src="/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现"></p>
 <p>综上，经典的LRU链表问题的核心在于：</p>
 <ul>
 <li>只需要一次被访问就能让元素远离被淘汰的地方。</li>
@@ -233,7 +233,7 @@
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> item <span style="color:#666">*</span>heads[LARGEST_ID];
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> item <span style="color:#666">*</span>tails[LARGEST_ID];
 </span></span></code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
+<p><img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
 <p>前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。</p>
 <p>首先，改进的算法中，加入了一个机制：只有当元素被访问两次以后，才会标记成<code>活跃</code>元素。</p>
@@ -257,7 +257,7 @@
 </ul>
 <p>以上需要注意的是：任何操作都不能将一个元素从WARM和COLD队列中移动回去HOT队列了，也就是从HOT队列中移动元素出去的操作是单向操作。</p>
 <p>上述算法的状态机转换过程，可以参考下图。使用了这些规则来维护着三个队列之后，基本能保证COLD队列中的元素是不活跃的，这样查找起被淘汰元素也更快了。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图"></p>
+<p><img src="/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图"></p>
 <p>综述起来，改进的分段LRU算法做了如下的优化：</p>
 <ul>
 <li>需要至少两次被访问，才能变成<code>活跃</code>元素。</li>
@@ -276,7 +276,7 @@
 <li>空闲的item：保存在slabclass的slots空闲链表中，这一点已经在上面slab的图示中描述过了。</li>
 <li>在使用中的item：保存在lru链表中，用于数据回收之用；同时还保存在hash表中，用于数据访问时使用。如下图所示：</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/in-use-item.png" alt="使用中的item数据组织结构" title="使用中的item数据组织结构"></p>
+<p><img src="/media/imgs/20210812-memcached/in-use-item.png" alt="使用中的item数据组织结构" title="使用中的item数据组织结构"></p>
 <p>对item的数据组织有了大体的概念之后，下面展开来说读写操作的具体实现。</p>
 <h2 id="读操作">读操作</h2>
 <p>由于被使用数据存储在hash表中，所以查询操作相对简单，其伪代码是：</p>
@@ -288,7 +288,7 @@
   返回查询的结果
 </code></pre><p>虽然简单，但是其中有一个值得注意的细节。这里的加锁操作，并不是一个全局锁，否则系统的并发性会大大折扣；同时，也不是给hash数组中的某一个hash桶进行加锁，实际上hash表本身并不存在锁操作。</p>
 <p>在这里，加的锁是首先根据所查询数据的键进行hash计算，再得到对应的锁，在memcached里被称为“item lock”（见全局变量<code>static pthread_mutex_t *item_locks</code>）。这个锁虽然与数据的键值相关，但是如果hash数组数量与item_locks不相等，那么就不是一一对应的关系，所以才说不是针对hash桶进行加锁。如果hash桶的数量大于item lock的数量，那么这就是一对多的关系，也就是对一个item lock加锁之后，获得锁的线程可以访问多个hash桶。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/item-lock.png" alt="item锁与hash桶的对应关系" title="item锁与hash桶的对应关系"></p>
+<p><img src="/media/imgs/20210812-memcached/item-lock.png" alt="item锁与hash桶的对应关系" title="item锁与hash桶的对应关系"></p>
 <p>上图中，索引为N的item锁，管理着索引为M、P这两个hash桶，因此拿到该item锁的线程可以同时访问这两个hash桶。</p>
 <p>因此，上面的读操作更准确的描述应该是：</p>
 <pre tabindex="0"><code>读操作：
@@ -355,13 +355,13 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
 </span></span></code></pre></div><p>步骤2，内存不足情况下分配足够内存的item，其完整实现在函数<code>lru_pull_tail</code>中，读者可以自行结合上面的伪代码以及前面提及的LRU算法自行分析。</p>
 <p>以上的整个流程如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/item-recycle.png" alt="需淘汰item时的写入数据流程图" title="需淘汰item时的写入数据流程图"></p>
+<p><img src="/media/imgs/20210812-memcached/item-recycle.png" alt="需淘汰item时的写入数据流程图" title="需淘汰item时的写入数据流程图"></p>
 <p>解释完毕了读写操作流程之后，需要回答这个问题：为什么针对键值的锁加在了item锁上，而不是hash桶？</p>
 <p>原因在于：当写入的元素过多时，hash表需要进行扩容操作，即可以认为hash桶的数量是有可能发生变化的。因此，如果锁在hash桶上，在容量发生变化的时候就难以处理。而item锁数组，其大小则是固定的，不存在这个问题。</p>
 <h1 id="hash数组的扩容操作">hash数组的扩容操作</h1>
 <p>hash数组的数量必须是2的次方，每次存储的数据总量超过数组数量的1.5倍时，就需要扩容一倍，最多到2^32。</p>
 <p>扩容流程示意图如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210812-memcached/expand-hashtable.png" alt="hashtable扩容示意图" title="hashtable扩容示意图"></p>
+<p><img src="/media/imgs/20210812-memcached/expand-hashtable.png" alt="hashtable扩容示意图" title="hashtable扩容示意图"></p>
 <p>扩容步骤为：</p>
 <ul>
 <li>按照新的大小分配出来新的hash数组保存到primary_hashtable中，原hash数组命名为old_hashtable，另外有扩容索引值expand_bucket，在该索引之前的数据，表示已经从old_hashtable中转移到新的hash数组了。</li>
@@ -407,7 +407,7 @@
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>

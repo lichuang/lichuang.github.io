@@ -185,7 +185,7 @@
     
     <p>本文基于leveldb 1.9.0代码。</p>
 <h1 id="整体架构">整体架构</h1>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/leveldb.png" alt="leveldb" title="leveldb"></p>
+<p><img src="/media/imgs/20190215-leveldb/leveldb.png" alt="leveldb" title="leveldb"></p>
 <p>如上图，leveldb的数据存储在内存以及磁盘上，其中：</p>
 <ul>
 <li>memtable：存储在内存中的数据，使用skiplist实现。</li>
@@ -222,11 +222,11 @@
 </ul>
 </li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/log-file.png" alt="log-file" title="log-file"></p>
+<p><img src="/media/imgs/20190215-leveldb/log-file.png" alt="log-file" title="log-file"></p>
 <h1 id="memtable">memtable</h1>
 <p>memtable用于存储在内存中还未落盘到sstable中的数据，这部分使用跳表（skiplist）做为底层的数据结构，这里先简单描述一下跳表的工作原理。</p>
 <p>如果数据存放在一个普通的有序链表中，那么查找数据的时间复杂度就是O(n)。跳表的设计思想在于：链表中的每个元素，都有多个层次，查找某一个元素时，遍历该链表的时候，根据层次来跳过（skip）中间某些明显不满足需求的元素，以达到加快查找速度的目的，如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/skiplist.png" alt="skiplist" title="skiplist"></p>
+<p><img src="/media/imgs/20190215-leveldb/skiplist.png" alt="skiplist" title="skiplist"></p>
 <p>在以上这个跳表中，查找元素6的流程，大体如下：</p>
 <ul>
 <li>构建一个每个链表元素最多有5个元素的跳表。</li>
@@ -253,7 +253,7 @@
 <h1 id="sstable文件">sstable文件</h1>
 <h2 id="大体结构">大体结构</h2>
 <p>首先来看sstable文件的整体结构，如下图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/sstable.png" alt="sstable" title="sstable"></p>
+<p><img src="/media/imgs/20190215-leveldb/sstable.png" alt="sstable" title="sstable"></p>
 <p>sstable文件中分为以下几个组成部分：</p>
 <ul>
 <li>data block：存储数据的block，由于一个block大小固定，因此每个sstable文件中有多个data block。</li>
@@ -264,13 +264,13 @@
 <p>可以看到，上面这几部分数据，从文件的组织来看自上而下，先有了数据再有索引数据，最后才是文件自身的元信息。原因在于：索引数据是针对数据的索引信息，在数据没有写完毕之前，索引信息还会发生改变，所以索引数据要等数据写完；而元信息就是针对索引数据的索引，同样要依赖于索引信息写完毕才可以。</p>
 <h2 id="block">block</h2>
 <p>上面几部分数据中，除去footer之外，内部都是以block的形式来组织数据，接着看block的结构，如下图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/block.png" alt="block" title="block"></p>
+<p><img src="/media/imgs/20190215-leveldb/block.png" alt="block" title="block"></p>
 <p>从上面看出，实际上存储数据的block大同小异：最开始的一部分存储数据，然后存储类型，最后一部分存储这个block的校验码以做合法性校验。</p>
 <p>以上只是对block大体结构的分析，在数据部分，每一条数据记录leveldb使用前缀压缩（prefix-compressed）方式来存储。这种算法的原理是：针对一组数据，取出一个公共的前缀，而在该组中的其它字符串只保存非公共的字符串做为key即可，由于sstable保存KV数据是严格按照key的顺序来排序的，所以这样能节省出保存key数据的空间来。</p>
 <p>如下图所示：一个block内部划分了多个记录组（record group），每个记录组内部又由多条记录（record）组成。在同一个记录组内部，以本组的第一条数据的键值做为公共前缀，后续的记录数据键值部分只存放与公共前缀非共享部分的数据即可。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/block-record.png" alt="block-record" title="block-record"></p>
+<p><img src="/media/imgs/20190215-leveldb/block-record.png" alt="block-record" title="block-record"></p>
 <p>以记录的三个数据&lt;a,test&gt;、&lt;ab,test2&gt;、&lt;c,test3&gt;为例，假设这三个数据在同一个record group内，那么对应的record记录如下所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/record-example.png" alt="record-example" title="record-example"></p>
+<p><img src="/media/imgs/20190215-leveldb/record-example.png" alt="record-example" title="record-example"></p>
 <p>说明如下：</p>
 <ul>
 <li>&lt;a,test&gt;：由于这对数据是这一组记录组的第一组数据，因此共享的前缀部分长度为0，因为每一组都以第一条数据的key为共享前缀，因此针对第一条数据本身，其共享前缀长度就是0了。</li>
@@ -298,7 +298,7 @@
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="">递增记录组数据计数器</span>
 </span></span></code></pre></div><p>有了前面的这些准备，再在前面block格式的基础上展开，得到更加详细的格式如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/block-detail.png" alt="block-detail" title="block-detail"></p>
+<p><img src="/media/imgs/20190215-leveldb/block-detail.png" alt="block-detail" title="block-detail"></p>
 <p>block详细格式还是划分为三大部分，其中：</p>
 <ul>
 <li>数据部分
@@ -332,7 +332,7 @@
 <li>Block::Iter：前面分析sstable的时候，讲到一个sstable内部其实有多个block组成，这个迭代器就是按照block的结构进行迭代访问的迭代器。</li>
 <li>Version::LevelFileNumIterator：每个level都由多个sstable文件组成，说白了就是一个sstable类型的数组。除了level 0之外，其余level的sstable的键值之间没有重叠关系，而LevelFileNumIterator就是用于迭代一组有序sstable文件的迭代器。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/internal-iterator.png" alt="internal-iterator" title="internal-iterator"></p>
+<p><img src="/media/imgs/20190215-leveldb/internal-iterator.png" alt="internal-iterator" title="internal-iterator"></p>
 <h2 id="组合迭代器">组合迭代器</h2>
 <p>组合迭代器内部都包含至少一个迭代器，组合起来完成迭代工作，有如下几类。</p>
 <h3 id="twoleveliterator">TwoLevelIterator</h3>
@@ -354,13 +354,13 @@
 <li>const ReadOptions&amp; options：传入BlockFunction函数的第二个参数。</li>
 </ul>
 <p>综合以上，TwoLevelIterator的工作流程如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/TwoLevelIterator.png" alt="TwoLevelIterator" title="TwoLevelIterator"></p>
+<p><img src="/media/imgs/20190215-leveldb/TwoLevelIterator.png" alt="TwoLevelIterator" title="TwoLevelIterator"></p>
 <p>TwoLevelIterator有如下两类：</p>
 <ul>
 <li>Table::Iterator：实现对于单个sstable文件的迭代。由于一个sstable文件中有多个block，而又划分为index block和data block，查询数据时，先根据键值到index block中查询到对应的data block，再进入data block中进行查询，这个查询过程实际就是一个两层的查找过程：先查索引数据，再查数据。因此Table::Iterator类型的TwoLevelIterator，组合了index block的Block::Iter，以及data block的Block::Iter。</li>
 <li>ConcatenatingIterator：组合了LevelFileNumIterator以及Table::Iterator，用于在某一层内的sstable文件中查询数据。因此它的第一层迭代器就是前面的LevelFileNumIterator，用于根据一个键值在一组有序的sstable文件中定位到所在的文件，而第二层的迭代器是Table::Iterator，用于在第一层迭代器LevelFileNumIterator中查询到的sstable文件中查询键值。另外，既然ConcatenatingIterator处理的是有序sstable文件，那么level 0的sstable文件就不会使用这种迭代器进行访问，因为level 0文件之间有重叠键值。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/TwoLevelIterator-design.png" alt="TwoLevelIterator-design" title="TwoLevelIterator-design"></p>
+<p><img src="/media/imgs/20190215-leveldb/TwoLevelIterator-design.png" alt="TwoLevelIterator-design" title="TwoLevelIterator-design"></p>
 <h3 id="mergingiterator">MergingIterator</h3>
 <p>用于合并流程的迭代器。在合并过程中，需要操作memtable、immutable memtable、level 0 sstable以及非level 0的sstable，该迭代器将这些存储数据结构体的迭代器，统一进行归并排序：</p>
 <ul>
@@ -391,7 +391,7 @@
 <p>MergingIterator迭代器的其它实现不再做解释，简单理解：针对一组iterator的查询结果进行归并排序。对于同样一个键值，只取位置在存储位置上最靠上面的数据。</p>
 <p>这么做的原因在于：一个键值的数据可能被写入多次，而需要以最后一次写入的数据为准，合并时将丢弃掉不在存储最上面的数据。</p>
 <p>以下面的例子来说明MergingIterator迭代器的合并结果。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/MergingIterator-sample.png" alt="MergingIterator-sample" title="MergingIterator-sample"></p>
+<p><img src="/media/imgs/20190215-leveldb/MergingIterator-sample.png" alt="MergingIterator-sample" title="MergingIterator-sample"></p>
 <p>在上图的左半边，是合并前的数据分布情况，依次为：</p>
 <ul>
 <li>memtable：键值1的删除记录，以及键值&lt;2,test&gt;。</li>
@@ -423,7 +423,7 @@
 </span></span></code></pre></div><p>这样看起来，leveldb删除数据时，并不会真的去删除一条数据，而是打上了一个标记，那么问题就来了：如果写入数据操作与删除数据操作，只是类型不同，在查询数据的时候又如何知道数据是否存在？看下面的读数据流程。</p>
 <h2 id="读流程">读流程</h2>
 <p>向leveldb中查询一个数据，也是从上而下，先查内存然后到磁盘上的sstable文件查询，如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/read-operation.png" alt="read-operation" title="read-operation"></p>
+<p><img src="/media/imgs/20190215-leveldb/read-operation.png" alt="read-operation" title="read-operation"></p>
 <ul>
 <li>先在内存中的memtable中查询数据，查到则返回；</li>
 <li>否则在磁盘中的sstable文件中查询数据，从0级开始往下查询，查到则返回；</li>
@@ -443,7 +443,7 @@
 </ul>
 <p>可以看到，Version保存的主要是两类数据：当前sstable文件的信息，以及下一次合并时的信息。</p>
 <p>所有的级别，也就是Version类，使用双向链表串联起来，保存到VersionSet中，而VersionSet中有一个current指针，用于指向当前的Version。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/versionset.png" alt="versionset" title="versionset"></p>
+<p><img src="/media/imgs/20190215-leveldb/versionset.png" alt="versionset" title="versionset"></p>
 <p>当进行合并时，首先需要挑选出需要进行合并的文件，这个操作的入口函数是VersionSet::PickCompaction，该函数的返回值是一个Compaction结构体，该结构体内部保存合并相关的信息，Compaction结构体中最重要的成员是VersionEdit类成员，这个成员用于保存合并过程中有删减的sstable文件：</p>
 <ul>
 <li>DeletedFileSet deleted_files_：合并后待删除的sstable文件。</li>
@@ -451,7 +451,7 @@
 </ul>
 <p>可以认为：version N + version N edit = version N + 1，即：第N版本的sstable信息，在经过该版本合并的VersionEdit之后，形成了Version N+1版本。</p>
 <p>另外还有一个VersionSet::Builder，用于保存合并中间过程的数据，其本质是将所有VersoinEdit内容存储到VersionSet::Builder中，最后一次产生新版本的Version。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/versionedit.png" alt="versionedit" title="versionedit"></p>
+<p><img src="/media/imgs/20190215-leveldb/versionedit.png" alt="versionedit" title="versionedit"></p>
 <h3 id="合并条件及原理">合并条件及原理</h3>
 <p>leveldb会不断产生新的sstable文件，这时候需要对这些文件进行合并，否则磁盘会一直增大，查询速度也会下降。</p>
 <p>这部分讲解合并触发的条件以及进行合并的原理。</p>
@@ -516,7 +516,7 @@
 </span></span></code></pre></div><p>如果是第一种情况，即compaction_score_ &gt;= 1的情况来选择合并文件，还涉及到一个合并点的问题（compact point），即leveldb会保存上一次进行合并的键值，这一次会从这个键值以后开始寻找需要进行合并的文件。</p>
 <p>而如果合并层次是0级，因为0级文件中的键值有重叠的情况，因此还需要遍历0级文件中键值范围与这次合并文件由重叠的一起加入进来。</p>
 <p>在这之后，调用VersionSet::SetupOtherInputs函数，用于获取同级别以及更上一层也就是level + 1级别中满足合并范围条件的文件，这就构成了待合并的文件集合。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/SetupOtherInputs.png" alt="SetupOtherInputs" title="SetupOtherInputs"></p>
+<p><img src="/media/imgs/20190215-leveldb/SetupOtherInputs.png" alt="SetupOtherInputs" title="SetupOtherInputs"></p>
 <p>如上图所示：</p>
 <ul>
 <li>此时选择进行合并的文件，其键值是[1,2,4,5]。</li>
@@ -547,7 +547,7 @@
 </span></span><span style="display:flex;"><span>  <span style="">落盘写入</span>sstable文件
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="">调用</span>LogAndApply函数存储合并结果<span style="">，即将</span>VersionEdit数据应用到生成新的Version<span style="">。</span>
-</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190215-leveldb/compaction-work.png" alt="compaction-work" title="compaction-work"></p>
+</span></span></code></pre></div><p><img src="/media/imgs/20190215-leveldb/compaction-work.png" alt="compaction-work" title="compaction-work"></p>
 <h3 id="合并操作对读写流程的影响">合并操作对读写流程的影响</h3>
 <p>leveldb将用户的读写操作，与合并工作放在不同的线程中处理。当用户需要写入数据进行分配空间时，会首先调用DBImpl::MakeRoomForWrite函数进行空间的分配，该函数有可能因为合并流程被阻塞，有以下几种可能性：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">如果当前</span><span style="color:#666">0</span><span style="">级文件数量大于等于</span>kL0_SlowdownWritesTrigger<span style="">：</span>
@@ -589,7 +589,7 @@
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>

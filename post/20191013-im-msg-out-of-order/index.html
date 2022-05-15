@@ -178,11 +178,11 @@
 <h1 id="消息乱序的原因">消息乱序的原因</h1>
 <h2 id="时间难以保证">时间难以保证</h2>
 <p>既然谈到“顺序”，就必然有一个衡量的标准，然而无论是使用客户端时间还是服务器时间都难以作为这个标准来衡量消息的先后顺序。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/msg.png" alt="msg" title="msg"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/msg.png" alt="msg" title="msg"></p>
 <p>如上图中，一个IM系统在多个客户端，在不同的接入网关进行接入，进而又在不同的逻辑处理服务器上进行处理，不论是客户端本身，还是服务器（网络、逻辑服务器），各自机器上的时间都不相同，因此无法以机器本地的时间来作为衡量消息顺序的标准。</p>
 <h2 id="网络顺序无法保证">网络顺序无法保证</h2>
 <p>考虑到只有一个客户端连接上一个网关的场景，即使在这样的场景中，消息的先后顺序也因为网络的因素难以得到保证。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/msg-network.png" alt="msg-network" title="msg-network"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/msg-network.png" alt="msg-network" title="msg-network"></p>
 <p>如上图中，网关试图向客户端依次发送消息1、2这两条消息，可能出现下面的问题：</p>
 <ul>
 <li>网关向客户端发送消息1，此时客户端的网络状况不好，导致该消息可能会丢失或者重传。</li>
@@ -205,7 +205,7 @@
 <p>这样，消息序列号实际上由三部分部分组成：逻辑服务器ID-频道ID-频道内的消息序列号。</p>
 <h2 id="群聊消息的处理">群聊消息的处理</h2>
 <p>有了前面的消息序列号，已经解决了第一个问题：消息的时序标准问题。然而这样还不足够，考虑到下图中的群聊场景：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/group-msg.png" alt="group-msg" title="group-msg"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/group-msg.png" alt="group-msg" title="group-msg"></p>
 <p>在上图中：</p>
 <ul>
 <li>两个客户端依次发出消息A和消息B。</li>
@@ -213,7 +213,7 @@
 </ul>
 <p>从上面可以看出，群聊消息乱序的原因在于：同一个群聊的消息，最后被分派到了两个不同的逻辑服务器上处理。</p>
 <p>还是继续沿用上面生成消息序列号的思路：如果是同一个聊天频道的消息，就放在一起处理。因此可以变成下图中的处理方式：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/group-msg-2.png" alt="group-msg-2" title="group-msg-2"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/group-msg-2.png" alt="group-msg-2" title="group-msg-2"></p>
 <p>上图中，根据群聊消息的群ID来选择逻辑服务器，这样同一个群的消息都能落在同一个服务器中来处理了。</p>
 <p>可以看到，这里并不需要使用一个“分布式唯一递增ID”这样的组件来产生ID，因为这里的问题简化成了：只需要该消息序列号在所在的逻辑服务器处理的聊天频道中唯一且递增就可以了。问题的重新分析和定义，让这个处理变得简单了很多。</p>
 <h2 id="网络乱序的处理">网络乱序的处理</h2>
@@ -223,7 +223,7 @@
 <li>发送端使用序列号ACK来确认接收端收到的数据，比如1、2、3三个序列号的数据，如果先接收到1，此时发送端会收到ACK 1的消息，但是在这之后如果消息3先于消息2被接收端收到，此时发送端仍然会ACK消息1，表示消息3这条消息是乱序的。</li>
 <li>有了缓冲区和确认序列号，就知道哪些数据可以由协议栈提供给应用层。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/tcp-stack.png" alt="tcp-stack" title="tcp-stack"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/tcp-stack.png" alt="tcp-stack" title="tcp-stack"></p>
 <p>如上图中：</p>
 <ul>
 <li>接收方TCP协议栈中依次存有消息1和3，而消息2还未接收到。</li>
@@ -236,7 +236,7 @@
 <p>综合以上的分析，消息乱序问题可以使用下面的方式来解决。</p>
 <h2 id="客户端消息缓存队列">客户端消息缓存队列</h2>
 <p>客户端内部，维持一个缓存消息的队列，每个消息都有对应的消息序列号，收到消息之后需要与网关进行确认，以此确认这条消息是否是按序接收的消息，只有这样的消息才能提供给应用层消费。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20191013-im-msg-out-of-order/cs-msg-queue.png" alt="cs-msg-queue" title="cs-msg-queue"></p>
+<p><img src="/media/imgs/20191013-im-msg-out-of-order/cs-msg-queue.png" alt="cs-msg-queue" title="cs-msg-queue"></p>
 <p>在上图中：</p>
 <ul>
 <li>消息序列号格式为：逻辑服务器ID-频道ID-频道内唯一且递增ID，因此上图中的消息，对应的逻辑服务器ID为1，频道ID为2。后面的描述为了方便仅使用频道内ID。</li>
@@ -301,7 +301,7 @@
   </form>
 </div>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">系统设计</a>
