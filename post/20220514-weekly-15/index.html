@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  
+  <meta name="author" content="codedump">
+
+  
+  
+  <meta name="description" content="周刊（第15期）：图解ARIES论文（上）：日志系统">
+  
+
+  
+  <link rel="icon" href="https://www.codedump.info/favicon.ico">
+
+  
+  
+  <meta name="keywords" content=" 存储引擎  BTree  Boltdb  Sqlite  周刊 ">
+  
+
+  
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
+  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
+  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
+  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+      throwOnError: false
+    });
+  });
+</script>
+
+
+  
+
+  
+  <meta property="og:title" content="周刊（第15期）：图解ARIES论文（上）：日志系统" />
+<meta property="og:description" content="周刊（第15期）：图解ARIES论文（上）：日志系统" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://www.codedump.info/post/20220514-weekly-15/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2022-05-14T06:33:26+08:00" />
+<meta property="article:modified_time" content="2022-05-14T06:33:26+08:00" />
+
+
+
+  
+  <link rel="canonical" href="https://www.codedump.info/post/20220514-weekly-15/">
+
+  
+  
+  <meta itemprop="name" content="周刊（第15期）：图解ARIES论文（上）：日志系统">
+<meta itemprop="description" content="周刊（第15期）：图解ARIES论文（上）：日志系统"><meta itemprop="datePublished" content="2022-05-14T06:33:26+08:00" />
+<meta itemprop="dateModified" content="2022-05-14T06:33:26+08:00" />
+<meta itemprop="wordCount" content="5839">
+<meta itemprop="keywords" content="周刊,存储引擎," />
+
+  
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
+  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
+
+  
+  
+  <title>周刊（第15期）：图解ARIES论文（上）：日志系统 - codedump的网络日志</title>
+  
+
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="周刊（第15期）：图解ARIES论文（上）：日志系统"/>
+<meta name="twitter:description" content="周刊（第15期）：图解ARIES论文（上）：日志系统"/>
+
+
+  
+<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header id="header">
+  <h1>
+    <a href="https://www.codedump.info">codedump的网络日志</a>
+  </h1>
+
+  <nav>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/">主页</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/">发表</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/weekly">周刊</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
+    </span>
+    
+    <span class="nav-bar-item">
+      <a class="link" href="/page/about">关于</a>
+    </span>
+    
+  </nav>
+</header>
+
+    
+<main id="main" class="post">
+  
+  
+  <h1>周刊（第15期）：图解ARIES论文（上）：日志系统</h1>
+  
+  <div>
+    <b>Keywords: </b>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%91%A8%E5%88%8A'>#周刊</a>
+    
+    <a class="link" href='https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E'>#存储引擎</a>
+    
+  </div>
+  
+  
+  
+  <details>
+    <summary>
+      <b>Table of Contents</b>
+    </summary>
+    <div class="toc"><nav id="TableOfContents">
+  <ul>
+    <li><a href="#问题">问题</a></li>
+    <li><a href="#影子页面shadow-page">影子页面（shadow page）</a>
+      <ul>
+        <li><a href="#采用影子页面的例子">采用影子页面的例子</a></li>
+      </ul>
+    </li>
+    <li><a href="#walwrite-ahead-log">WAL（Write Ahead Log）</a></li>
+    <li><a href="#checkpoint检查点">Checkpoint（检查点）</a></li>
+    <li><a href="#使用wal的例子">使用WAL的例子</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#纳瓦尔宝典">《纳瓦尔宝典》</a></li>
+    <li><a href="#c语言编程透视">《C语言编程透视》</a></li>
+    <li><a href="#rust-databend-and-the-cloud-warehouse5从-git-到-fuse-engine-存储引擎">《Rust, Databend and the Cloud Warehouse（5）从 Git 到 Fuse Engine 存储引擎》</a></li>
+    <li><a href="#这名业余程序员曾用50张1080ti对抗癌症">这名“业余”程序员，曾用50张1080Ti对抗癌症。</a></li>
+  </ul>
+</nav></div>
+  </details>
+  
+  
+  <article class="content">
+    
+    <hr>
+<p>引言：ARIES(Algorithm for Recovery and Isolation Exploiting Semantics的简称）是论文<a href="https://cs.stanford.edu/people/chrismre/cs345/rl/aries.pdf">《ARIES: A Transaction Recovery Method Supporting Fine-Franularity Locking and Partial Rollbacks Using Write-Ahead Logging》</a>中提到的一种存储引擎中数据恢复的算法。这篇论文可以说是存储引擎数据恢复领域必读的一篇论文，这两期的周刊就是对这篇论文的图解，这是其中的上篇。</p>
+<hr>
+<h1 id="图解aries论文上">图解ARIES论文（上）</h1>
+<p>在展开解释ARIES算法原理之前，需要对<a href="https://www.codedump.info/post/20220410-weekly-12/">Page oriented类存储引擎</a>的日志系统有一定的了解，才能继续解释基于这个日志系统之上做的恢复算法。</p>
+<h2 id="问题">问题</h2>
+<p>在一个存储系统中，出错是非常常见的情况的，这就涉及到出错了之后系统恢复时还需要能继续工作，即数据不能发生破坏导致整个系统跑不起来。</p>
+<p>于是，当系统出错需要重启恢复时，就涉及到以下两个动作：</p>
+<ul>
+<li>撤销（Undo）：未完成或者由于各种原因发生的事务，其修改需要被撤销，即回滚为事务之前的旧值。</li>
+<li>重做（Redo）：已经提交的事务，其修改操作的效果需要体现为新值。</li>
+</ul>
+<p>来看下图中提出的问题：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/bufferpool.png" alt="bufferpool" title="bufferpool"></p>
+<p>在上图中：</p>
+<ul>
+<li>存在事务T1和T2在同时执行：
+<ul>
+<li>事务T1：修改A值为3，但是在事务还未提交前，事务T2开始执行。</li>
+<li>事务T2：修改B值为8，并且成功提交。</li>
+<li>事务T1终止：在事务T2成功提交之后，事务T1终止。</li>
+</ul>
+</li>
+</ul>
+<p>这个事务调度的执行顺序引发了以下几个问题：</p>
+<ul>
+<li>回滚未提交的事务T1需要做什么？</li>
+<li>对于未提交的事务T1，是否允许其修改操作在持久化存储上生效（即将A修改为3）？</li>
+<li>在磁盘的数据库文件中，已成功提交的事务T2，其修改操作是否应该立即落盘（即从buffer pool中同步修改的内容到硬盘）。</li>
+</ul>
+<p>第一个问题当前暂且放到一边，来看后面两个问题。</p>
+<p>“是否允许未提交事务的修改在持久化存储上生效”（Whether the DBMS allows an uncommitted txn to overwrite the most recent committed value of an object in non-volatile storage），被称为<code>Steal policy</code>：</p>
+<ul>
+<li>steal：允许未提交事务的修改持久化存储上生效。</li>
+<li>no steal：反之。</li>
+</ul>
+<p>一个事务在提交之前是否需要将所有修改同步到持久化存储上（Whether the DBMS requires that all updates made by a txn are reflected on non-volatile storage before the txn is allowed to commit.），也有两种策略：</p>
+<ul>
+<li>force：必须将事务的所有修改都同步到持久化存储上，事务才被允许提交。</li>
+<li>no-force：反之。</li>
+</ul>
+<p>围绕着这两个不同的维度，有了不同的做法。</p>
+<p>我们来按照上面的定义，使用<code>no-steal+force</code>的策略，来重新看看前面的问题。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/no-steal+force.png" alt="no-steal+force" title="no-steal+force"></p>
+<p>在上图中：</p>
+<ul>
+<li>事务T1：由于采用no-steal策略，所以对于未能提交的事务T1而言，该事务的修改顶多到内存的buffer pool中，不会在磁盘上生效，因此回滚事务的操作只需要将内存的buffer pool中的数据撤销即可。</li>
+<li>事务T2：由于采用force策略，因此在事务提交之前，必须将所有修改都同步到磁盘的数据库文件上。</li>
+</ul>
+<p>可以看到，使用<code>no-steal+force</code>的策略是相对简单的，因为：</p>
+<ul>
+<li><code>undo</code>操作只需要回滚内存中的数据即可，因为还未同步到磁盘的数据库文件上。</li>
+<li>对于已提交事务而言，无需<code>redo</code>操作，这是因为事务提交之前必须强制同步所有修改到数据库文件上。</li>
+</ul>
+<p>但是，这个策略组合的问题在于：无法支撑一个修改了大量数据的事务。比如假设内存中的buffer pool仅能容纳1K大小的修改缓冲区，而某一个事务一共修改了2K的数据，这时候超过buffer pool大小的数据，是否应该即时落盘？按照这个策略是解决不了这个问题的。</p>
+<p>接下来看看两种最常见的做法：</p>
+<ul>
+<li>影子页面（shadow page）。</li>
+<li>WAL（Write Ahead Log）。</li>
+</ul>
+<h2 id="影子页面shadow-page">影子页面（shadow page）</h2>
+<p>影子页面的原理是这样的，维护两个独立的数据库文件的拷贝：</p>
+<ul>
+<li>主拷贝：只保存已提交事务的修改。</li>
+<li>影子拷贝：拷贝待修改页面的内容，保存未提交事务的修改。</li>
+<li>有了两份不同的数据，在进行中的事务只需要修改影子拷贝即可，当未提交事务需要提交时，切换影子拷贝变成主拷贝。</li>
+</ul>
+<p>以下图来解释影子页面的工作原理：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/shadow-page.png" alt="shadow-page" title="shadow-page"></p>
+<p>上图中：</p>
+<ul>
+<li>分别用三种颜色标记了不同类型的页面：主页面、影子页面、空闲页面，其中空闲页面是被替换出去的主页面，由于已经有新的主页面产生，所以之前的主页面就变成了空闲页面可以重新在下一次生成影子页面的时候使用上。</li>
+<li>在修改之前，已经存在3个主页面，其中的页面1为当前的根页面。</li>
+<li>假设一个事务，需要同时修改这三个主页面，系统发现当前没有可用的空闲页面，于是扩展数据库文件生成三个新的物理页面，首先拷贝原页面内容，然后再这个基础上进行事务的修改。</li>
+<li>当事务修改完成之后，只需要修改根页面为最新的页面1即可，而这次修改中涉及到几个之前的主页面就变成了空闲页面，下一次修改时可以回收利用。</li>
+</ul>
+<p>根据前面对两种策略的定义，影子页面属于采用<code>no-steal+force</code>策略的方案：</p>
+<ul>
+<li>no-steal：未提交的时候，不能直接修改变成主页面。</li>
+<li>force：事务提交之前，必须把修改后的影子页面切换为新的主页面。</li>
+</ul>
+<p>我们看一看，影子页面的重做和撤销是怎么做的：</p>
+<ul>
+<li>撤销：只需要将写事务时多分配出来的物理页面再次变成空闲页面即可，下一次可以回收利用。由于没有切换根页面编号，并不需要多做什么其它的工作了。</li>
+<li>重做：不需要重做操作，因为只要完成了影子页面切换到主页面的操作，就相当于这个事务的修改可见了。</li>
+</ul>
+<p>来看看影子页面的问题：</p>
+<ul>
+<li>既然是“影子”，那么就要求这些页面在修改之前，必须先拷贝一份原始页面的数据，这个代价是很重的。</li>
+<li>对于类似B-Tree这样的数据结构，这个修改会一直从下往上进行，路径中经过的节点都需要一个影子页面来存储修改。</li>
+<li>被替换的主页面会产生空闲页面，对应的就需要垃圾回收策略把这些空闲页面给回收利用上。</li>
+<li>页面内容会碎片化，因为写入的影子页面可能是新增的物理页面，还可能是被回收利用的空闲页面，如果逻辑上相邻的页面在物理上分散，对于读写缓存是不友好的。</li>
+<li>最后，当数据落盘到影子页面时，本质上还是针对文件的一个随机写，随机写的代价是很大的：需要首先寻址到指定位置，然后再进行修改。</li>
+<li>同一时间，只允许有一个写事务在进行，因为如果存在多个写事务，而不同写事务又修改了同一个页面的话，是无法处理的。</li>
+</ul>
+<h3 id="采用影子页面的例子">采用影子页面的例子</h3>
+<p>之前的博客中分析过boltdb的实现，以及sqlite的journal实现，这两者都是影子页面的例子：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20200625-boltdb-1/">boltdb 1.3.0实现分析（一）</a>：在boltdb中，修改页面之前，首先使用mmap机制复制出来待修改的页面，修改完毕之后统一切换主页面和影子页面，同时将修改之前的主页面设置为空闲页面可供下一次回收利用。</li>
+<li><a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>：sqlite的journal文件，负责备份修改的页面在修改前的数据，事务提交之后这些备份的数据就无用了，如果中间事务中断可以直接用journal备份文件的内容来恢复数据库。</li>
+</ul>
+<p>感兴趣的，可以由这两篇文章了解更详细的影子页面的实现。不过，影子页面机制的使用已经不多，更多的是下面介绍的WAL。</p>
+<h2 id="walwrite-ahead-log">WAL（Write Ahead Log）</h2>
+<p>除了shadow paging策略以外，另一种保存修改的策略就是使用WAL（Write Ahead Log），对比前者而言，WAL最大的好处是：由于将修改添加到日志中就可以认为保存修改完成，而在文件尾追加（append）操作对比随机写是相对快很多的。</p>
+<p>对于一个写事务而言，如果采用WAL机制，WAL日志的格式有以下三类（后面还会扩展）：</p>
+<ul>
+<li>事务开始时，写入一条<code>BEGIN</code>表示写事务开始。</li>
+<li>记录事务的修改操作：对于写事务中的每一条修改操作，都要记下以下四个数据：
+<ul>
+<li>事务ID，这样在同一时间进行多个写事务时，可以知道对应的是哪个事务。</li>
+<li>修改的键值。</li>
+<li>修改之前的值，用于撤掉事务时使用。</li>
+<li>修改之后的值，用于重做事务时使用。</li>
+</ul>
+</li>
+<li>事务提交时，写入一条<code>COMMIT</code>表示事务结束。</li>
+</ul>
+<p>如下图中演示了之前的两个写事务使用WAL策略：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/wal.png" alt="WAL" title="WAL"></p>
+<p>在上图中：</p>
+<ul>
+<li>同时并发了两个写事务，每个写事务的三类不同的日志，都需要写到内存的buffer pool中，日志的格式已经在上面给出来。</li>
+<li>磁盘上存储的文件，除了之前的数据库文件之外，新增了一个叫WAL的日志文件，这个文件不会随机写，只会按照buffer pool中记录的日志顺序添加到文件结尾处。</li>
+<li>一个写事务的操作日志，首先会记录到buffer pool中，而不必立即同步到wal日志中，buffer pool中的日志同步到wal的操作，可以批量一次性写多多条记录，又进一步提升了写操作的效率。</li>
+<li>采用WAL策略之后，一个写操作完成不要求一定要将修改同步到数据库文件中，只需要所有该事务的操作都写入WAL文件即可。</li>
+</ul>
+<p>这里需要说明的是，前面提到<code>steal</code>以及<code>force</code>这两个维度的策略时，都与是否需要同步数据到持久化存储有关。但是，在WAL中，由于新增了WAL文件，而这个文件本身也是保存在持久化存储中的，所以<code>持久化存储</code>文件这个概念的范畴，从仅有数据库文件，扩展到了数据库文件和WAL文件。</p>
+<p>于是，从上面对WAL的分析可以看到，WAL是<code>steal+no-force</code>的策略：</p>
+<ul>
+<li>steal：允许未提交事务的修改操作同步到磁盘的WAL文件中。</li>
+<li>no-force：事务提交之前，必须所有的修改操作都写入磁盘的WAL中才能提交，但并不要求一定要落入数据库文件。</li>
+</ul>
+<p>由于<code>持久化存储</code>包括了WAL文件和数据库文件，即可以认为任意时刻的数据为：<code>数据库文件</code> + <code>WAL中的已提交事务数据</code>，于是查询一个数据时就需要在这两类文件中依次查询：</p>
+<ul>
+<li>首先到WAL中查询已提交的事务数据。</li>
+<li>如果第一步没有查到，说明WAL中并没有对这个数据的修改，于是到数据库文件中查询数据。</li>
+</ul>
+<p>从上面对影子页面和WAL的分析可以看出来，以<code>steal</code>和<code>force</code>两个策略的维度组合（一共四个组合，见下图）来看：</p>
+<ul>
+<li>运行时效率：<code>steal</code> + <code>no-force</code>是最快的，而<code>no-steal</code> + <code>force</code>则是最慢的。</li>
+<li>恢复时效率：对比运行时效率，恢复时的效率就反过来了，<code>steal</code> + <code>no-force</code>是最慢的，而<code>no-steal</code> + <code>force</code>则是最快的，原因在于前者需要执行<code>undo</code>、<code>redo</code>操作，而后者则不需要。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/policies.png" alt="policies" title="policies"></p>
+<h2 id="checkpoint检查点">Checkpoint（检查点）</h2>
+<p>前面提到过，采用了WAL策略的数据库，任意时刻的数据为：<code>数据库文件</code> + <code>WAL中的已提交事务数据</code>。</p>
+<p>但是WAL文件不可能一直增长下去，否则一来文件太大，导致影响读性能，二来数据恢复的时候时间过长。所以，每隔一段时间，都需要将WAL文件中的已提交事务数据落盘到数据库文件中，这个流程被称为<code>checkpoint</code>。</p>
+<p>为了做<code>checkpoint</code>操作，需要新增一类<code>checkpoint</code>日志，结合前面提到的几类WAL日志，如下：</p>
+<ul>
+<li>事务开始时，写入一条<code>BEGIN</code>表示写事务开始。</li>
+<li>记录事务的修改操作：对于写事务中的每一条修改操作，都要记下以下四个数据：
+<ul>
+<li>事务ID，这样在同一时间进行多个写事务时，可以知道对应的是哪个事务。</li>
+<li>修改的键值。</li>
+<li>修改之前的值，用于撤掉事务时使用。</li>
+<li>修改之后的值，用于重做事务时使用。</li>
+</ul>
+</li>
+<li>事务提交时，写入一条<code>COMMIT</code>表示事务结束。</li>
+<li>做<code>checkpoint</code>时，写入一条<code>CHECKPOINT</code>表示在这个点做了<code>checkpoint</code>操作。</li>
+</ul>
+<p>来看看有了<code>checkpoint</code>操作之后，如何处理恢复问题，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220514-weekly-15/checkpoint.png" alt="checkpoint" title="checkpoint"></p>
+<p>在上图中：</p>
+<ul>
+<li>事务T1提交之后，又开始了事务T2、T3，在T2、T3未提交之前，开始了一个<code>checkpoint</code>操作。</li>
+<li><code>checkpoint</code>完成之后，T2完成提交。但是在T3修改之后，就发生了宕机。</li>
+</ul>
+<p>此时，如果进行数据恢复的话：</p>
+<ul>
+<li>数据库文件中已经有事务T1的修改了，因为T1是在<code>checkpoint</code>之前提交的事务，所以这个事务的修改会在<code>checkpoint</code>的时候同步到数据库文件中。但是T2、T3这两个在<code>checkpoint</code>时还未完成的事务，并不会在这一次<code>checkpoint</code>时同步到数据库文件。</li>
+<li>由于WAL中存在事务T2的<code>COMMIT</code>日志，表示事务T2已经完成提交，所以在系统恢复时：
+<ul>
+<li>找到崩溃之前最后一次<code>checkpoint</code>的位置，针对这个<code>checkpoint</code>之后的日志，进行如下的操作。</li>
+<li>对于存在<code>COMMIT</code>日志的事务，比如事务T2，只需重放其WAL日志即可。</li>
+<li>对于不存在<code>COMMIT</code>日志的事务，比如事务T3，不能重放这个事务，因为在崩溃之前没有落盘所有的修改在WAL中。</li>
+</ul>
+</li>
+</ul>
+<p>这里的<code>checkpoint</code>流程中，存在一个明显的问题：要求<code>checkpoint</code>在进行的时候，不得有任何的写事务在进行，换言之<code>checkpoint</code>操作会影响写事务的进行。所以，如果<code>checkpoint</code>的频率太高，影响写事务；频率太低，又会让单次<code>checkpoint</code>时间很长。</p>
+<p>下一期周刊会在此基础上介绍ARIES论文的思想，论文中给出了<code>checkpoint</code>的优化做法。</p>
+<h2 id="使用wal的例子">使用WAL的例子</h2>
+<p>在sqlite的3.7.0版本之后，就采用了WAL机制，之前也写过文章分析，见<a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现</a></p>
+<h2 id="总结">总结</h2>
+<ul>
+<li>按照落盘的策略，分为了<code>steal</code>和<code>force</code>这两个维度。</li>
+<li>shadow page采用的是<code>no-steal+force</code>策略，而WAL采用的是<code>steal+no-force</code>策略。</li>
+</ul>
+<h1 id="其他推荐">其他推荐</h1>
+<h2 id="纳瓦尔宝典">《纳瓦尔宝典》</h2>
+<p>《纳瓦尔宝典》是投资人<a href="https://twitter.com/naval">Naval Ravikant</a>的箴言记录，最早知道此人是因为他的那篇被和菜头翻译成中文的文章《如何不靠运气致富》：</p>
+<ul>
+<li>中文版：<a href="https://mp.weixin.qq.com/s/TfhBCbr8-IoHyPKtB3hTlw">Naval：如何不靠运气致富</a></li>
+<li>英文版：<a href="https://twitter.com/naval/status/1002103360646823936">Naval on Twitter: &ldquo;How to Get Rich (without getting lucky):&rdquo; / Twitter</a></li>
+</ul>
+<p>再后来， <a href="https://ejorgenson.com/">Eric Jorgenson</a>将Naval的推特文字整理成了《Almanack of Naval Ravikant》，免费电子版在网上完全公开：<a href="https://www.navalmanack.com/">Almanack of Naval Ravikant</a></p>
+<p>最近，中文版的《纳瓦尔宝典》也被翻译出版了：<a href="https://book.douban.com/subject/35876121/">纳瓦尔宝典 (豆瓣)</a></p>
+<h2 id="c语言编程透视">《C语言编程透视》</h2>
+<p>C的语法糖不多，语法层面要学习的东西也实在不多，但是C的难点主要是和系统打交道层面的，这篇文档就专注在这方面的解释上，算是这方面比较少见的文档了。</p>
+<p><a href="https://tinylab-1.gitbook.io/cbook/">简介 - C 语言编程透视</a></p>
+<p>github地址：https://github.com/tinyclub/open-c-book</p>
+<h2 id="rust-databend-and-the-cloud-warehouse5从-git-到-fuse-engine-存储引擎">《Rust, Databend and the Cloud Warehouse（5）从 Git 到 Fuse Engine 存储引擎》</h2>
+<p>虎哥的大作<a href="https://bohutang.me/2022/05/06/databend-cloud-warehouse-fuse-engine/">Rust, Databend and the Cloud Warehouse（5）从 Git 到 Fuse Engine 存储引擎 [ 虎哥的博客 ]</a></p>
+<h2 id="这名业余程序员曾用50张1080ti对抗癌症">这名“业余”程序员，曾用50张1080Ti对抗癌症。</h2>
+<p>一位业余程序员，使用人工智能的算法来识别肿瘤，很佩服他的行动力。</p>
+<p><a href="https://mp.weixin.qq.com/s/2zNoWtOHdwC0nNnT0d_WBQ">这名“业余”程序员，曾用50张1080Ti对抗癌症。</a></p>
+<p>作者在V2EX的原贴：<a href="https://www.v2ex.com/t/843341">记得 4 年前我做的 AI 乳腺平台吗？这是我的新项目 - V2EX</a></p>
+<p>四年前的原贴：<a href="https://www.v2ex.com/t/462641#reply303">在 D 版发过了，不过因为不少朋友看不到 D 版，我就放在这里吧，说说我最近做的这个 Project - V2EX</a></p>
+
+    
+  </article>
+  <div class="paginator">
+    
+    <a class="link" href="https://www.codedump.info/post/20220507-weekly-14/">← prev</a>
+    
+    
+    <a class="link" href="https://www.codedump.info/post/20200122-series-pages/">next →</a>
+    
+  </div>
+
+    
+<h1>相关文章</h1><li><strong> 10049-04-10: </strong> <a href="https://www.codedump.info/post/20220410-weekly-12/">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</a>  </li><li><strong> 27039-03-27: </strong> <a href="https://www.codedump.info/post/20220327-weekly-11/">周刊（第11期）：mmap适用于存储引擎吗？</a>  </li>
+
+<h1>邮件订阅</h1>
+
+<div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+    <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
+  </form>
+</div>
+
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+    <footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/%E5%91%A8%E5%88%8A/">周刊</a>
+          <a href="/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">存储引擎</a>
+          </div><div class="comment">
+    
+    <div id="disqus_thread"></div>
+<script type="application/javascript">
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+    
+    
+    
+    
+        <script src="https://utteranc.es/client.js"
+            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+  
+    
+  </div>
+
+  <main id="main" class="main">
+    <div class="content-wrapper">
+      <div id="content" class="content">
+        
+      </div>
+      <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'lichuang-codedump';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+  
+    <script src="https://utteranc.es/client.js"
+            repo="lichuang/lichuang.github.io"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+    </div>
+  </main>
+
+
+  
+</main>
+
+    <footer id="footer">
+  <div>
+    <span>© 2019</span> - <span>2022</span>
+  </div>
+
+  <div>
+    <span>Powered by </span>
+    <a class="link" href="https://gohugo.io/">Hugo</a>
+    <span> 🍦 Theme </span>
+    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
+  </div>
+
+  <div class="footnote">
+    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
+<a class=link href=https://twitter.com/lichuang>Twitter</a> or
+<a class=link href=/index.xml>RSS</a> |
+<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
+</span>
+  </div>
+</footer>
+
+  </div>
+
+  
+  
+
+
+
+  
+  
+
+  
+  
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-126255685-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+
+
+</body>
+
+</html>

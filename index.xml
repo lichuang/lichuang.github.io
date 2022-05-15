@@ -6,7 +6,7 @@
     <description>Recent content on codedump的网络日志</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sat, 07 May 2022 17:57:08 +0800</lastBuildDate><atom:link href="https://www.codedump.info/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 14 May 2022 06:33:26 +0800</lastBuildDate><atom:link href="https://www.codedump.info/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>博客系列文章索引</title>
       <link>https://www.codedump.info/post/20200122-series-pages/</link>
@@ -141,6 +141,224 @@
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20190324-how-to-read-code/&#34;&gt;如何阅读一份源代码？&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200605-how-to-read-code-v2020/&#34;&gt;如何阅读一份源代码？（2020年版）&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
+</description>
+      
+    </item>
+    
+    <item>
+      <title>周刊（第15期）：图解ARIES论文（上）：日志系统</title>
+      <link>https://www.codedump.info/post/20220514-weekly-15/</link>
+      <pubDate>Sat, 14 May 2022 06:33:26 +0800</pubDate>
+      
+      <guid>https://www.codedump.info/post/20220514-weekly-15/</guid>
+      
+      <description>&lt;hr&gt;
+&lt;p&gt;引言：ARIES(Algorithm for Recovery and Isolation Exploiting Semantics的简称）是论文&lt;a href=&#34;https://cs.stanford.edu/people/chrismre/cs345/rl/aries.pdf&#34;&gt;《ARIES: A Transaction Recovery Method Supporting Fine-Franularity Locking and Partial Rollbacks Using Write-Ahead Logging》&lt;/a&gt;中提到的一种存储引擎中数据恢复的算法。这篇论文可以说是存储引擎数据恢复领域必读的一篇论文，这两期的周刊就是对这篇论文的图解，这是其中的上篇。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;图解aries论文上&#34;&gt;图解ARIES论文（上）&lt;/h1&gt;
+&lt;p&gt;在展开解释ARIES算法原理之前，需要对&lt;a href=&#34;https://www.codedump.info/post/20220410-weekly-12/&#34;&gt;Page oriented类存储引擎&lt;/a&gt;的日志系统有一定的了解，才能继续解释基于这个日志系统之上做的恢复算法。&lt;/p&gt;
+&lt;h2 id=&#34;问题&#34;&gt;问题&lt;/h2&gt;
+&lt;p&gt;在一个存储系统中，出错是非常常见的情况的，这就涉及到出错了之后系统恢复时还需要能继续工作，即数据不能发生破坏导致整个系统跑不起来。&lt;/p&gt;
+&lt;p&gt;于是，当系统出错需要重启恢复时，就涉及到以下两个动作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;撤销（Undo）：未完成或者由于各种原因发生的事务，其修改需要被撤销，即回滚为事务之前的旧值。&lt;/li&gt;
+&lt;li&gt;重做（Redo）：已经提交的事务，其修改操作的效果需要体现为新值。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看下图中提出的问题：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/bufferpool.png&#34; alt=&#34;bufferpool&#34; title=&#34;bufferpool&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;存在事务T1和T2在同时执行：
+&lt;ul&gt;
+&lt;li&gt;事务T1：修改A值为3，但是在事务还未提交前，事务T2开始执行。&lt;/li&gt;
+&lt;li&gt;事务T2：修改B值为8，并且成功提交。&lt;/li&gt;
+&lt;li&gt;事务T1终止：在事务T2成功提交之后，事务T1终止。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这个事务调度的执行顺序引发了以下几个问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;回滚未提交的事务T1需要做什么？&lt;/li&gt;
+&lt;li&gt;对于未提交的事务T1，是否允许其修改操作在持久化存储上生效（即将A修改为3）？&lt;/li&gt;
+&lt;li&gt;在磁盘的数据库文件中，已成功提交的事务T2，其修改操作是否应该立即落盘（即从buffer pool中同步修改的内容到硬盘）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;第一个问题当前暂且放到一边，来看后面两个问题。&lt;/p&gt;
+&lt;p&gt;“是否允许未提交事务的修改在持久化存储上生效”（Whether the DBMS allows an uncommitted txn to overwrite the most recent committed value of an object in non-volatile storage），被称为&lt;code&gt;Steal policy&lt;/code&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;steal：允许未提交事务的修改持久化存储上生效。&lt;/li&gt;
+&lt;li&gt;no steal：反之。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;一个事务在提交之前是否需要将所有修改同步到持久化存储上（Whether the DBMS requires that all updates made by a txn are reflected on non-volatile storage before the txn is allowed to commit.），也有两种策略：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;force：必须将事务的所有修改都同步到持久化存储上，事务才被允许提交。&lt;/li&gt;
+&lt;li&gt;no-force：反之。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;围绕着这两个不同的维度，有了不同的做法。&lt;/p&gt;
+&lt;p&gt;我们来按照上面的定义，使用&lt;code&gt;no-steal+force&lt;/code&gt;的策略，来重新看看前面的问题。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/no-steal+force.png&#34; alt=&#34;no-steal+force&#34; title=&#34;no-steal+force&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务T1：由于采用no-steal策略，所以对于未能提交的事务T1而言，该事务的修改顶多到内存的buffer pool中，不会在磁盘上生效，因此回滚事务的操作只需要将内存的buffer pool中的数据撤销即可。&lt;/li&gt;
+&lt;li&gt;事务T2：由于采用force策略，因此在事务提交之前，必须将所有修改都同步到磁盘的数据库文件上。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;可以看到，使用&lt;code&gt;no-steal+force&lt;/code&gt;的策略是相对简单的，因为：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;undo&lt;/code&gt;操作只需要回滚内存中的数据即可，因为还未同步到磁盘的数据库文件上。&lt;/li&gt;
+&lt;li&gt;对于已提交事务而言，无需&lt;code&gt;redo&lt;/code&gt;操作，这是因为事务提交之前必须强制同步所有修改到数据库文件上。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;但是，这个策略组合的问题在于：无法支撑一个修改了大量数据的事务。比如假设内存中的buffer pool仅能容纳1K大小的修改缓冲区，而某一个事务一共修改了2K的数据，这时候超过buffer pool大小的数据，是否应该即时落盘？按照这个策略是解决不了这个问题的。&lt;/p&gt;
+&lt;p&gt;接下来看看两种最常见的做法：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;影子页面（shadow page）。&lt;/li&gt;
+&lt;li&gt;WAL（Write Ahead Log）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;影子页面shadow-page&#34;&gt;影子页面（shadow page）&lt;/h2&gt;
+&lt;p&gt;影子页面的原理是这样的，维护两个独立的数据库文件的拷贝：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;主拷贝：只保存已提交事务的修改。&lt;/li&gt;
+&lt;li&gt;影子拷贝：拷贝待修改页面的内容，保存未提交事务的修改。&lt;/li&gt;
+&lt;li&gt;有了两份不同的数据，在进行中的事务只需要修改影子拷贝即可，当未提交事务需要提交时，切换影子拷贝变成主拷贝。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;以下图来解释影子页面的工作原理：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/shadow-page.png&#34; alt=&#34;shadow-page&#34; title=&#34;shadow-page&#34;&gt;&lt;/p&gt;
+&lt;p&gt;上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;分别用三种颜色标记了不同类型的页面：主页面、影子页面、空闲页面，其中空闲页面是被替换出去的主页面，由于已经有新的主页面产生，所以之前的主页面就变成了空闲页面可以重新在下一次生成影子页面的时候使用上。&lt;/li&gt;
+&lt;li&gt;在修改之前，已经存在3个主页面，其中的页面1为当前的根页面。&lt;/li&gt;
+&lt;li&gt;假设一个事务，需要同时修改这三个主页面，系统发现当前没有可用的空闲页面，于是扩展数据库文件生成三个新的物理页面，首先拷贝原页面内容，然后再这个基础上进行事务的修改。&lt;/li&gt;
+&lt;li&gt;当事务修改完成之后，只需要修改根页面为最新的页面1即可，而这次修改中涉及到几个之前的主页面就变成了空闲页面，下一次修改时可以回收利用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;根据前面对两种策略的定义，影子页面属于采用&lt;code&gt;no-steal+force&lt;/code&gt;策略的方案：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;no-steal：未提交的时候，不能直接修改变成主页面。&lt;/li&gt;
+&lt;li&gt;force：事务提交之前，必须把修改后的影子页面切换为新的主页面。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;我们看一看，影子页面的重做和撤销是怎么做的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;撤销：只需要将写事务时多分配出来的物理页面再次变成空闲页面即可，下一次可以回收利用。由于没有切换根页面编号，并不需要多做什么其它的工作了。&lt;/li&gt;
+&lt;li&gt;重做：不需要重做操作，因为只要完成了影子页面切换到主页面的操作，就相当于这个事务的修改可见了。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看看影子页面的问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;既然是“影子”，那么就要求这些页面在修改之前，必须先拷贝一份原始页面的数据，这个代价是很重的。&lt;/li&gt;
+&lt;li&gt;对于类似B-Tree这样的数据结构，这个修改会一直从下往上进行，路径中经过的节点都需要一个影子页面来存储修改。&lt;/li&gt;
+&lt;li&gt;被替换的主页面会产生空闲页面，对应的就需要垃圾回收策略把这些空闲页面给回收利用上。&lt;/li&gt;
+&lt;li&gt;页面内容会碎片化，因为写入的影子页面可能是新增的物理页面，还可能是被回收利用的空闲页面，如果逻辑上相邻的页面在物理上分散，对于读写缓存是不友好的。&lt;/li&gt;
+&lt;li&gt;最后，当数据落盘到影子页面时，本质上还是针对文件的一个随机写，随机写的代价是很大的：需要首先寻址到指定位置，然后再进行修改。&lt;/li&gt;
+&lt;li&gt;同一时间，只允许有一个写事务在进行，因为如果存在多个写事务，而不同写事务又修改了同一个页面的话，是无法处理的。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;采用影子页面的例子&#34;&gt;采用影子页面的例子&lt;/h3&gt;
+&lt;p&gt;之前的博客中分析过boltdb的实现，以及sqlite的journal实现，这两者都是影子页面的例子：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200625-boltdb-1/&#34;&gt;boltdb 1.3.0实现分析（一）&lt;/a&gt;：在boltdb中，修改页面之前，首先使用mmap机制复制出来待修改的页面，修改完毕之后统一切换主页面和影子页面，同时将修改之前的主页面设置为空闲页面可供下一次回收利用。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20211222-sqlite-btree-3-journal/&#34;&gt;sqlite3.36版本 btree实现（三）- journal文件备份机制&lt;/a&gt;：sqlite的journal文件，负责备份修改的页面在修改前的数据，事务提交之后这些备份的数据就无用了，如果中间事务中断可以直接用journal备份文件的内容来恢复数据库。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;感兴趣的，可以由这两篇文章了解更详细的影子页面的实现。不过，影子页面机制的使用已经不多，更多的是下面介绍的WAL。&lt;/p&gt;
+&lt;h2 id=&#34;walwrite-ahead-log&#34;&gt;WAL（Write Ahead Log）&lt;/h2&gt;
+&lt;p&gt;除了shadow paging策略以外，另一种保存修改的策略就是使用WAL（Write Ahead Log），对比前者而言，WAL最大的好处是：由于将修改添加到日志中就可以认为保存修改完成，而在文件尾追加（append）操作对比随机写是相对快很多的。&lt;/p&gt;
+&lt;p&gt;对于一个写事务而言，如果采用WAL机制，WAL日志的格式有以下三类（后面还会扩展）：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务开始时，写入一条&lt;code&gt;BEGIN&lt;/code&gt;表示写事务开始。&lt;/li&gt;
+&lt;li&gt;记录事务的修改操作：对于写事务中的每一条修改操作，都要记下以下四个数据：
+&lt;ul&gt;
+&lt;li&gt;事务ID，这样在同一时间进行多个写事务时，可以知道对应的是哪个事务。&lt;/li&gt;
+&lt;li&gt;修改的键值。&lt;/li&gt;
+&lt;li&gt;修改之前的值，用于撤掉事务时使用。&lt;/li&gt;
+&lt;li&gt;修改之后的值，用于重做事务时使用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;事务提交时，写入一条&lt;code&gt;COMMIT&lt;/code&gt;表示事务结束。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;如下图中演示了之前的两个写事务使用WAL策略：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/wal.png&#34; alt=&#34;WAL&#34; title=&#34;WAL&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;同时并发了两个写事务，每个写事务的三类不同的日志，都需要写到内存的buffer pool中，日志的格式已经在上面给出来。&lt;/li&gt;
+&lt;li&gt;磁盘上存储的文件，除了之前的数据库文件之外，新增了一个叫WAL的日志文件，这个文件不会随机写，只会按照buffer pool中记录的日志顺序添加到文件结尾处。&lt;/li&gt;
+&lt;li&gt;一个写事务的操作日志，首先会记录到buffer pool中，而不必立即同步到wal日志中，buffer pool中的日志同步到wal的操作，可以批量一次性写多多条记录，又进一步提升了写操作的效率。&lt;/li&gt;
+&lt;li&gt;采用WAL策略之后，一个写操作完成不要求一定要将修改同步到数据库文件中，只需要所有该事务的操作都写入WAL文件即可。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这里需要说明的是，前面提到&lt;code&gt;steal&lt;/code&gt;以及&lt;code&gt;force&lt;/code&gt;这两个维度的策略时，都与是否需要同步数据到持久化存储有关。但是，在WAL中，由于新增了WAL文件，而这个文件本身也是保存在持久化存储中的，所以&lt;code&gt;持久化存储&lt;/code&gt;文件这个概念的范畴，从仅有数据库文件，扩展到了数据库文件和WAL文件。&lt;/p&gt;
+&lt;p&gt;于是，从上面对WAL的分析可以看到，WAL是&lt;code&gt;steal+no-force&lt;/code&gt;的策略：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;steal：允许未提交事务的修改操作同步到磁盘的WAL文件中。&lt;/li&gt;
+&lt;li&gt;no-force：事务提交之前，必须所有的修改操作都写入磁盘的WAL中才能提交，但并不要求一定要落入数据库文件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;由于&lt;code&gt;持久化存储&lt;/code&gt;包括了WAL文件和数据库文件，即可以认为任意时刻的数据为：&lt;code&gt;数据库文件&lt;/code&gt; + &lt;code&gt;WAL中的已提交事务数据&lt;/code&gt;，于是查询一个数据时就需要在这两类文件中依次查询：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;首先到WAL中查询已提交的事务数据。&lt;/li&gt;
+&lt;li&gt;如果第一步没有查到，说明WAL中并没有对这个数据的修改，于是到数据库文件中查询数据。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;从上面对影子页面和WAL的分析可以看出来，以&lt;code&gt;steal&lt;/code&gt;和&lt;code&gt;force&lt;/code&gt;两个策略的维度组合（一共四个组合，见下图）来看：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;运行时效率：&lt;code&gt;steal&lt;/code&gt; + &lt;code&gt;no-force&lt;/code&gt;是最快的，而&lt;code&gt;no-steal&lt;/code&gt; + &lt;code&gt;force&lt;/code&gt;则是最慢的。&lt;/li&gt;
+&lt;li&gt;恢复时效率：对比运行时效率，恢复时的效率就反过来了，&lt;code&gt;steal&lt;/code&gt; + &lt;code&gt;no-force&lt;/code&gt;是最慢的，而&lt;code&gt;no-steal&lt;/code&gt; + &lt;code&gt;force&lt;/code&gt;则是最快的，原因在于前者需要执行&lt;code&gt;undo&lt;/code&gt;、&lt;code&gt;redo&lt;/code&gt;操作，而后者则不需要。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/policies.png&#34; alt=&#34;policies&#34; title=&#34;policies&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;checkpoint检查点&#34;&gt;Checkpoint（检查点）&lt;/h2&gt;
+&lt;p&gt;前面提到过，采用了WAL策略的数据库，任意时刻的数据为：&lt;code&gt;数据库文件&lt;/code&gt; + &lt;code&gt;WAL中的已提交事务数据&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;但是WAL文件不可能一直增长下去，否则一来文件太大，导致影响读性能，二来数据恢复的时候时间过长。所以，每隔一段时间，都需要将WAL文件中的已提交事务数据落盘到数据库文件中，这个流程被称为&lt;code&gt;checkpoint&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;为了做&lt;code&gt;checkpoint&lt;/code&gt;操作，需要新增一类&lt;code&gt;checkpoint&lt;/code&gt;日志，结合前面提到的几类WAL日志，如下：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务开始时，写入一条&lt;code&gt;BEGIN&lt;/code&gt;表示写事务开始。&lt;/li&gt;
+&lt;li&gt;记录事务的修改操作：对于写事务中的每一条修改操作，都要记下以下四个数据：
+&lt;ul&gt;
+&lt;li&gt;事务ID，这样在同一时间进行多个写事务时，可以知道对应的是哪个事务。&lt;/li&gt;
+&lt;li&gt;修改的键值。&lt;/li&gt;
+&lt;li&gt;修改之前的值，用于撤掉事务时使用。&lt;/li&gt;
+&lt;li&gt;修改之后的值，用于重做事务时使用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;事务提交时，写入一条&lt;code&gt;COMMIT&lt;/code&gt;表示事务结束。&lt;/li&gt;
+&lt;li&gt;做&lt;code&gt;checkpoint&lt;/code&gt;时，写入一条&lt;code&gt;CHECKPOINT&lt;/code&gt;表示在这个点做了&lt;code&gt;checkpoint&lt;/code&gt;操作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;来看看有了&lt;code&gt;checkpoint&lt;/code&gt;操作之后，如何处理恢复问题，如下图所示：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220514-weekly-15/checkpoint.png&#34; alt=&#34;checkpoint&#34; title=&#34;checkpoint&#34;&gt;&lt;/p&gt;
+&lt;p&gt;在上图中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务T1提交之后，又开始了事务T2、T3，在T2、T3未提交之前，开始了一个&lt;code&gt;checkpoint&lt;/code&gt;操作。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;checkpoint&lt;/code&gt;完成之后，T2完成提交。但是在T3修改之后，就发生了宕机。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;此时，如果进行数据恢复的话：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;数据库文件中已经有事务T1的修改了，因为T1是在&lt;code&gt;checkpoint&lt;/code&gt;之前提交的事务，所以这个事务的修改会在&lt;code&gt;checkpoint&lt;/code&gt;的时候同步到数据库文件中。但是T2、T3这两个在&lt;code&gt;checkpoint&lt;/code&gt;时还未完成的事务，并不会在这一次&lt;code&gt;checkpoint&lt;/code&gt;时同步到数据库文件。&lt;/li&gt;
+&lt;li&gt;由于WAL中存在事务T2的&lt;code&gt;COMMIT&lt;/code&gt;日志，表示事务T2已经完成提交，所以在系统恢复时：
+&lt;ul&gt;
+&lt;li&gt;找到崩溃之前最后一次&lt;code&gt;checkpoint&lt;/code&gt;的位置，针对这个&lt;code&gt;checkpoint&lt;/code&gt;之后的日志，进行如下的操作。&lt;/li&gt;
+&lt;li&gt;对于存在&lt;code&gt;COMMIT&lt;/code&gt;日志的事务，比如事务T2，只需重放其WAL日志即可。&lt;/li&gt;
+&lt;li&gt;对于不存在&lt;code&gt;COMMIT&lt;/code&gt;日志的事务，比如事务T3，不能重放这个事务，因为在崩溃之前没有落盘所有的修改在WAL中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这里的&lt;code&gt;checkpoint&lt;/code&gt;流程中，存在一个明显的问题：要求&lt;code&gt;checkpoint&lt;/code&gt;在进行的时候，不得有任何的写事务在进行，换言之&lt;code&gt;checkpoint&lt;/code&gt;操作会影响写事务的进行。所以，如果&lt;code&gt;checkpoint&lt;/code&gt;的频率太高，影响写事务；频率太低，又会让单次&lt;code&gt;checkpoint&lt;/code&gt;时间很长。&lt;/p&gt;
+&lt;p&gt;下一期周刊会在此基础上介绍ARIES论文的思想，论文中给出了&lt;code&gt;checkpoint&lt;/code&gt;的优化做法。&lt;/p&gt;
+&lt;h2 id=&#34;使用wal的例子&#34;&gt;使用WAL的例子&lt;/h2&gt;
+&lt;p&gt;在sqlite的3.7.0版本之后，就采用了WAL机制，之前也写过文章分析，见&lt;a href=&#34;https://www.codedump.info/post/20220106-sqlite-btree-4-wal/&#34;&gt;sqlite3.36版本 btree实现（四）- WAL的实现&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;按照落盘的策略，分为了&lt;code&gt;steal&lt;/code&gt;和&lt;code&gt;force&lt;/code&gt;这两个维度。&lt;/li&gt;
+&lt;li&gt;shadow page采用的是&lt;code&gt;no-steal+force&lt;/code&gt;策略，而WAL采用的是&lt;code&gt;steal+no-force&lt;/code&gt;策略。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;其他推荐&#34;&gt;其他推荐&lt;/h1&gt;
+&lt;h2 id=&#34;纳瓦尔宝典&#34;&gt;《纳瓦尔宝典》&lt;/h2&gt;
+&lt;p&gt;《纳瓦尔宝典》是投资人&lt;a href=&#34;https://twitter.com/naval&#34;&gt;Naval Ravikant&lt;/a&gt;的箴言记录，最早知道此人是因为他的那篇被和菜头翻译成中文的文章《如何不靠运气致富》：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;中文版：&lt;a href=&#34;https://mp.weixin.qq.com/s/TfhBCbr8-IoHyPKtB3hTlw&#34;&gt;Naval：如何不靠运气致富&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;英文版：&lt;a href=&#34;https://twitter.com/naval/status/1002103360646823936&#34;&gt;Naval on Twitter: &amp;ldquo;How to Get Rich (without getting lucky):&amp;rdquo; / Twitter&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;再后来， &lt;a href=&#34;https://ejorgenson.com/&#34;&gt;Eric Jorgenson&lt;/a&gt;将Naval的推特文字整理成了《Almanack of Naval Ravikant》，免费电子版在网上完全公开：&lt;a href=&#34;https://www.navalmanack.com/&#34;&gt;Almanack of Naval Ravikant&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;最近，中文版的《纳瓦尔宝典》也被翻译出版了：&lt;a href=&#34;https://book.douban.com/subject/35876121/&#34;&gt;纳瓦尔宝典 (豆瓣)&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id=&#34;c语言编程透视&#34;&gt;《C语言编程透视》&lt;/h2&gt;
+&lt;p&gt;C的语法糖不多，语法层面要学习的东西也实在不多，但是C的难点主要是和系统打交道层面的，这篇文档就专注在这方面的解释上，算是这方面比较少见的文档了。&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://tinylab-1.gitbook.io/cbook/&#34;&gt;简介 - C 语言编程透视&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;github地址：https://github.com/tinyclub/open-c-book&lt;/p&gt;
+&lt;h2 id=&#34;rust-databend-and-the-cloud-warehouse5从-git-到-fuse-engine-存储引擎&#34;&gt;《Rust, Databend and the Cloud Warehouse（5）从 Git 到 Fuse Engine 存储引擎》&lt;/h2&gt;
+&lt;p&gt;虎哥的大作&lt;a href=&#34;https://bohutang.me/2022/05/06/databend-cloud-warehouse-fuse-engine/&#34;&gt;Rust, Databend and the Cloud Warehouse（5）从 Git 到 Fuse Engine 存储引擎 [ 虎哥的博客 ]&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id=&#34;这名业余程序员曾用50张1080ti对抗癌症&#34;&gt;这名“业余”程序员，曾用50张1080Ti对抗癌症。&lt;/h2&gt;
+&lt;p&gt;一位业余程序员，使用人工智能的算法来识别肿瘤，很佩服他的行动力。&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/2zNoWtOHdwC0nNnT0d_WBQ&#34;&gt;这名“业余”程序员，曾用50张1080Ti对抗癌症。&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;作者在V2EX的原贴：&lt;a href=&#34;https://www.v2ex.com/t/843341&#34;&gt;记得 4 年前我做的 AI 乳腺平台吗？这是我的新项目 - V2EX&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;四年前的原贴：&lt;a href=&#34;https://www.v2ex.com/t/462641#reply303&#34;&gt;在 D 版发过了，不过因为不少朋友看不到 D 版，我就放在这里吧，说说我最近做的这个 Project - V2EX&lt;/a&gt;&lt;/p&gt;
 </description>
       
     </item>
@@ -1152,113 +1370,6 @@ rr -M replay -p pid
 &lt;p&gt;故事发生在清朝末年，主角是一个会使辫子神功的人，耍起辫子来能像鞭子一样抽打对手。后来八国联军入侵，加入了义和团，结果可想而知。再后来重新出现在江湖上时，不再是当年那个会耍辫子的高手，而是变成了一个神枪手了。&lt;/p&gt;
 &lt;/blockquote&gt;
 &lt;p&gt;里面主角的有一句台词“辫子没了，神还在”，至今印象深刻，我对这句话的解读是：使用的工具，也应该与时俱进的进化，这个观点放在今天这篇对比C系和Rust的文章里，我认为是合适的。&lt;/p&gt;
-</description>
-      
-    </item>
-    
-    <item>
-      <title>周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇</title>
-      <link>https://www.codedump.info/post/20220220-weekly-6/</link>
-      <pubDate>Sun, 20 Feb 2022 10:53:41 +0800</pubDate>
-      
-      <guid>https://www.codedump.info/post/20220220-weekly-6/</guid>
-      
-      <description>&lt;hr&gt;
-&lt;p&gt;引言：从2021年9月份开始要探索生产级btree存储引擎的实现，到2022年2月整理完毕发布《sqlite 3.36 btree实现解析》的系列文章，我花费了小半年的时间，本期会聊聊整个过程下来我的一些想法。&lt;/p&gt;
-&lt;hr&gt;
-&lt;h1 id=&#34;sqlite-336-btree实现解析番外篇&#34;&gt;《sqlite 3.36 btree实现解析》番外篇&lt;/h1&gt;
-&lt;p&gt;时间回到2021年9月份。彼时，因为工作的关系，要研究一下生产级btree存储引擎的实现，在此之前我大体对btree、b+tree的数据结构和算法有个了解，见：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200609-btree-1/&#34;&gt;B树、B+树索引算法原理（上） - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://www.codedump.info/post/20200615-btree-2/&#34;&gt;B树、B+树索引算法原理（下） - codedump的网络日志&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;但是，一个生产级的产品，对比教科书的示范型代码，还是有很大的区别的，具体来说，我当时不明白以下这些生产级存储引擎的问题如何解决：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;如何存储变长的数据？&lt;/li&gt;
-&lt;li&gt;如何存储数据大小超过一个物理页面的数据？&lt;/li&gt;
-&lt;li&gt;如何利用被回收的空间？&lt;/li&gt;
-&lt;li&gt;如何处理崩溃恢复？&lt;/li&gt;
-&lt;li&gt;读写并发如何处理？&lt;/li&gt;
-&lt;li&gt;&amp;hellip;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;为了解答这些疑问，先后去翻阅InnodDB、WiredTiger、sqlite的文档，但是这些项目代码量都太大了，以我当时的程度，无法马上找到很具体的解答。&lt;/p&gt;
-&lt;p&gt;事情的突破在从网上查找文章时看到的这一篇文章：&lt;a href=&#34;https://dzone.com/articles/database-btree-indexing-in-sqlite&#34;&gt;How Database B-Tree Indexing Works - DZone Database&lt;/a&gt;，这是一篇解释btree工作原理的文章，这篇文章同时还列出了一个项目：&lt;a href=&#34;https://github.com/madushadhanushka/simple-sqlite&#34;&gt;madushadhanushka/simple-sqlite: Code reading for sqlite backend&lt;/a&gt;，这个项目的作者，将sqlite2.5版本中btree的实现，单独抽取出来形成了一个独立的KV库，可以编译通过使用。&lt;/p&gt;
-&lt;p&gt;看到这个项目的时候，我的感觉就是如获至宝，因为虽然只有几千行的代码量，但是解答了很多上面提到的疑问，“麻雀虽小五脏俱全”，我花了几天的时间整体阅读了解了原理，这个项目给我打开了研究生产级btree存储引擎的突破口。&lt;/p&gt;
-&lt;p&gt;在这以后，考虑到2.5版本的sqlite已经是2002年的作品，距离现在时间太久了，还想接着了解后面做了那些改进，又接着阅读了3.6.10版本的实现，找这个版本的原因，是因为这是sqlite官方在github上同步的第一个版本，那时候仍然步子不敢迈得太大。&lt;/p&gt;
-&lt;p&gt;又花了一个多月把这个版本的btree实现了解以后，我了解到在这之后的版本里，sqlite做了另一个重大的更新：在页面管理部分引入了WAL机制，加上前面两个版本阅读下来累积的信心，就接着找当时还是最新的3.36版本的实现来阅读，这又花了一个多月的时间。&lt;/p&gt;
-&lt;p&gt;这以后，就是逐步将整理的笔记写成文档了，后续的事情不表，都在这几篇文档里。&lt;/p&gt;
-&lt;p&gt;回头看这整个流程，我自己的感受是：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;“问题驱动”可能是效率更高的学习方式，带着问题出发、找到自己疑问的答案，能更快的学习某个知识。&lt;/li&gt;
-&lt;li&gt;生产级的实现和教科书的区别很大，后者更多的是讲解原理，而生产级实现考虑更多的是各种实际生产中的边际情况。如果只了解原理，而不去具体做实现，对事情的理解最后只能浮于表面。&lt;/li&gt;
-&lt;li&gt;找到那个精简实现是这个过程里的“突破口”，原因在于：如果一上来看的很成熟的版本，而且你在这个领域积累的不深，那么很可能会导致丢失了很多“上下文（context）”情景，给阅读、理解带来很大困难。下次再遇到类似的问题，我会按照这次的经验，先尝试回退到之前的更简单的版本，看看在那里能不能跟上作者的思路，攻克简单的实现之后，再尝试最新的版本。&lt;/li&gt;
-&lt;li&gt;除了数据库领域以外，有一些别的领域，在教学的时候会让学生参与实现一个简单的项目。这类型的项目虽然简单，但是五脏俱全，能够让学生了解这个领域的概貌，我把这种流程称为“破解神秘感”。如我最开始提到的那些疑问，如果在这之前做过数据库相关的作业，应该会有个大体的想法。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;这篇番外篇的番外篇&#34;&gt;这篇番外篇的番外篇&lt;/h1&gt;
-&lt;h2 id=&#34;sqlite的注释&#34;&gt;sqlite的注释&lt;/h2&gt;
-&lt;p&gt;除了这些以外，sqlite的代码风格也很好，尤其是注释写的非常详尽。&lt;/p&gt;
-&lt;p&gt;有一种说法，“好的代码都是自解释的，无需多做注释”。我对这句话有一些不太一样的看法，因为即便再好的代码，如果只看代码的话，对整个的架构、结构很难了解。这一点sqlite就做的很好，在代码中会写上类似文档一样的注释来解释结构，比如有这么一段解释btree内部结构的注释文档：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;/&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; This file implements an external (disk&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;based) database using BTrees.
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; For a detailed discussion of BTrees, refer to
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;     Donald E. Knuth, THE ART OF COMPUTER PROGRAMMING, Volume &lt;span style=&#34;color:#666&#34;&gt;3&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;:&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;     &lt;span style=&#34;color:#b44&#34;&gt;&amp;#34;Sorting And Searching&amp;#34;&lt;/span&gt;, pages &lt;span style=&#34;color:#666&#34;&gt;473&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;480.&lt;/span&gt; Addison&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;Wesley
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;     Publishing Company, Reading, Massachusetts.
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; The basic idea is that each page of the file contains N database
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; entries and N&lt;span style=&#34;color:#666&#34;&gt;+&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt; pointers to subpages.
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;   &lt;span style=&#34;color:#666&#34;&gt;----------------------------------------------------------------&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;   &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt;  Ptr(&lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; Key(&lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; Ptr(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; Key(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; ... &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; Key(N&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt; Ptr(N) &lt;span style=&#34;color:#666&#34;&gt;|&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;   &lt;span style=&#34;color:#666&#34;&gt;----------------------------------------------------------------&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; All of the keys on the page that Ptr(&lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) points to have values less
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; than Key(&lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;).  All of the keys on page Ptr(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;) and its subpages have
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; values greater than Key(&lt;span style=&#34;color:#666&#34;&gt;0&lt;/span&gt;) and less than Key(&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;).  All of the keys
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; on Ptr(N) and its subpages have values greater than Key(N&lt;span style=&#34;color:#666&#34;&gt;-&lt;/span&gt;&lt;span style=&#34;color:#666&#34;&gt;1&lt;/span&gt;).  And
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#666&#34;&gt;**&lt;/span&gt; so forth.
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;&#34;&gt;*/&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;如果不写这些注释，读者想要理解作者的思路的话，仅凭代码是很困难的。&lt;/p&gt;
-&lt;p&gt;这里只是抽取了sqlite代码注释中的一小部分，我读代码下来的感觉，sqlite的注释可以说是“保姆级别”的。“写代码是表达自己，读代码是去理解别人”（见&lt;a href=&#34;https://www.zhihu.com/question/21820752/answer/19427754&#34;&gt;为什么说读代码比写代码难？ - 知乎&lt;/a&gt;），可以说sqlite的作者为了让别人更好的理解自己，尽力了。&lt;/p&gt;
-&lt;p&gt;对应的，我也看过那种几乎没有注释、变量函数名都是缩写的代码，这样的代码作者，可能就不是很像让别人读懂ta。&lt;/p&gt;
-&lt;h2 id=&#34;sqlite几个相关的链接&#34;&gt;sqlite几个相关的链接&lt;/h2&gt;
-&lt;p&gt;可以在这里（&lt;a href=&#34;https://sqlite.org/chronology.html&#34;&gt;History Of SQLite Releases&lt;/a&gt;）找到sqlite的release历史，进而下载到对应版本的代码。以2.5版本为例，发布于&lt;a href=&#34;https://www.sqlite.org/src/timeline?c=9baef3e240&amp;amp;y=ci&#34;&gt;2002-06-17&lt;/a&gt;这一天，我用代码统计工具统计了一下，代码量仅有31188行（包括注释）：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220220-weekly-6/2.5.png&#34; alt=&#34;sqlite2.5的代码统计&#34; title=&#34;sqlite2.5的代码统计&#34;&gt;&lt;/p&gt;
-&lt;p&gt;BTW：不知道sqlite 2.5版本，对比一些数据库实验课程的大作业，复杂度如何，感觉以早期sqlite代码来入门数据库学习也是足够的，前提是有足够的耐心和时间。&lt;/p&gt;
-&lt;p&gt;而3.36版本发布于&lt;a href=&#34;https://www.sqlite.org/src/timeline?c=5c9a6c0687&amp;amp;y=ci&#34;&gt;2021-06-18&lt;/a&gt;这一天，代码量已经到了21W行，前后相隔19年：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://www.codedump.info/media/imgs/20220220-weekly-6/3.36.png&#34; alt=&#34;sqlite3.36的代码统计&#34; title=&#34;sqlite3.36的代码统计&#34;&gt;&lt;/p&gt;
-&lt;p&gt;还可以在&lt;a href=&#34;https://www.sqlite.org/changes.html&#34;&gt;Release History Of SQLite&lt;/a&gt;看到不同版本新增的特性、bug fix等，比如可以看到WAL是在3.7.0版本引入的特性：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;2010-07-21 (3.7.0)&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;Added support for write-ahead logging.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/blockquote&gt;
-&lt;h2 id=&#34;sqlite的箴言&#34;&gt;sqlite的箴言&lt;/h2&gt;
-&lt;p&gt;在每个sqlite代码文件中，开头都有这么一段注释：&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2 id=&#34;破解神秘感的项目&#34;&gt;破解神秘感的项目&lt;/h2&gt;
-&lt;p&gt;前面提到过要破解神秘感，列举几个计算机相关课程的实验大作业或项目。&lt;/p&gt;
-&lt;h3 id=&#34;操作系统&#34;&gt;操作系统&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;哈佛大学的Xv6：&lt;a href=&#34;https://pdos.csail.mit.edu/6.828/2012/xv6.html&#34;&gt;Xv6, a simple Unix-like teaching operating system&lt;/a&gt;， 对应的课程：&lt;a href=&#34;https://pdos.csail.mit.edu/6.828/2021/&#34;&gt;6.S081 / Fall 2021&lt;/a&gt;。&lt;/li&gt;
-&lt;li&gt;清华的uCore：&lt;a href=&#34;https://github.com/kiukotsu/ucore&#34;&gt;kiukotsu/ucore: 清华大学操作系统课程实验 (OS Kernel Labs)&lt;/a&gt;，实验指导书：&lt;a href=&#34;https://chyyuu.gitbooks.io/ucore_os_docs/content/&#34;&gt;Introduction · ucore_os_docs&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;数据库&#34;&gt;数据库&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;CMU的15445：&lt;a href=&#34;https://15445.courses.cs.cmu.edu/fall2021/&#34;&gt;CMU 15-445/645 :: Intro to Database Systems (Fall 2021)&lt;/a&gt;，随课程要完成一个大作业项目，之前没有做过，否则应该不至于不了解生产级实现的原理。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;分布式系统&#34;&gt;分布式系统&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;MIT的6.824：&lt;a href=&#34;https://pdos.csail.mit.edu/6.824/schedule.html&#34;&gt;6.824 Schedule: Spring 2022&lt;/a&gt;，也是有随课程要完成的大作业，以前使用C++实现Paxos，后面改成了Go实现Raft。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;linux早期内核实现解析&#34;&gt;Linux早期内核实现解析&lt;/h3&gt;
-&lt;p&gt;许多年以前，赵炯博士在网上公开过一份文档，基本上&lt;strong&gt;逐行&lt;/strong&gt;讲解了Linux0.11版本内核的实现，那时候的官网oldlinux.org 现在好像已经不能访问，在官网的页面&lt;a href=&#34;http://www.oldlinux.org/book.html&#34;&gt;Early Linux Kernel Analisys and Comments&lt;/a&gt;也提供了这份文档电子版的下载链接：http://www.oldlinux.org/download/clk011c-1.9.5.pdf，也有对应的公开发行物：&lt;a href=&#34;https://book.douban.com/subject/3229243/&#34;&gt;Linux内核完全剖析 (豆瓣)&lt;/a&gt;。&lt;/p&gt;
 </description>
       
     </item>
