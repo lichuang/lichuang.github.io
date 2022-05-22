@@ -1,183 +1,314 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>sqlite3.36版本 btree实现（五）- Btree的实现 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="sqlite3.36版本 btree实现（五）- Btree的实现">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" Btree  存储引擎  sqlite ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="sqlite3.36版本 btree实现（五）- Btree的实现" />
-<meta property="og:description" content="sqlite3.36版本 btree实现（五）- Btree的实现" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="sqlite3.36版本 btree实现（五）- Btree的实现">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"sqlite3.36版本 btree实现（五）- Btree的实现",
+      "item":"https://www.codedump.info/post/20220201-sqlite-btree-5-btree/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20220201-sqlite-btree-5-btree/"
+    },
+    "headline": "sqlite3.36版本 btree实现（五）- Btree的实现 | codedump的网络日志","datePublished": "2022-02-01T15:55:40+08:00",
+    "dateModified": "2022-02-01T15:55:40+08:00",
+    "wordCount":  7018 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "sqlite3.36版本 btree实现（五）- Btree的实现"
+}
+</script><meta property="og:title" content="sqlite3.36版本 btree实现（五）- Btree的实现 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2022-02-01T15:55:40+08:00" />
-<meta property="article:modified_time" content="2022-02-01T15:55:40+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" />
 
 
 
+<meta property="og:description" content="sqlite3.36版本 btree实现（五）- Btree的实现" />
+
+
+
+<meta property="og:locale" content="zh" />
+
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2022-02-01T15:55:40&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2022-02-01T15:55:40&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="存储" />
+
+<meta property="article:tag" content="存储引擎" />
+
+<meta property="article:tag" content="sqlite" />
+
+<meta property="article:tag" content="btree" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-0/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200726-boltdb-4/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
+    
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
-  <link rel="canonical" href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/">
+  
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">sqlite3.36版本 btree实现（五）- Btree的实现</h1>
 
-  
-  
-  <meta itemprop="name" content="sqlite3.36版本 btree实现（五）- Btree的实现">
-<meta itemprop="description" content="sqlite3.36版本 btree实现（五）- Btree的实现"><meta itemprop="datePublished" content="2022-02-01T15:55:40+08:00" />
-<meta itemprop="dateModified" content="2022-02-01T15:55:40+08:00" />
-<meta itemprop="wordCount" content="7018">
-<meta itemprop="keywords" content="存储,存储引擎,sqlite,btree," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="sqlite3.36版本 btree实现（五）- Btree的实现"/>
-<meta name="twitter:description" content="sqlite3.36版本 btree实现（五）- Btree的实现"/>
-
-
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
-
-</head>
-
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
-
-  <nav>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
-
-    
-<main id="main" class="post">
-  
-  
-  <h1>sqlite3.36版本 btree实现（五）- Btree的实现</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E5%AD%98%E5%82%A8'>#存储</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E'>#存储引擎</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/sqlite'>#sqlite</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/btree'>#btree</a>
-    
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2022-02-01</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#数据表的逻辑组织和页面类型">数据表的逻辑组织和页面类型</a></li>
-    <li><a href="#物理页面的大体划分">物理页面的大体划分</a></li>
-    <li><a href="#file-header文件头">file header（文件头）</a></li>
-    <li><a href="#page-header页面头">page header（页面头）</a>
-      <ul>
-        <li><a href="#cell数组">cell数组</a></li>
-        <li><a href="#空闲空间链表">空闲空间链表</a></li>
-        <li><a href="#碎片空间总大小">碎片空间总大小</a></li>
-        <li><a href="#页面标志位">页面标志位</a></li>
-      </ul>
-    </li>
-    <li><a href="#cell的结构">cell的结构</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>15分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#碎片整理的触发条件">碎片整理的触发条件</a></li>
-    <li><a href="#碎片整理的流程">碎片整理的流程</a></li>
-  </ul>
-</nav></div>
-  </details>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
+          >存储</a
+        >
+      
+        
+          <span>, </span>
+        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
+          >存储引擎</a
+        >
+      
+    </div>
+  
+
+  
+</div>
+
+
   
   
-  <article class="content">
-    
-    <p>《sqlite3.36版本 btree实现》系列文章：</p>
+
+  <p>《sqlite3.36版本 btree实现》系列文章：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/">sqlite3.36版本 btree实现（一）- 管理页面缓存 - codedump的网络日志</a></li>
@@ -218,7 +349,7 @@
 <p>因为每个表都有自己的btree树形结构，如果每个表都有一个对应的根页面编号，比如图中的两个表，对应的树形结构中，根节点所在的页面分别是1和2。</p>
 <p>接着来看不同的页面类型，以及存储上的差异。</p>
 <p>以一个例子来说明，创建以下的数据库，插入数据，以及索引：</p>
-<pre tabindex="0"><code>// 创建数据库COMPANY
+<pre><code>// 创建数据库COMPANY
 CREATE TABLE COMPANY(
    ID             INT      NOT NULL,
    NAME           TEXT    NOT NULL,
@@ -231,9 +362,9 @@ CREATE TABLE COMPANY(
 CREATE INDEX id_index ON COMPANY (id);
 
 // 插入2条数据
-INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, &#39;Paul&#39;, 32, &#39;California&#39;, 20000.00 );
+INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, 'Paul', 32, 'California', 20000.00 );
 INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY)
-VALUES (2, &#39;Allen&#39;, 25, &#39;Texas&#39;, 15000.00 );
+VALUES (2, 'Allen', 25, 'Texas', 15000.00 );
 
 // 查询数据
 sqlite&gt; select * from COMPANY;
@@ -244,7 +375,8 @@ sqlite&gt; select * from COMPANY;
 sqlite&gt; select rowid,* from COMPANY;
 1|1|Paul|32|California|20000.0
 2|2|Allen|25|Texas|15000.0
-</code></pre><p>在上面的流程里：</p>
+</code></pre>
+<p>在上面的流程里：</p>
 <ul>
 <li>创建一个表<code>COMPANY</code>，注意这个表在最开始是没有任何索引的。</li>
 <li>接下来，以字段<code>id</code>来创建一个索引，插入2条数据。</li>
@@ -287,15 +419,16 @@ sqlite&gt; select rowid,* from COMPANY;
 </li>
 </ul>
 <p>为了表示这些页面，有如下几种页面标志位：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#080;font-style:italic">/*
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">** Page type flags.  An ORed combination of these flags appear as the
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">** first byte of on-disk image of every BTree page.
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">*/</span>
-</span></span><span style="display:flex;"><span><span style="color:#080">#define PTF_INTKEY    0x01
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#define PTF_ZERODATA  0x02
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#define PTF_LEAFDATA  0x04
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#define PTF_LEAF      0x08
-</span></span></span></code></pre></div><ul>
+<pre><code class="language-c">/*
+** Page type flags.  An ORed combination of these flags appear as the
+** first byte of on-disk image of every BTree page.
+*/
+#define PTF_INTKEY    0x01
+#define PTF_ZERODATA  0x02
+#define PTF_LEAFDATA  0x04
+#define PTF_LEAF      0x08
+</code></pre>
+<ul>
 <li>PTF_INTKEY（1）：表示key为int类型数据，一般是rowid，即前面的<code>全量数据表</code>。</li>
 <li>PTF_ZERODATA（2）：表示这是索引表的页面。</li>
 <li>PTF_LEAFDATA（4）：数据存储在叶子节点，这个标志位要和PTF_INTKEY一起作用。即：key为int类型数据的时候，有两种页面：一种只存储int类型的key，一种只存储数据。</li>
@@ -315,26 +448,27 @@ sqlite&gt; select rowid,* from COMPANY;
 </ul>
 <h2 id="物理页面的大体划分">物理页面的大体划分</h2>
 <p>来看看sqlite代码中<code>btreeInt.h</code>文件里对btree一个物理页面内数据组织的注释：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#666">**</span> Each btree pages is divided into three <span style="color:#a0a000">sections</span>:  The header, the
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span> cell pointer array, and the cell content area.  Page <span style="color:#666">1</span> also has a <span style="color:#666">100</span><span style="color:#666">-</span>byte
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span> file header that occurs before the page header.
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> file header    <span style="color:#666">|</span>   <span style="color:#666">100</span> bytes.  Page <span style="color:#666">1</span> only.
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> page header    <span style="color:#666">|</span>   <span style="color:#666">8</span> bytes <span style="color:#a2f;font-weight:bold">for</span> leaves.  <span style="color:#666">12</span> bytes <span style="color:#a2f;font-weight:bold">for</span> interior nodes
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> cell pointer   <span style="color:#666">|</span>   <span style="color:#666">|</span>  <span style="color:#666">2</span> bytes per cell.  Sorted order.
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> array          <span style="color:#666">|</span>   <span style="color:#666">|</span>  Grows downward
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span>                <span style="color:#666">|</span>   v
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> unallocated    <span style="color:#666">|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> space          <span style="color:#666">|</span>
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>   <span style="color:#666">^</span>  Grows upwards
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> cell content   <span style="color:#666">|</span>   <span style="color:#666">|</span>  Arbitrary order interspersed with freeblocks.
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|</span> area           <span style="color:#666">|</span>   <span style="color:#666">|</span>  and free space fragments.
-</span></span><span style="display:flex;"><span><span style="color:#666">**</span>      <span style="color:#666">|----------------|</span>
-</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
+<pre><code class="language-c">** Each btree pages is divided into three sections:  The header, the
+** cell pointer array, and the cell content area.  Page 1 also has a 100-byte
+** file header that occurs before the page header.
+**
+**      |----------------|
+**      | file header    |   100 bytes.  Page 1 only.
+**      |----------------|
+**      | page header    |   8 bytes for leaves.  12 bytes for interior nodes
+**      |----------------|
+**      | cell pointer   |   |  2 bytes per cell.  Sorted order.
+**      | array          |   |  Grows downward
+**      |                |   v
+**      |----------------|
+**      | unallocated    |
+**      | space          |
+**      |----------------|   ^  Grows upwards
+**      | cell content   |   |  Arbitrary order interspersed with freeblocks.
+**      | area           |   |  and free space fragments.
+**      |----------------|
+</code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
 <p>按照这里的说法，一个物理页面在btree中划分为以下几部分：</p>
 <ul>
 <li>文件头（file header）：100字节，但是只有第一个页面才会存在文件头。</li>
@@ -347,8 +481,8 @@ sqlite&gt; select rowid,* from COMPANY;
 <h2 id="file-header文件头">file header（文件头）</h2>
 <p>其中，file header部分只有第一页才有，固定长度100字节，存储整个数据库文件的元信息。</p>
 <p>页面1是一个特殊的页面，其前100个字节是整个数据库的header部分，内容如下：</p>
-<pre tabindex="0"><code>**   OFFSET   SIZE    DESCRIPTION
-**      0      16     Header string: &#34;SQLite format 3\000&#34;
+<pre><code>**   OFFSET   SIZE    DESCRIPTION
+**      0      16     Header string: &quot;SQLite format 3\000&quot;
 **     16       2     Page size in bytes.  
 **     18       1     File format write version
 **     19       1     File format read version
@@ -363,7 +497,8 @@ sqlite&gt; select rowid,* from COMPANY;
 **     40      60     15 4-byte meta values passed to higher layers
 **
 ** All of the integer values are big-endian (most significant byte first).
-</code></pre><p>逐个解析这个header里的内容：</p>
+</code></pre>
+<p>逐个解析这个header里的内容：</p>
 <ul>
 <li>0-16字节：magic string。</li>
 <li>16-18字节：页面大小，不能小于512或者大于32768，同时需要是8位对齐。</li>
@@ -384,7 +519,7 @@ sqlite&gt; select rowid,* from COMPANY;
 <h2 id="page-header页面头">page header（页面头）</h2>
 <p>除了第一页以外，其他情况下页面头在页面的开始位置（即偏移量为0开始），第一页从偏移量100开始。</p>
 <p>其内容如下：</p>
-<pre tabindex="0"><code>** The page headers looks like this:
+<pre><code>** The page headers looks like this:
 **
 **   OFFSET   SIZE     DESCRIPTION
 **      0       1      Flags. 1: intkey, 2: zerodata, 4: leafdata, 8: leaf
@@ -393,7 +528,8 @@ sqlite&gt; select rowid,* from COMPANY;
 **      5       2      first byte of the cell content area
 **      7       1      number of fragmented free bytes
 **      8       4      Right child (the Ptr(N) value).  Omitted on leaves.
-</code></pre><p>分析如下：</p>
+</code></pre>
+<p>分析如下：</p>
 <ul>
 <li>0-1：表示页面类型的标志位，至于页面的类型上面已经有阐述。</li>
 <li>1-2：首个空闲block在页面内的偏移量。</li>
@@ -415,10 +551,11 @@ sqlite&gt; select rowid,* from COMPANY;
 <h3 id="空闲空间链表">空闲空间链表</h3>
 <p>所谓的“空闲空间”，就是夹在<code>cell数组</code>和<code>cell内容数组</code>中间的部分，最开始是一大整块的空间。</p>
 <p>但是随着写入操作进行，比如一行数据被删除之后，回收的空间就会放到空闲空间链表上。空闲空间链表就是用来组织现在空闲空间的数据的，其中的每个元素为4字节，其内容是：</p>
-<pre tabindex="0"><code>   **    SIZE    DESCRIPTION
+<pre><code>   **    SIZE    DESCRIPTION
    **      2     Byte offset of the next freeblock
    **      2     Bytes in this freeblock
-</code></pre><p>其中：</p>
+</code></pre>
+<p>其中：</p>
 <ul>
 <li>0-2字节：下一块空闲空间链表的页内偏移量。</li>
 <li>3-4字节：当前这块空闲空间的大小。</li>
@@ -431,7 +568,7 @@ sqlite&gt; select rowid,* from COMPANY;
 <p>见前面<code>页面类型</code>部分的解释。</p>
 <h2 id="cell的结构">cell的结构</h2>
 <p>一个<code>cell</code>，就是存储一行数据的单位，由于要考虑一行数据有不同的长度，因此<code>cell</code>里面就要有应对变长数据的准备，来看<code>cell</code>的结构。</p>
-<pre tabindex="0"><code>** The content of a cell looks like this:
+<pre><code>** The content of a cell looks like this:
 **
 **    SIZE    DESCRIPTION
 **      4     Page number of the left child. Omitted if leaf flag is set.
@@ -439,7 +576,8 @@ sqlite&gt; select rowid,* from COMPANY;
 **     var    Number of bytes of key. Or the key itself if intkey flag is set.
 **      *     Payload
 **      4     First page of the overflow chain.  Omitted if no overflow
-</code></pre><p>逐个解释：</p>
+</code></pre>
+<p>逐个解释：</p>
 <ul>
 <li>0-4：左子树的页面编号（如果是叶子页面这部分没有）。</li>
 <li>变长：数据部分的大小。</li>
@@ -465,14 +603,15 @@ sqlite&gt; select rowid,* from COMPANY;
 </ul>
 <p>为什么非int类型的表，会没有数据部分？这是因为，完整的数据，都以rowid为key的情况，存储在了int类型的表中；而非int类型的表，只要存储这个表的键值整数即可。</p>
 <p>而溢出页面的结构如下：</p>
-<pre tabindex="0"><code>** Overflow pages form a linked list.  Each page except the last is completely
+<pre><code>** Overflow pages form a linked list.  Each page except the last is completely
 ** filled with data (pagesize - 4 bytes).  The last page can have as little
 ** as 1 byte of data.
 **
 **    SIZE    DESCRIPTION
 **      4     Page number of next overflow page
 **      *     Data
-</code></pre><p>即：对于存储溢出数据的页面而言，头部的4字节存储下一个溢出页面的页面编号（如果还有溢出页面的话），而剩余则存储数据。</p>
+</code></pre>
+<p>即：对于存储溢出数据的页面而言，头部的4字节存储下一个溢出页面的页面编号（如果还有溢出页面的话），而剩余则存储数据。</p>
 <p>结合起来，一个存储了溢出数据（即当前页面不足以存储这个cell的所有数据）的结构大体是：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20220201-sqlite-btree-5-btree/cell-overflow.png" alt="有溢出页面的cell结构" title="有溢出页面的cell结构"></p>
 <h1 id="空间利用和碎片整理">空间利用和碎片整理</h1>
@@ -532,21 +671,27 @@ sqlite&gt; select rowid,* from COMPANY;
 <li><a href="http://barbra-coco.dyndns.org/sqlite/fileformat.html">SQLite Database File Format</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20220129-weekly-3/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20220204-weekly-4/">next →</a>
-    
-  </div>
+</article>
 
-    
-<h1>相关文章</h1><li><strong> 6019-01-06: </strong> <a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现</a>  </li><li><strong> 22129-12-22: </strong> <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>  </li><li><strong> 18129-12-18: </strong> <a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/">sqlite3.36版本 btree实现（二）- 并发控制框架</a>  </li><li><strong> 17129-12-17: </strong> <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>  </li><li><strong> 17129-12-17: </strong> <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述</a>  </li><li><strong> 26079-07-26: </strong> <a href="https://www.codedump.info/post/20200726-boltdb-4/">boltdb 1.3.0实现分析（四）</a>  </li><li><strong> 25079-07-25: </strong> <a href="https://www.codedump.info/post/20200725-boltdb-3/">boltdb 1.3.0实现分析（三）</a>  </li><li><strong> 11079-07-11: </strong> <a href="https://www.codedump.info/post/20200711-boltdb-2/">boltdb 1.3.0实现分析（二）</a>  </li><li><strong> 25069-06-25: </strong> <a href="https://www.codedump.info/post/20200625-boltdb-1/">boltdb 1.3.0实现分析（一）</a>  </li><li><strong> 15069-06-15: </strong> <a href="https://www.codedump.info/post/20200615-btree-2/">B树、B&#43;树索引算法原理（下）</a>  </li><li><strong> 9069-06-09: </strong> <a href="https://www.codedump.info/post/20200609-btree-1/">B树、B&#43;树索引算法原理（上）</a>  </li><li><strong> 15029-02-15: </strong> <a href="https://www.codedump.info/post/20190215-leveldb/">Leveldb代码阅读笔记</a>  </li>
 
-<h1>邮件订阅</h1>
+      
+        <div class="my-4">
+    
+    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
+    
+    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
+    
+    <a href="https://www.codedump.info/tags/sqlite/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#sqlite</a>
+    
+    <a href="https://www.codedump.info/tags/btree/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#btree</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -555,136 +700,103 @@ sqlite&gt; select rowid,* from COMPANY;
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>
-          <a href="/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">存储引擎</a>
-          <a href="/tags/sqlite/">sqlite</a>
-          <a href="/tags/btree/">btree</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20220204-weekly-4/" class="block">周刊（第4期）：为什么我还在看中国足球</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20220129-weekly-3/" class="block">周刊（第3期）：一个前游戏开发者眼中的游戏后端技术</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" class="no-underline">sqlite3.36版本 btree实现（四）- WAL的实现</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" class="no-underline">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" class="no-underline">sqlite3.36版本 btree实现（二）- 并发控制框架</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="no-underline">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/" class="no-underline">sqlite3.36版本 btree实现（零）- 起步及概述</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200726-boltdb-4/" class="no-underline">boltdb 1.3.0实现分析（四）</a>
+          <br />
+        
+      </div>
+    
   </div>
 
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
-  </div>
-
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

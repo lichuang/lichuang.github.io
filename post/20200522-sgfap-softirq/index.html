@@ -1,171 +1,304 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>《面向应用开发者的系统指南》CPU篇之软中断 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" linux  systemtap ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之软中断" />
-<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一个事件，该">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"《面向应用开发者的系统指南》CPU篇之软中断",
+      "item":"https://www.codedump.info/post/20200522-sgfap-softirq/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20200522-sgfap-softirq/"
+    },
+    "headline": "《面向应用开发者的系统指南》CPU篇之软中断 | codedump的网络日志","datePublished": "2020-05-22T21:52:58+08:00",
+    "dateModified": "2020-05-22T21:52:58+08:00",
+    "wordCount":  5359 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一个事件，该"
+}
+</script><meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之软中断 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20200522-sgfap-softirq/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2020-05-22T21:52:58+08:00" />
-<meta property="article:modified_time" content="2020-05-22T21:52:58+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20200522-sgfap-softirq/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20200522-sgfap-softirq/">
 
-  
-  
-  <meta itemprop="name" content="《面向应用开发者的系统指南》CPU篇之软中断">
-<meta itemprop="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一"><meta itemprop="datePublished" content="2020-05-22T21:52:58+08:00" />
-<meta itemprop="dateModified" content="2020-05-22T21:52:58+08:00" />
-<meta itemprop="wordCount" content="5359">
-<meta itemprop="keywords" content="Linux系统," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>《面向应用开发者的系统指南》CPU篇之软中断 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="《面向应用开发者的系统指南》CPU篇之软中断"/>
-<meta name="twitter:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一"/>
+<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 中断（interrupt）通常被定义为一个事件，该" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
+<meta property="og:locale" content="zh" />
 
-  <nav>
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2020-05-22T21:52:58&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2020-05-22T21:52:58&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="Linux系统" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200516-sgfap-syscall/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200218-linux-traceevent/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200128-systemtap-by-example/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200122-series-pages/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-schedule/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>《面向应用开发者的系统指南》CPU篇之软中断</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F'>#Linux系统</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">《面向应用开发者的系统指南》CPU篇之软中断</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2020-05-22</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#数据结构">数据结构</a></li>
-    <li><a href="#触发软中断">触发软中断</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>11分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#触发tasklet">触发tasklet</a></li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/linux%E7%B3%BB%E7%BB%9F/" class="hover:text-eureka"
+          >Linux系统</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#数据结构-1">数据结构</a></li>
-    <li><a href="#添加任务到workqueue">添加任务到workqueue</a></li>
-  </ul>
-</nav></div>
-  </details>
+  
+</div>
+
+
   
   
-  <article class="content">
-    
-    <blockquote>
+
+  <blockquote>
 <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
 </blockquote>
 <h1 id="概述">概述</h1>
@@ -199,39 +332,43 @@
 可以并发运行在多个CPU上（即使同一类型的也可以）。所以软中断必须设计为可重入的函数（允许多个CPU同时操作），因此也需要使用自旋锁来保其数据结构。</p>
 <h2 id="数据结构">数据结构</h2>
 <p>软中断由系统在启动的时候注册到内核中，由一个全局数组来维护软中断：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> softirq_action
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span>	(<span style="color:#666">*</span>action)(<span style="color:#a2f;font-weight:bold">struct</span> softirq_action <span style="color:#666">*</span>);
-</span></span><span style="display:flex;"><span>};
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#a2f;font-weight:bold">struct</span> softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
-</span></span></code></pre></div><p>可以看到，本质上结构体softirq_action存储的是函数指针而已，软中断有以下类型：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">enum</span>
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	HI_SOFTIRQ<span style="color:#666">=</span><span style="color:#666">0</span>,     <span style="color:#080;font-style:italic">// 处理高优先级的tasklet
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	TIMER_SOFTIRQ,    <span style="color:#080;font-style:italic">// 定时器的下半部
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	NET_TX_SOFTIRQ,   <span style="color:#080;font-style:italic">// 网卡发送数据包
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	NET_RX_SOFTIRQ,   <span style="color:#080;font-style:italic">// 网卡接收数据包
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	BLOCK_SOFTIRQ,    <span style="color:#080;font-style:italic">// BLOCK装置     
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	IRQ_POLL_SOFTIRQ, 
-</span></span><span style="display:flex;"><span>	TASKLET_SOFTIRQ,  <span style="color:#080;font-style:italic">// 处理常规的tasklet
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	SCHED_SOFTIRQ,
-</span></span><span style="display:flex;"><span>	HRTIMER_SOFTIRQ, 
-</span></span><span style="display:flex;"><span>	RCU_SOFTIRQ,
-</span></span><span style="display:flex;"><span>	NR_SOFTIRQS
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>系统提供了open_softirq函数用于各个需要使用到软中断的系统注册对应的软中断处理函数。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">open_softirq</span>(<span style="color:#0b0;font-weight:bold">int</span> nr, <span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>action)(<span style="color:#a2f;font-weight:bold">struct</span> softirq_action <span style="color:#666">*</span>))
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	softirq_vec[nr].action <span style="color:#666">=</span> action;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>同时，还提供了softirq_to_name数组，用于把软中断的索引映射到对应的软中断名称：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">const</span> <span style="color:#0b0;font-weight:bold">char</span> <span style="color:#666">*</span> <span style="color:#a2f;font-weight:bold">const</span> softirq_to_name[NR_SOFTIRQS] <span style="color:#666">=</span> {
-</span></span><span style="display:flex;"><span>	<span style="color:#b44">&#34;HI&#34;</span>, <span style="color:#b44">&#34;TIMER&#34;</span>, <span style="color:#b44">&#34;NET_TX&#34;</span>, <span style="color:#b44">&#34;NET_RX&#34;</span>, <span style="color:#b44">&#34;BLOCK&#34;</span>, <span style="color:#b44">&#34;IRQ_POLL&#34;</span>,
-</span></span><span style="display:flex;"><span>	<span style="color:#b44">&#34;TASKLET&#34;</span>, <span style="color:#b44">&#34;SCHED&#34;</span>, <span style="color:#b44">&#34;HRTIMER&#34;</span>, <span style="color:#b44">&#34;RCU&#34;</span>
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>在Linux下面，可以通过查看<code>/proc/softirqs</code>文件知道当前系统软中断的情况：</p>
-<pre tabindex="0"><code>$ cat /proc/softirqs
+<pre><code class="language-C">struct softirq_action
+{
+	void	(*action)(struct softirq_action *);
+};
+
+static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
+</code></pre>
+<p>可以看到，本质上结构体softirq_action存储的是函数指针而已，软中断有以下类型：</p>
+<pre><code class="language-C">enum
+{
+	HI_SOFTIRQ=0,     // 处理高优先级的tasklet
+	TIMER_SOFTIRQ,    // 定时器的下半部
+	NET_TX_SOFTIRQ,   // 网卡发送数据包
+	NET_RX_SOFTIRQ,   // 网卡接收数据包
+	BLOCK_SOFTIRQ,    // BLOCK装置     
+	IRQ_POLL_SOFTIRQ, 
+	TASKLET_SOFTIRQ,  // 处理常规的tasklet
+	SCHED_SOFTIRQ,
+	HRTIMER_SOFTIRQ, 
+	RCU_SOFTIRQ,
+	NR_SOFTIRQS
+};
+</code></pre>
+<p>系统提供了open_softirq函数用于各个需要使用到软中断的系统注册对应的软中断处理函数。</p>
+<pre><code class="language-C">void open_softirq(int nr, void (*action)(struct softirq_action *))
+{
+	softirq_vec[nr].action = action;
+}
+</code></pre>
+<p>同时，还提供了softirq_to_name数组，用于把软中断的索引映射到对应的软中断名称：</p>
+<pre><code class="language-C">const char * const softirq_to_name[NR_SOFTIRQS] = {
+	&quot;HI&quot;, &quot;TIMER&quot;, &quot;NET_TX&quot;, &quot;NET_RX&quot;, &quot;BLOCK&quot;, &quot;IRQ_POLL&quot;,
+	&quot;TASKLET&quot;, &quot;SCHED&quot;, &quot;HRTIMER&quot;, &quot;RCU&quot;
+};
+</code></pre>
+<p>在Linux下面，可以通过查看<code>/proc/softirqs</code>文件知道当前系统软中断的情况：</p>
+<pre><code>$ cat /proc/softirqs
                     CPU0       CPU1       CPU2       CPU3
           HI:     276180     286764    2509097     254357
        TIMER:    1550133    1285854    1440533    1812909
@@ -243,26 +380,29 @@
        SCHED:    1484942    1207449    1310735    1724911
      HRTIMER:          0          0          0          0
          RCU:     690954     685825     787447     878963
-</code></pre><h2 id="触发软中断">触发软中断</h2>
+</code></pre>
+<h2 id="触发软中断">触发软中断</h2>
 <p>触发软中断的入口函数是raise_softirq：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">raise_softirq</span>(<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span> nr)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> flags;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	local_irq_save(flags);
-</span></span><span style="display:flex;"><span>	raise_softirq_irqoff(nr);
-</span></span><span style="display:flex;"><span>	local_irq_restore(flags);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>首先，由于调用软中断处理函数必须禁用中断，所以local_irq_save宏将保存在eflags寄存器中的IF标志，同时禁用本地处理器的中断。对应的，local_irq_restore宏将保存下来的flags标志位恢复回去，同时打开本地处理器的中断。</p>
+<pre><code class="language-C">void raise_softirq(unsigned int nr)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	raise_softirq_irqoff(nr);
+	local_irq_restore(flags);
+}
+</code></pre>
+<p>首先，由于调用软中断处理函数必须禁用中断，所以local_irq_save宏将保存在eflags寄存器中的IF标志，同时禁用本地处理器的中断。对应的，local_irq_restore宏将保存下来的flags标志位恢复回去，同时打开本地处理器的中断。</p>
 <p>接着看raise_softirq_irqoff函数：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">inline</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">raise_softirq_irqoff</span>(<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span> nr)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	__raise_softirq_irqoff(nr);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>in_interrupt())
-</span></span><span style="display:flex;"><span>		wakeup_softirqd();
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ul>
+<pre><code class="language-C">inline void raise_softirq_irqoff(unsigned int nr)
+{
+	__raise_softirq_irqoff(nr);
+
+	if (!in_interrupt())
+		wakeup_softirqd();
+}
+</code></pre>
+<ul>
 <li>
 <p>首先，调用<code>__raise_softirq_irqoff</code>将本地处理器的中<code>__softirq_pending</code>变量对应nr这个软中断的位置为1，表示该类型的软中断被触发了。</p>
 </li>
@@ -270,24 +410,26 @@
 <p>然后，通过<code>in_interrupt</code>函数来判断处理器当前是否在处理中断状态，如果没有则调用<code>wakeup_softirqd</code>函数唤醒本处理器的<code>ksoftirqd</code>内核进程：</p>
 </li>
 </ul>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">wakeup_softirqd</span>(<span style="color:#0b0;font-weight:bold">void</span>)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>tsk <span style="color:#666">=</span> __this_cpu_read(ksoftirqd);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (tsk <span style="color:#666">&amp;&amp;</span> tsk<span style="color:#666">-&gt;</span>state <span style="color:#666">!=</span> TASK_RUNNING)
-</span></span><span style="display:flex;"><span>		wake_up_process(tsk);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>在Linux系统中，每个CPU都会运行一个<code>ksoftirqd</code>内核进程，专门由这个进程来处理本CPU的软中断。<code>ksoftirqd</code>内核进程的主要流程在函数<code>__do_softirq</code>中完成，其核心是一个循环，用来检测当前有哪些未处理的软中断，调用其注册的处理函数来处理软中断：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>asmlinkage __visible <span style="color:#0b0;font-weight:bold">void</span> __softirq_entry <span style="color:#00a000">__do_softirq</span>(<span style="color:#0b0;font-weight:bold">void</span>)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#a2f;font-weight:bold">while</span> ((softirq_bit <span style="color:#666">=</span> ffs(pending))) {
-</span></span><span style="display:flex;"><span>		trace_softirq_entry(vec_nr);	<span style="color:#080;font-style:italic">// 记录开始处理软中断的trace event
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		h<span style="color:#666">-&gt;</span>action(h);									<span style="color:#080;font-style:italic">// 调用注册的软中断处理函数
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		trace_softirq_exit(vec_nr);		<span style="color:#080;font-style:italic">// 记录结束处理软中断的trace event
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	}
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200522-sgfap-softirq/softirq.png" alt="softirq" title="softirq"></p>
+<pre><code class="language-C">static void wakeup_softirqd(void)
+{
+	struct task_struct *tsk = __this_cpu_read(ksoftirqd);
+
+	if (tsk &amp;&amp; tsk-&gt;state != TASK_RUNNING)
+		wake_up_process(tsk);
+}
+</code></pre>
+<p>在Linux系统中，每个CPU都会运行一个<code>ksoftirqd</code>内核进程，专门由这个进程来处理本CPU的软中断。<code>ksoftirqd</code>内核进程的主要流程在函数<code>__do_softirq</code>中完成，其核心是一个循环，用来检测当前有哪些未处理的软中断，调用其注册的处理函数来处理软中断：</p>
+<pre><code class="language-C">asmlinkage __visible void __softirq_entry __do_softirq(void)
+{
+	// ...
+	while ((softirq_bit = ffs(pending))) {
+		trace_softirq_entry(vec_nr);	// 记录开始处理软中断的trace event
+		h-&gt;action(h);									// 调用注册的软中断处理函数
+		trace_softirq_exit(vec_nr);		// 记录结束处理软中断的trace event
+	}
+}
+</code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200522-sgfap-softirq/softirq.png" alt="softirq" title="softirq"></p>
 <p>总结来说，要触发一个软中断只需要以下几步：</p>
 <ol>
 <li>保存IF标志，禁用中断。</li>
@@ -310,30 +452,32 @@
 </ul>
 <p>tasklet是在两种软中断类型的基础上实现的，因此如果不需要软中断的并行特性，tasklet就是最好的选择。也就是说tasklet是软中断的一种特殊用法，即延迟情况下的串行执行。</p>
 <p>首先来看初始化，对应的是softirq_init函数：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">void</span> __init <span style="color:#00a000">softirq_init</span>(<span style="color:#0b0;font-weight:bold">void</span>)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span> cpu;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	for_each_possible_cpu(cpu) {
-</span></span><span style="display:flex;"><span>		per_cpu(tasklet_vec, cpu).tail <span style="color:#666">=</span>
-</span></span><span style="display:flex;"><span>			<span style="color:#666">&amp;</span>per_cpu(tasklet_vec, cpu).head;
-</span></span><span style="display:flex;"><span>		per_cpu(tasklet_hi_vec, cpu).tail <span style="color:#666">=</span>
-</span></span><span style="display:flex;"><span>			<span style="color:#666">&amp;</span>per_cpu(tasklet_hi_vec, cpu).head;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
-</span></span><span style="display:flex;"><span>	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>可以看到，tasklet各有一个基于TASKLET_SOFTIRQ和HI_SOFTIRQ两个类型软中断的tasklet，这两个类型分别对应低优先级和高优先级的tasklet，变量tasklet_vec和tasklet_hi_vec的定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> tasklet_head {
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">*</span>head;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">**</span>tail;
-</span></span><span style="display:flex;"><span>};
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#00a000">DEFINE_PER_CPU</span>(<span style="color:#a2f;font-weight:bold">struct</span> tasklet_head, tasklet_vec);
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#00a000">DEFINE_PER_CPU</span>(<span style="color:#a2f;font-weight:bold">struct</span> tasklet_head, tasklet_hi_vec);
-</span></span></code></pre></div><p>这两个变量分别定义了两个存储tasklet_struct结构体的链表。结构体tasklet_struct定义如下：</p>
-<pre tabindex="0"><code>struct tasklet_struct
+<pre><code class="language-C">void __init softirq_init(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		per_cpu(tasklet_vec, cpu).tail =
+			&amp;per_cpu(tasklet_vec, cpu).head;
+		per_cpu(tasklet_hi_vec, cpu).tail =
+			&amp;per_cpu(tasklet_hi_vec, cpu).head;
+	}
+
+	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
+	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
+}
+</code></pre>
+<p>可以看到，tasklet各有一个基于TASKLET_SOFTIRQ和HI_SOFTIRQ两个类型软中断的tasklet，这两个类型分别对应低优先级和高优先级的tasklet，变量tasklet_vec和tasklet_hi_vec的定义如下：</p>
+<pre><code class="language-C">struct tasklet_head {
+	struct tasklet_struct *head;
+	struct tasklet_struct **tail;
+};
+
+static DEFINE_PER_CPU(struct tasklet_head, tasklet_vec);
+static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
+</code></pre>
+<p>这两个变量分别定义了两个存储tasklet_struct结构体的链表。结构体tasklet_struct定义如下：</p>
+<pre><code>struct tasklet_struct
 {
 	struct tasklet_struct *next;
 	unsigned long state;
@@ -341,7 +485,8 @@
 	void (*func)(unsigned long);
 	unsigned long data;
 };
-</code></pre><p>其中包含了五个成员变量，分别是：</p>
+</code></pre>
+<p>其中包含了五个成员变量，分别是：</p>
 <ul>
 <li>struct tasklet_struct *next：链表中下一个成员的指针。</li>
 <li>unsigned long state：tasklet的状态。</li>
@@ -351,40 +496,44 @@
 </ul>
 <h2 id="触发tasklet">触发tasklet</h2>
 <p>内核通过函数tasklet_schedule触发一个tasklet被执行：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#a2f;font-weight:bold">inline</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">tasklet_schedule</span>(<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">*</span>t)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>test_and_set_bit(TASKLET_STATE_SCHED, <span style="color:#666">&amp;</span>t<span style="color:#666">-&gt;</span>state))
-</span></span><span style="display:flex;"><span>		__tasklet_schedule(t);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>首先，使用test_and_set_bit函数判断t-&gt;state中的TASKLET_STATE_SCHED是否被置为1，如果没有则调用函数__tasklet_schedule调度tasklet来执行：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/softirq.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">__tasklet_schedule</span>(<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">*</span>t)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> flags;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	local_irq_save(flags);
-</span></span><span style="display:flex;"><span>	t<span style="color:#666">-&gt;</span>next <span style="color:#666">=</span> <span style="color:#a2f">NULL</span>;
-</span></span><span style="display:flex;"><span>	<span style="color:#666">*</span>__this_cpu_read(tasklet_vec.tail) <span style="color:#666">=</span> t;
-</span></span><span style="display:flex;"><span>	__this_cpu_write(tasklet_vec.tail, <span style="color:#666">&amp;</span>(t<span style="color:#666">-&gt;</span>next));
-</span></span><span style="display:flex;"><span>	raise_softirq_irqoff(TASKLET_SOFTIRQ);
-</span></span><span style="display:flex;"><span>	local_irq_restore(flags);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>该函数首先和前面软中断的处理一样，保存IF标志位同时禁用中断，然后修改tasklet_vec链表将新增的tasklet添加到链表尾部，调用raise_softirq_irqoff触发TASKLET_SOFTIRQ类型的软中断执行，最后恢复IF标志位同时启用中断。</p>
+<pre><code class="language-C">static inline void tasklet_schedule(struct tasklet_struct *t)
+{
+	if (!test_and_set_bit(TASKLET_STATE_SCHED, &amp;t-&gt;state))
+		__tasklet_schedule(t);
+}
+</code></pre>
+<p>首先，使用test_and_set_bit函数判断t-&gt;state中的TASKLET_STATE_SCHED是否被置为1，如果没有则调用函数__tasklet_schedule调度tasklet来执行：</p>
+<pre><code class="language-C">// kernel/softirq.c
+void __tasklet_schedule(struct tasklet_struct *t)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	t-&gt;next = NULL;
+	*__this_cpu_read(tasklet_vec.tail) = t;
+	__this_cpu_write(tasklet_vec.tail, &amp;(t-&gt;next));
+	raise_softirq_irqoff(TASKLET_SOFTIRQ);
+	local_irq_restore(flags);
+}
+</code></pre>
+<p>该函数首先和前面软中断的处理一样，保存IF标志位同时禁用中断，然后修改tasklet_vec链表将新增的tasklet添加到链表尾部，调用raise_softirq_irqoff触发TASKLET_SOFTIRQ类型的软中断执行，最后恢复IF标志位同时启用中断。</p>
 <p>在函数softirq_init中，两类用于处理tasklet的处理函数分别是：</p>
-<pre tabindex="0"><code>	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
+<pre><code>	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
 	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
-</code></pre><p>接着看函数tasklet_action的实现，其核心就是从前面的链表中依次取出tasklet_struct结构体数据调用其处理函数：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/softirq.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> __latent_entropy <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">tasklet_action</span>(<span style="color:#a2f;font-weight:bold">struct</span> softirq_action <span style="color:#666">*</span>a)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">*</span>list;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">while</span> (list) {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">struct</span> tasklet_struct <span style="color:#666">*</span>t <span style="color:#666">=</span> list;
-</span></span><span style="display:flex;"><span>		t<span style="color:#666">-&gt;</span>func(t<span style="color:#666">-&gt;</span>data);
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>该函数的工作流程是：</p>
+</code></pre>
+<p>接着看函数tasklet_action的实现，其核心就是从前面的链表中依次取出tasklet_struct结构体数据调用其处理函数：</p>
+<pre><code class="language-C">// kernel/softirq.c
+static __latent_entropy void tasklet_action(struct softirq_action *a)
+{
+	struct tasklet_struct *list;
+
+	while (list) {
+		struct tasklet_struct *t = list;
+		t-&gt;func(t-&gt;data);
+	}
+}
+</code></pre>
+<p>该函数的工作流程是：</p>
 <ol>
 <li>调用local_irq_disable禁用本地CPU的中断。</li>
 <li>从tasklet_vec链表头取出头元素list。</li>
@@ -400,106 +549,113 @@
 </ul>
 <h2 id="数据结构-1">数据结构</h2>
 <p>内核使用结构体worker_pool来管理所有CPU上面的worker，在这里仅列举其中的一部分成员：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/workqueue.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> worker_pool {
-</span></span><span style="display:flex;"><span>	spinlock_t		lock;		<span style="color:#080;font-style:italic">/* the pool lock */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>			cpu;		<span style="color:#080;font-style:italic">/* I: the associated cpu */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>			node;		<span style="color:#080;font-style:italic">/* I: the associated node ID */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>			id;		<span style="color:#080;font-style:italic">/* I: pool ID */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span>		flags;		<span style="color:#080;font-style:italic">/* X: flags */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span>		watchdog_ts;	<span style="color:#080;font-style:italic">/* L: watchdog timestamp */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> list_head	worklist;	<span style="color:#080;font-style:italic">/* L: list of pending works */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>			nr_workers;	<span style="color:#080;font-style:italic">/* L: total number of workers */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	....
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>worker_pool中管理的每个worker如下定义：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/workqueue_internal.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> worker {
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">/* on idle list while idle, on busy hash table while busy */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">union</span> {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">struct</span> list_head	entry;	<span style="color:#080;font-style:italic">/* L: while idle */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">struct</span> hlist_node	hentry;	<span style="color:#080;font-style:italic">/* L: while busy */</span>
-</span></span><span style="display:flex;"><span>	};
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> work_struct	<span style="color:#666">*</span>current_work;	<span style="color:#080;font-style:italic">/* L: work being processed */</span>
-</span></span><span style="display:flex;"><span>	work_func_t		current_func;	<span style="color:#080;font-style:italic">/* L: current_work&#39;s fn */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> pool_workqueue	<span style="color:#666">*</span>current_pwq; <span style="color:#080;font-style:italic">/* L: current_work&#39;s pwq */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">bool</span>			desc_valid;	<span style="color:#080;font-style:italic">/* -&gt;desc is valid */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> list_head	scheduled;	<span style="color:#080;font-style:italic">/* L: scheduled works */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	....
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>每个CPU上运行的kworker进程：</p>
-<pre tabindex="0"><code>$ ps aux | grep kworker
+<pre><code class="language-C">// kernel/workqueue.c
+struct worker_pool {
+	spinlock_t		lock;		/* the pool lock */
+	int			cpu;		/* I: the associated cpu */
+	int			node;		/* I: the associated node ID */
+	int			id;		/* I: pool ID */
+	unsigned int		flags;		/* X: flags */
+
+	unsigned long		watchdog_ts;	/* L: watchdog timestamp */
+
+	struct list_head	worklist;	/* L: list of pending works */
+	int			nr_workers;	/* L: total number of workers */
+
+	....
+}
+</code></pre>
+<p>worker_pool中管理的每个worker如下定义：</p>
+<pre><code class="language-C">// kernel/workqueue_internal.h
+struct worker {
+	/* on idle list while idle, on busy hash table while busy */
+	union {
+		struct list_head	entry;	/* L: while idle */
+		struct hlist_node	hentry;	/* L: while busy */
+	};
+
+	struct work_struct	*current_work;	/* L: work being processed */
+	work_func_t		current_func;	/* L: current_work's fn */
+	struct pool_workqueue	*current_pwq; /* L: current_work's pwq */
+	bool			desc_valid;	/* -&gt;desc is valid */
+	struct list_head	scheduled;	/* L: scheduled works */
+
+	....
+}
+</code></pre>
+<p>每个CPU上运行的kworker进程：</p>
+<pre><code>$ ps aux | grep kworker
 root         4  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/0:0H]
 root        18  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/1:0H]
 root        24  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/2:0H]
-</code></pre><h2 id="添加任务到workqueue">添加任务到workqueue</h2>
+</code></pre>
+<h2 id="添加任务到workqueue">添加任务到workqueue</h2>
 <p>内核提供函数queue_work将任务放入workqueue中：</p>
-<pre tabindex="0"><code>// include/linux/workqueue.h
+<pre><code>// include/linux/workqueue.h
 static inline bool queue_work(struct workqueue_struct *wq,
 			      struct work_struct *work)
 {
 	return queue_work_on(WORK_CPU_UNBOUND, wq, work);
 }
-</code></pre><p>接着看函数queue_work_on：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/workqueue.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">bool</span> <span style="color:#00a000">queue_work_on</span>(<span style="color:#0b0;font-weight:bold">int</span> cpu, <span style="color:#a2f;font-weight:bold">struct</span> workqueue_struct <span style="color:#666">*</span>wq,
-</span></span><span style="display:flex;"><span>		   <span style="color:#a2f;font-weight:bold">struct</span> work_struct <span style="color:#666">*</span>work)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">bool</span> ret <span style="color:#666">=</span> <span style="color:#a2f">false</span>;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> flags;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	local_irq_save(flags);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))) {
-</span></span><span style="display:flex;"><span>		__queue_work(cpu, wq, work);
-</span></span><span style="display:flex;"><span>		ret <span style="color:#666">=</span> <span style="color:#a2f">true</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	local_irq_restore(flags);
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> ret;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>它做的事情很简单，同样也是前后禁用、启用中断，在判断WORK_STRUCT_PENDING_BIT被置为1失败之后，调用__queue_work将任务放入workqueue：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">__queue_work</span>(<span style="color:#0b0;font-weight:bold">int</span> cpu, <span style="color:#a2f;font-weight:bold">struct</span> workqueue_struct <span style="color:#666">*</span>wq,
-</span></span><span style="display:flex;"><span>			 <span style="color:#a2f;font-weight:bold">struct</span> work_struct <span style="color:#666">*</span>work)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ....
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (req_cpu <span style="color:#666">==</span> WORK_CPU_UNBOUND)
-</span></span><span style="display:flex;"><span>		cpu <span style="color:#666">=</span> wq_select_unbound_cpu(raw_smp_processor_id());
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>(wq<span style="color:#666">-&gt;</span>flags <span style="color:#666">&amp;</span> WQ_UNBOUND))
-</span></span><span style="display:flex;"><span>		pwq <span style="color:#666">=</span> per_cpu_ptr(wq<span style="color:#666">-&gt;</span>cpu_pwqs, cpu);
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">else</span>
-</span></span><span style="display:flex;"><span>		pwq <span style="color:#666">=</span> unbound_pwq_by_node(wq, cpu_to_node(cpu));
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>
-</span></span><span style="display:flex;"><span>	insert_work(pwq, work, worklist, work_flags);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><p>这里裁剪掉无关的代码，来看核心的部分：</p>
+</code></pre>
+<p>接着看函数queue_work_on：</p>
+<pre><code class="language-C">// kernel/workqueue.c
+bool queue_work_on(int cpu, struct workqueue_struct *wq,
+		   struct work_struct *work)
+{
+	bool ret = false;
+	unsigned long flags;
+
+	local_irq_save(flags);
+
+	if (!test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))) {
+		__queue_work(cpu, wq, work);
+		ret = true;
+	}
+
+	local_irq_restore(flags);
+	return ret;
+}
+</code></pre>
+<p>它做的事情很简单，同样也是前后禁用、启用中断，在判断WORK_STRUCT_PENDING_BIT被置为1失败之后，调用__queue_work将任务放入workqueue：</p>
+<pre><code class="language-C">static void __queue_work(int cpu, struct workqueue_struct *wq,
+			 struct work_struct *work)
+{
+	// ....
+
+	if (req_cpu == WORK_CPU_UNBOUND)
+		cpu = wq_select_unbound_cpu(raw_smp_processor_id());
+
+	if (!(wq-&gt;flags &amp; WQ_UNBOUND))
+		pwq = per_cpu_ptr(wq-&gt;cpu_pwqs, cpu);
+	else
+		pwq = unbound_pwq_by_node(wq, cpu_to_node(cpu));
+
+	// ...
+
+	insert_work(pwq, work, worklist, work_flags);
+
+	// ...
+}
+</code></pre>
+<p>这里裁剪掉无关的代码，来看核心的部分：</p>
 <ul>
 <li>首先，如果work加入时未指定要运行的CPU，通过wq_select_unbound_cpu进行选择，默认使用当前CPU。如果该CPU不在wq_unbound_cpumask (全局 cpumask)内，则从wq_unbound_cpumask中通过round robin方式选择。</li>
 <li>对于 bound workqueue ，取出当前 per CPU变量中的pool_workqueue 。对于unbound workqueue，取出当前CPU 所在node对应的pool_workqueue。</li>
 </ul>
 <p>在kwork内核进程内部，最终会在函数<code>process_one_work</code>中处理work：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/workqueue.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">process_one_work</span>(<span style="color:#a2f;font-weight:bold">struct</span> worker <span style="color:#666">*</span>worker, <span style="color:#a2f;font-weight:bold">struct</span> work_struct <span style="color:#666">*</span>work)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	trace_workqueue_execute_start(work);	<span style="color:#080;font-style:italic">// 记录开始处理work的trace event
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	worker<span style="color:#666">-&gt;</span>current_func(work);						<span style="color:#080;font-style:italic">// 调用work的处理函数
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	trace_workqueue_execute_end(work);		<span style="color:#080;font-style:italic">// 记录结束处理work的trace event
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><h1 id="使用systemtap追踪软中断">使用systemtap追踪软中断</h1>
+<pre><code class="language-C">// kernel/workqueue.c
+static void process_one_work(struct worker *worker, struct work_struct *work)
+{
+	// ...
+	trace_workqueue_execute_start(work);	// 记录开始处理work的trace event
+	worker-&gt;current_func(work);						// 调用work的处理函数
+	trace_workqueue_execute_end(work);		// 记录结束处理work的trace event
+}
+</code></pre>
+<h1 id="使用systemtap追踪软中断">使用systemtap追踪软中断</h1>
 <p><code>systemtap</code>上提供了可以跟踪软中断以及工作队列的<code>probe</code>事件，可以在<code>systemtap</code>的<code>tapset\linux\irq.stp</code>中看到相关的定义，比较简单这里就不做解释，这里仅列举网上看到的一个使用这些tapset来追踪软中断事件的例子：</p>
-<pre tabindex="0"><code>global hard, soft, wq
+<pre><code>global hard, soft, wq
  
 // 记录硬中断
 probe irq_handler.entry {
@@ -508,22 +664,22 @@ probe irq_handler.entry {
  
 // 每隔一秒打印中断、软中断、工作队列的统计信息
 probe timer.s(1) {
-  println(&#34;==irq number:dev_name&#34;)
+  println(&quot;==irq number:dev_name&quot;)
   foreach( [irq, dev_name] in hard- limit 5) {
-    printf(&#34;%d,%s-&gt;%d\n&#34;, irq, kernel_string(dev_name), hard[irq, dev_name]);       
+    printf(&quot;%d,%s-&gt;%d\n&quot;, irq, kernel_string(dev_name), hard[irq, dev_name]);       
   }
  
-  println(&#34;==softirq cpu:h:vec:action&#34;)
+  println(&quot;==softirq cpu:h:vec:action&quot;)
   foreach(  in soft- limit 5) {
-    printf(&#34;%d:%x:%x:%s-&gt;%d\n&#34;, c, h, vec, symdata(action), soft);       
+    printf(&quot;%d:%x:%x:%s-&gt;%d\n&quot;, c, h, vec, symdata(action), soft);       
   }
  
-  println(&#34;==workqueue wq_thread:work_func&#34;)
+  println(&quot;==workqueue wq_thread:work_func&quot;)
   foreach( [wq_thread,work_func] in wq- limit 5) {
-    printf(&#34;%x:%x-&gt;%d\n&#34;, wq_thread, work_func, wq[wq_thread, work_func]);  
+    printf(&quot;%x:%x-&gt;%d\n&quot;, wq_thread, work_func, wq[wq_thread, work_func]);  
   }
  
-  println(&#34;\n&#34;)
+  println(&quot;\n&quot;)
   delete hard
   delete soft
   delete wq
@@ -541,30 +697,32 @@ probe workqueue.execute {
  
  
 probe begin {
-  println(&#34;~&#34;)
+  println(&quot;~&quot;)
 }
-</code></pre><h1 id="参考文献">参考文献</h1>
+
+</code></pre>
+<h1 id="参考文献">参考文献</h1>
 <ul>
 <li><a href="https://tech.meituan.com/2018/03/16/redis-high-concurrency-optimization.html">Redis 高负载下的中断优化</a></li>
 <li><a href="http://blog.yufeng.info/archives/2037">MYSQL数据库网卡软中断不平衡问题及解决方案</a></li>
 <li><a href="https://www.cnblogs.com/alantu2018/p/8527205.html">Linux内核中的软中断、tasklet和工作队列详解</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20200516-sgfap-syscall/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20200605-how-to-read-code-v2020/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 20069-06-20: </strong> <a href="https://www.codedump.info/post/20200620-sgfap-loadavg/">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</a>  </li><li><strong> 16059-05-16: </strong> <a href="https://www.codedump.info/post/20200516-sgfap-syscall/">《面向应用开发者的系统指南》CPU篇之系统调用</a>  </li><li><strong> 3059-05-03: </strong> <a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/">《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为</a>  </li><li><strong> 3059-05-03: </strong> <a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/">《面向应用开发者的系统指南》CPU篇之进程调度</a>  </li><li><strong> 2059-05-02: </strong> <a href="https://www.codedump.info/post/20200502-sgfap-process/">《面向应用开发者的系统指南》CPU篇之进程</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Linux系统</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -573,133 +731,103 @@ probe begin {
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20200605-how-to-read-code-v2020/" class="block">如何阅读一份源代码？（2020年版）</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20200516-sgfap-syscall/" class="block">《面向应用开发者的系统指南》CPU篇之系统调用</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20200516-sgfap-syscall/" class="no-underline">《面向应用开发者的系统指南》CPU篇之系统调用</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" class="no-underline">《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200218-linux-traceevent/" class="no-underline">Systemtap中内核trace事件的实现</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="no-underline">通过实例快速入门Systemtap</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200122-series-pages/" class="no-underline">博客系列文章索引</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/" class="no-underline">《面向应用开发者的系统指南》CPU篇之进程调度</a>
+          <br />
+        
+      </div>
+    
   </div>
 
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
-  </div>
-
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

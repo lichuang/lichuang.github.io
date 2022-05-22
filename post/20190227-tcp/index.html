@@ -1,196 +1,294 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>TCP协议笔记 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="TCP协议笔记">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" TCP ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="TCP协议笔记" />
-<meta property="og:description" content="TCP协议笔记" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="TCP协议笔记">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"TCP协议笔记",
+      "item":"https://www.codedump.info/post/20190227-tcp/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20190227-tcp/"
+    },
+    "headline": "TCP协议笔记 | codedump的网络日志","datePublished": "2019-02-27T21:01:43+08:00",
+    "dateModified": "2019-02-27T21:01:43+08:00",
+    "wordCount":  10220 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "TCP协议笔记"
+}
+</script><meta property="og:title" content="TCP协议笔记 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190227-tcp/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2019-02-27T21:01:43+08:00" />
-<meta property="article:modified_time" content="2019-02-27T21:01:43+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20190227-tcp/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20190227-tcp/">
-
-  
-  
-  <meta itemprop="name" content="TCP协议笔记">
-<meta itemprop="description" content="TCP协议笔记"><meta itemprop="datePublished" content="2019-02-27T21:01:43+08:00" />
-<meta itemprop="dateModified" content="2019-02-27T21:01:43+08:00" />
-<meta itemprop="wordCount" content="10220">
-<meta itemprop="keywords" content="网络编程," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>TCP协议笔记 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="TCP协议笔记"/>
-<meta name="twitter:description" content="TCP协议笔记"/>
+<meta property="og:description" content="TCP协议笔记" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2019-02-27T21:01:43&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2019-02-27T21:01:43&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="网络编程" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>TCP协议笔记</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B'>#网络编程</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">TCP协议笔记</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2019-02-27</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#连接建立">连接建立</a>
-      <ul>
-        <li><a href="#backlog参数与syn-flood攻击">backlog参数与SYN Flood攻击</a></li>
-      </ul>
-    </li>
-    <li><a href="#连接结束">连接结束</a>
-      <ul>
-        <li><a href="#四次挥手的原因">四次挥手的原因</a></li>
-        <li><a href="#time-wait状态">TIME-WAIT状态</a></li>
-      </ul>
-    </li>
-    <li><a href="#tcp协议状态机与系统调用的关系">TCP协议状态机与系统调用的关系</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>21分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#估计往返时间">估计往返时间</a></li>
-    <li><a href="#重传时间间隔">重传时间间隔</a></li>
-    <li><a href="#可靠数据传输">可靠数据传输</a>
-      <ul>
-        <li><a href="#简化的算法">简化的算法</a></li>
-        <li><a href="#超时时间加倍">超时时间加倍</a></li>
-        <li><a href="#快速重传fast-retransmit">快速重传（fast retransmit）</a></li>
-      </ul>
-    </li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
+          >网络编程</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#tcp滑动窗口">TCP滑动窗口</a></li>
-  </ul>
+  
+</div>
 
-  <ul>
-    <li><a href="#慢启动slow-start算法">慢启动（slow start）算法</a></li>
-    <li><a href="#拥塞避免-congestion-avoidance算法">拥塞避免（ Congestion Avoidance）算法</a></li>
-    <li><a href="#拥塞状态的算法">拥塞状态的算法</a></li>
-    <li><a href="#快速恢复fast-recovery">快速恢复（fast recovery）</a></li>
-    <li><a href="#拥塞控制算法的有限状态机">拥塞控制算法的有限状态机</a></li>
-  </ul>
-</nav></div>
-  </details>
+
   
   
-  <article class="content">
-    
-    <h1 id="概述">概述</h1>
+
+  <h1 id="概述">概述</h1>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcpip.png" alt="tcpip" title="tcpip"></p>
 <ul>
 <li>应用层：通常也称为“七层”，这是大部分服务器工作的层次，如HTTP 服务器等，位于应用层上的信息分组成为报文（message）。识别不同应用层的信息是通过端口号，即不同的端口号提供不同的服务。</li>
@@ -237,25 +335,27 @@
 </ul>
 <h3 id="backlog参数与syn-flood攻击">backlog参数与SYN Flood攻击</h3>
 <p>listen系统调用中，会传入一个backlog参数，man文档对其的解释是：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>The behavior of the backlog argument on TCP sockets changed with Linux <span style="color:#666">2.2</span>.  Now it specifies the queue  length  <span style="color:#a2f;font-weight:bold">for</span>
-</span></span><span style="display:flex;"><span>completely established sockets waiting to be accepted, instead of the number of incomplete connection requests.  The
-</span></span><span style="display:flex;"><span>maximum length of the queue <span style="color:#a2f;font-weight:bold">for</span> incomplete sockets can be set  using  <span style="color:#666">/</span>proc<span style="color:#666">/</span>sys<span style="color:#666">/</span>net<span style="color:#666">/</span>ipv4<span style="color:#666">/</span>tcp_max_syn_backlog.   When
-</span></span><span style="display:flex;"><span>syncookies are enabled there is no logical maximum length and this setting is ignored.  See tcp(<span style="color:#666">7</span>) <span style="color:#a2f;font-weight:bold">for</span> more informa<span style="color:#666">-</span>
-</span></span><span style="display:flex;"><span>tion.
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>If the backlog argument is greater than the value in <span style="color:#666">/</span>proc<span style="color:#666">/</span>sys<span style="color:#666">/</span>net<span style="color:#666">/</span>core<span style="color:#666">/</span>somaxconn, then it is silently truncated  to
-</span></span><span style="display:flex;"><span>that  value;  the  <span style="color:#a2f;font-weight:bold">default</span>  value in this file is <span style="color:#666">128.</span>  In kernels before <span style="color:#666">2.4.25</span>, this limit was a hard coded value,
-</span></span><span style="display:flex;"><span>SOMAXCONN, with the value <span style="color:#666">128.</span>
-</span></span></code></pre></div><p>以上文字简单的翻译：该参数在Linux 2.2内核版本前后有不同的表现。在2.2版本以后表示的是已经建立起连接等待被接受的队列大小，而在之前则是未完成连接队列长度。未完成连接队列的最大长度由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog指定。而backlog不得大于系统参数/proc/sys/net/core/somaxconn，该参数的默认值为128。</p>
+<pre><code class="language-C">The behavior of the backlog argument on TCP sockets changed with Linux 2.2.  Now it specifies the queue  length  for
+completely established sockets waiting to be accepted, instead of the number of incomplete connection requests.  The
+maximum length of the queue for incomplete sockets can be set  using  /proc/sys/net/ipv4/tcp_max_syn_backlog.   When
+syncookies are enabled there is no logical maximum length and this setting is ignored.  See tcp(7) for more informa-
+tion.
+
+If the backlog argument is greater than the value in /proc/sys/net/core/somaxconn, then it is silently truncated  to
+that  value;  the  default  value in this file is 128.  In kernels before 2.4.25, this limit was a hard coded value,
+SOMAXCONN, with the value 128.
+</code></pre>
+<p>以上文字简单的翻译：该参数在Linux 2.2内核版本前后有不同的表现。在2.2版本以后表示的是已经建立起连接等待被接受的队列大小，而在之前则是未完成连接队列长度。未完成连接队列的最大长度由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog指定。而backlog不得大于系统参数/proc/sys/net/core/somaxconn，该参数的默认值为128。</p>
 <p>上面提到的“未完成连接”，其实就是处于SYN-RCVD状态的连接，即只收到了客户端的SYN报文的连接。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-sync-queue-and-accept-queue-small.jpg" alt="tcp-sync-queue-and-accept-queue-small" title="tcp-sync-queue-and-accept-queue-small"></p>
 <p>Linux服务器内部，会维护一个半连接队列，即处于SYN-RCVD状态的连接都维护在这个队列中。同时还会维护一个完全连接队列，即处于ESTABLISH状态的队列。当连接从SYN-RCVD切换到ESTABLISH状态时，连接将从半连接队列转移到全连接队列中。</p>
 <p>半连接队列无法由用户指定，而是由系统参数/proc/sys/net/ipv4/tcp_max_syn_backlog控制。
 全连接队列大小取listen系统调用的backlog和系统参数/proc/sys/net/core/somaxconn中的最小值。</p>
 <p>当客户端建立连接时，server端给客户端的SYN-ACK回报，由于种种原因客户端一直没有收到，此时连接一直处于半连接状态，既不能算连接成功了也不算连接失败，此时server端需要给客户端重传SYN-ACK报文。但是也有一种可能，即客户端恶意的发送大量SYN报文给服务器，让服务器长期有大量处于半连接状态的连接，耗尽服务器资源。Linux有几个参数用于控制重传SYN-ACK报文重传行为的：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>net.ipv4.tcp_synack_retries <span style="">#内核放弃连接之前发送</span>SYN<span style="color:#666">+</span>ACK包的数量
-</span></span><span style="display:flex;"><span>net.ipv4.tcp_syn_retries <span style="">#内核放弃建立连接之前发送</span>SYN包的数量
-</span></span></code></pre></div><h2 id="连接结束">连接结束</h2>
+<pre><code class="language-C">net.ipv4.tcp_synack_retries #内核放弃连接之前发送SYN+ACK包的数量
+net.ipv4.tcp_syn_retries #内核放弃建立连接之前发送SYN包的数量
+</code></pre>
+<h2 id="连接结束">连接结束</h2>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190227-tcp/tcp-finish.jpg" alt="tcp-finish" title="tcp-finish"></p>
 <p>以上图来说明TCP连接释放的过程：</p>
 <ul>
@@ -296,15 +396,18 @@
 <p>报文段的样本RTT（sampleRTT）就是从某报文段被发出（即交给IP）到对该报文段的确认（ACK）被收到之间的时间。</p>
 <p>大多数TCP的实现仅在某一个时刻做一次SampleRTT的测量，而不是为每个发送的报文段测量一个SampleRTT。这就是说，在任意时刻，仅为一个已发送的但尚未被确认的报文段估计SampleRTT，从而产生一个接近每个RTT的新SampleRTT值。另外,TCP绝不为已被重传的报文段计算SampleRTT，它仅为传输一次的报文段测量SampleRTT。</p>
 <p>由于路由器的拥塞和系统负载的变化，SampleRTT也会随之波动。因此，TCP维持一个SampleRTT均值（称为EstimateRTT），一旦获得一个新的SampleRTT值，根据以下公式更新EstimateRTT：</p>
-<pre tabindex="0"><code>  EstimateRTT = (1 - α) * EstimateRTT + α * SampleRTT
-</code></pre><p>即：新的EstimateRTT值由旧的EstimateRTT值与SampleRTT值加权相加而成。，在RFC 6298中，α参考值是0.125（1/8）。</p>
+<pre><code>  EstimateRTT = (1 - α) * EstimateRTT + α * SampleRTT
+</code></pre>
+<p>即：新的EstimateRTT值由旧的EstimateRTT值与SampleRTT值加权相加而成。，在RFC 6298中，α参考值是0.125（1/8）。</p>
 <p>除了估算RTT之外，还需要测量RTT的变化，RFC 6298定义了RTT偏差DevRTT，用于估算SampleRTT偏离EstimateRTT的程度，公式为：</p>
-<pre tabindex="0"><code>  DevRTT = (1 - β) * DevRTT + β * | SampleRTT - EstimateRTT|
-</code></pre><p>如果SampleRTT波动值较小，那么DevRTT的值就会比较小。β的推荐值为0.25。</p>
+<pre><code>  DevRTT = (1 - β) * DevRTT + β * | SampleRTT - EstimateRTT|
+</code></pre>
+<p>如果SampleRTT波动值较小，那么DevRTT的值就会比较小。β的推荐值为0.25。</p>
 <h2 id="重传时间间隔">重传时间间隔</h2>
 <p>有了EstimateRTT和DevRTT值，就可以计算出重传时间间隔。显然，这个值应该大于等于EstimateRTT，否则将造成不必要的重传，但是超时时间也不能比EstimateRTT大太多，否则当报文段丢失时，TCP不能很快重传该报文段，导致数据传输时延时太大。因此要求将超时间隔设为EstimateRTT加上一定余量。当SampleRTT值波动较大时，这个余量应该大些，当波动较小时这个余量应该小一些。因此，DevRTT在这里就派上用场了，公式如下：</p>
-<pre tabindex="0"><code>  TimeoutInterval = EstimateRTT + 4 * DevRTT
-</code></pre><p>RFC 6298推荐的TimeoutInterval值为1秒。当出现超时后，TimeoutInterval值将加倍，以免即将被确认的后续报文段过早出现超时。</p>
+<pre><code>  TimeoutInterval = EstimateRTT + 4 * DevRTT
+</code></pre>
+<p>RFC 6298推荐的TimeoutInterval值为1秒。当出现超时后，TimeoutInterval值将加倍，以免即将被确认的后续报文段过早出现超时。</p>
 <h2 id="可靠数据传输">可靠数据传输</h2>
 <h3 id="简化的算法">简化的算法</h3>
 <p>先给出一个最简化版本的重传算法，在这里假设发送方不受TCP流量和拥塞控制的限制，来自上层的数据长度小于MSS，且数据传送只在一个方向进行。在这里，发送方只使用超时来恢复报文段的丢失，后面再给出更全面的描述。</p>
@@ -315,7 +418,7 @@
 <li>收到来到接收方的确认报文段（ACK）。当该事件发生时，TCP将ACK的值y与自己的变量SendBase进行比较。TCP的状态变量SendBase是最早未被确认的字节序号（因此SendBase-1是指接收方已正确按序接收到的数据的最后一个字节的序号。）如果y&gt;SendBase，那么该ACK是在确认一个或多个先前未被确认的报文段，因此发送方更新它的SendBase变量；如果当前还有未被确认的报文段，TCP还需要重启定时器。</li>
 </ul>
 <p>综上，该简化算法如下处理以上三个事件：</p>
-<pre tabindex="0"><code>NextSeqNum = InitialSeqNumber
+<pre><code>NextSeqNum = InitialSeqNumber
 SendBase = InitialSeqNumber
 
 循环：
@@ -335,14 +438,15 @@ SendBase = InitialSeqNumber
       SendBase = y
       如果当前还有没有被ACK的TCP报文：
         启动TCP重传定时器
-</code></pre><h3 id="超时时间加倍">超时时间加倍</h3>
+</code></pre>
+<h3 id="超时时间加倍">超时时间加倍</h3>
 <p>如上所述，每当TCP超时定时器被触发，意味着有TCP报文在指定时间内没有收到ACK，此时TCP会重传最小序号的没有ACK的报文。每次TCP重传时都会将下一次超时时间设置为先前值的两倍，而不是使用当前计算得到的EstimateRTT值。</p>
 <h3 id="快速重传fast-retransmit">快速重传（fast retransmit）</h3>
 <p>超时触发重传存在的问题之一是超时周期可能相对较长。当一个报文段丢失时，这种长超时周期迫使发送方延迟重传丢失的分组，因而增加了端到端的时延。发送方通常可在超时事件发生之前通过注意所谓冗余ACK来检测丢包情况。</p>
 <p>冗余ACK（duplicate ACK）就是再次确认某个报文段的ACK，而发送方之前已经收到对该报文段的ACK。</p>
 <p>如果TCP发送方收到相同数据的3个冗余ACK，将以这个做为一个提示，说明跟在这个已被确认过3次的报文段之后的报文已经丢失。一旦收到3个冗余ACK，TCP就执行快速重传（fast retransmit），即在该报文段的定时器过期之前重传丢失的报文段。</p>
 <p>有了以上的补充，将前面收到ACK事件的处理修改如下：</p>
-<pre tabindex="0"><code>  如果收到了ACK报文，其中ACK值=y：
+<pre><code>  如果收到了ACK报文，其中ACK值=y：
     如果 y &gt; SendBase：
       SendBase = y
       如果当前还有没有被ACK的TCP报文：
@@ -351,7 +455,8 @@ SendBase = InitialSeqNumber
       递增针对y的duplicate ACK计数
       如果该计数 == 3：
         重传seq在y之后的报文
-</code></pre><h1 id="流量控制">流量控制</h1>
+</code></pre>
+<h1 id="流量控制">流量控制</h1>
 <p>TCP为它的应用程序提供了流量控制服务（flow control service），以消除发送方使接收方数据溢出的可能性。</p>
 <p>流量控制因此是一种速度匹配服务，即发送方的发送速率与接收方应用程序的读取速率相匹配。</p>
 <p>另一种控制发送方速度的方式是拥塞控制（congestion control），但是这两者是不同的：</p>
@@ -396,8 +501,9 @@ SendBase = InitialSeqNumber
 <li>当发送方感受到端到端之间的拥塞时，采用何种算法来改变其发送速率呢？</li>
 </ul>
 <p>首先分析TCP发送方如何限制向起连接发送流量的。在发送方的拥塞控制机制中再维护一个变量，即cwnd（congestion window，拥塞窗口），通过它对一个TCP发送方能向网络发送的流量速率进行限制。即：一个发送方中未被确认的数据量不会超过cwnd与rwnd中的最小值：</p>
-<pre tabindex="0"><code>  LastByteSent - LastBtyeAcked &lt;= min(cwnd, rwnd)
-</code></pre><p>接下来讨论如何感知出现了拥塞的。我们将一个TCP发送方的“丢包事件”定义为：要么出现超时，要么收到来自接收方的3次冗余ACK（duplicate ACK）。</p>
+<pre><code>  LastByteSent - LastBtyeAcked &lt;= min(cwnd, rwnd)
+</code></pre>
+<p>接下来讨论如何感知出现了拥塞的。我们将一个TCP发送方的“丢包事件”定义为：要么出现超时，要么收到来自接收方的3次冗余ACK（duplicate ACK）。</p>
 <p>拥塞控制有以下几个常用的手段：慢启动、拥塞避免、快速恢复。其中慢启动和拥塞避免是TCP的强制部分，两者的差异在于对收到ACK做出反应时增加cwnd的方式，而快速恢复则是推荐部分，对TCP发送方并非是必需的。</p>
 <h2 id="慢启动slow-start算法">慢启动（slow start）算法</h2>
 <p>慢启动算法的思想是：刚建立的连接，根据对端的应答情况慢慢提速，不要一下子发送大量的数据。</p>
@@ -559,21 +665,21 @@ SendBase = InitialSeqNumber
 <li><a href="https://github.com/CyC2018/CS-Notes/blob/master/docs/notes/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C.md#tcp-%E9%A6%96%E9%83%A8%E6%A0%BC%E5%BC%8F">计算机网络</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20190215-leveldb/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20190324-how-to-read-code/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 5119-11-05: </strong> <a href="https://www.codedump.info/post/20201105-kcp/">KCP 1.4源码分析</a>  </li><li><strong> 29079-07-29: </strong> <a href="https://www.codedump.info/post/20190729-glog/">glog C&#43;&#43;版本代码分析</a>  </li><li><strong> 13049-04-13: </strong> <a href="https://www.codedump.info/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a>  </li><li><strong> 9029-02-09: </strong> <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a>  </li><li><strong> 23019-01-23: </strong> <a href="https://www.codedump.info/post/20190123-libuv/">Libuv代码简单分析</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -582,133 +688,91 @@ SendBase = InitialSeqNumber
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20190324-how-to-read-code/" class="block">如何阅读一份源代码？</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20190215-leveldb/" class="block">Leveldb代码阅读笔记</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" class="no-underline">zeromq所谓的“无锁消息队列”</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

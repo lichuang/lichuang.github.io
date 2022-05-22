@@ -1,200 +1,302 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>《面向应用开发者的系统指南》CPU篇之进程调度 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" linux ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程调度" />
-<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源需求方来使">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"《面向应用开发者的系统指南》CPU篇之进程调度",
+      "item":"https://www.codedump.info/post/20200503-sgfap-process-schedule/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20200503-sgfap-process-schedule/"
+    },
+    "headline": "《面向应用开发者的系统指南》CPU篇之进程调度 | codedump的网络日志","datePublished": "2020-05-03T09:53:34+08:00",
+    "dateModified": "2020-05-03T09:53:34+08:00",
+    "wordCount":  12825 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源需求方来使"
+}
+</script><meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程调度 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20200503-sgfap-process-schedule/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2020-05-03T09:53:34+08:00" />
-<meta property="article:modified_time" content="2020-05-03T09:53:34+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20200503-sgfap-process-schedule/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20200503-sgfap-process-schedule/">
 
-  
-  
-  <meta itemprop="name" content="《面向应用开发者的系统指南》CPU篇之进程调度">
-<meta itemprop="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源"><meta itemprop="datePublished" content="2020-05-03T09:53:34+08:00" />
-<meta itemprop="dateModified" content="2020-05-03T09:53:34+08:00" />
-<meta itemprop="wordCount" content="12825">
-<meta itemprop="keywords" content="Linux系统," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>《面向应用开发者的系统指南》CPU篇之进程调度 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="《面向应用开发者的系统指南》CPU篇之进程调度"/>
-<meta name="twitter:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源"/>
+<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概述 一种资源，如果本身数量有限，需要多个资源需求方来使" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
+<meta property="og:locale" content="zh" />
 
-  <nav>
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2020-05-03T09:53:34&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2020-05-03T09:53:34&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="Linux系统" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200502-sgfap-process/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200218-linux-traceevent/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200128-systemtap-by-example/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200122-series-pages/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>《面向应用开发者的系统指南》CPU篇之进程调度</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F'>#Linux系统</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">《面向应用开发者的系统指南》CPU篇之进程调度</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2020-05-03</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#优先级">优先级</a></li>
-    <li><a href="#cpu时间权重">CPU时间权重</a></li>
-    <li><a href="#虚拟运行时间">虚拟运行时间</a></li>
-    <li><a href="#更新虚拟运行时间">更新虚拟运行时间</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>26分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#task_struct中与调度相关的成员">task_struct中与调度相关的成员</a></li>
-    <li><a href="#调度器类">调度器类</a></li>
-    <li><a href="#就绪队列">就绪队列</a></li>
-    <li><a href="#cfs调度器的就绪队列">CFS调度器的就绪队列</a></li>
-    <li><a href="#调度实体">调度实体</a></li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/linux%E7%B3%BB%E7%BB%9F/" class="hover:text-eureka"
+          >Linux系统</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#周期性调度器">周期性调度器</a></li>
-    <li><a href="#主调度器">主调度器</a></li>
-    <li><a href="#与fork的交互">与fork的交互</a></li>
-  </ul>
+  
+</div>
 
-  <ul>
-    <li><a href="#概述-1">概述</a></li>
-    <li><a href="#最小虚拟运行时间的更新">最小虚拟运行时间的更新</a></li>
-    <li><a href="#place_entity函数">place_entity函数</a></li>
-    <li><a href="#创建新进程时">创建新进程时</a></li>
-    <li><a href="#队列操作">队列操作</a>
-      <ul>
-        <li><a href="#入队列操作">入队列操作</a></li>
-        <li><a href="#出队列操作">出队列操作</a></li>
-      </ul>
-    </li>
-    <li><a href="#选择下一个执行进程">选择下一个执行进程</a>
-      <ul>
-        <li><a href="#put_prev_task">put_prev_task</a></li>
-        <li><a href="#pick_next_entity">pick_next_entity</a></li>
-        <li><a href="#set_next_entity">set_next_entity</a></li>
-      </ul>
-    </li>
-    <li><a href="#处理周期性调度器">处理周期性调度器</a></li>
-    <li><a href="#唤醒抢占">唤醒抢占</a></li>
-  </ul>
-</nav></div>
-  </details>
+
   
   
-  <article class="content">
-    
-    <blockquote>
+
+  <blockquote>
 <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
 </blockquote>
 <h1 id="概述">概述</h1>
@@ -255,92 +357,101 @@
 <p>Linux通过nice命令设置进程的静态优先级，进程的nice值在[-20,19]之间，值越小优先级越高。而内核本身，选择范围[0,139]在内部表示优先级，同样是数值越低优先级越高：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/nice.png" alt="nice" title="nice"></p>
 <p>对于普通的进程，可以认为优先级不会发生变化，而实时进程则不然：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">effective_prio</span>(<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	p<span style="color:#666">-&gt;</span>normal_prio <span style="color:#666">=</span> normal_prio(p);
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 如果不是实时进程，返回前面normal_prio的计算结果
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>rt_prio(p<span style="color:#666">-&gt;</span>prio))
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">return</span> p<span style="color:#666">-&gt;</span>normal_prio;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> p<span style="color:#666">-&gt;</span>prio;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>由于在这里不讨论实时进程，仅讨论普通进程，因此可以认为进程优先级就是静态不变的。</p>
+<pre><code class="language-C">// kernel/sched/core.c
+static int effective_prio(struct task_struct *p)
+{
+	p-&gt;normal_prio = normal_prio(p);
+	// 如果不是实时进程，返回前面normal_prio的计算结果
+	if (!rt_prio(p-&gt;prio))
+		return p-&gt;normal_prio;
+	return p-&gt;prio;
+}
+</code></pre>
+<p>由于在这里不讨论实时进程，仅讨论普通进程，因此可以认为进程优先级就是静态不变的。</p>
 <h2 id="cpu时间权重">CPU时间权重</h2>
 <p>CFS调度器的设计理念，就是能够实现理想、精确的多任务CPU进程调度。与以往的调度器不同的是，CFS调度器没有时间片的概念，使用的是分配CPU时间的比例。通过进程的优先级，就可以计算出来一个进程在就绪队列中所占时间的权重了。</p>
 <p>nice值与权重之间是一对一的关系，为了实现普通进程的nice值到CPU时间权重的快速计算，内核预计算好了一个映射数组：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">const</span> <span style="color:#0b0;font-weight:bold">int</span> sched_prio_to_weight[<span style="color:#666">40</span>] <span style="color:#666">=</span> {
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -20 */</span>     <span style="color:#666">88761</span>,     <span style="color:#666">71755</span>,     <span style="color:#666">56483</span>,     <span style="color:#666">46273</span>,     <span style="color:#666">36291</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -15 */</span>     <span style="color:#666">29154</span>,     <span style="color:#666">23254</span>,     <span style="color:#666">18705</span>,     <span style="color:#666">14949</span>,     <span style="color:#666">11916</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -10 */</span>      <span style="color:#666">9548</span>,      <span style="color:#666">7620</span>,      <span style="color:#666">6100</span>,      <span style="color:#666">4904</span>,      <span style="color:#666">3906</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  -5 */</span>      <span style="color:#666">3121</span>,      <span style="color:#666">2501</span>,      <span style="color:#666">1991</span>,      <span style="color:#666">1586</span>,      <span style="color:#666">1277</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*   0 */</span>      <span style="color:#666">1024</span>,       <span style="color:#666">820</span>,       <span style="color:#666">655</span>,       <span style="color:#666">526</span>,       <span style="color:#666">423</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*   5 */</span>       <span style="color:#666">335</span>,       <span style="color:#666">272</span>,       <span style="color:#666">215</span>,       <span style="color:#666">172</span>,       <span style="color:#666">137</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  10 */</span>       <span style="color:#666">110</span>,        <span style="color:#666">87</span>,        <span style="color:#666">70</span>,        <span style="color:#666">56</span>,        <span style="color:#666">45</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  15 */</span>        <span style="color:#666">36</span>,        <span style="color:#666">29</span>,        <span style="color:#666">23</span>,        <span style="color:#666">18</span>,        <span style="color:#666">15</span>,
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>该数组的可以认为是这样根据nice值预先计算出来的：</p>
-<pre tabindex="0"><code>weight = 1024 / (1.25 ^ nice)
-</code></pre><p>公式中的1.25取值依据是：进程每降低一个nice值，将多获得10%的cpu时间。公式中以1024权重为基准值计算得来，1024权重对应nice值为0，其权重被称为NICE_0_LOAD。默认情况下，大部分进程的权重基本都是NICE_0_LOAD。</p>
+<pre><code class="language-C">// kernel/sched/core.c
+const int sched_prio_to_weight[40] = {
+ /* -20 */     88761,     71755,     56483,     46273,     36291,
+ /* -15 */     29154,     23254,     18705,     14949,     11916,
+ /* -10 */      9548,      7620,      6100,      4904,      3906,
+ /*  -5 */      3121,      2501,      1991,      1586,      1277,
+ /*   0 */      1024,       820,       655,       526,       423,
+ /*   5 */       335,       272,       215,       172,       137,
+ /*  10 */       110,        87,        70,        56,        45,
+ /*  15 */        36,        29,        23,        18,        15,
+};
+</code></pre>
+<p>该数组的可以认为是这样根据nice值预先计算出来的：</p>
+<pre><code>weight = 1024 / (1.25 ^ nice)
+</code></pre>
+<p>公式中的1.25取值依据是：进程每降低一个nice值，将多获得10%的cpu时间。公式中以1024权重为基准值计算得来，1024权重对应nice值为0，其权重被称为NICE_0_LOAD。默认情况下，大部分进程的权重基本都是NICE_0_LOAD。</p>
 <p>根据进程的权重值，可以得到分配给进程的CPU时间计算公式如下：</p>
-<pre tabindex="0"><code>分配给进程的时间 = 总的cpu时间 * 进程的权重/就绪队列中所有进程权重之和
-</code></pre><h2 id="虚拟运行时间">虚拟运行时间</h2>
+<pre><code>分配给进程的时间 = 总的cpu时间 * 进程的权重/就绪队列中所有进程权重之和
+</code></pre>
+<h2 id="虚拟运行时间">虚拟运行时间</h2>
 <p>有了进程在CPU运行的权重之后，内核就可以根据权重值计算出进程的虚拟运行时间（virtual runtime）。什么是“虚拟运行时间”，就是内核根据进程运行的实际时间和权重计算出来的一个时间，CFS调度器只需要保证在同一个CPU上面运行的进程，其虚拟运行时间一致即可。</p>
 <p>比如，进程A和进程B，权重分别为1024和820（nice值分别为0和1），在6ms的运行周期中，进程A获得的运行时间<code>6*1024/(1024+820) = 3.3ms</code>，进程B获得的运行时间为<code>6*820/(1024+820) = 2.7ms</code>。进程A的cpu使用比例是<code>3.3/6x100%=55%</code>，进程B的cpu使用比例是<code>2.7/6x100%=45%</code>。计算结果也符合上面说的“进程每降低一个nice值，将多获得10% CPU的时间”。使用下面的公式转换成虚拟运行时间：</p>
-<pre tabindex="0"><code>vriture_runtime = wall_time * NICE_0_LOAD / weight
-</code></pre><p>即：进程A的虚拟时间<code>3.3 * 1024 / 1024 = 3.3ms</code>，可以看出nice值为0的进程的虚拟时间和实际时间是相等的。进程B的虚拟时间是<code>2.7 * 1024 / 820 = 3.3ms</code>。</p>
+<pre><code>vriture_runtime = wall_time * NICE_0_LOAD / weight
+</code></pre>
+<p>即：进程A的虚拟时间<code>3.3 * 1024 / 1024 = 3.3ms</code>，可以看出nice值为0的进程的虚拟时间和实际时间是相等的。进程B的虚拟时间是<code>2.7 * 1024 / 820 = 3.3ms</code>。</p>
 <p>可以看出尽管A和B进程的权重值不一样，但是计算得到的虚拟时间是一样的。CFS调度器只要保证在同一个CPU上面运行的进程，其虚拟时间一致即可。</p>
 <p>从上面虚拟运行时间的计算也可以知道，一个进程的虚拟允许时间越小，其权重反而是越大的，即虚拟运行时间小的进程被调度执行的权重更大。</p>
 <p>为了避免浮点数运算，内核中采用先放大再缩小的方法以保证计算精度。内核又对前面计算虚拟运行时间的公式做了如下转换：</p>
-<pre tabindex="0"><code>vriture_runtime = (wall_time * NICE_0_LOAD) / weight
+<pre><code>vriture_runtime = (wall_time * NICE_0_LOAD) / weight
 = (wall_time * NICE_0_LOAD * 2 ^32 / weight) &gt;&gt; 32
 = (wall_time * NICE_0_LOAD * inv_weight) &gt;&gt; 32 (其中inv_weight=(2^32 / weight))
-</code></pre><p>为了方便计算inv_weight的值，内核定义了一个预分配数组sched_prio_to_wmult，其中每一项的值为(2^32 / sched_prio_to_weight[prio])：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">const</span> u32 sched_prio_to_wmult[<span style="color:#666">40</span>] <span style="color:#666">=</span> {
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -20 */</span>     <span style="color:#666">48388</span>,     <span style="color:#666">59856</span>,     <span style="color:#666">76040</span>,     <span style="color:#666">92818</span>,    <span style="color:#666">118348</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -15 */</span>    <span style="color:#666">147320</span>,    <span style="color:#666">184698</span>,    <span style="color:#666">229616</span>,    <span style="color:#666">287308</span>,    <span style="color:#666">360437</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/* -10 */</span>    <span style="color:#666">449829</span>,    <span style="color:#666">563644</span>,    <span style="color:#666">704093</span>,    <span style="color:#666">875809</span>,   <span style="color:#666">1099582</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  -5 */</span>   <span style="color:#666">1376151</span>,   <span style="color:#666">1717300</span>,   <span style="color:#666">2157191</span>,   <span style="color:#666">2708050</span>,   <span style="color:#666">3363326</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*   0 */</span>   <span style="color:#666">4194304</span>,   <span style="color:#666">5237765</span>,   <span style="color:#666">6557202</span>,   <span style="color:#666">8165337</span>,  <span style="color:#666">10153587</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*   5 */</span>  <span style="color:#666">12820798</span>,  <span style="color:#666">15790321</span>,  <span style="color:#666">19976592</span>,  <span style="color:#666">24970740</span>,  <span style="color:#666">31350126</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  10 */</span>  <span style="color:#666">39045157</span>,  <span style="color:#666">49367440</span>,  <span style="color:#666">61356676</span>,  <span style="color:#666">76695844</span>,  <span style="color:#666">95443717</span>,
-</span></span><span style="display:flex;"><span> <span style="color:#080;font-style:italic">/*  15 */</span> <span style="color:#666">119304647</span>, <span style="color:#666">148102320</span>, <span style="color:#666">186737708</span>, <span style="color:#666">238609294</span>, <span style="color:#666">286331153</span>,
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>内核中使用结构体<code>load_weight</code>来描述进程的权重信息：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// include/linux/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> load_weight {
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span>			weight;
-</span></span><span style="display:flex;"><span>	u32				inv_weight;
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>其中，成员<code>weight</code>存储进程的权重，而成员<code>inv_weight</code>存储<code>2^32/ weight</code>。</p>
+</code></pre>
+<p>为了方便计算inv_weight的值，内核定义了一个预分配数组sched_prio_to_wmult，其中每一项的值为(2^32 / sched_prio_to_weight[prio])：</p>
+<pre><code class="language-C">// kernel/sched/core.c
+const u32 sched_prio_to_wmult[40] = {
+ /* -20 */     48388,     59856,     76040,     92818,    118348,
+ /* -15 */    147320,    184698,    229616,    287308,    360437,
+ /* -10 */    449829,    563644,    704093,    875809,   1099582,
+ /*  -5 */   1376151,   1717300,   2157191,   2708050,   3363326,
+ /*   0 */   4194304,   5237765,   6557202,   8165337,  10153587,
+ /*   5 */  12820798,  15790321,  19976592,  24970740,  31350126,
+ /*  10 */  39045157,  49367440,  61356676,  76695844,  95443717,
+ /*  15 */ 119304647, 148102320, 186737708, 238609294, 286331153,
+};
+</code></pre>
+<p>内核中使用结构体<code>load_weight</code>来描述进程的权重信息：</p>
+<pre><code class="language-C">// include/linux/sched.h
+struct load_weight {
+	unsigned long			weight;
+	u32				inv_weight;
+};
+</code></pre>
+<p>其中，成员<code>weight</code>存储进程的权重，而成员<code>inv_weight</code>存储<code>2^32/ weight</code>。</p>
 <p>有了前面的铺垫，来看内核中对应的实现，内核中使用函数<code>__calc_delta</code>来将实际时间转换为虚拟时间，算法原理就是前面介绍到的公式：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> u64 <span style="color:#00a000">__calc_delta</span>(u64 delta_exec, <span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> weight, <span style="color:#a2f;font-weight:bold">struct</span> load_weight <span style="color:#666">*</span>lw)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	u64 fact <span style="color:#666">=</span> scale_load_down(weight);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span> shift <span style="color:#666">=</span> WMULT_SHIFT;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	__update_inv_weight(lw);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (unlikely(fact <span style="color:#666">&gt;&gt;</span> <span style="color:#666">32</span>)) {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">while</span> (fact <span style="color:#666">&gt;&gt;</span> <span style="color:#666">32</span>) {
-</span></span><span style="display:flex;"><span>			fact <span style="color:#666">&gt;&gt;=</span> <span style="color:#666">1</span>;
-</span></span><span style="display:flex;"><span>			shift<span style="color:#666">--</span>;
-</span></span><span style="display:flex;"><span>		}
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">/* hint to use a 32x32-&gt;64 mul */</span>
-</span></span><span style="display:flex;"><span>	fact <span style="color:#666">=</span> (u64)(u32)fact <span style="color:#666">*</span> lw<span style="color:#666">-&gt;</span>inv_weight;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">while</span> (fact <span style="color:#666">&gt;&gt;</span> <span style="color:#666">32</span>) {
-</span></span><span style="display:flex;"><span>		fact <span style="color:#666">&gt;&gt;=</span> <span style="color:#666">1</span>;
-</span></span><span style="display:flex;"><span>		shift<span style="color:#666">--</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> mul_u64_u32_shr(delta_exec, fact, shift);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>以下将前面的nice值、权重、虚拟运行时间的关系总结如下图：</p>
+<pre><code class="language-C">// kernel/sched/fair.c
+static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight *lw)
+{
+	u64 fact = scale_load_down(weight);
+	int shift = WMULT_SHIFT;
+
+	__update_inv_weight(lw);
+
+	if (unlikely(fact &gt;&gt; 32)) {
+		while (fact &gt;&gt; 32) {
+			fact &gt;&gt;= 1;
+			shift--;
+		}
+	}
+
+	/* hint to use a 32x32-&gt;64 mul */
+	fact = (u64)(u32)fact * lw-&gt;inv_weight;
+
+	while (fact &gt;&gt; 32) {
+		fact &gt;&gt;= 1;
+		shift--;
+	}
+
+	return mul_u64_u32_shr(delta_exec, fact, shift);
+}
+</code></pre>
+<p>以下将前面的nice值、权重、虚拟运行时间的关系总结如下图：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/vruntime.png" alt="vruntime" title="vruntime"></p>
 <h2 id="更新虚拟运行时间">更新虚拟运行时间</h2>
 <p>由于更新进程调度实体以及就绪队列的虚拟运行时间的操作如此重要，所以内核中有一个专门的<code>update_curr</code>函数完成这个工作：</p>
@@ -350,21 +461,22 @@
 <p>前面描述了进程的优先级是如何与进程的虚拟运行时间相关联的，接着继续看与进程调度相关的核心数据结构。</p>
 <h2 id="task_struct中与调度相关的成员">task_struct中与调度相关的成员</h2>
 <p><code>task_struct</code>中与调度算法相关的成员：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// include/linux/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> task_struct {
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#0b0;font-weight:bold">int</span>				prio;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>				static_prio;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>				normal_prio;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">const</span> <span style="color:#a2f;font-weight:bold">struct</span> sched_class	<span style="color:#666">*</span>sched_class;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity		se;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span>			policy;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span>				nr_cpus_allowed;
-</span></span><span style="display:flex;"><span>	cpumask_t			cpus_allowed;  
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ul>
+<pre><code class="language-C">// include/linux/sched.h
+struct task_struct {
+	// ...
+	int				prio;
+	int				static_prio;
+	int				normal_prio;
+
+	const struct sched_class	*sched_class;
+	struct sched_entity		se;
+
+	unsigned int			policy;
+	int				nr_cpus_allowed;
+	cpumask_t			cpus_allowed;  
+}
+</code></pre>
+<ul>
 <li><code>task_struct</code>使用了如下几个成员表示进程的优先级，其中<code>prio</code>和<code>normal_prio</code>表示动态优先级，<code>static_prio</code>表示静态优先级。静态优先级在程序启动的时候就分配好了，可以使用<code>nice</code>命令进行修改。<code>normal_prio</code>是在进程运行过程中，根据静态优先级和调度策略动态计算出来的优先级。</li>
 <li>结构体<code>sched_class</code>用来表示进程所所属的调度器类。</li>
 <li><code>policy</code>保存了进程的调度策略，其中有三个可能的值：
@@ -378,26 +490,27 @@
 </ul>
 <h2 id="调度器类">调度器类</h2>
 <p><code>sched_class</code>是用于表示所有调度器算法的结构体，各种调度器算法需要实现里面的成员函数，可以用面向对象的思想理解为所有调度器的“基类”。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/sched.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> sched_class {
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">const</span> <span style="color:#a2f;font-weight:bold">struct</span> sched_class <span style="color:#666">*</span>next;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>enqueue_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">int</span> flags);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>dequeue_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">int</span> flags);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>yield_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">bool</span> (<span style="color:#666">*</span>yield_to_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">bool</span> preempt);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>check_preempt_curr) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">int</span> flags);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span> (<span style="color:#666">*</span>pick_next_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq,
-</span></span><span style="display:flex;"><span>						<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>prev,
-</span></span><span style="display:flex;"><span>						<span style="color:#a2f;font-weight:bold">struct</span> rq_flags <span style="color:#666">*</span>rf);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>put_prev_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>set_curr_task) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>task_tick) (<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">int</span> queued);
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>其中的几个重要成员如下：</p>
+<pre><code class="language-C">// kernel/sched/sched.c
+struct sched_class {
+	const struct sched_class *next;
+
+	void (*enqueue_task) (struct rq *rq, struct task_struct *p, int flags);
+	void (*dequeue_task) (struct rq *rq, struct task_struct *p, int flags);
+	void (*yield_task) (struct rq *rq);
+	bool (*yield_to_task) (struct rq *rq, struct task_struct *p, bool preempt);
+
+	void (*check_preempt_curr) (struct rq *rq, struct task_struct *p, int flags);
+
+	struct task_struct * (*pick_next_task) (struct rq *rq,
+						struct task_struct *prev,
+						struct rq_flags *rf);
+	void (*put_prev_task) (struct rq *rq, struct task_struct *p);
+
+	void (*set_curr_task) (struct rq *rq);
+	void (*task_tick) (struct rq *rq, struct task_struct *p, int queued);
+};
+</code></pre>
+<p>其中的几个重要成员如下：</p>
 <ul>
 <li><code>enqueue_task</code>：进程从睡眠状态切换到可运行状态时调用，意为向就绪队列放入一个进程。</li>
 <li><code>dequeue_task</code>：用于实现进程出队列操作，当进程从可运行状态切换到不可运行状态时调用。</li>
@@ -408,23 +521,24 @@
 </ul>
 <h2 id="就绪队列">就绪队列</h2>
 <p>就绪队列用于维护所有当前可运行的进程，每个CPU上都有一个就绪队列，由结构体<code>rq</code>来表示：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> rq {
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span> nr_running;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080">#define CPU_LOAD_IDX_MAX 5
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> cpu_load[CPU_LOAD_IDX_MAX];
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> load_weight load;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq cfs;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>curr, <span style="color:#666">*</span>idle, <span style="color:#666">*</span>stop;
-</span></span><span style="display:flex;"><span>	u64 clock;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>};
-</span></span></code></pre></div><ul>
+<pre><code class="language-C">// kernel/sched/sched.h
+struct rq {
+	unsigned int nr_running;
+
+	#define CPU_LOAD_IDX_MAX 5
+	unsigned long cpu_load[CPU_LOAD_IDX_MAX];
+
+	struct load_weight load;
+
+	struct cfs_rq cfs;
+
+	struct task_struct *curr, *idle, *stop;
+	u64 clock;
+
+  // ...
+};
+</code></pre>
+<ul>
 <li><code>nr_running</code>：就绪队列上可运行进程的数目。</li>
 <li><code>load</code>：提供CPU就绪队列当前负载的度量。</li>
 <li><code>cpu_load</code>：跟踪当前的负荷状态。</li>
@@ -434,30 +548,33 @@
 <li><code>clock</code>：用于实现就绪队列自身的时钟。</li>
 </ul>
 <p>内核中用如下的宏来定义了per-CPU的变量<code>runqueues</code>：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>DECLARE_PER_CPU_SHARED_ALIGNED(<span style="color:#a2f;font-weight:bold">struct</span> rq, runqueues);
-</span></span></code></pre></div><p>也提供了另外一些与就绪队列相关的宏：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>
-</span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 得到该CPU的就绪队列
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define cpu_rq(cpu)		(&amp;per_cpu(runqueues, (cpu)))
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span><span style="color:#080;font-style:italic">// 得到当前CPU的就绪队列
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define this_rq()		this_cpu_ptr(&amp;runqueues)
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span><span style="color:#080;font-style:italic">// 根据task_struct指针拿到对应CPU的就绪队列
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define task_rq(p)		cpu_rq(task_cpu(p))
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span><span style="color:#080;font-style:italic">// 得到cpu当前运行的进程task_struct指针
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define cpu_curr(cpu)		(cpu_rq(cpu)-&gt;curr)
-</span></span></span></code></pre></div><h2 id="cfs调度器的就绪队列">CFS调度器的就绪队列</h2>
+<pre><code class="language-C">// kernel/sched/sched.h
+DECLARE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
+</code></pre>
+<p>也提供了另外一些与就绪队列相关的宏：</p>
+<pre><code class="language-C">// kernel/sched/sched.h
+
+// 得到该CPU的就绪队列
+#define cpu_rq(cpu)		(&amp;per_cpu(runqueues, (cpu)))
+// 得到当前CPU的就绪队列
+#define this_rq()		this_cpu_ptr(&amp;runqueues)
+// 根据task_struct指针拿到对应CPU的就绪队列
+#define task_rq(p)		cpu_rq(task_cpu(p))
+// 得到cpu当前运行的进程task_struct指针
+#define cpu_curr(cpu)		(cpu_rq(cpu)-&gt;curr)
+</code></pre>
+<h2 id="cfs调度器的就绪队列">CFS调度器的就绪队列</h2>
 <p>前面看到就绪队列结构体<code>rq</code>中，使用结构体<code>cfs_rq</code>来维护CFS调度器的就绪进程，下面简单了解一下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> cfs_rq {
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> load_weight load;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span> nr_running;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	u64 min_vruntime;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rb_root_cached tasks_timeline;
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>其中：</p>
+<pre><code class="language-C">struct cfs_rq {
+	struct load_weight load;
+	unsigned int nr_running;
+
+	u64 min_vruntime;
+
+	struct rb_root_cached tasks_timeline;
+};
+</code></pre>
+<p>其中：</p>
 <ul>
 <li>load：就绪队列上所有进程的累积负载值。</li>
 <li>nr_running：就绪队列上的进程数量。</li>
@@ -466,24 +583,25 @@
 </ul>
 <h2 id="调度实体">调度实体</h2>
 <p>CFS调度器可以操作的对象是比进程更一般的实体，所以又使用了<code>sched_entity</code>结构体来描述进程调度的实体信息：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/linux/sched.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> sched_entity {
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 权重信息，在计算虚拟时间的时候会用到inv_weight成员。
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#a2f;font-weight:bold">struct</span> load_weight		load;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span>			runnable_weight;
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// CFS调度器使用红黑树维护调度的进程信息
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#a2f;font-weight:bold">struct</span> rb_node			run_node;
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 进入就绪队列是为1
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">int</span>			on_rq;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	u64				exec_start;
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 调度实体已经运行实际时间总合
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	u64				sum_exec_runtime;
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 调度实体已经运行的虚拟时间总合。
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	u64				vruntime;
-</span></span><span style="display:flex;"><span>	u64				prev_sum_exec_runtime;
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>总结上面提到的<code>rq</code>、<code>cfs_rq</code>以及<code>sched_entity</code>结构体的关系如下图：</p>
+<pre><code class="language-C">// kernel/linux/sched.h
+struct sched_entity {
+	// 权重信息，在计算虚拟时间的时候会用到inv_weight成员。
+	struct load_weight		load;
+	unsigned long			runnable_weight;
+	// CFS调度器使用红黑树维护调度的进程信息
+	struct rb_node			run_node;
+	// 进入就绪队列是为1
+	unsigned int			on_rq;
+
+	u64				exec_start;
+	// 调度实体已经运行实际时间总合
+	u64				sum_exec_runtime;
+	// 调度实体已经运行的虚拟时间总合。
+	u64				vruntime;
+	u64				prev_sum_exec_runtime;
+};
+</code></pre>
+<p>总结上面提到的<code>rq</code>、<code>cfs_rq</code>以及<code>sched_entity</code>结构体的关系如下图：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/cfs_rq.png" alt="cfs_rq" title="cfs_rq"></p>
 <p>即：<code>rq</code>结构体内部有一个类型为<code>cfs_rq</code>结构体的成员，用于维护CFS算法的运行队列，而<code>cfs_rq</code>内部又是使用红黑树结构来维护成员的，每个红黑树成员是<code>sched_entity</code>结构体类型的节点。</p>
 <h1 id="核心调度器">核心调度器</h1>
@@ -492,51 +610,53 @@
 <p>核心调度器中，一共有以下几处地方有机会触发进程调度，下面来分别说明。</p>
 <h2 id="周期性调度器">周期性调度器</h2>
 <p>周期性调度器的入口函数是<code>scheduler_tick</code>，内核会按照系统频率HZ来自动调用该函数，将<code>scheduler_tick</code>函数精简如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">scheduler_tick</span>(<span style="color:#0b0;font-weight:bold">void</span>)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span> cpu <span style="color:#666">=</span> smp_processor_id();
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq <span style="color:#666">=</span> cpu_rq(cpu);
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>curr <span style="color:#666">=</span> rq<span style="color:#666">-&gt;</span>curr;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// 调用调度类对应的task_tick方法，针对CFS调度类该函数是task_tick_fair。
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	curr<span style="color:#666">-&gt;</span>sched_class<span style="color:#666">-&gt;</span>task_tick(rq, curr, <span style="color:#666">0</span>);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>可以看到，周期性调度器通过调度器算法的task_tick函数来完成调度工作，下面讲解CFS算法时详细分析。</p>
+<pre><code class="language-C">// kernel/sched/core.c
+void scheduler_tick(void)
+{
+	int cpu = smp_processor_id();
+	struct rq *rq = cpu_rq(cpu);
+	struct task_struct *curr = rq-&gt;curr;
+
+	// 调用调度类对应的task_tick方法，针对CFS调度类该函数是task_tick_fair。
+	curr-&gt;sched_class-&gt;task_tick(rq, curr, 0);
+}
+</code></pre>
+<p>可以看到，周期性调度器通过调度器算法的task_tick函数来完成调度工作，下面讲解CFS算法时详细分析。</p>
 <h2 id="主调度器">主调度器</h2>
 <p>主调度器的入口函数是<code>schedule</code>，在内核中，当需要将CPU分配给与当前进程不同的另一个进程时，就会调用<code>schedule</code>函数来选择下一个可执行进程。<code>schedule</code>函数最终调用的是<code>__schedule</code>函数，所以这里将<code>__schedule</code>函数拆分来讲解。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> __sched notrace <span style="color:#00a000">__schedule</span>(<span style="color:#0b0;font-weight:bold">bool</span> preempt)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>prev, <span style="color:#666">*</span>next;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> <span style="color:#666">*</span>switch_count;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq_flags rf;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span> cpu;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	cpu <span style="color:#666">=</span> smp_processor_id();
-</span></span><span style="display:flex;"><span>	rq <span style="color:#666">=</span> cpu_rq(cpu);
-</span></span><span style="display:flex;"><span>	prev <span style="color:#666">=</span> rq<span style="color:#666">-&gt;</span>curr;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	switch_count <span style="color:#666">=</span> <span style="color:#666">&amp;</span>prev<span style="color:#666">-&gt;</span>nivcsw;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>preempt <span style="color:#666">&amp;&amp;</span> prev<span style="color:#666">-&gt;</span>state) {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (unlikely(signal_pending_state(prev<span style="color:#666">-&gt;</span>state, prev))) {
-</span></span><span style="display:flex;"><span>			prev<span style="color:#666">-&gt;</span>state <span style="color:#666">=</span> TASK_RUNNING;	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>		} <span style="color:#a2f;font-weight:bold">else</span> {
-</span></span><span style="display:flex;"><span>			deactivate_task(rq, prev, DEQUEUE_SLEEP <span style="color:#666">|</span> DEQUEUE_NOCLOCK);	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>			prev<span style="color:#666">-&gt;</span>on_rq <span style="color:#666">=</span> <span style="color:#666">0</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	next <span style="color:#666">=</span> pick_next_task(rq, prev, <span style="color:#666">&amp;</span>rf);	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>	clear_tsk_need_resched(prev);	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>	clear_preempt_need_resched();
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (likely(prev <span style="color:#666">!=</span> next)) {
-</span></span><span style="display:flex;"><span>		rq <span style="color:#666">=</span> context_switch(rq, prev, next, <span style="color:#666">&amp;</span>rf);	<span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span> 
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">// kernel/sched/core.c
+static void __sched notrace __schedule(bool preempt)
+{
+	struct task_struct *prev, *next;
+	unsigned long *switch_count;
+	struct rq_flags rf;
+	struct rq *rq;
+	int cpu;
+
+	cpu = smp_processor_id();
+	rq = cpu_rq(cpu);
+	prev = rq-&gt;curr;
+
+	switch_count = &amp;prev-&gt;nivcsw;
+	if (!preempt &amp;&amp; prev-&gt;state) {
+		if (unlikely(signal_pending_state(prev-&gt;state, prev))) {
+			prev-&gt;state = TASK_RUNNING;	/* 1 */
+		} else {
+			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);	/* 2 */
+			prev-&gt;on_rq = 0;
+	}
+
+	next = pick_next_task(rq, prev, &amp;rf);	/* 3 */
+	clear_tsk_need_resched(prev);	/* 4 */
+	clear_preempt_need_resched();
+
+	if (likely(prev != next)) {
+		rq = context_switch(rq, prev, next, &amp;rf);	/* 5 */
+	}
+}
+ 
+</code></pre>
+<ol>
 <li>如果当前进程处于可中断的睡眠状态，同时现在接收到了信号，那么将再次被提升为可运行进程。</li>
 <li>否则就调用<code>deactivate_task</code>函数将当前进程变成不活跃状态，这个函数最终会调用调度器类的<code>dequeue_task</code>完成删除进程的工作。将进程的on_rq标志位置为0，表示不在就绪队列上了。</li>
 <li>调用<code>pick_next_task</code>函数选择下一个执行的进程。</li>
@@ -545,13 +665,14 @@
 </ol>
 <h2 id="与fork的交互">与fork的交互</h2>
 <p>除了以上两种场景，即周期性调度器以及主调度器之外，fork创建出新进程的时候也会出现与调度器类的交互，其入口函数是<code>sched_fork</code>：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">sched_fork</span>(<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> clone_flags, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p)
-</span></span><span style="display:flex;"><span>{ 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (p<span style="color:#666">-&gt;</span>sched_class<span style="color:#666">-&gt;</span>task_fork)
-</span></span><span style="display:flex;"><span>		p<span style="color:#666">-&gt;</span>sched_class<span style="color:#666">-&gt;</span>task_fork(p);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><code>sched_fork</code>函数中会调用到对应调度器类的<code>task_fork</code>成员函数来处理，下面讲到CFS调度器的时候再详细分析对应的函数。</p>
+<pre><code class="language-C">// kernel/sched/core.c
+int sched_fork(unsigned long clone_flags, struct task_struct *p)
+{ 
+	if (p-&gt;sched_class-&gt;task_fork)
+		p-&gt;sched_class-&gt;task_fork(p);
+}
+</code></pre>
+<p><code>sched_fork</code>函数中会调用到对应调度器类的<code>task_fork</code>成员函数来处理，下面讲到CFS调度器的时候再详细分析对应的函数。</p>
 <p>另外，调用<code>wake_up_new_task</code>唤醒新的子进程执行时，也可能调用到抢占进程相关的操作，下面会分析到。</p>
 <h1 id="cfs调度器">CFS调度器</h1>
 <h2 id="概述-1">概述</h2>
@@ -560,55 +681,58 @@
 <p>CFS调度器内部维护一颗红黑树，红黑树的键值即为进程的虚拟运行时间，虚拟运行时间越小的进程，被调度执行的优先级越高，获得更多的CPU时间。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/cfs.png" alt="cfs" title="cfs"></p>
 <p>对比两个调度实体在红黑树中的先后顺序，也就只需要对比其中的虚拟运行时间即可：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#a2f;font-weight:bold">inline</span> <span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">entity_before</span>(<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>a,
-</span></span><span style="display:flex;"><span>				<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>b)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> (s64)(a<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">-</span> b<span style="color:#666">-&gt;</span>vruntime) <span style="color:#666">&lt;</span> <span style="color:#666">0</span>;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>一个进程在刚刚加入到CFS就绪队列的红黑树中时，需要有一个基准值，即这个新加入的进程，应该和什么虚拟运行时间进行对比，找到它在红黑树中的合适位置。这个值由就绪队列中的最小虚拟运行时间来维护，对应的成员是<code>min_vruntime</code>。</p>
+<pre><code class="language-C">// kernel/sched/fair.c
+static inline int entity_before(struct sched_entity *a,
+				struct sched_entity *b)
+{
+	return (s64)(a-&gt;vruntime - b-&gt;vruntime) &lt; 0;
+}
+</code></pre>
+<p>一个进程在刚刚加入到CFS就绪队列的红黑树中时，需要有一个基准值，即这个新加入的进程，应该和什么虚拟运行时间进行对比，找到它在红黑树中的合适位置。这个值由就绪队列中的最小虚拟运行时间来维护，对应的成员是<code>min_vruntime</code>。</p>
 <p>为什么这个最小虚拟运行时间不能直接取最左子节点对应进程的虚拟运行时间？因为系统在运行，对应的里面的每个进程其虚拟运行时间也是一直在增加，因此每个就绪队列的最小虚拟运行时间也一直是增加的才对。正因为这样，这个值不能取最左子节点进程的虚拟运行时间，而是根据系统的情况一直累加，不能发生回退。</p>
 <p>还需要注意的一点是，既然虚拟运行时间是一直累加的，那么在进程一直运行的情况下，就可能发生数据溢出现象，因此在对比两个虚拟运行时间大小的时候，不是直接比较而是判断的两者的差值（包括上面的<code>entity_before</code>函数也是比较的差值）：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#a2f;font-weight:bold">inline</span> u64 <span style="color:#00a000">max_vruntime</span>(u64 max_vruntime, u64 vruntime)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	s64 delta <span style="color:#666">=</span> (s64)(vruntime <span style="color:#666">-</span> max_vruntime);
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (delta <span style="color:#666">&gt;</span> <span style="color:#666">0</span>)
-</span></span><span style="display:flex;"><span>		max_vruntime <span style="color:#666">=</span> vruntime;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> max_vruntime;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>下面首先讲就绪队列最小虚拟运行时间的计算逻辑。</p>
+<pre><code class="language-C">// kernel/sched/fair.c
+static inline u64 max_vruntime(u64 max_vruntime, u64 vruntime)
+{
+	s64 delta = (s64)(vruntime - max_vruntime);
+	if (delta &gt; 0)
+		max_vruntime = vruntime;
+
+	return max_vruntime;
+}
+</code></pre>
+<p>下面首先讲就绪队列最小虚拟运行时间的计算逻辑。</p>
 <h2 id="最小虚拟运行时间的更新">最小虚拟运行时间的更新</h2>
 <p>前面讲解虚拟运行时间的计算时，已经介绍了对应的函数<code>update_curr</code>的核心流程，其中最后一步是更新CFS就绪队列的最小虚拟运行时间值，来看对应的<code>update_min_vruntime</code>函数。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">update_min_vruntime</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>curr <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>curr;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rb_node <span style="color:#666">*</span>leftmost <span style="color:#666">=</span> rb_first_cached(<span style="color:#666">&amp;</span>cfs_rq<span style="color:#666">-&gt;</span>tasks_timeline);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>	u64 vruntime <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (curr) {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (curr<span style="color:#666">-&gt;</span>on_rq)	
-</span></span><span style="display:flex;"><span>			vruntime <span style="color:#666">=</span> curr<span style="color:#666">-&gt;</span>vruntime;	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">else</span>
-</span></span><span style="display:flex;"><span>			curr <span style="color:#666">=</span> <span style="color:#a2f">NULL</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (leftmost) { <span style="color:#080;font-style:italic">/* non-empty tree */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se;
-</span></span><span style="display:flex;"><span>		se <span style="color:#666">=</span> rb_entry(leftmost, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity, run_node);
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>curr)
-</span></span><span style="display:flex;"><span>			vruntime <span style="color:#666">=</span> se<span style="color:#666">-&gt;</span>vruntime;	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">else</span>
-</span></span><span style="display:flex;"><span>			vruntime <span style="color:#666">=</span> min_vruntime(vruntime, se<span style="color:#666">-&gt;</span>vruntime);	<span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">/* ensure we never gain time by being placed backwards. */</span>
-</span></span><span style="display:flex;"><span>	cfs_rq<span style="color:#666">-&gt;</span>min_vruntime <span style="color:#666">=</span> max_vruntime(cfs_rq<span style="color:#666">-&gt;</span>min_vruntime, vruntime);	<span style="color:#080;font-style:italic">/* 6 *
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">}
-</span></span></span></code></pre></div><ol>
+<pre><code class="language-C">// kernel/sched/fair.c
+static void update_min_vruntime(struct cfs_rq *cfs_rq)
+{
+	struct sched_entity *curr = cfs_rq-&gt;curr;
+	struct rb_node *leftmost = rb_first_cached(&amp;cfs_rq-&gt;tasks_timeline);	/* 1 */
+	u64 vruntime = cfs_rq-&gt;min_vruntime;	/* 2 */
+ 
+	if (curr) {
+		if (curr-&gt;on_rq)	
+			vruntime = curr-&gt;vruntime;	/* 3 */
+		else
+			curr = NULL;
+	}
+ 
+	if (leftmost) { /* non-empty tree */
+		struct sched_entity *se;
+		se = rb_entry(leftmost, struct sched_entity, run_node);
+ 
+		if (!curr)
+			vruntime = se-&gt;vruntime;	/* 4 */
+		else
+			vruntime = min_vruntime(vruntime, se-&gt;vruntime);	/* 5 */
+	}
+ 
+	/* ensure we never gain time by being placed backwards. */
+	cfs_rq-&gt;min_vruntime = max_vruntime(cfs_rq-&gt;min_vruntime, vruntime);	/* 6 *
+}
+</code></pre>
+<ol>
 <li>首先根据CFS就绪队列的tasks_timeline成员，拿到红黑树的最左子节点。</li>
 <li>拿到当期就绪队列的最小虚拟运行时间。</li>
 <li>在当前就绪队列运行进程存在且该进程on_rq标志为1的情况下，使用该进程的虚拟运行时间。</li>
@@ -624,71 +748,74 @@
 </ul>
 <h2 id="place_entity函数">place_entity函数</h2>
 <p>place_entity函数属于CFS调度器算法内部使用的一个函数，其作用是调整进程调度实体的虚拟运行时间，传入的第三个参数initial为1的情况下表示是新创建的进程，否则是被唤醒的进程。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">place_entity</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se, <span style="color:#0b0;font-weight:bold">int</span> initial)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	u64 vruntime <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (initial <span style="color:#666">&amp;&amp;</span> sched_feat(START_DEBIT))
-</span></span><span style="display:flex;"><span>		vruntime <span style="color:#666">+=</span> sched_vslice(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>initial) {
-</span></span><span style="display:flex;"><span>		<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> thresh <span style="color:#666">=</span> sysctl_sched_latency;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (sched_feat(GENTLE_FAIR_SLEEPERS))
-</span></span><span style="display:flex;"><span>			thresh <span style="color:#666">&gt;&gt;=</span> <span style="color:#666">1</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		vruntime <span style="color:#666">-=</span> thresh;	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">=</span> max_vruntime(se<span style="color:#666">-&gt;</span>vruntime, vruntime);	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">// kernel/sched/fair.c
+static void
+place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
+{
+	u64 vruntime = cfs_rq-&gt;min_vruntime;
+
+	if (initial &amp;&amp; sched_feat(START_DEBIT))
+		vruntime += sched_vslice(cfs_rq, se);	/* 1 */
+
+	if (!initial) {
+		unsigned long thresh = sysctl_sched_latency;
+
+		if (sched_feat(GENTLE_FAIR_SLEEPERS))
+			thresh &gt;&gt;= 1;
+
+		vruntime -= thresh;	/* 2 */
+	}
+
+	se-&gt;vruntime = max_vruntime(se-&gt;vruntime, vruntime);	/* 3 */
+}
+</code></pre>
+<ol>
 <li>initial为1的情况下，表示是新创建的进程，此时将加上一个虚拟时间表示惩罚，因为虚拟时间越大在红黑树中位置就越靠右，被调度执行的顺序也越在后面。计算这个惩罚时间的函数是sched_vslice，后面展开解释。</li>
 <li>这种情况是针对被唤醒的进程，期望它能够更快的得到调度执行，所以这里减去一个虚拟运行时间做为补偿。</li>
 <li>调度实体的虚拟运行时间，取上面计算出来的时间以及自身的虚拟运行时间的较大值，保证不会发生回退情况。</li>
 </ol>
 <p>接着看计算惩罚新创建进程虚拟运行时间的函数sched_vslice：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/fair.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">static</span> u64 <span style="color:#00a000">sched_vslice</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> calc_delta_fair(sched_slice(cfs_rq, se), se);
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> u64 <span style="color:#00a000">sched_slice</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	u64 slice <span style="color:#666">=</span> __sched_period(cfs_rq<span style="color:#666">-&gt;</span>nr_running <span style="color:#666">+</span> <span style="color:#666">!</span>se<span style="color:#666">-&gt;</span>on_rq);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	slice <span style="color:#666">=</span> __calc_delta(slice, se<span style="color:#666">-&gt;</span>load.weight, load);	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> slice;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">// kernel/sched/fair.c
+static u64 sched_vslice(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	return calc_delta_fair(sched_slice(cfs_rq, se), se);
+}
+
+static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	u64 slice = __sched_period(cfs_rq-&gt;nr_running + !se-&gt;on_rq);	/* 1 */
+
+	slice = __calc_delta(slice, se-&gt;load.weight, load);	/* 2 */
+
+	return slice;
+}
+</code></pre>
+<ol>
 <li>通过__sched_period函数计算调度周期时间。</li>
 <li>将第一步中计算得到的周期时间通过__calc_delta函数转换为虚拟运行时间。__calc_delta()函数有两个功能，除了可以把计算进程运行时间转换成虚拟时间以外，还有第二个功能：计算调度实体se的权重占整个就绪队列权重的比例，然后乘以调度周期时间即可得到当前调度实体应该运行的时间（参数weught传递调度实体se权重，参数lw传递就绪队列权重cfs_rq-&gt;load）。例如，就绪队列权重是3072，当前调度实体se权重是1024，调度周期是6ms，那么调度实体应该得到的时间是6*1024/3072=2ms。</li>
 </ol>
 <h2 id="创建新进程时">创建新进程时</h2>
 <p>在调用<code>fork</code>函数创建子进程的时候，会调用<code>sched_fork</code>函数设置子进程调度器相关的信息。该函数会调用调度器类中的<code>task_fork</code>成员函数来完成工作，CFS调度器对应的函数就是<code>task_fork_fair</code>函数：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">task_fork_fair</span>(<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se <span style="color:#666">=</span> <span style="color:#666">&amp;</span>p<span style="color:#666">-&gt;</span>se, <span style="color:#666">*</span>curr;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq <span style="color:#666">=</span> this_rq();
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq_flags rf;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	cfs_rq <span style="color:#666">=</span> task_cfs_rq(current);
-</span></span><span style="display:flex;"><span>	curr <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>curr;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (curr) {
-</span></span><span style="display:flex;"><span>		update_curr(cfs_rq);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>		se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">=</span> curr<span style="color:#666">-&gt;</span>vruntime;	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	place_entity(cfs_rq, se, <span style="color:#666">1</span>);	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">-=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void task_fork_fair(struct task_struct *p)
+{
+	struct cfs_rq *cfs_rq;
+	struct sched_entity *se = &amp;p-&gt;se, *curr;
+	struct rq *rq = this_rq();
+	struct rq_flags rf;
+
+	cfs_rq = task_cfs_rq(current);
+	curr = cfs_rq-&gt;curr;
+	if (curr) {
+		update_curr(cfs_rq);	/* 1 */
+		se-&gt;vruntime = curr-&gt;vruntime;	/* 2 */
+	}
+
+	place_entity(cfs_rq, se, 1);	/* 3 */
+
+	se-&gt;vruntime -= cfs_rq-&gt;min_vruntime;	/* 4 */
+}
+</code></pre>
+<ol>
 <li>更新CFS就绪队列的虚拟运行时间信息。</li>
 <li>初始化新创建的进程对应进程调度实体的虚拟运行时间，与当前进程（其父进程）一样。</li>
 <li>place_entity函数在新创建进程以及进程被唤醒的时候都会被调用，新创建的情况下第三个参数为1。</li>
@@ -704,31 +831,32 @@
 <h2 id="队列操作">队列操作</h2>
 <h3 id="入队列操作">入队列操作</h3>
 <p>CFS调度算法的入队列操作是函数是<code>enqueue_task_fair</code>，其最终会调用<code>enqueue_entity</code>函数完成一个调度实体入队列的操作，来看看这个函数的工作流程。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">enqueue_entity</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se, <span style="color:#0b0;font-weight:bold">int</span> flags)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">bool</span> renorm <span style="color:#666">=</span> <span style="color:#666">!</span>(flags <span style="color:#666">&amp;</span> ENQUEUE_WAKEUP) <span style="color:#666">||</span> (flags <span style="color:#666">&amp;</span> ENQUEUE_MIGRATED);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">bool</span> curr <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>curr <span style="color:#666">==</span> se;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (renorm <span style="color:#666">&amp;&amp;</span> curr)
-</span></span><span style="display:flex;"><span>		se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">+=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	update_curr(cfs_rq);	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (renorm <span style="color:#666">&amp;&amp;</span> <span style="color:#666">!</span>curr)
-</span></span><span style="display:flex;"><span>		se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">+=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;	<span style="color:#080;font-style:italic">/*3 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	account_entity_enqueue(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (flags <span style="color:#666">&amp;</span> ENQUEUE_WAKEUP)
-</span></span><span style="display:flex;"><span>		place_entity(cfs_rq, se, <span style="color:#666">0</span>);	<span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>curr)
-</span></span><span style="display:flex;"><span>		__enqueue_entity(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 6 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se<span style="color:#666">-&gt;</span>on_rq <span style="color:#666">=</span> <span style="color:#666">1</span>;	<span style="color:#080;font-style:italic">/* 7 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void
+enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
+{
+	bool renorm = !(flags &amp; ENQUEUE_WAKEUP) || (flags &amp; ENQUEUE_MIGRATED);
+	bool curr = cfs_rq-&gt;curr == se;
+
+	if (renorm &amp;&amp; curr)
+		se-&gt;vruntime += cfs_rq-&gt;min_vruntime;	/* 1 */
+
+	update_curr(cfs_rq);	/* 2 */
+
+	if (renorm &amp;&amp; !curr)
+		se-&gt;vruntime += cfs_rq-&gt;min_vruntime;	/*3 */
+
+	account_entity_enqueue(cfs_rq, se);	/* 4 */
+
+	if (flags &amp; ENQUEUE_WAKEUP)
+		place_entity(cfs_rq, se, 0);	/* 5 */
+
+	if (!curr)
+		__enqueue_entity(cfs_rq, se);	/* 6 */
+
+	se-&gt;on_rq = 1;	/* 7 */
+}
+</code></pre>
+<ol>
 <li>如果传入的调度实体是当前进程，并且当前进程不是被唤醒或者迁移CPU，那么当前进程的虚拟运行时间就需要加上队列当前的最小虚拟运行时间。虚拟运行时间增加，意味着在红黑树中往右边移动，下一次会更晚的被调度到。这一步需要在下面调用update_curr函数之前进行。</li>
 <li>调用update_curr更新当前CFS就绪队列的虚拟运行时间信息。</li>
 <li>如果不是被唤醒或者迁移CPU，并且不是当前进程，那么task_fork_fair中减去的虚拟运行时间这里加回来。</li>
@@ -738,22 +866,23 @@
 </ol>
 <h3 id="出队列操作">出队列操作</h3>
 <p>CFS调度算法的入队列操作是函数是<code>dequeue_task_fair</code>，其最终会调用<code>dequeue_entity</code>函数完成一个调度实体入队列的操作，来看看这个函数的工作流程。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">dequeue_entity</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se, <span style="color:#0b0;font-weight:bold">int</span> flags)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	update_curr(cfs_rq);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (se <span style="color:#666">!=</span> cfs_rq<span style="color:#666">-&gt;</span>curr)
-</span></span><span style="display:flex;"><span>		__dequeue_entity(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se<span style="color:#666">-&gt;</span>on_rq <span style="color:#666">=</span> <span style="color:#666">0</span>;	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	account_entity_dequeue(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>(flags <span style="color:#666">&amp;</span> DEQUEUE_SLEEP))
-</span></span><span style="display:flex;"><span>		se<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">-=</span> cfs_rq<span style="color:#666">-&gt;</span>min_vruntime;	<span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void
+dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
+{
+	update_curr(cfs_rq);	/* 1 */
+
+	if (se != cfs_rq-&gt;curr)
+		__dequeue_entity(cfs_rq, se);	/* 2 */
+
+	se-&gt;on_rq = 0;	/* 3 */
+
+	account_entity_dequeue(cfs_rq, se);	/* 4 */
+
+	if (!(flags &amp; DEQUEUE_SLEEP))
+		se-&gt;vruntime -= cfs_rq-&gt;min_vruntime;	/* 5 */
+}
+</code></pre>
+<ol>
 <li>更新CFS就绪队列的当前虚拟运行时间。</li>
 <li>如果不是当前进程，调用__dequeue_entity从红黑树中删除该调度实体。</li>
 <li>on_rq标志位置为0，表示不在就绪队列中。</li>
@@ -766,7 +895,7 @@
 <p>下面逐个分析这几个函数。</p>
 <h3 id="put_prev_task">put_prev_task</h3>
 <p>put_prev_task函数的作用，是将即将逝去执行权的当前进程，放回到其调度器的就绪队列中，核心工作由put_prev_entity函数完成：</p>
-<pre tabindex="0"><code>static void put_prev_entity(struct cfs_rq *cfs_rq, struct sched_entity *prev)
+<pre><code>static void put_prev_entity(struct cfs_rq *cfs_rq, struct sched_entity *prev)
 {
 	if (prev-&gt;on_rq)                            /* 1 */
 		update_curr(cfs_rq);
@@ -778,7 +907,8 @@
 	}
 	cfs_rq-&gt;curr = NULL;                        /* 4 */
 } 
-</code></pre><ol>
+</code></pre>
+<ol>
 <li>如果进程的on_rq为1，表示当进程被剥夺执行权的时候，还是在就绪队列上面的，那么极有可能就是被抢占了执行权。在这种情况下，需要调用update_curr函数更新就绪队列的虚拟运行时间。反之，如果进程不在就绪队列上了，这里并不做操作跳过更新，因为在deactivate_task函数中已经调用update_curr函数进行了更新。</li>
 <li>如果进程还在就绪队列上，调用__enqueue_entity函数重新加入就绪队列的红黑树中。</li>
 <li>调用update_load_avg函数更新就绪队列的负载信息。</li>
@@ -786,42 +916,43 @@
 </ol>
 <h3 id="pick_next_entity">pick_next_entity</h3>
 <p>pick_next_entity函数的作用是从红黑树中选择下一个调度进程的调度实体返回：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">pick_next_entity</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>curr)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>left <span style="color:#666">=</span> __pick_first_entity(cfs_rq);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>left <span style="color:#666">||</span> (curr <span style="color:#666">&amp;&amp;</span> entity_before(curr, left)))
-</span></span><span style="display:flex;"><span>		left <span style="color:#666">=</span> curr;	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se <span style="color:#666">=</span> left; <span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (cfs_rq<span style="color:#666">-&gt;</span>skip <span style="color:#666">==</span> se) {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>second;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (se <span style="color:#666">==</span> curr) {	
-</span></span><span style="display:flex;"><span>			second <span style="color:#666">=</span> __pick_first_entity(cfs_rq);	<span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>		} <span style="color:#a2f;font-weight:bold">else</span> {
-</span></span><span style="display:flex;"><span>			second <span style="color:#666">=</span> __pick_next_entity(se);	<span style="color:#080;font-style:italic">/* 6 */</span>
-</span></span><span style="display:flex;"><span>			<span style="color:#a2f;font-weight:bold">if</span> (<span style="color:#666">!</span>second <span style="color:#666">||</span> (curr <span style="color:#666">&amp;&amp;</span> entity_before(curr, second)))
-</span></span><span style="display:flex;"><span>				second <span style="color:#666">=</span> curr;	<span style="color:#080;font-style:italic">/* 7 */</span>
-</span></span><span style="display:flex;"><span>		}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">if</span> (second <span style="color:#666">&amp;&amp;</span> wakeup_preempt_entity(second, left) <span style="color:#666">&lt;</span> <span style="color:#666">1</span>)
-</span></span><span style="display:flex;"><span>			se <span style="color:#666">=</span> second;	<span style="color:#080;font-style:italic">/* 8 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (cfs_rq<span style="color:#666">-&gt;</span>last <span style="color:#666">&amp;&amp;</span> wakeup_preempt_entity(cfs_rq<span style="color:#666">-&gt;</span>last, left) <span style="color:#666">&lt;</span> <span style="color:#666">1</span>)
-</span></span><span style="display:flex;"><span>		se <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>last;	<span style="color:#080;font-style:italic">/* 9 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (cfs_rq<span style="color:#666">-&gt;</span>next <span style="color:#666">&amp;&amp;</span> wakeup_preempt_entity(cfs_rq<span style="color:#666">-&gt;</span>next, left) <span style="color:#666">&lt;</span> <span style="color:#666">1</span>)
-</span></span><span style="display:flex;"><span>		se <span style="color:#666">=</span> cfs_rq<span style="color:#666">-&gt;</span>next;	<span style="color:#080;font-style:italic">/* 10 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> se;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static struct sched_entity *
+pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
+{
+	struct sched_entity *left = __pick_first_entity(cfs_rq);	/* 1 */
+	struct sched_entity *se;
+
+	if (!left || (curr &amp;&amp; entity_before(curr, left)))
+		left = curr;	/* 2 */
+
+	se = left; /* 3 */
+
+	/* 4 */
+	if (cfs_rq-&gt;skip == se) {
+		struct sched_entity *second;
+
+		if (se == curr) {	
+			second = __pick_first_entity(cfs_rq);	/* 5 */
+		} else {
+			second = __pick_next_entity(se);	/* 6 */
+			if (!second || (curr &amp;&amp; entity_before(curr, second)))
+				second = curr;	/* 7 */
+		}
+
+		if (second &amp;&amp; wakeup_preempt_entity(second, left) &lt; 1)
+			se = second;	/* 8 */
+	}
+
+	if (cfs_rq-&gt;last &amp;&amp; wakeup_preempt_entity(cfs_rq-&gt;last, left) &lt; 1)
+		se = cfs_rq-&gt;last;	/* 9 */
+
+	if (cfs_rq-&gt;next &amp;&amp; wakeup_preempt_entity(cfs_rq-&gt;next, left) &lt; 1)
+		se = cfs_rq-&gt;next;	/* 10 */
+
+	return se;
+}
+</code></pre>
+<ol>
 <li>调用__pick_first_entity函数，取红黑树最左子节点的调度实体，根据我们前面的分析，这是目前虚拟运行时间最小的进程。</li>
 <li>如果left为NULL，或者当前进程curr的虚拟运行时间比left节点更小，说明curr进程是主动放弃了执行权力，且其优先级比最左子节点的进程更优，此时将left指向curr。</li>
 <li>此时left存储的是目前最优的调度实体指针，se保存下来。</li>
@@ -835,20 +966,21 @@
 </ol>
 <h3 id="set_next_entity">set_next_entity</h3>
 <p><code>set_next_entity</code>函数用于将调度实体存放的进程做为下一个可执行进程的信息保存下来。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">set_next_entity</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (se<span style="color:#666">-&gt;</span>on_rq) {
-</span></span><span style="display:flex;"><span>		__dequeue_entity(cfs_rq, se);	<span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>		update_load_avg(cfs_rq, se, UPDATE_TG);	<span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	cfs_rq<span style="color:#666">-&gt;</span>curr <span style="color:#666">=</span> se;	<span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	se<span style="color:#666">-&gt;</span>prev_sum_exec_runtime <span style="color:#666">=</span> se<span style="color:#666">-&gt;</span>sum_exec_runtime;	<span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void
+set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	if (se-&gt;on_rq) {
+		__dequeue_entity(cfs_rq, se);	/* 1 */
+
+		update_load_avg(cfs_rq, se, UPDATE_TG);	/* 2 */
+	}
+
+	cfs_rq-&gt;curr = se;	/* 3 */
+
+	se-&gt;prev_sum_exec_runtime = se-&gt;sum_exec_runtime;	/* 4 */
+}
+</code></pre>
+<ol>
 <li>__dequeue_entity用于将调度实体从红黑树中删除。对于即将被调度执行的进程，都会从红黑树中删除。而当进程被抢占后，会调用<code>put_prev_entity</code>函数重新插入到红黑树中。因此这里与<code>put_prev_entity</code>函数中插入红黑树的操作一一对应。</li>
 <li>调用<code>update_load_avg</code>函数更新就绪队列的负载信息，在负载均衡的时候会用到。</li>
 <li>更新就绪队列的当前在执行进程指针。</li>
@@ -858,34 +990,35 @@
 <p>CFS调度器中，处理周期性调度器的函数是<code>task_tick_fair</code>，实际工作由<code>entity_tick</code>函数负责，其核心流程如下：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200503-sgfap-process-schedule/entity_tick.png" alt="entity_tick" title="entity_tick"></p>
 <p>其中的<code>update_curr</code>是更新就绪队列虚拟运行时间的函数，前面已经介绍过就不再阐述，重点看这里的<code>check_preempt_tick</code>函数。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span>
-</span></span><span style="display:flex;"><span><span style="color:#00a000">check_preempt_tick</span>(<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq, <span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>curr)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> ideal_runtime, delta_exec;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se;
-</span></span><span style="display:flex;"><span>	s64 delta;
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	ideal_runtime <span style="color:#666">=</span> sched_slice(cfs_rq, curr);    <span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>	delta_exec <span style="color:#666">=</span> curr<span style="color:#666">-&gt;</span>sum_exec_runtime <span style="color:#666">-</span> curr<span style="color:#666">-&gt;</span>prev_sum_exec_runtime;    <span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (delta_exec <span style="color:#666">&gt;</span> ideal_runtime) {
-</span></span><span style="display:flex;"><span>		resched_curr(rq_of(cfs_rq));              <span style="color:#080;font-style:italic">/* 3 */</span>
-</span></span><span style="display:flex;"><span>		clear_buddies(cfs_rq, curr);
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">return</span>;
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (delta_exec <span style="color:#666">&lt;</span> sysctl_sched_min_granularity)    <span style="color:#080;font-style:italic">/* 4 */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">return</span>;
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	se <span style="color:#666">=</span> __pick_first_entity(cfs_rq);             <span style="color:#080;font-style:italic">/* 5 */</span>
-</span></span><span style="display:flex;"><span>	delta <span style="color:#666">=</span> curr<span style="color:#666">-&gt;</span>vruntime <span style="color:#666">-</span> se<span style="color:#666">-&gt;</span>vruntime;
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (delta <span style="color:#666">&lt;</span> <span style="color:#666">0</span>)                                <span style="color:#080;font-style:italic">/* 6 */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">return</span>;
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (delta <span style="color:#666">&gt;</span> ideal_runtime)                    <span style="color:#080;font-style:italic">/* 7 */</span>
-</span></span><span style="display:flex;"><span>		resched_curr(rq_of(cfs_rq));
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void
+check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
+{
+	unsigned long ideal_runtime, delta_exec;
+	struct sched_entity *se;
+	s64 delta;
+ 
+	ideal_runtime = sched_slice(cfs_rq, curr);    /* 1 */
+	delta_exec = curr-&gt;sum_exec_runtime - curr-&gt;prev_sum_exec_runtime;    /* 2 */
+	if (delta_exec &gt; ideal_runtime) {
+		resched_curr(rq_of(cfs_rq));              /* 3 */
+		clear_buddies(cfs_rq, curr);
+		return;
+	}
+ 
+	if (delta_exec &lt; sysctl_sched_min_granularity)    /* 4 */
+		return;
+ 
+	se = __pick_first_entity(cfs_rq);             /* 5 */
+	delta = curr-&gt;vruntime - se-&gt;vruntime;
+ 
+	if (delta &lt; 0)                                /* 6 */
+		return;
+ 
+	if (delta &gt; ideal_runtime)                    /* 7 */
+		resched_curr(rq_of(cfs_rq));
+}
+</code></pre>
+<ol>
 <li>sched_slice()函数上面已经分析过，计算curr进程在本次调度周期中应该分配的时间片。时间片用完就应该被抢占。</li>
 <li>sum_exec_runtime与prev_sum_exec_runtime的差值delta_exec是当前进程已经运行的实际时间。</li>
 <li>如果实际运行时间已经超过分配给进程的时间片，自然就需要抢占当前进程。设置TIF_NEED_RESCHED flag。</li>
@@ -896,7 +1029,7 @@
 </ol>
 <h2 id="唤醒抢占">唤醒抢占</h2>
 <p>当进程被唤醒时（wake_up_new_task、try_to_wake_up等），也是检查进程是否可以抢占当前进程执行权的时机，此时会调用<code>check_preempt_curr</code>来做这个抢占检查的工作：</p>
-<pre tabindex="0"><code>void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
+<pre><code>void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
 {
 	const struct sched_class *class;
  
@@ -913,24 +1046,26 @@
 		}
 	}
 }
-</code></pre><ol>
+</code></pre>
+<ol>
 <li>唤醒的进程和当前的进程同属于一个调度类，直接调用调度类的<code>check_preempt_curr</code>函数检查抢占条件。</li>
 <li>否则如果唤醒的进程和当前进程不属于一个调度类，就需要按照调度器类的优先级来选择。</li>
 </ol>
 <p>CFS调度器的<code>check_preempt_curr</code>函数由<code>check_preempt_wakeup</code>实现：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> <span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">check_preempt_wakeup</span>(<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p, <span style="color:#0b0;font-weight:bold">int</span> wake_flags)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> sched_entity <span style="color:#666">*</span>se <span style="color:#666">=</span> <span style="color:#666">&amp;</span>curr<span style="color:#666">-&gt;</span>se, <span style="color:#666">*</span>pse <span style="color:#666">=</span> <span style="color:#666">&amp;</span>p<span style="color:#666">-&gt;</span>se;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> cfs_rq <span style="color:#666">*</span>cfs_rq <span style="color:#666">=</span> task_cfs_rq(curr);
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> (wakeup_preempt_entity(se, pse) <span style="color:#666">==</span> <span style="color:#666">1</span>)    <span style="color:#080;font-style:italic">/* 1 */</span>
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">goto</span> preempt;
-</span></span><span style="display:flex;"><span> 
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span>;
-</span></span><span style="display:flex;"><span><span style="color:#a0a000">preempt</span>:
-</span></span><span style="display:flex;"><span>	resched_curr(rq);                           <span style="color:#080;font-style:italic">/* 2 */</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><ol>
+<pre><code class="language-C">static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
+{
+	struct sched_entity *se = &amp;curr-&gt;se, *pse = &amp;p-&gt;se;
+	struct cfs_rq *cfs_rq = task_cfs_rq(curr);
+ 
+	if (wakeup_preempt_entity(se, pse) == 1)    /* 1 */
+		goto preempt;
+ 
+	return;
+preempt:
+	resched_curr(rq);                           /* 2 */
+}
+</code></pre>
+<ol>
 <li>调用<code>wakeup_preempt_entity</code>函数检查唤醒的进程是否满足抢占当前进程的条件。</li>
 <li>如果可以抢占当前进程，调用<code>resched_curr</code>函数，其内部实现是设置TIF_NEED_RESCHED flag。</li>
 </ol>
@@ -946,21 +1081,21 @@
 <li><a href="http://www.wowotech.net/process_management/448.html">CFS调度器（2）-源码解析</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20200502-sgfap-process/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 20069-06-20: </strong> <a href="https://www.codedump.info/post/20200620-sgfap-loadavg/">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</a>  </li><li><strong> 22059-05-22: </strong> <a href="https://www.codedump.info/post/20200522-sgfap-softirq/">《面向应用开发者的系统指南》CPU篇之软中断</a>  </li><li><strong> 16059-05-16: </strong> <a href="https://www.codedump.info/post/20200516-sgfap-syscall/">《面向应用开发者的系统指南》CPU篇之系统调用</a>  </li><li><strong> 3059-05-03: </strong> <a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/">《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为</a>  </li><li><strong> 2059-05-02: </strong> <a href="https://www.codedump.info/post/20200502-sgfap-process/">《面向应用开发者的系统指南》CPU篇之进程</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Linux系统</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -969,133 +1104,100 @@
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" class="block">《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20200502-sgfap-process/" class="block">《面向应用开发者的系统指南》CPU篇之进程</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20200502-sgfap-process/" class="no-underline">《面向应用开发者的系统指南》CPU篇之进程</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="no-underline">《面向应用开发者的系统指南》导论</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200218-linux-traceevent/" class="no-underline">Systemtap中内核trace事件的实现</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="no-underline">通过实例快速入门Systemtap</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200122-series-pages/" class="no-underline">博客系列文章索引</a>
+          <br />
+        
+      </div>
+    
   </div>
 
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
-  </div>
-
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

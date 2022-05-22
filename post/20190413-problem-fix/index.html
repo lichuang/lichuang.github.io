@@ -1,152 +1,306 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>线上存储服务崩溃问题分析记录 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="线上存储服务崩溃问题分析记录">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" 网络编程  线上问题 ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="线上存储服务崩溃问题分析记录" />
-<meta property="og:description" content="线上存储服务崩溃问题分析记录" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="线上存储服务崩溃问题分析记录">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"线上存储服务崩溃问题分析记录",
+      "item":"https://www.codedump.info/post/20190413-problem-fix/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20190413-problem-fix/"
+    },
+    "headline": "线上存储服务崩溃问题分析记录 | codedump的网络日志","datePublished": "2019-04-13T12:04:59+08:00",
+    "dateModified": "2019-04-13T12:04:59+08:00",
+    "wordCount":  4233 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "线上存储服务崩溃问题分析记录"
+}
+</script><meta property="og:title" content="线上存储服务崩溃问题分析记录 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190413-problem-fix/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2019-04-13T12:04:59+08:00" />
-<meta property="article:modified_time" content="2019-04-13T12:04:59+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20190413-problem-fix/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20190413-problem-fix/">
-
-  
-  
-  <meta itemprop="name" content="线上存储服务崩溃问题分析记录">
-<meta itemprop="description" content="线上存储服务崩溃问题分析记录"><meta itemprop="datePublished" content="2019-04-13T12:04:59+08:00" />
-<meta itemprop="dateModified" content="2019-04-13T12:04:59+08:00" />
-<meta itemprop="wordCount" content="4233">
-<meta itemprop="keywords" content="网络编程,work," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>线上存储服务崩溃问题分析记录 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="线上存储服务崩溃问题分析记录"/>
-<meta name="twitter:description" content="线上存储服务崩溃问题分析记录"/>
+<meta property="og:description" content="线上存储服务崩溃问题分析记录" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2019-04-13T12:04:59&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2019-04-13T12:04:59&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="网络编程" />
+
+<meta property="article:tag" content="work" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190227-tcp/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>线上存储服务崩溃问题分析记录</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B'>#网络编程</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/work'>#work</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">线上存储服务崩溃问题分析记录</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2019-04-13</span
+    >
   </div>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>9分钟阅读时长</span>
+  </div>
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
+          >网络编程</a
+        >
+      
+        
+          <span>, </span>
+        <a href="https://www.codedump.info/categories/work/" class="hover:text-eureka"
+          >work</a
+        >
+      
+    </div>
+  
+
+  
+</div>
+
+
   
   
-  
-  
-  <article class="content">
-    
-    <p>注：本文为重新发布2017-06-17所写博客，以下为正文部分。</p>
+
+  <p>注：本文为重新发布2017-06-17所写博客，以下为正文部分。</p>
 <p>上周我们的存储服务在某个线上项目频繁出现崩溃，花了几天的时间来查找解决该问题。在这里，将这个过程做一下记录。</p>
 <h1 id="加入调试信息">加入调试信息</h1>
 <p>由于问题在线上发生，较难重现，首先想到的是能不能加上更多的信息，在问题出现时提供更多的解决思路。</p>
@@ -196,9 +350,10 @@
 <p>clang和gcc 4.8有对应的编译参数，可以用来检测内存错误的写操作，即Address Sanitizer工具。为了兼容线上比较老的系统，之前我们的服务都是在gcc 4.1的环境下进行编译的，为了使用这个工具，首先需要折腾到满足gcc版本号大于4.8的系统上进行编译。</p>
 <p>然而，在折腾编译并且运行后，同样使用mcperf的情况下，并不能看到有内存错误覆盖写的提示，我尝试了多次都没有看到。难道是工具没有起作用？</p>
 <p>为了验证该工具的作用，我简单在出错代码的前面加入了一段肯定有问题的代码，比如：</p>
-<pre tabindex="0"><code>char a[100] = {&#39;0&#39;};
-a[100] = &#39;1&#39;;
-</code></pre><p>而在加入这段有问题的代码之后再次运行，就能看到编译器对这段代码的提示。可见，Address Sanitizer工具是起作用的。那么，前面的过程中没有看到问题，只能说明一个问题：并没有内存错误写的情况发生。</p>
+<pre><code>char a[100] = {'0'};
+a[100] = '1';
+</code></pre>
+<p>而在加入这段有问题的代码之后再次运行，就能看到编译器对这段代码的提示。可见，Address Sanitizer工具是起作用的。那么，前面的过程中没有看到问题，只能说明一个问题：并没有内存错误写的情况发生。</p>
 <p>此时想到另一个可能，就是有没有可能是多线程在没有保护的情况下访问了某段数据导致的问题？</p>
 <p>gcc同样也有类似的工具来检查这类错误，即Thread Sanitizer工具。然而，在给项目Makefile加入该编译参数后，程序一运行就退出了，根本看不出什么有用的信息来。</p>
 <p>此时想到的另一个工具是valgrind。大多数时候，valgrind只是用来做内存泄露检测的，其实它也可以用来做线程数据竞争的检查，使用参数 &ndash;tool=helgrind 即可。使用valgrind之后，打印出来疑似有问题的代码如下：</p>
@@ -219,7 +374,7 @@ a[100] = &#39;1&#39;;
 <p>加上调试信息之后，又跑了几次都在同一个地方调用，我又重新review了一下这部分的代码逻辑，终于定位到了问题真实的原因。</p>
 <p>一个连接，可能会一次性的从同一个客户端接收到多个请求，即所谓的“pipeline”方式：客户端在上一次请求还没有应答的情况下，继续往这个链接中发生请求数据。</p>
 <p>而主线程的处理逻辑大体是这样的：</p>
-<pre tabindex="0"><code>while true:
+<pre><code>while true:
     如果客户端可写：
         应答客户端请求
         如果应答失败：
@@ -227,7 +382,8 @@ a[100] = &#39;1&#39;;
 
     如果客户端有未处理的请求：
         读客户端的请求数据进行处理
-</code></pre><p>这里的问题的时间序列大概是这样的，假设当前一个链接同时存在A、B两个请求：</p>
+</code></pre>
+<p>这里的问题的时间序列大概是这样的，假设当前一个链接同时存在A、B两个请求：</p>
 <ul>
 <li>主线程已经处理了A请求，但是因为此时客户端还不可写，因此没有应答客户端，继续处理下一个B请求，将请求数据放到辅助线程中进行处理。</li>
 <li>epoll通知客户端可写，主线程应答A请求的回复给客户端，但是应答出错，那么就会关闭这个连接。这种通知可写，又写失败的请求，大多发生在客户端关闭了连接时。</li>
@@ -241,21 +397,23 @@ a[100] = &#39;1&#39;;
 <li>大胆假设、小心求证。跟进这种复杂的bug时，最好不要在一旁呆着空想，因为经常疑难的问题是在某些临界条件下出现的，就是同一段代码正常情况下是没有问题的，这些临界条件才触发的问题。因此，有很多看上去觉得没问题的地方，在临界条件下就成了问题。此时空想是解决不了问题的，需要动手来做一些实验、加一些调试代码和日志等，来验证你的猜测对不对。常见的临界条件有：线程调度导致的错误，由于操作系统内核调度线程对应用程序而言不可知，即同样的代码，先调度线程A执行再调度线程B执行，和反之的情况有截然不同的效果；另外数据也有可能导致不同的临界条件，这个需要具体看不同的业务数据都有哪些特点来具体分析。</li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 5119-11-05: </strong> <a href="https://www.codedump.info/post/20201105-kcp/">KCP 1.4源码分析</a>  </li><li><strong> 29079-07-29: </strong> <a href="https://www.codedump.info/post/20190729-glog/">glog C&#43;&#43;版本代码分析</a>  </li><li><strong> 27029-02-27: </strong> <a href="https://www.codedump.info/post/20190227-tcp/">TCP协议笔记</a>  </li><li><strong> 9029-02-09: </strong> <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a>  </li><li><strong> 23019-01-23: </strong> <a href="https://www.codedump.info/post/20190123-libuv/">Libuv代码简单分析</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
+    
+    <a href="https://www.codedump.info/tags/work/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#work</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -264,134 +422,97 @@ a[100] = &#39;1&#39;;
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
-          <a href="/tags/work/">work</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/" class="block">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" class="block">《数据密集型应用系统设计》第七章《事务》笔记</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20190227-tcp/" class="no-underline">TCP协议笔记</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" class="no-underline">zeromq所谓的“无锁消息队列”</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

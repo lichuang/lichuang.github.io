@@ -1,185 +1,292 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>Libuv代码简单分析 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="Libuv代码简单分析">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" Libuv  网络编程 ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="Libuv代码简单分析" />
-<meta property="og:description" content="Libuv代码简单分析" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="Libuv代码简单分析">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"Libuv代码简单分析",
+      "item":"https://www.codedump.info/post/20190123-libuv/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20190123-libuv/"
+    },
+    "headline": "Libuv代码简单分析 | codedump的网络日志","datePublished": "2019-01-23T08:43:49+08:00",
+    "dateModified": "2019-01-23T08:43:49+08:00",
+    "wordCount":  4551 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "Libuv代码简单分析"
+}
+</script><meta property="og:title" content="Libuv代码简单分析 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190123-libuv/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2019-01-23T08:43:49+08:00" />
-<meta property="article:modified_time" content="2019-01-23T08:43:49+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20190123-libuv/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20190123-libuv/">
-
-  
-  
-  <meta itemprop="name" content="Libuv代码简单分析">
-<meta itemprop="description" content="Libuv代码简单分析"><meta itemprop="datePublished" content="2019-01-23T08:43:49+08:00" />
-<meta itemprop="dateModified" content="2019-01-23T08:43:49+08:00" />
-<meta itemprop="wordCount" content="4551">
-<meta itemprop="keywords" content="网络编程," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>Libuv代码简单分析 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Libuv代码简单分析"/>
-<meta name="twitter:description" content="Libuv代码简单分析"/>
+<meta property="og:description" content="Libuv代码简单分析" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2019-01-23T08:43:49&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2019-01-23T08:43:49&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="网络编程" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>Libuv代码简单分析</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B'>#网络编程</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">Libuv代码简单分析</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2019-01-23</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#uv__io_t">uv__io_t</a></li>
-    <li><a href="#queue">queue</a></li>
-    <li><a href="#uv_timer_t">uv_timer_t</a></li>
-    <li><a href="#uv_handle_t及其子类">uv_handle_t及其子类</a>
-      <ul>
-        <li><a href="#uv_async_t">uv_async_t</a></li>
-        <li><a href="#uv_prepare_t">uv_prepare_t</a></li>
-        <li><a href="#uv_check_t">uv_check_t</a></li>
-        <li><a href="#uv_idle_t">uv_idle_t</a></li>
-      </ul>
-    </li>
-    <li><a href="#uv_req_t及其子类">uv_req_t及其子类</a></li>
-    <li><a href="#uv_loop_t">uv_loop_t</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>10分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#事件循环">事件循环</a>
-      <ul>
-        <li><a href="#新增的io事件">新增的IO事件</a></li>
-        <li><a href="#pending队列">pending队列</a></li>
-        <li><a href="#checkidle和prepare队列">check、idle和prepare队列</a></li>
-        <li><a href="#小结">小结</a></li>
-      </ul>
-    </li>
-    <li><a href="#uv_req_t的处理">uv_req_t的处理</a></li>
-  </ul>
-</nav></div>
-  </details>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
+          >网络编程</a
+        >
+      
+    </div>
+  
+
+  
+</div>
+
+
   
   
-  <article class="content">
-    
-    <p>本文基于libuv 1.x版本进行简单的分析。</p>
+
+  <p>本文基于libuv 1.x版本进行简单的分析。</p>
 <h1 id="数据结构">数据结构</h1>
 <h2 id="uv__io_t">uv__io_t</h2>
 <p>uv__io_t用来表示一个IO事件。</p>
@@ -220,8 +327,9 @@
 </table>
 <h2 id="queue">queue</h2>
 <p>libuv的queue实现比较奇葩，一个queue里面的元素会有两个指针，一个指向队列前一个成员，一个指向队列下一个成员，在这里不做阐述，看到类似：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">void</span><span style="color:#666">*</span> watcher_queue[<span style="color:#666">2</span>]
-</span></span></code></pre></div><p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
+<pre><code class="language-C">void* watcher_queue[2]
+</code></pre>
+<p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
 <h2 id="uv_timer_t">uv_timer_t</h2>
 <p>定义定时器的结构体，libuv中使用最小堆来维护定时器。</p>
 <p>一般而言，都是首先从这个最小堆数据结构中获得距离当前最近的定时器，然后拿到它的超时时间，以该超时时间做为下一次loop事件循环的时间，某些情况下会无视这个值，比如存在idle handler的情况下，此时会以0做为超时时间。</p>
@@ -232,21 +340,22 @@
 <li>继承自某个基类的子类按照继承顺序依次放它前面基类的宏。</li>
 </ul>
 <p>比如uv_tcp_t继承自uv_stream_t，而后者又继承自uv_handle_t，三者的定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> uv_handle_s {
-</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
-</span></span><span style="display:flex;"><span>};
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> uv_stream_s {
-</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
-</span></span><span style="display:flex;"><span>  UV_STREAM_FIELDS
-</span></span><span style="display:flex;"><span>};
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">struct</span> uv_tcp_s {
-</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
-</span></span><span style="display:flex;"><span>  UV_STREAM_FIELDS
-</span></span><span style="display:flex;"><span>  UV_TCP_PRIVATE_FIELDS
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>代码中可以看到：</p>
+<pre><code class="language-C">struct uv_handle_s {
+  UV_HANDLE_FIELDS
+};
+
+struct uv_stream_s {
+  UV_HANDLE_FIELDS
+  UV_STREAM_FIELDS
+};
+
+struct uv_tcp_s {
+  UV_HANDLE_FIELDS
+  UV_STREAM_FIELDS
+  UV_TCP_PRIVATE_FIELDS
+};
+</code></pre>
+<p>代码中可以看到：</p>
 <ul>
 <li>uv_handle_t的成员放在宏UV_HANDLE_FIELDS。</li>
 <li>uv_stream_t继承自uv_handle_t，所以在它结构体定义的开始部分先放的就是前面的宏UV_HANDLE_FIELDS。另外，uv_stream_t本身的成员定义又放在了宏UV_STREAM_FIELDS里。</li>
@@ -254,12 +363,13 @@
 </ul>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
 <p>可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>  uv_tcp_t <span style="color:#666">*</span>tcp;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  uv_stream_t <span style="color:#666">*</span>stream <span style="color:#666">=</span> (uv_stream_t<span style="color:#666">*</span>)tcp;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  uv_handle_t <span style="color:#666">*</span>handle <span style="color:#666">=</span> (uv_handle_t<span style="color:#666">*</span>)stream;
-</span></span></code></pre></div><p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
+<pre><code class="language-C">  uv_tcp_t *tcp;
+
+  uv_stream_t *stream = (uv_stream_t*)tcp;
+
+  uv_handle_t *handle = (uv_handle_t*)stream;
+</code></pre>
+<p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
 <p>简单看下UV_HANDLE_FIELDS的成员：</p>
 <table>
 <thead>
@@ -297,7 +407,7 @@
 <h2 id="uv_req_t及其子类">uv_req_t及其子类</h2>
 <p>handler主要应对一定与某个文件fd相关联的事件，除了这些以外，libuv希望把所有可能导致阻塞的操作全部异步化，包括：文件操作、查询域名操作等。这部分需要异步化的流程，全部封装到了uv_req_t结构体中。</p>
 <p>每个uv_req_t子类中，都有一个类型为struct uv__work的成员：</p>
-<pre tabindex="0"><code>struct uv__work {
+<pre><code>struct uv__work {
   // 工作时回调函数
   void (*work)(struct uv__work *w);
   // 工作结束时回调函数
@@ -307,7 +417,8 @@
   // 工作队列指针
   void* wq[2];
 };
-</code></pre><p>最终，每一个uv_req_t都会被放到一个线程中进行处理，处理完毕了才回调对应的函数。后面会展开讨论这个流程。</p>
+</code></pre>
+<p>最终，每一个uv_req_t都会被放到一个线程中进行处理，处理完毕了才回调对应的函数。后面会展开讨论这个流程。</p>
 <p>uv_req_t有以下子类：</p>
 <ul>
 <li>uv_getaddrinfo_t：用于getaddrinfo调用。</li>
@@ -414,12 +525,13 @@
 <p>有了对以上核心数据结构的了解，可以来看看libuv的核心流程了。</p>
 <h2 id="事件循环">事件循环</h2>
 <p>先来简单了解一下一个事件框架的主流程，有如下的伪代码：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">循环：</span>
-</span></span><span style="display:flex;"><span>  <span style="">根据定时器拿到距离最近的定时器超时时间</span>
-</span></span><span style="display:flex;"><span>  <span style="">进行事件查询，以刚刚的超时时间做为查询最大时间</span>
-</span></span><span style="display:flex;"><span>  <span style="">遍历查询回来的事件，对事件进行处理</span>
-</span></span><span style="display:flex;"><span>  <span style="">遍历定时器，取出超时的事件进行处理</span>
-</span></span></code></pre></div><p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
+<pre><code class="language-C">循环：
+  根据定时器拿到距离最近的定时器超时时间
+  进行事件查询，以刚刚的超时时间做为查询最大时间
+  遍历查询回来的事件，对事件进行处理
+  遍历定时器，取出超时的事件进行处理
+</code></pre>
+<p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
 <h3 id="新增的io事件">新增的IO事件</h3>
 <p>uv_loop_t结构体中有watcher_queue队列，新增加进来的IO事件，并不首先直接添加到epoll事件中，而是首先放在watcher队列，待到下一次进行poll操作时，会首先将watcher队列中的IO事件添加进来，然后再执行poll操作。而定义一个IO事件，用到的就是前面的uv__io_t结构体。</p>
 <p>同时，由于IO事件肯定是uv_handler_t的子类，因此同时uv_loop_t又有一个handler queue，用于保存所有的handler。每次loop的循环中，也会去查看有哪些handler可以被释放了。</p>
@@ -459,18 +571,20 @@
 <p>原因在于：libuv的设计中，不希望存在这些可能导致阻塞的操作，而是希望把这些操作全部异步化。</p>
 <p>以uv_getaddrinfo函数为例，本质上这个操作封装了getaddrinfo，该操作对应的uv__work结构体中，work函数为uv__getaddrinfo_work，即在该操作被回调时的回调函数，内部封装了getaddrinfo函数，done函数为uv__getaddrinfo_done，封装了执行结束之后的回调操作。</p>
 <p>libuv中，最终调用uv__work_submit函数向某个线程发送一个uv__work结构体指针来完成操作，其原型为：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">void</span> uv__work_submit(uv_loop_t<span style="color:#666">*</span> loop,
-</span></span><span style="display:flex;"><span>                     <span style="color:#a2f;font-weight:bold">struct</span> uv__work<span style="color:#666">*</span> w,
-</span></span><span style="display:flex;"><span>                     <span style="color:#a2f;font-weight:bold">enum</span> uv__work_kind kind,
-</span></span><span style="display:flex;"><span>                     <span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>work)(<span style="color:#a2f;font-weight:bold">struct</span> uv__work<span style="color:#666">*</span> w),
-</span></span><span style="display:flex;"><span>                     <span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>done)(<span style="color:#a2f;font-weight:bold">struct</span> uv__work<span style="color:#666">*</span> w, <span style="color:#0b0;font-weight:bold">int</span> status))
-</span></span></code></pre></div><p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">enum</span> uv__work_kind {
-</span></span><span style="display:flex;"><span>  UV__WORK_CPU,     <span style="color:#080;font-style:italic">// 耗CPU的操作
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  UV__WORK_FAST_IO, <span style="color:#080;font-style:italic">// 快速IO操作
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  UV__WORK_SLOW_IO  <span style="color:#080;font-style:italic">// 慢速IO操作
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>};
-</span></span></code></pre></div><p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
+<pre><code class="language-C">void uv__work_submit(uv_loop_t* loop,
+                     struct uv__work* w,
+                     enum uv__work_kind kind,
+                     void (*work)(struct uv__work* w),
+                     void (*done)(struct uv__work* w, int status))
+</code></pre>
+<p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
+<pre><code class="language-C">enum uv__work_kind {
+  UV__WORK_CPU,     // 耗CPU的操作
+  UV__WORK_FAST_IO, // 快速IO操作
+  UV__WORK_SLOW_IO  // 慢速IO操作
+};
+</code></pre>
+<p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
 <p>如果worker是UV__WORK_SLOW_IO，则该任务会放到slow_io_pending_wq队列中，如果慢速IO的任务数量，大于当前线程数量的一半以上，此时将暂停线程的执行，等待这些慢IO的操作完成才继续调度其它任务来执行。</p>
 <h1 id="总结">总结</h1>
 <p>以下是读代码之后的一些简单总结：</p>
@@ -484,21 +598,21 @@
 <li><a href="http://docs.libuv.org/en/v1.x/">Libuv 1.x官方文档</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20190103-nginx-config-parse/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20190131-nginx-master-worker/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 5119-11-05: </strong> <a href="https://www.codedump.info/post/20201105-kcp/">KCP 1.4源码分析</a>  </li><li><strong> 29079-07-29: </strong> <a href="https://www.codedump.info/post/20190729-glog/">glog C&#43;&#43;版本代码分析</a>  </li><li><strong> 13049-04-13: </strong> <a href="https://www.codedump.info/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a>  </li><li><strong> 27029-02-27: </strong> <a href="https://www.codedump.info/post/20190227-tcp/">TCP协议笔记</a>  </li><li><strong> 9029-02-09: </strong> <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -507,133 +621,88 @@
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">网络编程</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20190131-nginx-master-worker/" class="block">Nginx源码阅读笔记-Master Woker进程模型</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="block">Nginx源码阅读笔记-配置解析流程</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

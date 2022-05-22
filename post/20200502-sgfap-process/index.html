@@ -1,175 +1,300 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>《面向应用开发者的系统指南》CPU篇之进程 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" linux ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程" />
-<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"《面向应用开发者的系统指南》CPU篇之进程",
+      "item":"https://www.codedump.info/post/20200502-sgfap-process/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20200502-sgfap-process/"
+    },
+    "headline": "《面向应用开发者的系统指南》CPU篇之进程 | codedump的网络日志","datePublished": "2020-05-02T14:41:22+08:00",
+    "dateModified": "2020-05-02T14:41:22+08:00",
+    "wordCount":  6139 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体"
+}
+</script><meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20200502-sgfap-process/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2020-05-02T14:41:22+08:00" />
-<meta property="article:modified_time" content="2020-05-02T14:41:22+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20200502-sgfap-process/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20200502-sgfap-process/">
 
-  
-  
-  <meta itemprop="name" content="《面向应用开发者的系统指南》CPU篇之进程">
-<meta itemprop="description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进"><meta itemprop="datePublished" content="2020-05-02T14:41:22+08:00" />
-<meta itemprop="dateModified" content="2020-05-02T14:41:22+08:00" />
-<meta itemprop="wordCount" content="6133">
-<meta itemprop="keywords" content="Linux系统," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>《面向应用开发者的系统指南》CPU篇之进程 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="《面向应用开发者的系统指南》CPU篇之进程"/>
-<meta name="twitter:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进"/>
+<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
+<meta property="og:locale" content="zh" />
 
-  <nav>
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2020-05-02T14:41:22&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2020-05-02T14:41:22&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="Linux系统" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200218-linux-traceevent/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200128-systemtap-by-example/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200122-series-pages/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>《面向应用开发者的系统指南》CPU篇之进程</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F'>#Linux系统</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">《面向应用开发者的系统指南》CPU篇之进程</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2020-05-02</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#进程的状态">进程的状态</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>13分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#写时复制机制">写时复制机制</a></li>
-    <li><a href="#fork的实现">fork的实现</a>
-      <ul>
-        <li><a href="#_do_fork函数流程">_do_fork函数流程</a></li>
-        <li><a href="#copy_process函数的流程">copy_process函数的流程</a></li>
-      </ul>
-    </li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/linux%E7%B3%BB%E7%BB%9F/" class="hover:text-eureka"
+          >Linux系统</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#孤儿进程和僵尸进程">孤儿进程和僵尸进程</a></li>
-  </ul>
-</nav></div>
-  </details>
+  
+</div>
+
+
   
   
-  <article class="content">
-    
-    <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
+
+  <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
 <h1 id="概论">概论</h1>
 <p>进程即处于执行状态的程序。操作系统执行进程时，大体经历了以下步骤：</p>
 <ul>
@@ -236,8 +361,9 @@
 <li>exec函数组：在fork调用返回后，子进程就创建完成了，如果需要运行一个与父进程不同的可执行文件，就通过<code>exec</code>函数组来完成这个工作。如果不调用<code>exec</code>，那么也就意味着父子进程运行的是同一份可执行文件代码。</li>
 </ul>
 <p>其他操作系统，有一些把以上两步合在一个函数中完成，即在同一个函数中既完成子进程的创建，也完成子进程的执行，Unix系统将以上两步分开成两个步骤，为shell执行程序提供了方便，因为shell可以在<code>fork</code>创建进程之后，调用<code>exec</code>来执行程序之前改变子进程的一些行为。比如让shell方便的实现类似重定向（redirect）的功能：</p>
-<pre tabindex="0"><code>wc test.txt &gt; stat
-</code></pre><p>在上面的脚本中，希望将<code>wc</code>命令的输出结果重定向到文件<code>stat</code>中。shell在<code>fork</code>创建了子进程之后，在<code>exec</code>执行之前，关闭该子进程的标准输出，然后打开文件<code>stat</code>，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行<code>wc</code>命令的子进程结果就写入到了文件<code>stat</code>中。</p>
+<pre><code>wc test.txt &gt; stat
+</code></pre>
+<p>在上面的脚本中，希望将<code>wc</code>命令的输出结果重定向到文件<code>stat</code>中。shell在<code>fork</code>创建了子进程之后，在<code>exec</code>执行之前，关闭该子进程的标准输出，然后打开文件<code>stat</code>，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行<code>wc</code>命令的子进程结果就写入到了文件<code>stat</code>中。</p>
 <h2 id="写时复制机制">写时复制机制</h2>
 <p>前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。</p>
 <p>因此，Linux内核在实现时，使用了写时复制的技术（Copy On Write，简称COW），子进程在刚开始创建时与父进程共享同样的地址空间，仅当子进程要修改父进程地址空间的内容时才创建新的地址空间，从而使父子进程有各自的拷贝。</p>
@@ -264,26 +390,27 @@
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，执行相关的初始化，主要是初始化<code>completion</code>结构体。</p>
 <h4 id="wake_up_new_task">wake_up_new_task</h4>
 <p><code>wake_up_new_task</code>函数将初始化一些与进程调度器相关的数据，将新创建的子进程加入到调度器的就绪队列中，让子进程有机会被调度器调度执行，同时切换进程状态为<code>TASK_RUNNING</code>:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">void</span> <span style="color:#00a000">wake_up_new_task</span>(<span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq_flags rf;
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> rq <span style="color:#666">*</span>rq;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  raw_spin_lock_irqsave(<span style="color:#666">&amp;</span>p<span style="color:#666">-&gt;</span>pi_lock, rf.flags);
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 切换进程状态为TASK_RUNNING
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	p<span style="color:#666">-&gt;</span>state <span style="color:#666">=</span> TASK_RUNNING;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 对调度器运行队列加锁
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	rq <span style="color:#666">=</span> __task_rq_lock(p, <span style="color:#666">&amp;</span>rf);
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 将进程放入调度器运行队列
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	activate_task(rq, p, ENQUEUE_NOCLOCK);
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 进程入队列的trace event
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	trace_sched_wakeup_new(p);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	task_rq_unlock(rq, p, <span style="color:#666">&amp;</span>rf);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><h4 id="vfork相关的处理">vfork相关的处理</h4>
+<pre><code class="language-C">// kernel/sched/core.c
+void wake_up_new_task(struct task_struct *p)
+{
+	struct rq_flags rf;
+	struct rq *rq;
+
+  raw_spin_lock_irqsave(&amp;p-&gt;pi_lock, rf.flags);
+  // 切换进程状态为TASK_RUNNING
+	p-&gt;state = TASK_RUNNING;
+
+  // 对调度器运行队列加锁
+	rq = __task_rq_lock(p, &amp;rf);
+  // 将进程放入调度器运行队列
+	activate_task(rq, p, ENQUEUE_NOCLOCK);
+  // 进程入队列的trace event
+	trace_sched_wakeup_new(p);
+
+	task_rq_unlock(rq, p, &amp;rf);
+}
+</code></pre>
+<h4 id="vfork相关的处理">vfork相关的处理</h4>
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，父进程等待子进程执行exec函数来替换地址空间。在这里，会用到前面初始化的<code>completion</code>结构体，用于父进程等待子进程执行完毕。</p>
 <h3 id="copy_process函数的流程">copy_process函数的流程</h3>
 <p><code>copy_process</code>函数负责在创建子进程时拷贝父进程的相关信息，即创建好子进程的<code>task_struct</code>结构体，其主要流程如下图所示：</p>
@@ -296,27 +423,28 @@
 </ul>
 <h4 id="sched_fork">sched_fork</h4>
 <p><code>sched_fork</code>函数用于初始化子进程与调度器相关的信息：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/sched/core.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">sched_fork</span>(<span style="color:#0b0;font-weight:bold">unsigned</span> <span style="color:#0b0;font-weight:bold">long</span> clone_flags, <span style="color:#a2f;font-weight:bold">struct</span> task_struct <span style="color:#666">*</span>p)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 分配进程执行的cpu
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#0b0;font-weight:bold">int</span> cpu <span style="color:#666">=</span> get_cpu();
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 设置调度器相关的信息
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	__sched_fork(clone_flags, p);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 刚创建好的进程，其状态为TASK_NEW
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	p<span style="color:#666">-&gt;</span>state <span style="color:#666">=</span> TASK_NEW;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 设置进程优先级
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	p<span style="color:#666">-&gt;</span>prio <span style="color:#666">=</span> current<span style="color:#666">-&gt;</span>normal_prio;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 设置进程的cpu信息
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	__set_task_cpu(p, cpu);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> <span style="color:#666">0</span>;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><h4 id="复制共享父进程资源数据">复制/共享父进程资源数据</h4>
+<pre><code class="language-C">// kernel/sched/core.c
+int sched_fork(unsigned long clone_flags, struct task_struct *p)
+{
+  // 分配进程执行的cpu
+	int cpu = get_cpu();
+
+  // 设置调度器相关的信息
+	__sched_fork(clone_flags, p);
+
+  // 刚创建好的进程，其状态为TASK_NEW
+	p-&gt;state = TASK_NEW;
+
+  // 设置进程优先级
+	p-&gt;prio = current-&gt;normal_prio;
+
+  // 设置进程的cpu信息
+	__set_task_cpu(p, cpu);
+
+	return 0;
+}
+</code></pre>
+<h4 id="复制共享父进程资源数据">复制/共享父进程资源数据</h4>
 <p>task_struct结构体中包含一些表示进程资源的指针，比如<code>mm</code>，<code>files</code>等，创建进程的标志位中有很多名为<code>CLONE_*</code>的标志，表示是从父进程拷贝一份这部分数据，还是与父进程共享一份数据。</p>
 <ul>
 <li>当这个标志位为0时：说明需要从父进程复制一份该类型资源数据，子进程复制完毕之后，将该资源计数赋值为1，而父进程资源计数维持不变。</li>
@@ -356,42 +484,43 @@
 <p>相反，僵尸进程因为一直没有被回收，其占用的进程pid也就一直不会回收，而进程pid属于系统的一个资源，这将导致这个资源的泄露，因此僵尸进程是有害的。如果使用<code>ps aux</code>命令来查看进程状态，那么僵尸进程的状态就是<code>Z</code>。</p>
 <p>下面简单演示两种进程的产生。</p>
 <p>首先是孤儿进程：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;stdio.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;stdlib.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;errno.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;unistd.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>
-</span></span><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">main</span>()
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>    pid_t pid;
-</span></span><span style="display:flex;"><span>    pid <span style="color:#666">=</span> fork();
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">if</span> (pid <span style="color:#666">&lt;</span> <span style="color:#666">0</span>)
-</span></span><span style="display:flex;"><span>    {
-</span></span><span style="display:flex;"><span>        perror(<span style="color:#b44">&#34;fork error:&#34;</span>);
-</span></span><span style="display:flex;"><span>        exit(<span style="color:#666">1</span>);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">if</span> (pid <span style="color:#666">==</span> <span style="color:#666">0</span>) {
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;I am the child process.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;pid: %d</span><span style="color:#b62;font-weight:bold">\t</span><span style="color:#b44">ppid:%d</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>,getpid(),getppid());
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;I will sleep five seconds.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>        sleep(<span style="color:#666">5</span>);
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;pid: %d</span><span style="color:#b62;font-weight:bold">\t</span><span style="color:#b44">ppid:%d</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>,getpid(),getppid());
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;child process is exited.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>    } <span style="color:#a2f;font-weight:bold">else</span> {
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;I am father process.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>        sleep(<span style="color:#666">1</span>);
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;father process is  exited.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">return</span> <span style="color:#666">0</span>;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>上面的代码中：</p>
+<pre><code class="language-C">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;unistd.h&gt;
+
+int main()
+{
+    pid_t pid;
+    pid = fork();
+    if (pid &lt; 0)
+    {
+        perror(&quot;fork error:&quot;);
+        exit(1);
+    }
+
+    if (pid == 0) {
+        printf(&quot;I am the child process.\n&quot;);
+        printf(&quot;pid: %d\tppid:%d\n&quot;,getpid(),getppid());
+        printf(&quot;I will sleep five seconds.\n&quot;);
+        sleep(5);
+        printf(&quot;pid: %d\tppid:%d\n&quot;,getpid(),getppid());
+        printf(&quot;child process is exited.\n&quot;);
+    } else {
+        printf(&quot;I am father process.\n&quot;);
+        sleep(1);
+        printf(&quot;father process is  exited.\n&quot;);
+    }
+    return 0;
+}
+</code></pre>
+<p>上面的代码中：</p>
 <ul>
 <li>父进程调用<code>fork</code>函数创建一个子进程，返回之后马上退出。</li>
 <li>子进程在<code>fork</code>调用返回之后打印出自己的父进程pid，此时就是上面的父进程，然后休眠五秒钟等待父进程退出，然后再次打印父进程pid。</li>
 </ul>
 <p>在我的机器上输出如下：</p>
-<pre tabindex="0"><code>I am father process.
+<pre><code>I am father process.
 I am the child process.
 pid: 5938	ppid:5937
 I will sleep five seconds.
@@ -399,40 +528,42 @@ father process is  exited.
 
 pid: 5938	ppid:1
 child process is exited.
-</code></pre><p>可以看到，子进程的父进程pid在五秒之后变成1，即<code>init</code>进程。</p>
+</code></pre>
+<p>可以看到，子进程的父进程pid在五秒之后变成1，即<code>init</code>进程。</p>
 <p>再来看僵尸进程的产生：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;stdio.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;unistd.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;errno.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080">#include</span> <span style="color:#080">&lt;stdlib.h&gt;</span><span style="color:#080">
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>
-</span></span><span style="display:flex;"><span><span style="color:#0b0;font-weight:bold">int</span> <span style="color:#00a000">main</span>()
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>    pid_t pid;
-</span></span><span style="display:flex;"><span>    pid <span style="color:#666">=</span> fork();
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">if</span> (pid <span style="color:#666">&lt;</span> <span style="color:#666">0</span>)
-</span></span><span style="display:flex;"><span>    {
-</span></span><span style="display:flex;"><span>        perror(<span style="color:#b44">&#34;fork error:&#34;</span>);
-</span></span><span style="display:flex;"><span>        exit(<span style="color:#666">1</span>);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">else</span> <span style="color:#a2f;font-weight:bold">if</span> (pid <span style="color:#666">==</span> <span style="color:#666">0</span>)
-</span></span><span style="display:flex;"><span>    {
-</span></span><span style="display:flex;"><span>        printf(<span style="color:#b44">&#34;I am child process.I am exiting.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>        exit(<span style="color:#666">0</span>);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>    printf(<span style="color:#b44">&#34;I am father process.I will sleep two seconds</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>    sleep(<span style="color:#666">2</span>);
-</span></span><span style="display:flex;"><span>    system(<span style="color:#b44">&#34;ps -o pid,ppid,state,tty,command&#34;</span>);
-</span></span><span style="display:flex;"><span>    printf(<span style="color:#b44">&#34;father process is exiting.</span><span style="color:#b62;font-weight:bold">\n</span><span style="color:#b44">&#34;</span>);
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">return</span> <span style="color:#666">0</span>;
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>上面的代码中：</p>
+<pre><code class="language-C">#include &lt;stdio.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main()
+{
+    pid_t pid;
+    pid = fork();
+    if (pid &lt; 0)
+    {
+        perror(&quot;fork error:&quot;);
+        exit(1);
+    }
+    else if (pid == 0)
+    {
+        printf(&quot;I am child process.I am exiting.\n&quot;);
+        exit(0);
+    }
+    printf(&quot;I am father process.I will sleep two seconds\n&quot;);
+    sleep(2);
+    system(&quot;ps -o pid,ppid,state,tty,command&quot;);
+    printf(&quot;father process is exiting.\n&quot;);
+    return 0;
+}
+</code></pre>
+<p>上面的代码中：</p>
 <ul>
 <li>子进程在<code>fork</code>调用返回之后马上退出。</li>
 <li>父进程在<code>fork</code>调用返回之后先休眠2秒等待子进程退出，然后调用<code>system</code>函数打印出<code>ps</code>命令的结果。</li>
 </ul>
 <p>输出如下：</p>
-<pre tabindex="0"><code>I am father process.I will sleep two seconds
+<pre><code>I am father process.I will sleep two seconds
 I am child process.I am exiting.
   PID  PPID S TT       COMMAND
  5817  5816 S pts/19   -zsh
@@ -441,7 +572,8 @@ I am child process.I am exiting.
  5973  5971 S pts/19   sh -c ps -o pid,ppid,state,tty,command
  5974  5973 R pts/19   ps -o pid,ppid,state,tty,command
 father process is exiting.
-</code></pre><p>可以看到，子进程的状态变成了<code>Z</code>，也就是僵尸进程。</p>
+</code></pre>
+<p>可以看到，子进程的状态变成了<code>Z</code>，也就是僵尸进程。</p>
 <h1 id="小结">小结</h1>
 <p>总结一下进程这一节涉及到的知识点：</p>
 <ul>
@@ -453,21 +585,21 @@ father process is exiting.
 <li>Unix系统将创建子进程和执行分开，给shell实现一些特殊的操作提供了方便。</li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20200503-sgfap-process-schedule/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 20069-06-20: </strong> <a href="https://www.codedump.info/post/20200620-sgfap-loadavg/">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</a>  </li><li><strong> 22059-05-22: </strong> <a href="https://www.codedump.info/post/20200522-sgfap-softirq/">《面向应用开发者的系统指南》CPU篇之软中断</a>  </li><li><strong> 16059-05-16: </strong> <a href="https://www.codedump.info/post/20200516-sgfap-syscall/">《面向应用开发者的系统指南》CPU篇之系统调用</a>  </li><li><strong> 3059-05-03: </strong> <a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/">《面向应用开发者的系统指南》CPU篇之使用systemtap分析进程的行为</a>  </li><li><strong> 3059-05-03: </strong> <a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/">《面向应用开发者的系统指南》CPU篇之进程调度</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Linux系统</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -476,133 +608,97 @@ father process is exiting.
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/" class="block">《面向应用开发者的系统指南》CPU篇之进程调度</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="block">《面向应用开发者的系统指南》导论</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="no-underline">《面向应用开发者的系统指南》导论</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200218-linux-traceevent/" class="no-underline">Systemtap中内核trace事件的实现</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="no-underline">通过实例快速入门Systemtap</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200122-series-pages/" class="no-underline">博客系列文章索引</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

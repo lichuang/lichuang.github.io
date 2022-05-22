@@ -1,260 +1,410 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>Systemtap中内核trace事件的实现 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="Systemtap中内核trace事件的实现">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" linux  systemtap  trace event ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="Systemtap中内核trace事件的实现" />
-<meta property="og:description" content="Systemtap中内核trace事件的实现" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="Systemtap中内核trace事件的实现">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"Systemtap中内核trace事件的实现",
+      "item":"https://www.codedump.info/post/20200218-linux-traceevent/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20200218-linux-traceevent/"
+    },
+    "headline": "Systemtap中内核trace事件的实现 | codedump的网络日志","datePublished": "2020-02-18T17:37:01+08:00",
+    "dateModified": "2020-02-18T17:37:01+08:00",
+    "wordCount":  2166 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "Systemtap中内核trace事件的实现"
+}
+</script><meta property="og:title" content="Systemtap中内核trace事件的实现 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20200218-linux-traceevent/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2020-02-18T17:37:01+08:00" />
-<meta property="article:modified_time" content="2020-02-18T17:37:01+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20200218-linux-traceevent/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20200218-linux-traceevent/">
-
-  
-  
-  <meta itemprop="name" content="Systemtap中内核trace事件的实现">
-<meta itemprop="description" content="Systemtap中内核trace事件的实现"><meta itemprop="datePublished" content="2020-02-18T17:37:01+08:00" />
-<meta itemprop="dateModified" content="2020-02-18T17:37:01+08:00" />
-<meta itemprop="wordCount" content="2166">
-<meta itemprop="keywords" content="Linux系统,动态跟踪,systemtap," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>Systemtap中内核trace事件的实现 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Systemtap中内核trace事件的实现"/>
-<meta name="twitter:description" content="Systemtap中内核trace事件的实现"/>
+<meta property="og:description" content="Systemtap中内核trace事件的实现" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2020-02-18T17:37:01&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2020-02-18T17:37:01&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="Linux系统" />
+
+<meta property="article:tag" content="动态跟踪" />
+
+<meta property="article:tag" content="systemtap" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200128-systemtap-by-example/" />
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200122-series-pages/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>Systemtap中内核trace事件的实现</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F'>#Linux系统</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E5%8A%A8%E6%80%81%E8%B7%9F%E8%B8%AA'>#动态跟踪</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/systemtap'>#systemtap</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">Systemtap中内核trace事件的实现</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2020-02-18</span
+    >
   </div>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>5分钟阅读时长</span>
+  </div>
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/linux%E7%B3%BB%E7%BB%9F/" class="hover:text-eureka"
+          >Linux系统</a
+        >
+      
+    </div>
+  
+
+  
+</div>
+
+
   
   
-  
-  
-  <article class="content">
-    
-    <h1 id="概述">概述</h1>
+
+  <h1 id="概述">概述</h1>
 <p>内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是<code>kernel.trace</code>类型的probe事件，可以使用命令来查看系统所有的trace point：</p>
-<pre tabindex="0"><code>$ sudo stap -L &#39;kernel.trace(&#34;*&#34;)&#39; | more
-kernel.trace(&#34;9p:9p_client_req&#34;) $clnt:struct p9_client* $type:int8_t $tag:int
-kernel.trace(&#34;9p:9p_client_res&#34;) $clnt:struct p9_client* $type:int8_t $tag:int $err:int
-kernel.trace(&#34;9p:9p_protocol_dump&#34;) $clnt:struct p9_client* $pdu:struct p9_fcall*
-</code></pre><p>换言之，通过systemtap能够对这些已经静态注册的内核调用记录点进行监控、跟踪。</p>
+<pre><code>$ sudo stap -L 'kernel.trace(&quot;*&quot;)' | more
+kernel.trace(&quot;9p:9p_client_req&quot;) $clnt:struct p9_client* $type:int8_t $tag:int
+kernel.trace(&quot;9p:9p_client_res&quot;) $clnt:struct p9_client* $type:int8_t $tag:int $err:int
+kernel.trace(&quot;9p:9p_protocol_dump&quot;) $clnt:struct p9_client* $pdu:struct p9_fcall*
+</code></pre>
+<p>换言之，通过systemtap能够对这些已经静态注册的内核调用记录点进行监控、跟踪。</p>
 <p>以下来解释trace point在内核的实现以及与systemtap相关的内容。</p>
 <h1 id="数据结构">数据结构</h1>
 <p>内核通过<code>DECLARE_TRACE</code>来声明一个trace point：</p>
-<pre tabindex="0"><code>DECLARE_TRACE(subsys_eventname,
+<pre><code>DECLARE_TRACE(subsys_eventname,
 	TP_PROTO(int firstarg, struct task_struct *p),
 	TP_ARGS(firstarg, p));
-</code></pre><p>在这里：</p>
+</code></pre>
+<p>在这里：</p>
 <ul>
 <li>subsys_eventname是定义trace事件的唯一字符串，又能拆解成两部分：subsys就是子系统的名称，而eventname是事件名称。比如下面将作为实例的<code>softirq_entry</code>，就定义了一个在<code>softirq</code>子系统中的<code>entry</code>事件。</li>
 <li>TP_PROTO(int firstarg, struct task_struct *p)：定义了传入trace函数的参数原型。</li>
 <li>TP_ARGS(firstarg, p)：定义了参数名称，其类型与TP_PROTO中的类型一一对应。</li>
 </ul>
 <p>这个宏的定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// include/linux/tracepoint.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define DECLARE_TRACE(name, proto, args)				\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			cpu_online(raw_smp_processor_id()),		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			PARAMS(void *__data, proto),			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			PARAMS(__data, args))
-</span></span></span></code></pre></div><p>其中的宏<code>__DECLARE_TRACE</code>定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080">#define __DECLARE_TRACE(name, proto, args, cond, data_proto, data_args) \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	extern struct tracepoint __tracepoint_##name;			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline void trace_##name(proto)				\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		if (static_key_false(&amp;__tracepoint_##name.key))		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			__DO_TRACE(&amp;__tracepoint_##name,		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">				TP_PROTO(data_proto),			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">				TP_ARGS(data_args),			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">				TP_CONDITION(cond), 0);			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		if (IS_ENABLED(CONFIG_LOCKDEP) &amp;&amp; (cond)) {		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			rcu_read_lock_sched_notrace();			\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			rcu_dereference_sched(__tracepoint_##name.funcs);\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">			rcu_read_unlock_sched_notrace();		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		}							\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	__DECLARE_TRACE_RCU(name, PARAMS(proto), PARAMS(args),		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		PARAMS(cond), PARAMS(data_proto), PARAMS(data_args))	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline int						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	register_trace_##name(void (*probe)(data_proto), void *data)	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		return tracepoint_probe_register(&amp;__tracepoint_##name,	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">						(void *)probe, data);	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline int						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">				   int prio)				\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		return tracepoint_probe_register_prio(&amp;__tracepoint_##name, \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">					      (void *)probe, data, prio); \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline int						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	unregister_trace_##name(void (*probe)(data_proto), void *data)	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		return tracepoint_probe_unregister(&amp;__tracepoint_##name,\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">						(void *)probe, data);	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline void						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	check_trace_callback_type_##name(void (*cb)(data_proto))	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static inline bool						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	trace_##name##_enabled(void)					\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	{								\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		return static_key_false(&amp;__tracepoint_##name.key);	\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	}
-</span></span></span></code></pre></div><p>可以看到，这个宏做了如下的事情：</p>
+<pre><code class="language-C">// include/linux/tracepoint.h
+#define DECLARE_TRACE(name, proto, args)				\
+	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
+			cpu_online(raw_smp_processor_id()),		\
+			PARAMS(void *__data, proto),			\
+			PARAMS(__data, args))
+</code></pre>
+<p>其中的宏<code>__DECLARE_TRACE</code>定义如下：</p>
+<pre><code class="language-C">#define __DECLARE_TRACE(name, proto, args, cond, data_proto, data_args) \
+	extern struct tracepoint __tracepoint_##name;			\
+	static inline void trace_##name(proto)				\
+	{								\
+		if (static_key_false(&amp;__tracepoint_##name.key))		\
+			__DO_TRACE(&amp;__tracepoint_##name,		\
+				TP_PROTO(data_proto),			\
+				TP_ARGS(data_args),			\
+				TP_CONDITION(cond), 0);			\
+		if (IS_ENABLED(CONFIG_LOCKDEP) &amp;&amp; (cond)) {		\
+			rcu_read_lock_sched_notrace();			\
+			rcu_dereference_sched(__tracepoint_##name.funcs);\
+			rcu_read_unlock_sched_notrace();		\
+		}							\
+	}								\
+	__DECLARE_TRACE_RCU(name, PARAMS(proto), PARAMS(args),		\
+		PARAMS(cond), PARAMS(data_proto), PARAMS(data_args))	\
+	static inline int						\
+	register_trace_##name(void (*probe)(data_proto), void *data)	\
+	{								\
+		return tracepoint_probe_register(&amp;__tracepoint_##name,	\
+						(void *)probe, data);	\
+	}								\
+	static inline int						\
+	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
+				   int prio)				\
+	{								\
+		return tracepoint_probe_register_prio(&amp;__tracepoint_##name, \
+					      (void *)probe, data, prio); \
+	}								\
+	static inline int						\
+	unregister_trace_##name(void (*probe)(data_proto), void *data)	\
+	{								\
+		return tracepoint_probe_unregister(&amp;__tracepoint_##name,\
+						(void *)probe, data);	\
+	}								\
+	static inline void						\
+	check_trace_callback_type_##name(void (*cb)(data_proto))	\
+	{								\
+	}								\
+	static inline bool						\
+	trace_##name##_enabled(void)					\
+	{								\
+		return static_key_false(&amp;__tracepoint_##name.key);	\
+	}
+</code></pre>
+<p>可以看到，这个宏做了如下的事情：</p>
 <ul>
 <li>声明了一个类型为<code>tracepoint</code>的结构体变量<code>__tracepoint_##name</code>。</li>
 <li>定义了几个相关的函数，分别用于处理trace event、注册、注销等。其中需要重点关注的是宏<code>trace_##name</code>，这里定义了对对应的traceevent进行跟踪的函数。</li>
 </ul>
 <p>其中，宏里面一个字符串跟着<code>##name</code>表示这个字符串与name的连接形成的字符串。</p>
 <p>这里的结构体<code>tracepoint</code>定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// include/linux/tracepoint-defs.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">struct</span> tracepoint {
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">const</span> <span style="color:#0b0;font-weight:bold">char</span> <span style="color:#666">*</span>name;		<span style="color:#080;font-style:italic">/* Tracepoint name */</span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> static_key key;
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">int</span> (<span style="color:#666">*</span>regfunc)(<span style="color:#0b0;font-weight:bold">void</span>);
-</span></span><span style="display:flex;"><span>	<span style="color:#0b0;font-weight:bold">void</span> (<span style="color:#666">*</span>unregfunc)(<span style="color:#0b0;font-weight:bold">void</span>);
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">struct</span> tracepoint_func __rcu <span style="color:#666">*</span>funcs;
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>该结构体中分别定义了：</p>
+<pre><code class="language-C">// include/linux/tracepoint-defs.h
+struct tracepoint {
+	const char *name;		/* Tracepoint name */
+	struct static_key key;
+	int (*regfunc)(void);
+	void (*unregfunc)(void);
+	struct tracepoint_func __rcu *funcs;
+};
+</code></pre>
+<p>该结构体中分别定义了：</p>
 <ul>
 <li>traceevent名称。</li>
 <li>注册、注销、被触发时的处理函数。</li>
 </ul>
 <p>以上只是声明了<code>tracepoint</code>结构体变量，而具体定义变量的宏是<code>DEFINE_TRACE</code>：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// include/linux/tracepoint.h
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#080">#define DEFINE_TRACE(name)						\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	DEFINE_TRACE_FN(name, NULL, NULL);
-</span></span></span><span style="display:flex;"><span><span style="color:#080"></span>
-</span></span><span style="display:flex;"><span><span style="color:#080">#define DEFINE_TRACE_FN(name, reg, unreg)				 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static const char __tpstrtab_##name[]				 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	__attribute__((section(&#34;__tracepoints_strings&#34;))) = #name;	 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	struct tracepoint __tracepoint_##name				 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	__attribute__((section(&#34;__tracepoints&#34;))) =			 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		{ __tpstrtab_##name, STATIC_KEY_INIT_FALSE, reg, unreg, NULL };\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	static struct tracepoint * const __tracepoint_ptr_##name __used	 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	__attribute__((section(&#34;__tracepoints_ptrs&#34;))) =		 \
-</span></span></span><span style="display:flex;"><span><span style="color:#080">		&amp;__tracepoint_##name;
-</span></span></span></code></pre></div><p>因此，<code>DEFINE_TRACE</code>的作用就是：</p>
+<pre><code class="language-C">// include/linux/tracepoint.h
+#define DEFINE_TRACE(name)						\
+	DEFINE_TRACE_FN(name, NULL, NULL);
+
+#define DEFINE_TRACE_FN(name, reg, unreg)				 \
+	static const char __tpstrtab_##name[]				 \
+	__attribute__((section(&quot;__tracepoints_strings&quot;))) = #name;	 \
+	struct tracepoint __tracepoint_##name				 \
+	__attribute__((section(&quot;__tracepoints&quot;))) =			 \
+		{ __tpstrtab_##name, STATIC_KEY_INIT_FALSE, reg, unreg, NULL };\
+	static struct tracepoint * const __tracepoint_ptr_##name __used	 \
+	__attribute__((section(&quot;__tracepoints_ptrs&quot;))) =		 \
+		&amp;__tracepoint_##name;
+</code></pre>
+<p>因此，<code>DEFINE_TRACE</code>的作用就是：</p>
 <ul>
 <li>在<code>__tracepoints_strings</code>section中定义了字符串数组变量<code>__tpstrtab_##name</code>，其值为name。</li>
 <li>在<code>__tracepoints</code>section中定义了结构体tracepoint变量<code>__tracepoint_##name</code>。</li>
@@ -262,37 +412,41 @@ kernel.trace(&#34;9p:9p_protocol_dump&#34;) $clnt:struct p9_client* $pdu:struct 
 <p>以上解释了trace point相关的数据结构、宏、变量等，下面以一个实例来展开说明。</p>
 <h1 id="实例">实例</h1>
 <p>这里以软中断被调用时的入口trace event为例，其定义如下：</p>
-<pre tabindex="0"><code>DEFINE_EVENT(softirq, softirq_entry,
+<pre><code>DEFINE_EVENT(softirq, softirq_entry,
 
 	TP_PROTO(unsigned int vec_nr),
 
 	TP_ARGS(vec_nr)
 );
-</code></pre><p>这里的宏<code>DEFINE_EVENT</code>不过是前面<code>DECLARE_TRACE</code>宏的一个包装：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080">#define DEFINE_EVENT(template, name, proto, args)		\
-</span></span></span><span style="display:flex;"><span><span style="color:#080">	DECLARE_TRACE(name, PARAMS(proto), PARAMS(args))
-</span></span></span></code></pre></div><p>从上面的讨论可以知道，这里声明了一个名为<code>__tracepoint_softirq_entry</code>的<code>tracepoint</code>类型结构体。而根据我们前面对宏的展开分析，<code>trace_##name</code>也就是这里展开的<code>trace_softirq_entry</code>是对这个trace event进行调用的入口，果然在<code>__do_softirq</code>函数中看到了它的身影：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// kernel/softirq.c
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>asmlinkage __visible <span style="color:#0b0;font-weight:bold">void</span> __softirq_entry <span style="color:#00a000">__do_softirq</span>(<span style="color:#0b0;font-weight:bold">void</span>)
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  trace_softirq_entry(vec_nr);
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><h1 id="systemtap相关">systemtap相关</h1>
+</code></pre>
+<p>这里的宏<code>DEFINE_EVENT</code>不过是前面<code>DECLARE_TRACE</code>宏的一个包装：</p>
+<pre><code class="language-C">#define DEFINE_EVENT(template, name, proto, args)		\
+	DECLARE_TRACE(name, PARAMS(proto), PARAMS(args))
+</code></pre>
+<p>从上面的讨论可以知道，这里声明了一个名为<code>__tracepoint_softirq_entry</code>的<code>tracepoint</code>类型结构体。而根据我们前面对宏的展开分析，<code>trace_##name</code>也就是这里展开的<code>trace_softirq_entry</code>是对这个trace event进行调用的入口，果然在<code>__do_softirq</code>函数中看到了它的身影：</p>
+<pre><code class="language-C">// kernel/softirq.c
+asmlinkage __visible void __softirq_entry __do_softirq(void)
+{
+  // ...
+  trace_softirq_entry(vec_nr);
+  // ...
+}
+</code></pre>
+<h1 id="systemtap相关">systemtap相关</h1>
 <p>这里需要注意的另一个问题是，每个systemtap中的kernel.trace当时可以知道的参数，除了trace event本身的参数之外，还有当时所在嵌入函数内部的变量，比如这里的<code>softirq_entry</code>这个probe，在systemtap对应的tapset中是这样的：</p>
-<pre tabindex="0"><code>probe softirq.entry = kernel.trace(&#34;irq_softirq_entry&#34;) !,
-     		      kernel.trace(&#34;softirq_entry&#34;) ?
+<pre><code>probe softirq.entry = kernel.trace(&quot;irq_softirq_entry&quot;) !,
+     		      kernel.trace(&quot;softirq_entry&quot;) ?
 {
 	# kernels &lt; 2.6.37
 	h = @choose_defined($h, 0)
 	vec = @choose_defined($vec, 0)
-	action = (@defined($h) ? @cast($h,&#34;softirq_action&#34;,&#34;kernel&lt;linux/interrupt.h&gt;&#34;)-&gt;action : 0)
+	action = (@defined($h) ? @cast($h,&quot;softirq_action&quot;,&quot;kernel&lt;linux/interrupt.h&gt;&quot;)-&gt;action : 0)
 	# kernels &gt;= 2.6.37
 	vec_nr = @choose_defined($vec_nr, 0)
 }
-</code></pre><p>这里可以的变量<code>h</code>类型是在内核中的头文件<code>&lt;linux/interrupt.h&gt;</code>中定义的<code>softirq_action</code>，因为这个变量就是在上面的函数<code>__do_softirq</code>中定义的：</p>
-<pre tabindex="0"><code>// kernel/softirq.c
+</code></pre>
+<p>这里可以的变量<code>h</code>类型是在内核中的头文件<code>&lt;linux/interrupt.h&gt;</code>中定义的<code>softirq_action</code>，因为这个变量就是在上面的函数<code>__do_softirq</code>中定义的：</p>
+<pre><code>// kernel/softirq.c
 asmlinkage __visible void __softirq_entry __do_softirq(void)
 {
   // ...
@@ -302,10 +456,12 @@ asmlinkage __visible void __softirq_entry __do_softirq(void)
   trace_softirq_entry(vec_nr);
   // ...
 }
-</code></pre><p>所以，要看一个systemtap的kernel.trace能引用哪些变量，除了看其自身，还包括看其所嵌入函数的上下文中的变量，最好直接到对应的tapset的说明，因为-L只能打印出这个kernel.trace自身定义的变量：</p>
-<pre tabindex="0"><code>$ sudo stap -L &#39;kernel.trace(&#34;softirq_entry&#34;)&#39;
-kernel.trace(&#34;irq:softirq_entry&#34;) $vec_nr:unsigned int
-</code></pre><h1 id="总结">总结：</h1>
+</code></pre>
+<p>所以，要看一个systemtap的kernel.trace能引用哪些变量，除了看其自身，还包括看其所嵌入函数的上下文中的变量，最好直接到对应的tapset的说明，因为-L只能打印出这个kernel.trace自身定义的变量：</p>
+<pre><code>$ sudo stap -L 'kernel.trace(&quot;softirq_entry&quot;)'
+kernel.trace(&quot;irq:softirq_entry&quot;) $vec_nr:unsigned int
+</code></pre>
+<h1 id="总结">总结：</h1>
 <ul>
 <li>内核中的trace事件以<code>trace_*</code>来命名。</li>
 <li>看到systemtap中的<code>'kernel.trace(&quot;xx&quot;)'</code>，其对应的内核代码可以使用<code>trace_xx</code>来搜索，通过阅读这个trace事件所嵌入的代码也可以或者这个probe事件能打印的变量。</li>
@@ -318,21 +474,25 @@ kernel.trace(&#34;irq:softirq_entry&#34;) $vec_nr:unsigned int
 <li><a href="https://sourceware.org/systemtap/tapsets/">SystemTap Tapset Reference Manual</a>：tapset手册的线上版本。</li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20200128-systemtap-by-example/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">next →</a>
-    
-  </div>
+</article>
 
-    
-<h1>相关文章</h1><li><strong> 28019-01-28: </strong> <a href="https://www.codedump.info/post/20200128-systemtap-by-example/">通过实例快速入门Systemtap</a>  </li>
 
-<h1>邮件订阅</h1>
+      
+        <div class="my-4">
+    
+    <a href="https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Linux系统</a>
+    
+    <a href="https://www.codedump.info/tags/%E5%8A%A8%E6%80%81%E8%B7%9F%E8%B8%AA/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#动态跟踪</a>
+    
+    <a href="https://www.codedump.info/tags/systemtap/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#systemtap</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -341,135 +501,91 @@ kernel.trace(&#34;irq:softirq_entry&#34;) $vec_nr:unsigned int
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/linux%E7%B3%BB%E7%BB%9F/">Linux系统</a>
-          <a href="/tags/%E5%8A%A8%E6%80%81%E8%B7%9F%E8%B8%AA/">动态跟踪</a>
-          <a href="/tags/systemtap/">systemtap</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="block">《面向应用开发者的系统指南》导论</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="block">通过实例快速入门Systemtap</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="no-underline">通过实例快速入门Systemtap</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20200122-series-pages/" class="no-underline">博客系列文章索引</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

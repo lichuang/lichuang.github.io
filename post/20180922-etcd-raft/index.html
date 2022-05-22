@@ -1,233 +1,296 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>etcd Raft库解析 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="etcd Raft库解析">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" Raft  Etcd  分布式 ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="etcd Raft库解析" />
-<meta property="og:description" content="etcd Raft库解析" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="etcd Raft库解析">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"etcd Raft库解析",
+      "item":"https://www.codedump.info/post/20180922-etcd-raft/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20180922-etcd-raft/"
+    },
+    "headline": "etcd Raft库解析 | codedump的网络日志","datePublished": "2018-09-22T11:01:02+08:00",
+    "dateModified": "2018-09-22T11:01:02+08:00",
+    "wordCount":  22769 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "etcd Raft库解析"
+}
+</script><meta property="og:title" content="etcd Raft库解析 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20180922-etcd-raft/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2018-09-22T11:01:02+08:00" />
-<meta property="article:modified_time" content="2018-09-22T11:01:02+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20180922-etcd-raft/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20180922-etcd-raft/">
-
-  
-  
-  <meta itemprop="name" content="etcd Raft库解析">
-<meta itemprop="description" content="etcd Raft库解析"><meta itemprop="datePublished" content="2018-09-22T11:01:02+08:00" />
-<meta itemprop="dateModified" content="2018-09-22T11:01:02+08:00" />
-<meta itemprop="wordCount" content="22769">
-<meta itemprop="keywords" content="etcd,raft,分布式," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>etcd Raft库解析 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="etcd Raft库解析"/>
-<meta name="twitter:description" content="etcd Raft库解析"/>
+<meta property="og:description" content="etcd Raft库解析" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2018-09-22T11:01:02&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2018-09-22T11:01:02&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="etcd" />
+
+<meta property="article:tag" content="raft" />
+
+<meta property="article:tag" content="分布式" />
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>etcd Raft库解析</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/etcd'>#etcd</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/raft'>#raft</a>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F'>#分布式</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">etcd Raft库解析</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2018-09-22</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#raft库日志存储相关结构">raft库日志存储相关结构</a>
-      <ul>
-        <li><a href="#unstable">unstable</a></li>
-        <li><a href="#storage接口">Storage接口</a></li>
-        <li><a href="#raftlog的实现">raftLog的实现</a></li>
-      </ul>
-    </li>
-    <li><a href="#raft消息结构体">raft消息结构体</a></li>
-    <li><a href="#msghup消息">MsgHup消息</a></li>
-    <li><a href="#msgbeat消息">MsgBeat消息</a></li>
-    <li><a href="#msgprop消息">MsgProp消息</a>
-      <ul>
-        <li><a href="#candidate">candidate</a></li>
-        <li><a href="#follower">follower</a></li>
-        <li><a href="#leader">leader</a></li>
-      </ul>
-    </li>
-    <li><a href="#msgappmsgsnap消息">MsgApp/MsgSnap消息</a>
-      <ul>
-        <li><a href="#msgapp消息">MsgApp消息</a></li>
-        <li><a href="#msgsnap消息">MsgSnap消息</a></li>
-      </ul>
-    </li>
-    <li><a href="#msgappresp消息">MsgAppResp消息</a>
-      <ul>
-        <li><a href="#msgreject为true的情况">msg.Reject为true的情况</a></li>
-        <li><a href="#msgreject为false的情况">msg.Reject为false的情况</a></li>
-      </ul>
-    </li>
-    <li><a href="#msgvotemsgprevote消息以及msgvoterespmsgprevoteresp消息">MsgVote/MsgPreVote消息以及MsgVoteResp/MsgPreVoteResp消息</a>
-      <ul>
-        <li><a href="#prevote">PreVote</a></li>
-        <li><a href="#msgvotemsgprevote的处理流程">MsgVote/MsgPreVote的处理流程</a></li>
-        <li><a href="#msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</a></li>
-      </ul>
-    </li>
-    <li><a href="#msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</a></li>
-    <li><a href="#msgunreachable消息">MsgUnreachable消息</a></li>
-    <li><a href="#msgsnapstatus消息">MsgSnapStatus消息</a></li>
-    <li><a href="#msgcheckquorum消息">MsgCheckQuorum消息</a></li>
-    <li><a href="#msgtransferleader消息">MsgTransferLeader消息</a></li>
-    <li><a href="#msgtimeoutnow消息">MsgTimeoutNow消息</a></li>
-    <li><a href="#msgreadindex和msgreadindexresp消息">MsgReadIndex和MsgReadIndexResp消息</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>46分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#发起选举的节点">发起选举的节点</a></li>
-    <li><a href="#收到选举消息的节点">收到选举消息的节点</a></li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
+          >分布式</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#一般的成员删减">一般的成员删减</a></li>
-    <li><a href="#leader转让">leader转让</a></li>
-  </ul>
+  
+</div>
 
-  <ul>
-    <li><a href="#readonlysafe方式">ReadOnlySafe方式</a></li>
-  </ul>
 
-  <ul>
-    <li><a href="#节点的几种状态">节点的几种状态</a>
-      <ul>
-        <li><a href="#progressstateprobe">ProgressStateProbe</a></li>
-        <li><a href="#progressstatereplicate">ProgressStateReplicate</a></li>
-        <li><a href="#progressstatesnapshot">ProgressStateSnapshot</a></li>
-      </ul>
-    </li>
-    <li><a href="#progress上的数据索引">Progress上的数据索引</a></li>
-    <li><a href="#流量控制">流量控制</a></li>
-  </ul>
-</nav></div>
-  </details>
   
   
-  <article class="content">
-    
-    <h1 id="概述">概述</h1>
+
+  <h1 id="概述">概述</h1>
 <p>本文是博客解析raft算法及etcd raft库实现的系列三篇文章之一，之所以详细结合etcd实现解析raft算法原理及实现，因为etcd的raft实现是最接近论文本身的，结合论文原理一起阅读十分酸爽。这个系列文章的索引如下：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
@@ -407,26 +470,27 @@
 <li>监听Node.Ready函数返回的Ready结构体channel，有数据变更时根据Ready结构体的不同数据类型进行相应的操作，完成了之后需要调用Node.Advance函数进行收尾。</li>
 </ol>
 <p>将以上流程用伪代码实现如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// HTTP server
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>HttpServer主循环:
-</span></span><span style="display:flex;"><span>  接收用户提交的数据<span style="">：</span>
-</span></span><span style="display:flex;"><span>    如果是PUT请求<span style="">：</span>
-</span></span><span style="display:flex;"><span>      将数据写入到proposeC中
-</span></span><span style="display:flex;"><span>    如果是POST请求<span style="">：</span>
-</span></span><span style="display:flex;"><span>      将配置变更数据写入到confChangeC中
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">// raft Node
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>raftNode结构体主循环<span style="">：</span>
-</span></span><span style="display:flex;"><span>  如果proposeC中有数据写入<span style="">：</span>
-</span></span><span style="display:flex;"><span>    调用node.Propose向raft库提交数据
-</span></span><span style="display:flex;"><span>  如果confChangeC中有数据写入<span style="">：</span>
-</span></span><span style="display:flex;"><span>    调用node.Node.ProposeConfChange向raft库提交配置变更数据
-</span></span><span style="display:flex;"><span>  如果tick定时器到期<span style="">：</span>
-</span></span><span style="display:flex;"><span>    调用node.Tick函数进行raft库的定时操作
-</span></span><span style="display:flex;"><span>  如果node.<span style="color:#00a000">Ready</span>()函数返回的Ready结构体channel有数据变更<span style="">：</span>
-</span></span><span style="display:flex;"><span>    依次处理Ready结构体中各成员数据
-</span></span><span style="display:flex;"><span>    处理完毕之后调用node.Advance函数进行收尾处理
-</span></span></code></pre></div><p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
+<pre><code class="language-Go">// HTTP server
+HttpServer主循环:
+  接收用户提交的数据：
+    如果是PUT请求：
+      将数据写入到proposeC中
+    如果是POST请求：
+      将配置变更数据写入到confChangeC中
+
+// raft Node
+raftNode结构体主循环：
+  如果proposeC中有数据写入：
+    调用node.Propose向raft库提交数据
+  如果confChangeC中有数据写入：
+    调用node.Node.ProposeConfChange向raft库提交配置变更数据
+  如果tick定时器到期：
+    调用node.Tick函数进行raft库的定时操作
+  如果node.Ready()函数返回的Ready结构体channel有数据变更：
+    依次处理Ready结构体中各成员数据
+    处理完毕之后调用node.Advance函数进行收尾处理
+</code></pre>
+<p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
 <h1 id="raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</h1>
 <p>现在可以来看看raft库的代码组织了。</p>
 <p>前面已经看到了raft/node.go文件中，提供出去的是Node接口及其实现node结构体，这是外界与raft库打交道的唯一接口，除此之外该路径下的其他文件并不直接与外界打交道。</p>
@@ -540,33 +604,34 @@
 <p>raftLog结构体中，几部分数据的排列如下图所示。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20180922-etcd-raft/raftlog.png" alt="raftlog" title="raftlog"></p>
 <p>这个数据排布的情况，可以从raftLog的初始化函数中看出来：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">func</span> <span style="color:#00a000">newLog</span>(storage Storage, logger Logger) <span style="color:#666">*</span>raftLog {
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> storage <span style="color:#666">==</span> <span style="color:#a2f;font-weight:bold">nil</span> {
-</span></span><span style="display:flex;"><span>		log.<span style="color:#00a000">Panic</span>(<span style="color:#b44">&#34;storage must not be nil&#34;</span>)
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>	log <span style="color:#666">:=</span> <span style="color:#666">&amp;</span>raftLog{
-</span></span><span style="display:flex;"><span>		storage: storage,
-</span></span><span style="display:flex;"><span>		logger:  logger,
-</span></span><span style="display:flex;"><span>	}
-</span></span><span style="display:flex;"><span>	firstIndex, err <span style="color:#666">:=</span> storage.<span style="color:#00a000">FirstIndex</span>()
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> err <span style="color:#666">!=</span> <span style="color:#a2f;font-weight:bold">nil</span> {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f">panic</span>(err) <span style="color:#080;font-style:italic">// TODO(bdarnell)
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	}
-</span></span><span style="display:flex;"><span>	lastIndex, err <span style="color:#666">:=</span> storage.<span style="color:#00a000">LastIndex</span>()
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">if</span> err <span style="color:#666">!=</span> <span style="color:#a2f;font-weight:bold">nil</span> {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f">panic</span>(err) <span style="color:#080;font-style:italic">// TODO(bdarnell)
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	}
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// offset从持久化之后的最后一个index的下一个开始
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	log.unstable.offset = lastIndex <span style="color:#666">+</span> <span style="color:#666">1</span>
-</span></span><span style="display:flex;"><span>	log.unstable.logger = logger
-</span></span><span style="display:flex;"><span>	<span style="color:#080;font-style:italic">// Initialize our committed and applied pointers to the time of the last compaction.
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	<span style="color:#080;font-style:italic">// committed和applied从持久化的第一个index的前一个开始
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>	log.committed = firstIndex <span style="color:#666">-</span> <span style="color:#666">1</span>
-</span></span><span style="display:flex;"><span>	log.applied = firstIndex <span style="color:#666">-</span> <span style="color:#666">1</span>
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span> log
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>在这里：</p>
+<pre><code class="language-Go">func newLog(storage Storage, logger Logger) *raftLog {
+	if storage == nil {
+		log.Panic(&quot;storage must not be nil&quot;)
+	}
+	log := &amp;raftLog{
+		storage: storage,
+		logger:  logger,
+	}
+	firstIndex, err := storage.FirstIndex()
+	if err != nil {
+		panic(err) // TODO(bdarnell)
+	}
+	lastIndex, err := storage.LastIndex()
+	if err != nil {
+		panic(err) // TODO(bdarnell)
+	}
+	// offset从持久化之后的最后一个index的下一个开始
+	log.unstable.offset = lastIndex + 1
+	log.unstable.logger = logger
+	// Initialize our committed and applied pointers to the time of the last compaction.
+	// committed和applied从持久化的第一个index的前一个开始
+	log.committed = firstIndex - 1
+	log.applied = firstIndex - 1
+
+	return log
+}
+</code></pre>
+<p>在这里：</p>
 <ul>
 <li>firstIndex：该值取自storage.FirstIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的第一个数据索引，也就是MemoryStorage结构体中快照数据与日志条目数据的分界线。</li>
 <li>lastIndex：该值取自storage.LastIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的最后一个数据索引。</li>
@@ -1013,7 +1078,7 @@
 <ol>
 <li>首先该函数会判断msg.Term是否大于本节点的Term，如果消息的任期号更大则说明是一次新的选举。这种情况下将根据msg.Context是否等于“CampaignTransfer”字符串来确定是不是一次由于leader迁移导致的强制选举过程。同时也会根据当前的electionElapsed是否小于electionTimeout来确定是否还在租约期以内。如果既不是强制leader选举又在租约期以内，那么节点将忽略该消息的处理，在论文4.2.3部分论述这样做的原因，是为了避免已经离开集群的节点在不知道自己已经不在集群内的情况下，仍然频繁的向集群内节点发起选举导致耗时在这种无效的选举流程中。如果以上检查流程通过了，说明可以进行选举了，如果消息类型还不是MsgPreVote类型，那么此时节点会切换到follower状态且认为发送消息过来的节点msg.From是新的leader。</li>
 </ol>
-<pre tabindex="0"><code>	case m.Term &gt; r.Term:
+<pre><code>	case m.Term &gt; r.Term:
 		// 消息的Term大于节点当前的Term
 		lead := m.From
 		if m.Type == pb.MsgVote || m.Type == pb.MsgPreVote {
@@ -1028,7 +1093,7 @@
 				// 非强制又在租约期内可以忽略选举消息，见论文的4.2.3，这是为了阻止已经离开集群的节点再次发起投票请求
 				// If a server receives a RequestVote request within the minimum election timeout
 				// of hearing from a current leader, it does not update its term or grant its vote
-				r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] ignored %s from %x [logterm: %d, index: %d] at term %d: lease is not expired (remaining ticks: %d)&#34;,
+				r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] ignored %s from %x [logterm: %d, index: %d] at term %d: lease is not expired (remaining ticks: %d)&quot;,
 					r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term, r.electionTimeout-r.electionElapsed)
 				return nil
 			}
@@ -1047,12 +1112,13 @@
 			// rejected our vote so we should become a follower at the new
 			// term.
 		default:
-			r.logger.Infof(&#34;%x [term: %d] received a %s message with higher term from %x [term: %d]&#34;,
+			r.logger.Infof(&quot;%x [term: %d] received a %s message with higher term from %x [term: %d]&quot;,
 				r.id, r.Term, m.Type, m.From, m.Term)
 			// 变成follower状态
 			r.becomeFollower(m.Term, lead)
 		}
-</code></pre><ol start="2">
+</code></pre>
+<ol start="2">
 <li>在raft.Step函数的后面，会判断消息类型是MsgVote或者MsgPreVote来进一步进行处理。其判断条件是以下两个条件同时成立：</li>
 </ol>
 <ul>
@@ -1060,7 +1126,7 @@
 <li>同时该节点的日志数据是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm) ）。这个条件是检查这个节点上的日志数据是否足够的新。
 只有在满足以上两个条件的情况下，节点才投票给这个消息节点，将修改raft.Vote为消息发送者ID。如果不满足条件，将应答msg.Reject=true，拒绝该节点的投票消息。</li>
 </ul>
-<pre tabindex="0"><code>	case pb.MsgVote, pb.MsgPreVote:
+<pre><code>	case pb.MsgVote, pb.MsgPreVote:
 		// 收到投票类的消息
 		// The m.Term &gt; r.Term clause is for MsgPreVote. For MsgVote m.Term should
 		// always equal r.Term.
@@ -1068,7 +1134,7 @@
 			// 如果当前没有给任何节点投票（r.Vote == None）或者投票的节点term大于本节点的（m.Term &gt; r.Term）
 			// 或者是之前已经投票的节点（r.Vote == m.From）
 			// 同时还满足该节点的消息是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm)），那么就接收这个节点的投票
-			r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d&#34;,
+			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d&quot;,
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type)})
 			if m.Type == pb.MsgVote {
@@ -1079,35 +1145,37 @@
 			}
 		} else {
 			// 否则拒绝投票
-			r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d&#34;,
+			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d&quot;,
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type), Reject: true})
 		}
-</code></pre><h3 id="msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
+</code></pre>
+<h3 id="msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
 <p>来看节点收到投票应答数据之后的处理。</p>
 <ol>
 <li>节点调用raft.poll函数，其中传入msg.Reject参数表示发送者是否同意这次选举，根据这些来计算当前集群中有多少节点给这次选举投了同意票。</li>
 <li>如果有半数的节点同意了，如果选举类型是PreVote，那么进行Vote状态正式进行一轮选举；否则该节点就成为了新的leader，调用raft.becomeLeader函数切换状态，然后开始同步日志数据给集群中其他节点了。</li>
 <li>而如果半数以上的节点没有同意，那么重新切换到follower状态。</li>
 </ol>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">case</span> myVoteRespType:
-</span></span><span style="display:flex;"><span>		<span style="color:#080;font-style:italic">// 计算当前集群中有多少节点给自己投了票
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>		gr <span style="color:#666">:=</span> r.<span style="color:#00a000">poll</span>(m.From, m.Type, !m.Reject)
-</span></span><span style="display:flex;"><span>		r.logger.<span style="color:#00a000">Infof</span>(<span style="color:#b44">&#34;%x [quorum:%d] has received %d %s votes and %d vote rejections&#34;</span>, r.id, r.<span style="color:#00a000">quorum</span>(), gr, m.Type, <span style="color:#a2f">len</span>(r.votes)<span style="color:#666">-</span>gr)
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">switch</span> r.<span style="color:#00a000">quorum</span>() {
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">case</span> gr:	<span style="color:#080;font-style:italic">// 如果进行投票的节点数量正好是半数以上节点数量
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>			<span style="color:#a2f;font-weight:bold">if</span> r.state <span style="color:#666">==</span> StatePreCandidate {
-</span></span><span style="display:flex;"><span>				r.<span style="color:#00a000">campaign</span>(campaignElection)
-</span></span><span style="display:flex;"><span>			} <span style="color:#a2f;font-weight:bold">else</span> {
-</span></span><span style="display:flex;"><span>				<span style="color:#080;font-style:italic">// 变成leader
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>				r.<span style="color:#00a000">becomeLeader</span>()
-</span></span><span style="display:flex;"><span>				r.<span style="color:#00a000">bcastAppend</span>()
-</span></span><span style="display:flex;"><span>			}
-</span></span><span style="display:flex;"><span>		<span style="color:#a2f;font-weight:bold">case</span> <span style="color:#a2f">len</span>(r.votes) <span style="color:#666">-</span> gr:	<span style="color:#080;font-style:italic">// 如果是半数以上节点拒绝了投票
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>			<span style="color:#080;font-style:italic">// 变成follower
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>			r.<span style="color:#00a000">becomeFollower</span>(r.Term, None)
-</span></span><span style="display:flex;"><span>		}
-</span></span></code></pre></div><h2 id="msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</h2>
+<pre><code class="language-Go">	case myVoteRespType:
+		// 计算当前集群中有多少节点给自己投了票
+		gr := r.poll(m.From, m.Type, !m.Reject)
+		r.logger.Infof(&quot;%x [quorum:%d] has received %d %s votes and %d vote rejections&quot;, r.id, r.quorum(), gr, m.Type, len(r.votes)-gr)
+		switch r.quorum() {
+		case gr:	// 如果进行投票的节点数量正好是半数以上节点数量
+			if r.state == StatePreCandidate {
+				r.campaign(campaignElection)
+			} else {
+				// 变成leader
+				r.becomeLeader()
+				r.bcastAppend()
+			}
+		case len(r.votes) - gr:	// 如果是半数以上节点拒绝了投票
+			// 变成follower
+			r.becomeFollower(r.Term, None)
+		}
+</code></pre>
+<h2 id="msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</h2>
 <p>心跳请求消息。</p>
 <table>
 <thead>
@@ -1309,41 +1377,43 @@
 <li>如果这次迁移过去的新节点，就是当前的leader ID，也直接返回不进行处理。</li>
 <li>到了这一步就是正式开始这一次的迁移leader流程了，一个节点能成为一个集群的leader，其必要条件是上面的日志与当前leader的一样多，所以这里会判断是否满足这个条件，如果满足那么发送MsgTimeoutNow消息给新的leader通知该节点进行leader迁移，否则就先进行日志同步操作让新的leader追上旧leader的日志数据。</li>
 </ol>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">case</span> pb.MsgTransferLeader:
-</span></span><span style="display:flex;"><span>  leadTransferee <span style="color:#666">:=</span> m.From
-</span></span><span style="display:flex;"><span>  lastLeadTransferee <span style="color:#666">:=</span> r.leadTransferee
-</span></span><span style="display:flex;"><span>  <span style="color:#a2f;font-weight:bold">if</span> lastLeadTransferee <span style="color:#666">!=</span> None {
-</span></span><span style="display:flex;"><span>    <span style="color:#080;font-style:italic">// 判断是否已经有相同节点的leader转让流程在进行中
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>    <span style="color:#a2f;font-weight:bold">if</span> lastLeadTransferee <span style="color:#666">==</span> leadTransferee {
-</span></span><span style="display:flex;"><span>      r.logger.<span style="color:#00a000">Infof</span>(<span style="color:#b44">&#34;%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x&#34;</span>,
-</span></span><span style="display:flex;"><span>        r.id, r.Term, leadTransferee, leadTransferee)
-</span></span><span style="display:flex;"><span>      <span style="color:#080;font-style:italic">// 如果是，直接返回
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>      <span style="color:#a2f;font-weight:bold">return</span>
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>    <span style="color:#080;font-style:italic">// 否则中断之前的转让流程
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>    r.<span style="color:#00a000">abortLeaderTransfer</span>()
-</span></span><span style="display:flex;"><span>    r.logger.<span style="color:#00a000">Infof</span>(<span style="color:#b44">&#34;%x [term %d] abort previous transferring leadership to %x&#34;</span>, r.id, r.Term, lastLeadTransferee)
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// 判断是否转让过来的leader是否本节点，如果是也直接返回，因为本节点已经是leader了
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  <span style="color:#a2f;font-weight:bold">if</span> leadTransferee <span style="color:#666">==</span> r.id {
-</span></span><span style="display:flex;"><span>    r.logger.<span style="color:#00a000">Debugf</span>(<span style="color:#b44">&#34;%x is already leader. Ignored transferring leadership to self&#34;</span>, r.id)
-</span></span><span style="display:flex;"><span>    <span style="color:#a2f;font-weight:bold">return</span>
-</span></span><span style="display:flex;"><span>  }
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// Transfer leadership to third party.
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  r.logger.<span style="color:#00a000">Infof</span>(<span style="color:#b44">&#34;%x [term %d] starts to transfer leadership to %x&#34;</span>, r.id, r.Term, leadTransferee)
-</span></span><span style="display:flex;"><span>  <span style="color:#080;font-style:italic">// Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  r.electionElapsed = <span style="color:#666">0</span>
-</span></span><span style="display:flex;"><span>  r.leadTransferee = leadTransferee
-</span></span><span style="display:flex;"><span>  <span style="color:#a2f;font-weight:bold">if</span> pr.Match <span style="color:#666">==</span> r.raftLog.<span style="color:#00a000">lastIndex</span>() {
-</span></span><span style="display:flex;"><span>    <span style="color:#080;font-style:italic">// 如果日志已经匹配了，那么就发送timeoutnow协议过去
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>    r.<span style="color:#00a000">sendTimeoutNow</span>(leadTransferee)
-</span></span><span style="display:flex;"><span>    r.logger.<span style="color:#00a000">Infof</span>(<span style="color:#b44">&#34;%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log&#34;</span>, r.id, leadTransferee, leadTransferee)
-</span></span><span style="display:flex;"><span>  } <span style="color:#a2f;font-weight:bold">else</span> {
-</span></span><span style="display:flex;"><span>    <span style="color:#080;font-style:italic">// 否则继续追加日志
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>    r.<span style="color:#00a000">sendAppend</span>(leadTransferee)
-</span></span><span style="display:flex;"><span>  }
-</span></span></code></pre></div><h2 id="msgtimeoutnow消息">MsgTimeoutNow消息</h2>
+<pre><code class="language-Go">
+case pb.MsgTransferLeader:
+  leadTransferee := m.From
+  lastLeadTransferee := r.leadTransferee
+  if lastLeadTransferee != None {
+    // 判断是否已经有相同节点的leader转让流程在进行中
+    if lastLeadTransferee == leadTransferee {
+      r.logger.Infof(&quot;%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x&quot;,
+        r.id, r.Term, leadTransferee, leadTransferee)
+      // 如果是，直接返回
+      return
+    }
+    // 否则中断之前的转让流程
+    r.abortLeaderTransfer()
+    r.logger.Infof(&quot;%x [term %d] abort previous transferring leadership to %x&quot;, r.id, r.Term, lastLeadTransferee)
+  }
+  // 判断是否转让过来的leader是否本节点，如果是也直接返回，因为本节点已经是leader了
+  if leadTransferee == r.id {
+    r.logger.Debugf(&quot;%x is already leader. Ignored transferring leadership to self&quot;, r.id)
+    return
+  }
+  // Transfer leadership to third party.
+  r.logger.Infof(&quot;%x [term %d] starts to transfer leadership to %x&quot;, r.id, r.Term, leadTransferee)
+  // Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
+  r.electionElapsed = 0
+  r.leadTransferee = leadTransferee
+  if pr.Match == r.raftLog.lastIndex() {
+    // 如果日志已经匹配了，那么就发送timeoutnow协议过去
+    r.sendTimeoutNow(leadTransferee)
+    r.logger.Infof(&quot;%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log&quot;, r.id, leadTransferee, leadTransferee)
+  } else {
+    // 否则继续追加日志
+    r.sendAppend(leadTransferee)
+  }
+
+</code></pre>
+<h2 id="msgtimeoutnow消息">MsgTimeoutNow消息</h2>
 <table>
 <thead>
 <tr>
@@ -1501,7 +1571,7 @@
 </ul>
 <p>只有在同时满足以上两个条件的情况下，才能同意该节点的选举，否则都会被拒绝。这么做的原因是：保证最后能胜出来当新的leader的节点，它上面的日志都是最新的。</p>
 <h1 id="集群成员变化流程">集群成员变化流程</h1>
-<p><strong class=chinese>大原则是不能同时进行两个以上的成员变更</strong>，因为同时进行两个以上的成员变更，可能会出现集群中有两个leader即导致了集群分裂的情况出现。</p>
+<p><strong>大原则是不能同时进行两个以上的成员变更</strong>，因为同时进行两个以上的成员变更，可能会出现集群中有两个leader即导致了集群分裂的情况出现。</p>
 <p>成员变化分为以下几种情况：成员删减、leader转让，下面分开讲解。</p>
 <h2 id="一般的成员删减">一般的成员删减</h2>
 <p>成员变化操作做为日志的特殊类型，当可以进行commit的情况下，各个节点拿出该消息进行节点内部的成员删减操作。</p>
@@ -1537,33 +1607,36 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <h2 id="readonlysafe方式">ReadOnlySafe方式</h2>
 <p>leader在接收到读请求时，需要向集群中的超半数server确认自己仍然是当前的leader，这样它返回的就是最新的数据。</p>
 <p>在etcd-raft中，为了实现ReadOnlySafe，有如下的数据结构：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">type</span> ReadState <span style="color:#a2f;font-weight:bold">struct</span> {
-</span></span><span style="display:flex;"><span>  Index <span style="color:#0b0;font-weight:bold">uint64</span>
-</span></span><span style="display:flex;"><span>  RequestCtx []<span style="color:#0b0;font-weight:bold">byte</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>其中：</p>
+<pre><code class="language-Go">type ReadState struct {
+  Index uint64
+  RequestCtx []byte
+}
+</code></pre>
+<p>其中：</p>
 <ol>
 <li>Index：接收到该读请求时，当前节点的commit索引。</li>
 <li>RequestCtx：客户端读请求的唯一标识。</li>
 </ol>
 <p>ReadState结构体用于保存读请求到来时的节点状态。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">type</span> readIndexStatus <span style="color:#a2f;font-weight:bold">struct</span> {
-</span></span><span style="display:flex;"><span> req pb.Message
-</span></span><span style="display:flex;"><span> index <span style="color:#0b0;font-weight:bold">uint64</span>
-</span></span><span style="display:flex;"><span> acks <span style="color:#a2f;font-weight:bold">map</span>[<span style="color:#0b0;font-weight:bold">uint64</span>]<span style="color:#a2f;font-weight:bold">struct</span>{}
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>readIndexStatus数据结构用于追踪leader向follower发送的心跳信息，其中：</p>
+<pre><code class="language-Go">type readIndexStatus struct {
+ req pb.Message
+ index uint64
+ acks map[uint64]struct{}
+}
+</code></pre>
+<p>readIndexStatus数据结构用于追踪leader向follower发送的心跳信息，其中：</p>
 <ol>
 <li>req：保存原始的readIndex请求。</li>
 <li>index：leader当前的commit日志索引。</li>
 <li>acks：存放该readIndex请求有哪些节点进行了应答，当超过半数应答时，leader就可以确认自己还是当前集群的leader。</li>
 </ol>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">type</span> readOnly <span style="color:#a2f;font-weight:bold">struct</span> {
-</span></span><span style="display:flex;"><span> option ReadOnlyOption
-</span></span><span style="display:flex;"><span> pendingReadIndex <span style="color:#a2f;font-weight:bold">map</span>[<span style="color:#0b0;font-weight:bold">string</span>]<span style="color:#666">*</span>readIndexStatus
-</span></span><span style="display:flex;"><span> readIndexQueue []<span style="color:#0b0;font-weight:bold">string</span>
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>readOnly用于管理全局的readIndx数据，其中：</p>
+<pre><code class="language-Go">type readOnly struct {
+ option ReadOnlyOption
+ pendingReadIndex map[string]*readIndexStatus
+ readIndexQueue []string
+}
+</code></pre>
+<p>readOnly用于管理全局的readIndx数据，其中：</p>
 <ol>
 <li>option：readOnly选项。</li>
 <li>pendingReadIndex：当前所有待处理的readIndex请求，其中key为客户端读请求的唯一标识。</li>
@@ -1615,12 +1688,13 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <h1 id="杂项">杂项</h1>
 <h2 id="节点的几种状态">节点的几种状态</h2>
 <p>一个节点在leader上保存的状态有:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">const</span> (
-</span></span><span style="display:flex;"><span>    ProgressStateProbe ProgressStateType = <span style="color:#a2f;font-weight:bold">iota</span>
-</span></span><span style="display:flex;"><span>    ProgressStateReplicate
-</span></span><span style="display:flex;"><span>    ProgressStateSnapshot
-</span></span><span style="display:flex;"><span>)
-</span></span></code></pre></div><p>以下来分开解释这几种状态。</p>
+<pre><code class="language-Go">const (
+    ProgressStateProbe ProgressStateType = iota
+    ProgressStateReplicate
+    ProgressStateSnapshot
+)
+</code></pre>
+<p>以下来分开解释这几种状态。</p>
 <h3 id="progressstateprobe">ProgressStateProbe</h3>
 <p>探测状态，当节点拒绝了最近的append消息时，那么就会进入探测状态，此时leader会试图继续往前追述该节点的日志从哪里开始丢失的，让该节点的日志能跟leader同步上。在probe状态时，只能向它发送一次append消息，此后除非状态发生变化，否则就暂停向该节点发送新的append消息了。</p>
 <p>只有在以下情况才会恢复取消暂停状态（调用Progress的resume函数）：</p>
@@ -1658,21 +1732,25 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <p>##快照、日志的存储</p>
 <h1 id="疑问采集">疑问采集</h1>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20180921-raft/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20181125-etcd-server/">next →</a>
-    
-  </div>
+</article>
 
-    
-<h1>相关文章</h1><li><strong> 7059-05-07: </strong> <a href="https://www.codedump.info/post/20220507-weekly-14/">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>  </li><li><strong> 17049-04-17: </strong> <a href="https://www.codedump.info/post/20220417-weekly-13/">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>  </li><li><strong> 1019-01-01: </strong> <a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/">etcd 3.5版本的joint consensus实现解析</a>  </li><li><strong> 11109-10-11: </strong> <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a>  </li><li><strong> 28069-06-28: </strong> <a href="https://www.codedump.info/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a>  </li><li><strong> 15059-05-15: </strong> <a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a>  </li><li><strong> 25119-11-25: </strong> <a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a>  </li><li><strong> 21099-09-21: </strong> <a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a>  </li>
 
-<h1>邮件订阅</h1>
+      
+        <div class="my-4">
+    
+    <a href="https://www.codedump.info/tags/etcd/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#etcd</a>
+    
+    <a href="https://www.codedump.info/tags/raft/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#raft</a>
+    
+    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -1681,135 +1759,88 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/etcd/">etcd</a>
-          <a href="/tags/raft/">raft</a>
-          <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20181125-etcd-server/" class="block">Etcd存储的实现</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20180921-raft/" class="block">Raft算法原理</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
+      <div
+        class="lg:col-start-2 bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
+          <br />
+        
+      </div>
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>

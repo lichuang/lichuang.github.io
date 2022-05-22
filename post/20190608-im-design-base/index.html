@@ -1,184 +1,288 @@
 <!DOCTYPE html>
-<html lang="en">
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-  
-  <meta name="author" content="codedump">
+<title>IM服务器设计-基础 | codedump的网络日志</title>
 
-  
-  
-  <meta name="description" content="IM服务器设计-消息存储">
-  
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
 
-  
-  <link rel="icon" href="https://www.codedump.info/favicon.ico">
 
-  
-  
-  <meta name="keywords" content=" IM  服务器架构  系统设计 ">
-  
 
-  
-  
-  
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css"
-  integrity="sha384-KiWOvVjnN8qwAZbuQyWDIbfCLFhLXNETzBQjA/92pIowpC0d2O3nppDGQVgwd2nB" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"
-  integrity="sha384-0fdwu/T/EQMsQlrHCCHoH10pkPLlKA1jL5dFyUOvB3lfeT2540/2g6YgSi2BL14p" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/contrib/auto-render.min.js"
-  integrity="sha384-+XBljXPPiv+OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR" crossorigin="anonymous"></script>
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.baf0948b0e7ea00c33313fb016b8a0e5c7725c684add602643f55da64f608bad06c1be591b2833159abe73ce50507d4b.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     renderMathInElement(document.body, {
       delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false }
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
       ],
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
-      throwOnError: false
     });
   });
 </script>
 
 
-  
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
 
-  
-  <meta property="og:title" content="IM服务器设计-基础" />
-<meta property="og:description" content="IM服务器设计-消息存储" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/icon_hubc36adf3bc1640fb040e10a126f0bfbc_8974_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="IM服务器设计-消息存储">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"IM服务器设计-基础",
+      "item":"https://www.codedump.info/post/20190608-im-design-base/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20190608-im-design-base/"
+    },
+    "headline": "IM服务器设计-基础 | codedump的网络日志","datePublished": "2019-06-08T11:09:10+08:00",
+    "dateModified": "2019-06-08T11:09:10+08:00",
+    "wordCount":  3733 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/icon.png"
+        }
+        },
+    "description": "IM服务器设计-消息存储"
+}
+</script><meta property="og:title" content="IM服务器设计-基础 | codedump的网络日志" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://www.codedump.info/post/20190608-im-design-base/" /><meta property="article:section" content="post" />
-<meta property="article:published_time" content="2019-06-08T11:09:10+08:00" />
-<meta property="article:modified_time" content="2019-06-08T11:09:10+08:00" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/icon.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20190608-im-design-base/" />
 
 
 
-  
-  <link rel="canonical" href="https://www.codedump.info/post/20190608-im-design-base/">
-
-  
-  
-  <meta itemprop="name" content="IM服务器设计-基础">
-<meta itemprop="description" content="IM服务器设计-消息存储"><meta itemprop="datePublished" content="2019-06-08T11:09:10+08:00" />
-<meta itemprop="dateModified" content="2019-06-08T11:09:10+08:00" />
-<meta itemprop="wordCount" content="3733">
-<meta itemprop="keywords" content="系统设计," />
-
-  
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/common.css'>
-  <link media="screen" rel="stylesheet" href='https://www.codedump.info/css/content.css'>
-
-  
-  
-  <title>IM服务器设计-基础 - codedump的网络日志</title>
-  
-
-  
-  <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="IM服务器设计-基础"/>
-<meta name="twitter:description" content="IM服务器设计-消息存储"/>
+<meta property="og:description" content="IM服务器设计-消息存储" />
 
 
-  
-<link rel="stylesheet" href='https://www.codedump.info/css/single.css'>
 
-</head>
+<meta property="og:locale" content="zh" />
 
-<body>
-  <div id="wrapper">
-    <header id="header">
-  <h1>
-    <a href="https://www.codedump.info">codedump的网络日志</a>
-  </h1>
 
-  <nav>
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2019-06-08T11:09:10&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2019-06-08T11:09:10&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="系统设计" />
+
+
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
     
-    <span class="nav-bar-item">
-      <a class="link" href="/">主页</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/">发表</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/post/20200122-series-pages/">系列文章索引</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/weekly">周刊</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="https://www.codedump.info/index.xml">订阅</a>
-    </span>
-    
-    <span class="nav-bar-item">
-      <a class="link" href="/page/about">关于</a>
-    </span>
-    
-  </nav>
-</header>
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
 
-    
-<main id="main" class="post">
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
   
   
-  <h1>IM服务器设计-基础</h1>
-  
-  <div>
-    <b>Keywords: </b>
-    
-    <a class="link" href='https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1'>#系统设计</a>
-    
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class="lg:col-start-2 bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">IM服务器设计-基础</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2019-06-08</span
+    >
   </div>
-  
-  
-  
-  <details>
-    <summary>
-      <b>Table of Contents</b>
-    </summary>
-    <div class="toc"><nav id="TableOfContents">
-  <ul>
-    <li><a href="#数据存储">数据存储</a></li>
-  </ul>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>8分钟阅读时长</span>
+  </div>
 
-  <ul>
-    <li><a href="#统一登录系统">统一登录系统</a></li>
-    <li><a href="#登录授权auth">登录授权（auth）</a></li>
-    <li><a href="#登出logout">登出（logout）</a></li>
-    <li><a href="#踢人kickout">踢人（kickout）</a></li>
-    <li><a href="#客户端上报消息c2s消息">客户端上报消息（c2s消息）</a></li>
-    <li><a href="#应用服务器推送消息s2c消息">应用服务器推送消息（s2c消息）</a></li>
-    <li><a href="#单对单聊天c2c消息">单对单聊天（c2c消息）</a></li>
-    <li><a href="#群聊消息c2g消息">群聊消息（c2g消息）</a></li>
-    <li><a href="#登录后拉取离线消息流程">登录后拉取离线消息流程</a></li>
-  </ul>
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="hover:text-eureka"
+          >系统设计</a
+        >
+      
+    </div>
+  
 
-  <ul>
-    <li><a href="#协议格式">协议格式</a></li>
-    <li><a href="#认证auth">认证（auth）</a></li>
-    <li><a href="#登出logout-1">登出（logout）</a></li>
-    <li><a href="#踢人kickout-1">踢人（kickout）</a></li>
-    <li><a href="#心跳包">心跳包</a></li>
-    <li><a href="#单对单消息c2c">单对单消息（c2c）</a></li>
-    <li><a href="#群聊c2g">群聊（c2g）</a></li>
-    <li><a href="#拉离线消息pull">拉离线消息（pull）</a></li>
-  </ul>
-</nav></div>
-  </details>
+  
+</div>
+
+
   
   
-  <article class="content">
-    
-    <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
+
+  <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
 <p>主要内容相当部分参考了 <a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a>一文，在此之上补充了更好的消息存储设计以及集群设计。</p>
 <h1 id="整体架构">整体架构</h1>
 <p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch"></p>
@@ -311,79 +415,84 @@
 </ul>
 <p>其中，包体部分使用protobuf来定义，以下介绍不同命令的包体格式。</p>
 <h2 id="认证auth">认证（auth）</h2>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message AuthRequest {
-</span></span><span style="display:flex;"><span>  string token <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 从SSO服务器返回的登录token，登录之后保存在客户端
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  srting uid <span style="color:#666">=</span> <span style="color:#666">2</span>;   <span style="color:#080;font-style:italic">// 用户ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>message AuthResponse {
-</span></span><span style="display:flex;"><span>  int32 status <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 应答状态码，0表示成功，其他表示失败
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string err_msg <span style="color:#666">=</span> <span style="color:#666">2</span>; <span style="color:#080;font-style:italic">// 错误描述信息
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><h2 id="登出logout-1">登出（logout）</h2>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message LogoutRequest {
-</span></span><span style="display:flex;"><span>  string token <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 从SSO服务器返回的登录token，登录之后保存在客户端
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  srting uid <span style="color:#666">=</span> <span style="color:#666">2</span>;   <span style="color:#080;font-style:italic">// 用户ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>message LogoutResponse {
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><h2 id="踢人kickout-1">踢人（kickout）</h2>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message KickoutRequest {
-</span></span><span style="display:flex;"><span>  <span style="color:#a2f;font-weight:bold">enum</span> Reason {
-</span></span><span style="display:flex;"><span>    OTHER_LOGIN <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 其他设备登录
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  }
-</span></span><span style="display:flex;"><span>  int32 reason <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 踢人原因
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>message KickoutResponse {
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><h2 id="心跳包">心跳包</h2>
+<pre><code class="language-C">message AuthRequest {
+  string token = 1; // 从SSO服务器返回的登录token，登录之后保存在客户端
+  srting uid = 2;   // 用户ID
+}
+
+message AuthResponse {
+  int32 status = 1; // 应答状态码，0表示成功，其他表示失败
+  string err_msg = 2; // 错误描述信息
+}
+</code></pre>
+<h2 id="登出logout-1">登出（logout）</h2>
+<pre><code class="language-C">message LogoutRequest {
+  string token = 1; // 从SSO服务器返回的登录token，登录之后保存在客户端
+  srting uid = 2;   // 用户ID
+}
+message LogoutResponse {
+}
+</code></pre>
+<h2 id="踢人kickout-1">踢人（kickout）</h2>
+<pre><code class="language-C">message KickoutRequest {
+  enum Reason {
+    OTHER_LOGIN = 1; // 其他设备登录
+  }
+  int32 reason = 1; // 踢人原因
+}
+message KickoutResponse {
+}
+</code></pre>
+<h2 id="心跳包">心跳包</h2>
 <p>无包体</p>
 <h2 id="单对单消息c2c">单对单消息（c2c）</h2>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 发送者发送消息的协议
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>message C2CSendRequest {
-</span></span><span style="display:flex;"><span>  string from <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 发送者
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string to <span style="color:#666">=</span> <span style="color:#666">2</span>; <span style="color:#080;font-style:italic">// 接收者
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string content <span style="color:#666">=</span> <span style="color:#666">3</span>; <span style="color:#080;font-style:italic">// 消息内容
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>message C2CSendResponse {
-</span></span><span style="display:flex;"><span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 落地的消息ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 推送给接收者的协议
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>message C2CPushRequest {
-</span></span><span style="display:flex;"><span>  string from <span style="color:#666">=</span> <span style="color:#666">1</span>;
-</span></span><span style="display:flex;"><span>  string content <span style="color:#666">=</span> <span style="color:#666">2</span>;
-</span></span><span style="display:flex;"><span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">3</span>;
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>message C2CPushResponse {
-</span></span><span style="display:flex;"><span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">1</span>;  <span style="color:#080;font-style:italic">// 消息id，服务器收到这个id可以去置位这个消息已读
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><h2 id="群聊c2g">群聊（c2g）</h2>
-<div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 发送者发送群消息协议
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>message C2GSendRequest {
-</span></span><span style="display:flex;"><span>  string from <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 发送者
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string group <span style="color:#666">=</span> <span style="color:#666">2</span>; <span style="color:#080;font-style:italic">// 群
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string content <span style="color:#666">=</span> <span style="color:#666">3</span>; <span style="color:#080;font-style:italic">// 消息内容
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>message C2GSendResponse {
-</span></span><span style="display:flex;"><span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 落地的消息ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 推送给其他群成员消息协议
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>message C2GPushRequest {
-</span></span><span style="display:flex;"><span>  string from <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 发送者
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string group <span style="color:#666">=</span> <span style="color:#666">2</span>; <span style="color:#080;font-style:italic">// 群
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  string content <span style="color:#666">=</span> <span style="color:#666">3</span>; <span style="color:#080;font-style:italic">// 消息内容
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">4</span>; <span style="color:#080;font-style:italic">// 落地的消息ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>message C2GPushResponse {
-</span></span><span style="display:flex;"><span>  int64 msgid <span style="color:#666">=</span> <span style="color:#666">1</span>; <span style="color:#080;font-style:italic">// 落地的消息ID
-</span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>}
-</span></span></code></pre></div><h2 id="拉离线消息pull">拉离线消息（pull）</h2>
-<pre tabindex="0"><code>message C2SPullMessageRequest {
+<pre><code class="language-C">// 发送者发送消息的协议
+message C2CSendRequest {
+  string from = 1; // 发送者
+  string to = 2; // 接收者
+  string content = 3; // 消息内容
+}
+
+message C2CSendResponse {
+  int64 msgid = 1; // 落地的消息ID
+}
+
+// 推送给接收者的协议
+message C2CPushRequest {
+  string from = 1;
+  string content = 2;
+  int64 msgid = 3;
+}
+
+message C2CPushResponse {
+  int64 msgid = 1;  // 消息id，服务器收到这个id可以去置位这个消息已读
+}
+</code></pre>
+<h2 id="群聊c2g">群聊（c2g）</h2>
+<pre><code class="language-C">// 发送者发送群消息协议
+message C2GSendRequest {
+  string from = 1; // 发送者
+  string group = 2; // 群
+  string content = 3; // 消息内容
+}
+message C2GSendResponse {
+  int64 msgid = 1; // 落地的消息ID
+}
+
+// 推送给其他群成员消息协议
+message C2GPushRequest {
+  string from = 1; // 发送者
+  string group = 2; // 群
+  string content = 3; // 消息内容
+  int64 msgid = 4; // 落地的消息ID
+}
+
+message C2GPushResponse {
+  int64 msgid = 1; // 落地的消息ID
+}
+</code></pre>
+<h2 id="拉离线消息pull">拉离线消息（pull）</h2>
+<pre><code>message C2SPullMessageRequest {
   string uid = 1;
   int64 msgid = 2;  // 拉取该消息id以后的离线消息，为0由服务器自行判断
   int32 limit = 3; //  单次拉取离线消息的数量
@@ -400,28 +509,29 @@ message PullMsg {
 message C2SPullMessageResponse {
   repeated PullMsg msg = 1; // 离线消息数组
 }
-</code></pre><h1 id="参考资料">参考资料</h1>
+</code></pre>
+<h1 id="参考资料">参考资料</h1>
 <ul>
 <li><a href="https://cloud.tencent.com/developer/article/1166255">单点登录（SSO），从原理到实现</a></li>
 <li><a href="https://ken.io/note/sso-design-implement">单点登录（SSO）的设计与实现</a></li>
 <li><a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a></li>
 </ul>
 
-    
-  </article>
-  <div class="paginator">
-    
-    <a class="link" href="https://www.codedump.info/post/20190501-lua-stream/">← prev</a>
-    
-    
-    <a class="link" href="https://www.codedump.info/post/20190608-im-msg-storage/">next →</a>
-    
-  </div>
+</article>
 
+
+      
+        <div class="my-4">
     
-<h1>相关文章</h1>
-<li><strong> 14129-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-2/">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a>  </li><li><strong> 14129-12-14: </strong> <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>  </li><li><strong> 6129-12-06: </strong> <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/">对比脚本型和编译型游戏服务器的热更新方案</a>  </li><li><strong> 13109-10-13: </strong> <a href="https://www.codedump.info/post/20191013-im-msg-out-of-order/">IM服务器设计-如何解决消息的乱序</a>  </li><li><strong> 18089-08-18: </strong> <a href="https://www.codedump.info/post/20190818-im-msg-gate/">IM服务器设计-网关接入层</a>  </li>
-<h1>邮件订阅</h1>
+    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="inline-block bg-tertiary-bg text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统设计</a>
+    
+</div>
+      
+
+      <h1>版权声明</h1>
+
+<a rel=license href=http://creativecommons.org/licenses/by/4.0/><img alt=知识共享许可协议 style=border-width:0 src=https://img.draveness.me/creative-commons.png></a><br>本作品采用<a rel=license href=http://creativecommons.org/licenses/by/4.0/>知识共享署名 4.0 国际许可协议</a>进行许可。<h3></h3>
+      <h1>邮件订阅</h1>
 
 <div class="custom-footer">
   <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
@@ -430,133 +540,78 @@ message C2SPullMessageResponse {
     <div class="revue-form-footer">By subscribing, you agree with Revue’s <a target="_blank" href="https://www.getrevue.co/terms">Terms of Service</a> and <a target="_blank" href="https://www.getrevue.co/privacy">Privacy Policy</a>.</div>
   </form>
 </div>
+      <h1>微信公众号</h1>
 
 <img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
-    <footer class="post-footer">
-      <div class="post-tags">
-          <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">系统设计</a>
-          </div><div class="comment">
-    
-    <div id="disqus_thread"></div>
-<script type="application/javascript">
-    window.disqus_config = function () {
-    
-    
-    
-    };
-    (function() {
-        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
-            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
-            return;
-        }
-        var d = document, s = d.createElement('script'); s.async = true;
-        s.src = '//' + "lichuang-codedump" + '.disqus.com/embed.js';
-        s.setAttribute('data-timestamp', +new Date());
-        (d.head || d.body).appendChild(s);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
-    
-    
-    
-    
-        <script src="https://utteranc.es/client.js"
-            repo="{{ .Site.Params.utterances.owner }}/{{ .Site.Params.utterances.repo }}"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-  
-    
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+        <span class="text-primary-text block font-bold"
+          >上一页</span
+        >
+        <a href="https://www.codedump.info/post/20190608-im-msg-storage/" class="block">IM服务器设计-消息存储</a>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20190501-lua-stream/" class="block">OpenResty Lua Stream实现分析</a>
+      
+    </div>
   </div>
 
-  <main id="main" class="main">
-    <div class="content-wrapper">
-      <div id="content" class="content">
-        
-      </div>
-      <div id="disqus_thread"></div>
-    <script type="text/javascript">
-    (function() {
+
       
-      
-      if (window.location.hostname === 'localhost') return;
 
-      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-      var disqus_shortname = 'lichuang-codedump';
-      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
-      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
 
-  
 
-  
-    <script src="https://utteranc.es/client.js"
-            repo="lichuang/lichuang.github.io"
-            issue-term="pathname"
-            theme="github-light"
-            crossorigin="anonymous"
-            async>
-    </script>
-    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+  <script id="utterances" src="https://utteranc.es/client.js"
+            owner=lichuang"
+            repo=lichuang.github.io
+        crossorigin="anonymous"
+        async>
+</script>
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
 
     </div>
-  </main>
+    
 
-
-  
-</main>
-
-    <footer id="footer">
-  <div>
-    <span>© 2019</span> - <span>2022</span>
-  </div>
-
-  <div>
-    <span>Powered by </span>
-    <a class="link" href="https://gohugo.io/">Hugo</a>
-    <span> 🍦 Theme </span>
-    <a class="link" href="https://github.com/queensferryme/hugo-theme-texify">TeXify</a>
-  </div>
-
-  <div class="footnote">
-    <span>Follow me on <a class=link href=https://github.com/lichuang>GitHub</a>,
-<a class=link href=https://twitter.com/lichuang>Twitter</a> or
-<a class=link href=/index.xml>RSS</a> |
-<a class=link href=https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh target=_blank rel=noopener>CC BY-NC-SA 4.0</a>
-</span>
-  </div>
-</footer>
-
+    
+    
   </div>
 
   
-  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
 
-
-
-  
-  
-
-  
-  
-<script type="application/javascript">
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
-	ga('create', 'UA-126255685-1', 'auto');
-	
-	ga('send', 'pageview');
-}
-</script>
-<script async src='https://www.google-analytics.com/analytics.js'></script>
-
-
-
-</body>
-
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center p-6 pin-b">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>
+ &middot;  Powered by the <a href="https://github.com/wangchucheng/hugo-eureka" class="hover:text-eureka">Eureka</a> theme for <a href="https://gohugo.io" class="hover:text-eureka">Hugo</a></p>
+</div></div>
+    </footer>
+  </body>
 </html>
