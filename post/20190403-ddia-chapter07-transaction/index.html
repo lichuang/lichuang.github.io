@@ -209,7 +209,7 @@
 <p>C（Consistency，一致性）：对数据有特定的预期状态，任何数据修改必须满足这些状态约束，比如针对一个账号，账号上的款项必须保持平衡。</p>
 <h3 id="隔离性isolation">隔离性（isolation）</h3>
 <p>I（Isolation，隔离性）：并发执行的多个事务，不会相互影响。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-1.jpg" alt="7-1" title="7-1">
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-1.jpg" alt="7-1" title="7-1">
 如上图中所示，两个客户端同时增加数据库的计时器，由于没有做好隔离，导致最终的结果是43而不是正确的44。</p>
 <p>ACID语义中的隔离性意味着并发执行的多个事务相互隔离，不能交叉运行。经典的数据库教材将隔离性定义为可串行化（serializability），这就意味着可以假装它是数据库上运行的唯一事务。</p>
 <p>然而实践中，由于性能问题很少使用串行化隔离。</p>
@@ -226,11 +226,11 @@
 </ol>
 <h3 id="防止脏读">防止脏读</h3>
 <p>如果一个事务被中断或者没有提交成功，而另一个事务能读取到这部分没有提交成功的数据，这就是“脏读”。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-4.jpg" alt="7-4" title="7-4"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-4.jpg" alt="7-4" title="7-4"></p>
 <p>如上图，用户2仅在用户1的事务提交成功之后，才能读取到这次事务修改的新值x=3。</p>
 <h3 id="防止脏写">防止脏写</h3>
 <p>如果先前写入的数据是尚未提交事务的一部分，而被另一个事务的写操作覆盖了，这就是脏写。通常防止脏写的办法是推迟第二个写请求，等到前面的事务操作提交。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-5.jpg" alt="7-5" title="7-5"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-5.jpg" alt="7-5" title="7-5"></p>
 <p>如上图，alice和bob两人试图购买同一辆车。购买时需要两次数据库写入：网站需要更新买主为新买家，而同时发票也需要随之更新。
 但是在上图中，车主被改成了bob，但是发票上面写的却是alice。</p>
 <h3 id="实现读提交">实现读提交</h3>
@@ -240,7 +240,7 @@
 <p>因此，大部分数据库使用7-4中的方式来防止脏读：对于每个待更新的对象，数据库都会维护其旧值和当前持有锁事务将要设置的新值两个版本。在事务提交之前返回的是旧值；仅当事务提交之后，才会切换到新的值。</p>
 <h3 id="快照隔离级别snapshot-isolation和重复读">快照隔离级别（Snapshot isolation）和重复读</h3>
 <p>尽管上面的读提交已经能解决一部分问题，但是还是有一些问题不能解决的，如下图：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-6.jpg" alt="7-6" title="7-6"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-6.jpg" alt="7-6" title="7-6"></p>
 <p>上图中，alice有两个账号，但是如果alice在转账过程中去查看账户，会发现少了100美元。</p>
 <p>原因在于：alice对两个账户的两次读操作是同一个事务，而在这两次读操作之间，还有两次写操作，在这两次写操作完成之后才进行的第二次读操作，这样读出来的数据就不一致了。</p>
 <p>这种异常现象称为”不可重复读取（nonrepeatable read）“或者”读倾斜（read skew）“问题。</p>
@@ -254,7 +254,7 @@
 <h3 id="实现快照隔离级别">实现快照隔离级别</h3>
 <p>快照级隔离的实现通常采用写锁来防止脏写，这意味着正在进行写操作的事务会阻止同一对象上其他事务。而读锁则不需要加锁了。从性能角度，快照级别隔离的关键点就是读操作不会阻止写操作，反之亦然。这使得数据库可以在处理正常写入的同时，在一致性快照上执行长时间的只读查询，且两者之间没有锁的竞争。</p>
 <p>考虑到多个正在进行的事务可能会在不同的时间点查看数据库状态，所以数据库保留了对象的多个不同的提交版本，称为MVCC（Multi Version Concurrency Control）。如下图所示：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-7.jpg" alt="7-7" title="7-7"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-7.jpg" alt="7-7" title="7-7"></p>
 <p>给每个事务一个唯一的、单调递增的事务ID（txid），每当事务写入新数据的时候，所写的数据都会带上写入者的事务ID。表中的每一行的created_by字段，用于保存创建该行的事务ID；deleted_by初始为空，用于保存请求删除该行的事务ID，仅用于标记为删除。事后，仅当确认没有其他事务引用该删除行的时候，才执行真正的删除操作。</p>
 <p>上图中，账号1的最后一次写操作由事务ID 3完成，账号2的最后一次写操作由事务ID 5完成。事务ID 13的操作修改两个账号数据的时候，会同时设置上这一行的旧数据被事务13删除，同时新的数据由事务13创建。这样，事务12的针对账号2的读操作，返回的就是两个版本的数据：由事务5创建而由事务13删除的数据500，和由事务13创建的数据400，这样修改和未完成的读事务两者就被隔离而不会互相影响。</p>
 <h3 id="一致性快照的可见性原则">一致性快照的可见性原则</h3>
@@ -292,7 +292,7 @@
 </code></pre><h2 id="写倾斜和幻读">写倾斜和幻读</h2>
 <p>当多个事务同时写入同一对象时引发了两种竞争条件，然而这些并不是并发写所引起的所有问题。</p>
 <p>如下图所示，开发一个医院轮班系统，在保证至少有一个医生在值班的情况下，可以申请休假，但是这还是会出现问题：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-8.jpg" alt="7-8" title="7-8"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190403-ddia-chapter07-transaction/7-8.jpg" alt="7-8" title="7-8"></p>
 <p>如上图中，alice和bob是两位值班医生，两人碰巧都遇到身体不适决定请假，但是几乎同一个时刻点击了调班按钮，于是发生了上图的事情。</p>
 <p>每笔事务总是首先检查是否至少有两名医生在值班。而由于数据库使用的是快照级隔离，因此两个事务的检查都返回了两名医生，这样两个事务都得以继续执行。接着两人都更新自己的值班记录离开，两个事务都成功提交，最后的结果就是没有任何一个医生在岗。</p>
 <h3 id="定义写倾斜">定义写倾斜</h3>
@@ -347,7 +347,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>

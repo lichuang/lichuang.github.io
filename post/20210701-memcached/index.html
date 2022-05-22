@@ -185,7 +185,7 @@
 <li>数组的第一个<code>slabclass_t</code>元素的可分配内存大小为<code>sizeof(item) + settings.chunk_size</code>。这之后的<code>slabclass_t</code>可分配内存大小，都在上一个的元素的基础上放大<code>factor</code>倍，同时还要8字节对齐。</li>
 <li>每次分配一个页面的大小由配置项<code>settings.slab_page_size</code>来决定，因此每一个<code>slabclass_t</code>元素的一个页面能容纳的<code>item</code>数量为<code>settings.slab_page_size / slabclass[i].size</code>。</li>
 </ul>
-<p><img src="/media/imgs/20210701-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/slabclass.png" alt="slabclass的分级存储" title="slabclass的分级存储"></p>
 <p>当需要分配一块大小的内存时，首先需要根据其大小，计算出该尺寸最终对应到上面的哪个元素，这个数组索引在Memcached中被称为<code>clsid</code>，这个计算索引的过程参见函数<code>slabs_clsid</code>。</p>
 <p>比如：</p>
 <ul>
@@ -204,7 +204,7 @@
 <li>sl_curr：可用的<code>item</code>数量。</li>
 <li>slots：保存在该<code>slabclass_t</code>中空闲<code>item</code>的链表头。</li>
 </ul>
-<p><img src="/media/imgs/20210701-memcached/slabclass-structure.png" alt="slabclass结构体示意图" title="slabclass结构体示意图"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/slabclass-structure.png" alt="slabclass结构体示意图" title="slabclass结构体示意图"></p>
 <p>即：</p>
 <ul>
 <li>在Memcached的这一套内存管理体系中，一个页面被称为一个<code>slab</code>，其大小为<code>settings.slab_page_size</code>；页面中可以分割成多个<code>slot</code>用来分配内存，一个<code>slot</code>的大小由该<code>slabclass</code>的初始大小及<code>factor</code>来决定，但是需要向上补齐为8位对齐的大小。</li>
@@ -237,7 +237,7 @@
 <li>元素被访问一次就会被放到LRU链表的头部，这样即便这个元素可以被淘汰，也会需要很久才会淘汰掉这个元素。</li>
 <li>由于上面的原因，从链表尾部开始找可以淘汰的元素时，实际可能访问到的是一些虽然不常被访问，但是还没到淘汰时间（即有效时间TTL还未过期）的数据，这样会一直沿着链表往前找很久才能找到适合淘汰的元素。由于这个查找被淘汰元素的过程是需要加锁保护的，加锁时间一长影响了系统的并发。</li>
 </ul>
-<p><img src="/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/old-lru-list.png" alt="经典的LRU链表实现" title="经典的LRU链表实现"></p>
 <p>综上，经典的LRU链表问题的核心在于：</p>
 <ul>
 <li>只需要一次被访问就能让元素远离被淘汰的地方。</li>
@@ -263,7 +263,7 @@
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> item <span style="color:#666">*</span>heads[LARGEST_ID];
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">static</span> item <span style="color:#666">*</span>tails[LARGEST_ID];
 </span></span></code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
-<p><img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
 <p>前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。</p>
 <p>首先，改进的算法中，加入了一个机制：只有当元素被访问两次以后，才会标记成<code>活跃</code>元素。</p>
@@ -287,7 +287,7 @@
 </ul>
 <p>以上需要注意的是：任何操作都不能将一个元素从WARM和COLD队列中移动回去HOT队列了，也就是从HOT队列中移动元素出去的操作是单向操作。</p>
 <p>上述算法的状态机转换过程，可以参考下图。使用了这些规则来维护着三个队列之后，基本能保证COLD队列中的元素是不活跃的，这样查找起被淘汰元素也更快了。</p>
-<p><img src="/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210701-memcached/lru.png" alt="三级LRU队列转换状态图" title="三级LRU队列转换状态图"></p>
 <p>综述起来，改进的分段LRU算法做了如下的优化：</p>
 <ul>
 <li>需要至少两次被访问，才能变成<code>活跃</code>元素。</li>
@@ -323,7 +323,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>

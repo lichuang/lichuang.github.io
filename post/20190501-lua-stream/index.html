@@ -234,7 +234,7 @@
 <li>unsigned is_uthread：为1的情况下表示该协程是用户线程，即上面提到的场景2创建出来的协程。</li>
 <li>unsigned thread_spawn_yielded：为1的情况下表示当前协程是由于创建了用户线程（前面的场景2）才让出的执行权。</li>
 </ul>
-<p><img src="/media/imgs/20190501-lua-stream/ngx_stream_lua_co_ctx_t.png" alt="ngx_stream_lua_co_ctx_t" title="ngx_stream_lua_co_ctx_t"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/ngx_stream_lua_co_ctx_t.png" alt="ngx_stream_lua_co_ctx_t" title="ngx_stream_lua_co_ctx_t"></p>
 <p>另外，还有一个全局变量ngx_stream_lua_ctx_t，其中的cur_co_ctx指针指向当前被调度执行的ngx_stream_lua_co_ctx_t指针。</p>
 <h1 id="协程的初始化">协程的初始化</h1>
 <p>上一部分提到了创建协程的两种场景，这里就来分析这两种场景下面协程的初始化。</p>
@@ -261,7 +261,7 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>ngx_stream_lua_set_globals_table(co);
 </span></span></code></pre></div><p>从上面的代码可以看出，新创建的协程，其全局表目前是一个空表。</p>
 <p>此时的Lua虚拟机栈顶情况如下图所示：</p>
-<p><img src="/media/imgs/20190501-lua-stream/ngx_stream_lua_new_thread.png" alt="ngx_stream_lua_new_thread" title="ngx_stream_lua_new_thread"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/ngx_stream_lua_new_thread.png" alt="ngx_stream_lua_new_thread" title="ngx_stream_lua_new_thread"></p>
 <p>由于上面的第一步已经将Registry表中存储Lua协程的表压入了Lua栈顶，而此时新创建的协程也在栈上了，于是下面一步就是在Lua虚拟机中创建一个reference保存这个新创建的协程：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#666">*</span>ref <span style="color:#666">=</span> luaL_ref(L, <span style="color:#666">-</span><span style="color:#666">2</span>);
 </span></span><span style="display:flex;"><span>
@@ -349,7 +349,7 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>lua_pop(L, <span style="color:#666">1</span>);
 </span></span></code></pre></div><p>紧跟着就是初始化运行环境了：</p>
 <p>下面这一段代码，首先调用lua_replace函数将入口函数移动到栈顶，然后将传入ngx.thread.spawn函数的参数中，除去第一个线程入口函数之外的其他参数移动到新创建协程中。</p>
-<p><img src="/media/imgs/20190501-lua-stream/ngx.thread.spawn.png" alt="ngx.thread.spawn" title="ngx.thread.spawn"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/ngx.thread.spawn.png" alt="ngx.thread.spawn" title="ngx.thread.spawn"></p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">if</span> (n <span style="color:#666">&gt;</span> <span style="color:#666">1</span>) {
 </span></span><span style="display:flex;"><span>    <span style="color:#080;font-style:italic">// 由于lua函数压栈顺序是从左到右
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>    <span style="color:#080;font-style:italic">// 因此base位置的就是压入的第一个参数，而spawn的第一个参数就是入口函数
@@ -370,7 +370,7 @@
 </span></span></code></pre></div><h1 id="协程的调度">协程的调度</h1>
 <p>以上讲解了两种创建协程的场景，现在来分析协程的调度，调度集中在函数ngx_stream_lua_run_thread，下面来分析这个函数的实现。</p>
 <p>协程的调度主要依赖于ngx_stream_lua_ctx_t的cur_co_ctx指针，调度时就是从这个指针中拿到待调度的Lua协程，然后执行lua_resume函数来调度协程运行。</p>
-<p><img src="/media/imgs/20190501-lua-stream/ngx_stream_lua_run_thread-main.png" alt="ngx_stream_lua_run_thread-main" title="ngx_stream_lua_run_thread-main"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/ngx_stream_lua_run_thread-main.png" alt="ngx_stream_lua_run_thread-main" title="ngx_stream_lua_run_thread-main"></p>
 <h2 id="异常保护">异常保护</h2>
 <p>对于一个“内核”而言，哪怕是再简陋，其也应该做到：无论被调度的程序出现了什么错误，都应该影响整个系统的继续运行，而应该在出错的时候将出错信息打印出来。</p>
 <p>所以在ngx_stream_lua_run_thread内部，就做了这样的异常保护，用一个宏封装的setjmp、longjmp包住了协程的调度执行：</p>
@@ -427,7 +427,7 @@
 </span></span></span></code></pre></div><h2 id="调度核心">调度核心</h2>
 <p>接下来看协程调度的核心代码，也就是前面异常保护包住的那部分代码。</p>
 <p>主要分为如图的几种情况:</p>
-<p><img src="/media/imgs/20190501-lua-stream/ngx_stream_lua_run_thread.png" alt="ngx_stream_lua_run_thread" title="ngx_stream_lua_run_thread"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/ngx_stream_lua_run_thread.png" alt="ngx_stream_lua_run_thread" title="ngx_stream_lua_run_thread"></p>
 <h3 id="lua_yield">LUA_YIELD</h3>
 <p>lua通过lua_resume函数来执行一个协程的代码，大部分时候这个函数的返回值是LUA_YIELD，即协程让出了执行权。而让出执行权，又有以下几种可能的场景：</p>
 <ul>
@@ -509,7 +509,7 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"> * there */</span>
 </span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic">// 让出执行权给主线程，在那里做resume coroutine的操作
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span><span style="color:#a2f;font-weight:bold">return</span> <span style="color:#00a000">lua_yield</span>(L, lua_gettop(L) <span style="color:#666">-</span> <span style="color:#666">1</span>);
-</span></span></code></pre></div><p><img src="/media/imgs/20190501-lua-stream/lua_resume.png" alt="lua_resume" title="lua_resume"></p>
+</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/lua_resume.png" alt="lua_resume" title="lua_resume"></p>
 <p>而这种由于Lua脚本中调用了lua_resume函数让出执行权的情况，对应的co_op就是NGX_STREAM_LUA_USER_CORO_RESUME，此时在ngx_stream_lua_run_thread函数中的处理就是将父协程的参数移动到子协程中，即将函数参数从上面的p_coctx移动到coctx管理的协程中：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>nrets <span style="color:#666">=</span> lua_gettop(old_co);
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">if</span> (nrets) {
@@ -581,7 +581,7 @@
 </span></span></span><span style="display:flex;"><span><span style="color:#080;font-style:italic"></span>ctx<span style="color:#666">-&gt;</span>cur_co_ctx <span style="color:#666">=</span> next_coctx;
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">break</span>;
-</span></span></code></pre></div><p><img src="/media/imgs/20190501-lua-stream/lua_yield.png" alt="lua_yield" title="lua_yield"></p>
+</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190501-lua-stream/lua_yield.png" alt="lua_yield" title="lua_yield"></p>
 <h3 id="协程执行完毕的情况">协程执行完毕的情况</h3>
 <p>以上分析了协程执行lua_resume之后返回值为LUA_YIELD的几种情况，如果此时返回值不是LUA_YIELD而是0，这意味着协程已经执行完毕了，下面看这种情况的处理。</p>
 <p>如果当前协程是入口线程，那么将做如下处理：</p>
@@ -657,7 +657,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/nginx/">nginx</a>

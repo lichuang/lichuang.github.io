@@ -267,7 +267,7 @@
 <li>第一个wal文件，即序列号为0的wal文件，其校验初始值为0（见wal.go的Create函数）。</li>
 <li>当生成下一个wal文件时，以上一个wal文件的最后一条日志数据的CRC校验码来做为该文件的校验初始值，这样就要求类型为<code>校验初始值</code>的记录，必须存储在同一个wal文件中第一条日志数据的前面，否则计算出来该日志数据的crc校验码就不准。</li>
 </ul>
-<p><img src="/media/imgs/20210628-etcd-wal/wal-crc.png" alt="wal文件的校验初始值" title="wal文件的校验初始值"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/wal-crc.png" alt="wal文件的校验初始值" title="wal文件的校验初始值"></p>
 <p>可以看到，通过这个机制，将多个连续的wal文件“串联”了起来：使用上一个wal文件的最后一个日志数据的crc校验值，来做为下一个wal文件的校验初始值，可以有效的校验同一个项目中wal文件的正确性。</p>
 <h3 id="快照数据">快照数据</h3>
 <p>在wal文件中存储的快照数据类型的记录，其中仅存储了当前快照的索引和任期号，而快照的详细数据都放到快照数据文件中存储，下面讲到数据恢复时再展开讨论这部分内容：</p>
@@ -303,7 +303,7 @@
 <li>快照数据：下面详细解释。</li>
 </ul>
 <p>举一个例子来描述前面根据快照文件和WAL文件恢复数据的流程：</p>
-<p><img src="/media/imgs/20210628-etcd-wal/wal-snap.png" alt="WAL与快照文件关系" title="WAL与快照文件关系"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/wal-snap.png" alt="WAL与快照文件关系" title="WAL与快照文件关系"></p>
 <p>如上图中：</p>
 <ul>
 <li>快照文件集合为<code>[1-50.snap,1-150.snap]</code>，取最新的快照文件，即<code>1-150.snap</code>，而<code>1-50.snap</code>文件的数据为过期数据。</li>
@@ -367,7 +367,7 @@
 </span></span><span style="display:flex;"><span>	}
 </span></span><span style="display:flex;"><span>	<span style="color:#a2f;font-weight:bold">return</span>
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><img src="/media/imgs/20210628-etcd-wal/record.png" alt="WAL记录数据需8字节对齐" title="WAL记录数据需8字节对齐"></p>
+</span></span></code></pre></div><p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/record.png" alt="WAL记录数据需8字节对齐" title="WAL记录数据需8字节对齐"></p>
 <h2 id="写缓冲区">写缓冲区</h2>
 <p>另外，为了缓解写文件的IO负担，etcd做了一个写优化：落盘的数据首先写到一个内存缓冲区中，只有每次填满了一个page的数据才会进行落盘操作。</p>
 <p>etcd中定义了几个常量：</p>
@@ -378,7 +378,7 @@
 <p>其中：<code>minSectorSize</code>表示一个sector的大小，而<code>walPageBytes</code>必须为<code>minSectorSize</code>的整数倍。</p>
 <p>etcd中定义了一个<code>PageWriter</code>结构体，用于实现写入日志的操作，内部定义了一个循环缓冲区，只有填满一个<code>walPageBytes</code>大小的数据才会进行落盘。</p>
 <p>下图是写入数据落盘后循环缓冲区的变化的示意图：</p>
-<p><img src="/media/imgs/20210628-etcd-wal/cyclic-buffer.png" alt="写入数据落盘后循环缓冲区的变化" title="写入数据落盘后循环缓冲区的变化"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/cyclic-buffer.png" alt="写入数据落盘后循环缓冲区的变化" title="写入数据落盘后循环缓冲区的变化"></p>
 <ul>
 <li>黄色方块表示一个page的空闲空间，绿色方块表示待写入数据，红色方块表示当前已经写入数据的缓冲区。</li>
 <li>刚开始，第一个page已经有部分数据写入，还剩余一部分空闲空间。因此，当写入数据时，只会把写入数据凑齐一个页面大小来落盘。</li>
@@ -448,7 +448,7 @@
 <li>应用层收到<code>Ready</code>结构体之后，调用wal的<code>WAL.Save</code>接口保存日志数据。这一步做完之后，可以认为日志数据已经落盘了。</li>
 <li>由于数据已经落盘到WAL日志中，所以在应用层通过<code>Node.Advance</code>接口回调通知raft库时，暂存在<code>unstable_log</code>中的日志就可以通过函数<code>raftLog.stableTo</code>删除了。</li>
 </ul>
-<p><img src="/media/imgs/20210628-etcd-wal/log-flow.png" alt="日志数据从提交到落盘的走向" title="日志数据从提交到落盘的走向"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/log-flow.png" alt="日志数据从提交到落盘的走向" title="日志数据从提交到落盘的走向"></p>
 <h2 id="已提交日志">已提交日志</h2>
 <p>raft日志中，需要保存两个日志索引：</p>
 <ul>
@@ -462,7 +462,7 @@
 <li>应用层处理这部分已提交日志。</li>
 <li>调用<code>raftLog.appliedTo()</code>函数，这里会修改<code>appliedIndex = commitIndex</code>，即所有日志都已通知应用层。</li>
 </ul>
-<p><img src="/media/imgs/20210628-etcd-wal/appliedIndex.png" alt="通知应用层已提交日志流程" title="通知应用层已提交日志流程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/appliedIndex.png" alt="通知应用层已提交日志流程" title="通知应用层已提交日志流程"></p>
 <h2 id="快照数据-1">快照数据</h2>
 <p>快照数据由应用层生成，然后将生成的快照数据、当前appliedIndex、配置状态一起交给存储层，保存之后就可以把在该快照之前的数据给删除了：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">func</span> (rc <span style="color:#666">*</span>raftNode) <span style="color:#00a000">maybeTriggerSnapshot</span>() {
@@ -504,7 +504,7 @@
 <li>集群leader纠正节点A同步过来的日志。</li>
 </ul>
 <p>这样，当重启恢复时，会一并将这些日志重放，应用层只要按顺序回放日志即可。</p>
-<p><img src="/media/imgs/20210628-etcd-wal/wal-failback.png" alt="WAL日志的纠错机制" title="WAL日志的纠错机制"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210628-etcd-wal/wal-failback.png" alt="WAL日志的纠错机制" title="WAL日志的纠错机制"></p>
 <p>如上图中：</p>
 <ul>
 <li>节点认为自己是leader节点时，落盘到WAL文件中的日志是<code>[(1,10),(1,11)]</code>，列表中的二元组数据中，第一个元素是任期号，第二个元素是日志索引号。</li>
@@ -544,7 +544,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/etcd/">etcd</a>

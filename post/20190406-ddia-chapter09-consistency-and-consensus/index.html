@@ -198,23 +198,23 @@
 <p>可线性化（Lineariazability），也被称为原子一致性（atomic consistency）、强一致性（strong consistency），其基本的思想是让一个系统看起来好像只有一个数据副本，且所有的操作都是原子的。有了这个保证，应用程序不需要再关系系统内部有多少个副本。</p>
 <p>在一个可线性化的系统中，一旦客户端成功提交写请求，所有客户端的读请求一定能看到刚刚写入的值。这一保证让客户端认为只有一个副本，这样任何一次读取都能读到最新的值，而不是过期的数据。</p>
 <p>下图来解释在一个非线性化的系统中，可能出现什么问题。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-1.jpg" alt="9-1" title="9-1"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-1.jpg" alt="9-1" title="9-1"></p>
 <p>上图中，alice和bob同时等待2014年世界杯决赛的结果。在宣布最终比分之后，alice看到了最终的结果，然后将此结果告诉了bob，bob马上在自己的手机上刷新想看最新的结果，但是却返回了过期的数据，显示当前比赛还在进行中。</p>
 <h2 id="如何实现可线性化">如何实现可线性化？</h2>
 <p>前面只是简单介绍了可线性化的思想：使系统看起来只有一个数据副本。为了更好的理解可线性化，看下面的图示例子。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-2.jpg" alt="9-2" title="9-2"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-2.jpg" alt="9-2" title="9-2"></p>
 <p>在上图中，分为两种操作：针对某个值进行read和write操作。</p>
 <p>客户端A的第一次和最后一次read操作，分别返回0和1，这没有问题，因为在这两次操作中间有客户端C的write操作将数据x更新为了1。</p>
 <p>但是，在写操作还在进行的时候，如果读操作返回的值会来回的跳变，即某次读请求返回的是旧值，而某一次又返回的是新值，这对于一个可线性化系统而言是不可接受的。</p>
 <p>为此，需要加入一个约束条件，如下图所示：</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-3.jpg" alt="9-3" title="9-3"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-3.jpg" alt="9-3" title="9-3"></p>
 <p>在上图中，箭头表示时序依赖关系。即先有客户端A的第二次read(x)操作，再有客户端B的第二次read(x)操作。客户端A的第二次读请求返回了x的新值1，而客户端B在这次读请求之后也去读x的值，此时应该返回的也是新值1。</p>
 <p><strong>即：在一个可线性化的系统中，有一个很重要的约束条件，在写操作开始和结束之间必然存在一个时间段，此时读到x的值会在旧值与新值之间跳变。但是，如果某个客户端的读请求返回了新值，那么即使这时写操作还未真正完成，后续的所有读请求也应该返回新值。</strong></p>
 <p>以下的例子进一步解释可线性化的操作，除了读写之外又引入另一种操作：</p>
 <ul>
 <li>cas(x, old, new)：表示一次原子的比较-设置操作（compare-and-set，简称CAS），如果此时x的值为old，则原子设置这个值为new；否则保留原有值不变，这个操作的返回值表示这次x原有的值是否为old，即设置操作是否发生。</li>
 </ul>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-4.jpg" alt="9-4" title="9-4"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-4.jpg" alt="9-4" title="9-4"></p>
 <p>上图中的每个操作都有一个竖线，表示可能的执行时间点。可线性化要求，连接这些标记的竖线，必须总是按时间（即从左到右）向前移动，而不能向后移动。因此，一旦新值被写入或读取，所有后续的值读到的都是新值，直到被覆盖。</p>
 <p>在上图中，有一些细节需要注意：</p>
 <ul>
@@ -239,7 +239,7 @@
 <li>无主复制（可能不可线性化）：对于无主节点复制的系统，依赖于具体的quorum配置，以及如何定义强一致性，可能并不能保证线性化。</li>
 </ul>
 <h2 id="线性化与quorum">线性化与quorum</h2>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-6.jpg" alt="9-6" title="9-6"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-6.jpg" alt="9-6" title="9-6"></p>
 <p>上图中，x的初始值为0，写客户端向所有三副本（n=3，w=3）写入更新x为1。而客户端A从两个节点（r=2）读数据，其中一个节点返回1，而客户端B则从两个节点都得到了0。</p>
 <p>显然这是违反线性化要求的：客户端B在客户端A之后读取数据，但是仍然得到了旧值。</p>
 <p>总而言之，最安全的假定是类似Dynamo风格的无主复制系统无法保证线性化。</p>
@@ -282,7 +282,7 @@
 <h2 id="lamport时间戳">Lamport时间戳</h2>
 <p>如下图所示，每个节点都有唯一的标识符，且每个节点都有一个计数器来记录自己处理的请求总数，Lamport时间戳是一个值对：（计数器，节点ID），这样就能确保每个Lamport时间戳都是唯一的。</p>
 <p>给定两个Lamport时间戳，可以这样来对比得到全序关系：计数器大的时间戳大，如果计数器相同，那么节点ID大的时间戳更大。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-8.jpg" alt="9-8" title="9-8"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-8.jpg" alt="9-8" title="9-8"></p>
 <p>Lamport时间戳与版本向量的区别在于：版本向量用于区分两个操作是并发的还是因果依赖的，而Lamport时间戳用于确保全序关系。即使Lamport时间戳不能用于区分两个操作属于并发关系，还是因果依赖关系。</p>
 <p>但是，即便有了全序的时间戳排序，有一些问题仍然无法解决。</p>
 <p>比如注册一个网站时，要求用户名需要唯一，虽然两个同样名字的创建用户请求过来，可以根据全序关系来决定究竟哪个请求在先抢占了这个用户名，但是这并不够，因为这个是在请求写入之后才进行的判断，在应答写请求时无法立刻知道结果，因为还需要查询所有节点，如果有节点失败的情况下还需要等待，等等。</p>
@@ -298,7 +298,7 @@
 <p>理解全序关系广播的另一种方式是将其视为日志（如复制日志），传递消息就像追加方式更新日志。由于所有节点必须以相同的顺序发送消息，因此所有节点都可以获取日志并看到相同的消息序列。</p>
 <h1 id="分布式事务与共识">分布式事务与共识</h1>
 <h3 id="两阶段提交two-phase-commit简称2pc">两阶段提交（two-phase commit，简称2PC）</h3>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-9.jpg" alt="9-9" title="9-9"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-9.jpg" alt="9-9" title="9-9"></p>
 <p>以上是简单的2PC的操作示意图，图中引入了一个协调者（Coordinator）的角色。当应用程序开始提交事务时，协调者开始阶段1：发送一个准备请求给事务中的参与者，询问是否可以提交。协调者然后跟踪参与者的回应：</p>
 <ul>
 <li>如果所有参与者都应答”是“，表示它们已经准备好提交，协调者接下来在阶段2发出提交请求，提交才开始执行。</li>
@@ -319,7 +319,7 @@
 <p>正是以上两点保证了2PC的原子性，而单节点事务提交实际上将两个事件合二为一，写入事务日志即提交。</p>
 <h3 id="协调者发生故障">协调者发生故障</h3>
 <p>但是，如果是协调者自身发生了故障，后面的行为无法预计，如下图所示。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-10.jpg" alt="9-10" title="9-10"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-10.jpg" alt="9-10" title="9-10"></p>
 <p>2PC能够顺利完成的唯一方法是等待协调者恢复，这就是为什么协调者必须在向参与者发送提交请求之前需要先写入磁盘事务的日志：这是因为一旦协调者崩溃，恢复之后可以根据读取事务日志来确定所有未决的事务。</p>
 <h1 id="支持容错的共识算法">支持容错的共识算法</h1>
 <p>所有支持容错的共识算法都有以下的性质：</p>
@@ -381,7 +381,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/">读书笔记</a>

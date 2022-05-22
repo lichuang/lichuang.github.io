@@ -181,13 +181,13 @@
 <p>数据库的<code>ACID</code>特性中，<code>Isolation</code>即隔离性是一个较难实现的特性。</p>
 <p>一个数据库被修改时，在这次事务提交之前，不希望其他事务操作读到修改的结果。一种常见的办法就是加锁，但是锁的粒度如果很大，就会影响数据库的并发性能，即在写操作完成之前不能进行其他操作。</p>
 <p><code>MVCC（Multiversion concurrency control，多版本并发控制）</code>是解决这个问题的一种方式。它的做法是：保存数据库中的多个版本，修改的是一个版本，而同时进行的读操作读取到的数据是旧版本的数据，这样即便读到了旧的数据也不影响，只要不是写操作中间的数据就好。</p>
-<p><img src="/media/imgs/20200726-boltdb-4/readCommitted.png" alt="readCommitted" title="readCommitted"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/readCommitted.png" alt="readCommitted" title="readCommitted"></p>
 <p>如上图所示，事务A修改了x的值为2，在这个事务提交之前，读事务B读取到的还是修改之前的值1，因为存在有两个该数据的不同版本，并且并没有因为有写操作同时存在而必须等待写操作完成才能进行读操作。在事务A提交之后，才能读到新的值2。（但是这个图里还有另外的问题，即同一个读事务的过程中，前后读到了同一个数据两次不同的值，这叫“不可重复读”，这就是另外一个问题了不在这里展开讨论。）</p>
 <p>本节讲解boltdb如何实现<code>MVCC</code>操作，在开始讨论之前先看看boltdb如何管理数据库文件的。</p>
 <h1 id="映射文件的使用">映射文件的使用</h1>
 <p>boltdb通过<code>mmap</code>系统调用将数据库文件映射到内存中，64位体系下一个进程的虚拟内存空间有128TB，足够映射一个文件了。在把磁盘文件映射到内存之后，对磁盘文件的读写可以直接使用读写内存的操作，由操作系统内核来决定什么时候将哪部分的虚拟内存换入、换出物理内存。</p>
 <p>看上去这个好像方便了很多，其实并不建议在存储引擎中使用内存映射这样“偷懒”的技术。原因在于：操作系统内核除了知道什么时候换入换出物理内存之外，对数据库的其他操作一无所知，并不能很精准的控制其行为。</p>
-<p><img src="/media/imgs/20200726-boltdb-4/db-mmap.png" alt="db-mmap" title="db-mmap"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/db-mmap.png" alt="db-mmap" title="db-mmap"></p>
 <p>对数据库进行内存映射的操作在函数<code>db.mmap</code>函数中进行，大体流程如下：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#a2f;font-weight:bold">func</span> (db <span style="color:#666">*</span>DB) <span style="color:#00a000">mmap</span>(minsz <span style="color:#0b0;font-weight:bold">int</span>) <span style="color:#0b0;font-weight:bold">error</span> {
 </span></span><span style="display:flex;"><span>	db.mmaplock.<span style="color:#00a000">Lock</span>()
@@ -215,7 +215,7 @@
 <p>以下分这几种情况进行讨论。</p>
 <h2 id="初始化">初始化</h2>
 <p>数据库文件的页面初始情况如下图：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-1.png" alt="dbfile-1" title="dbfile-1"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/dbfile-1.png" alt="dbfile-1" title="dbfile-1"></p>
 <p>其中：</p>
 <ul>
 <li><code>[0,1]</code>页面为<code>meta</code>页面，这两个人<code>meta</code>页面一定是最开始的两个页面不会发生变更。</li>
@@ -233,24 +233,24 @@
 <li>这一次事务对应的<code>pending</code>页面就是页面<code>[2,3,10]</code>（<code>2</code>为<code>freelist</code>页面），因为已经有新的页面保存它们的内容，在事务提交之后，下一次事务操作时，这三个页面就是空闲页面了。</li>
 </ul>
 <p>因此，事务结束之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-2.png" alt="dbfile-2" title="dbfile-2"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/dbfile-2.png" alt="dbfile-2" title="dbfile-2"></p>
 <p>即这种情况下，虽然增加了文件的大小（新增了页面<code>13</code>），但是由于在原先的<code>over allocate</code>范围之内，所以不需要重新remmap文件。</p>
 <p>这里的一个问题是：为什么在页面变脏之后，需要重新使用一个页面存储脏页面内容，而不是直接在原先的页面上修改？答案是为了做到<code>MVCC</code>，下面将展开分析。</p>
 <h2 id="需要增加文件大小需要remmap">需要增加文件大小，需要remmap</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[2,3,10]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>假设这个写事务修改了页面<code>[11,12]</code>，并且提交修改的时候发现超过了页面填充率的阈值，需要进行分裂。于是两个页面进行分裂，就需要4个新的页面来存储分裂后的数据。于是，旧的页面<code>[11,12,13]</code>（页面<code>13</code>是<code>freelist</code>页面）成为这次事务的<code>pending</code>页面。由于当前可用的空闲页面不够用，于是只能增加文件大小，同时进行了remmap操作，<code>meta.pgid</code>移动到了<code>16</code>。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-3.png" alt="dbfile-3" title="dbfile-3"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/dbfile-3.png" alt="dbfile-3" title="dbfile-3"></p>
 <h2 id="不需要增加文件大小需要remmap">不需要增加文件大小，需要remmap</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[11,12,13]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>假设这一次写事务修改了页面<code>[2,3,10]</code>，将它们变成了<code>pending</code>页面，且页面<code>[11,12,13]</code>被依次分配给这三个页面存储新的页面数据。这时<code>freelist</code>页面就没有空闲页面来存储了，为了分配新页面，需要remmap将映射范围移动到下一页及页面17，而页面还在文件范围之内，因此不需要增加文件大小。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-4.png" alt="dbfile-4" title="dbfile-4"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/dbfile-4.png" alt="dbfile-4" title="dbfile-4"></p>
 <h2 id="不需要增加文件大小不需要remmap">不需要增加文件大小，不需要remmap</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[2,3,10,15]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>如果这一次写事务只修改了页面<code>12</code>，并且提交事务时不需要分裂，那么只需要一个空闲页面就能存储这个修改的脏页面，于是页面2做为这个新的页面被分配了出去，而页面12变成了这次事务操作之后的<code>pending</code>页面。同时<code>freelist</code>页面由页面16变成了页面3，因为有足够的空闲页面存储这一次的修改，于是既不会增加文件大小也不需要remmap操作。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-5.png" alt="dbfile-5" title="dbfile-5"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/dbfile-5.png" alt="dbfile-5" title="dbfile-5"></p>
 <h1 id="boltdb如何实现mvcc">boltdb如何实现MVCC</h1>
 <p>从上面的分析可以看出：当一个页面被修改时，修改结果并不马上覆盖旧的页面，而是：</p>
 <ul>
@@ -261,7 +261,7 @@
 <p>原因是为了实现<code>MVCC</code>操作。</p>
 <p>实现<code>MVCC</code>操作的核心：保存当前数据的多个版本，这样写事务操作的同时，允许有多个读事务操作进行，只是读事务不会马上读到写事务修改的数据，直到这个写事务提交为止。</p>
 <p>boltdb有两个<code>meta</code>页面，也是为了实现<code>MVCC</code>功能，以下图为例：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/writeTx.png" alt="writeTx" title="writeTx"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200726-boltdb-4/writeTx.png" alt="writeTx" title="writeTx"></p>
 <p>其流程大体如下：</p>
 <ul>
 <li>在写事务开始之前，<code>meta</code>页面存储的事务ID是<code>10</code>和<code>11</code>，于是新的写事务ID是12。写事务12开始之前，拷贝的是页面1即事务11的<code>meta</code>内容，而在提交时将覆盖页面0即事务<code>10</code>的<code>meta</code>内容。</li>
@@ -303,7 +303,7 @@
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>

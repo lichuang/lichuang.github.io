@@ -199,7 +199,7 @@
 </table>
 <p>即：在boltdb中，db代表一个数据库，对应一个db文件；而一个数据库中可能有多个表，对应的概念就是boltdb中的bucket。</p>
 <p>另外，对B+树有了解的都知道，B+树中为了减少磁盘读写次数，每次读写都是以页为单位的，对应到boltdb中用<code>page</code>数据结构表示，<code>page</code>只是描述磁盘上一个页面的数据结构，当一个页面读取到内存中时，就使用<code>node</code>结构体来描述。另外，既然落地到磁盘的单位是页，就需要有数据结构来管理页面的分配，这部分使用<code>freelist</code>这个数据结构来管理。</p>
-<p><img src="/media/imgs/20200625-boltdb-1/page-struct.png" alt="page-struct" title="page-struct"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/page-struct.png" alt="page-struct" title="page-struct"></p>
 <p>以下，首先展开对页面相关核心数据结构的分析。</p>
 <h1 id="数据库文件的磁盘布局和页面">数据库文件的磁盘布局和页面</h1>
 <p>前面提到过，boltdb中以页面为单位来进行磁盘的读写操作，一个页面的大小一般而言与操作系统的页面一致，即4K大小。在boltdb中，分为以下几种类型的页面：</p>
@@ -217,7 +217,7 @@
 </span></span><span style="display:flex;"><span>	freelistPageFlag = <span style="color:#666">0x10</span>
 </span></span><span style="display:flex;"><span>)
 </span></span></code></pre></div><p>这四种页面，在boltdb的数据库文件的布局大体如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/boltdb-layout.png" alt="boltdb-layout" title="boltdb-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/boltdb-layout.png" alt="boltdb-layout" title="boltdb-layout"></p>
 <p>从上图中可以看出：</p>
 <ul>
 <li>最开始的两个页面是两个meta页面，至于为什么是两个，后面再展开讨论。</li>
@@ -245,7 +245,7 @@
 <li>ptr：指向页表头数据结尾，也就是页面数据的起始位置。一个页面的页表头由前面的id、flags、count和overflow字段构成，而ptr并不是页表头的一部分。</li>
 </ul>
 <p>根据以上的分析，一个页面的格式如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/page-layout.png" alt="page-layout" title="page-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/page-layout.png" alt="page-layout" title="page-layout"></p>
 <p>有了对页面的初步认识，接着下来看具体的几种不同类型页面的格式。</p>
 <h2 id="meta页面">meta页面</h2>
 <p>meta页面用于存储表示整个数据库信息的元数据，其格式如下：</p>
@@ -278,7 +278,7 @@
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>即：将<code>page</code>的ptr指针转换为<code>meta</code>类型返回。</p>
 <p>因此，一个<code>meta</code>页面的格式如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/meta-page-layout.png" alt="meta-page-layout" title="meta-page-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/meta-page-layout.png" alt="meta-page-layout" title="meta-page-layout"></p>
 <h2 id="freelist页面">freelist页面</h2>
 <p>接下来看freelist页面的构成。由于boltdb磁盘分配的单位是页面，所以当前哪些页面可用、哪些闲置，就需要用一个数据结构来描述，这部分信息就由freelist页面来维护。如果当前磁盘页面已经不够分配了，boltdb就需要扩大磁盘文件的大小，创建出更多可用的闲置页面供分配。</p>
 <p>来看freelist的数据结构定义：</p>
@@ -299,7 +299,7 @@
 <li>写页面内容到磁盘：对应操作在<code>freelist.write</code>中，读取<code>ids</code>数组和<code>pending</code>中的页面id，拼接、排序之后在一起写入磁盘。</li>
 </ul>
 <p>即：freelist页面的数据部分，仅存储的是可用的页面ID数组。这一部分在读取到内存时，写入<code>ids</code>成员中，而<code>pending</code>和<code>cache</code>，都是boltdb分配页面流程中的中间产物。</p>
-<p><img src="/media/imgs/20200625-boltdb-1/freelist-page-layout.png" alt="freelist-page-layout" title="freelist-page-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/freelist-page-layout.png" alt="freelist-page-layout" title="freelist-page-layout"></p>
 <p><code>freelist</code>中的一些操作与事务有关，这里暂时不展开这部分的讨论，先来看看基本的页面分配是怎么完成的。</p>
 <p><code>freelist</code>对外提供<code>allocate</code>函数，该函数的参数是一个整数n，表示希望能分配连续的n个页面，返回这些页面中第一个页面的页面ID。实际情况肯定不是每次这样分配就能成功的，在不成功的时候，boltdb就只能再进行<code>mmap</code>操作，扩大数据库磁盘文件的大小了：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// allocate returns a contiguous block of memory starting at a given page.
@@ -407,7 +407,7 @@ func (db *DB) mmap(minsz int) error {
 <li>而根据<code>branchPageElement.key</code>函数的实现，一个<code>branchPageElement</code>的<code>key</code>，位置在这个元素的<code>pos</code>位置开始，长度为<code>key</code>。</li>
 </ul>
 <p>因此，branch页面的格式如下图：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/branch-page-layout.png" alt="branch-page-layout" title="branch-page-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/branch-page-layout.png" alt="branch-page-layout" title="branch-page-layout"></p>
 <h2 id="leaf页面">leaf页面</h2>
 <p>leaf页面就是B+树中存储数据的叶子节点，其页面元素定义如下：</p>
 <div class="highlight"><pre tabindex="0" style="background-color:#f8f8f8;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#080;font-style:italic">// leafPageElement represents a node on a leaf page.
@@ -428,7 +428,7 @@ func (db *DB) mmap(minsz int) error {
 <li>存储key、value数据的数组。</li>
 </ul>
 <p>可以看到，leaf节点元素与branch节点元素类似，在这里就不再加以说明，仅把格式示意图列在下面，读者可以自己参考代码阅读：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/leaf-page-layout.png" alt="leaf-page-layout" title="leaf-page-layout"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200625-boltdb-1/leaf-page-layout.png" alt="leaf-page-layout" title="leaf-page-layout"></p>
 
     
   </article>
@@ -454,7 +454,7 @@ func (db *DB) mmap(minsz int) error {
   </form>
 </div>
 
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
     <footer class="post-footer">
       <div class="post-tags">
           <a href="/tags/%E5%AD%98%E5%82%A8/">存储</a>
