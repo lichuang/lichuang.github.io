@@ -7,11 +7,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-<title>B树、B&#43;树索引算法原理（上） | codedump的网络日志</title>
+<title>B树、B&#43;树索引算法原理（上） - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
 <link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
 
 
 
@@ -110,7 +110,7 @@
         "@type": "WebPage",
         "@id": "https://www.codedump.info/post/20200609-btree-1/"
     },
-    "headline": "B树、B\u002b树索引算法原理（上） | codedump的网络日志","datePublished": "2020-06-09T18:40:46+08:00",
+    "headline": "B树、B\u002b树索引算法原理（上） - codedump的网络日志","datePublished": "2020-06-09T18:40:46+08:00",
     "dateModified": "2020-06-09T18:40:46+08:00",
     "wordCount":  4667 ,
     "publisher": {
@@ -123,7 +123,7 @@
         },
     "description": "B树、B\u002b树索引算法原理（上）"
 }
-</script><meta property="og:title" content="B树、B&#43;树索引算法原理（上） | codedump的网络日志" />
+</script><meta property="og:title" content="B树、B&#43;树索引算法原理（上） - codedump的网络日志" />
 <meta property="og:type" content="article" />
 
 
@@ -199,6 +199,8 @@
             <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
             <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
             <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang/add_subscriber" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
         </div>
 
         <div class="flex">
@@ -307,7 +309,7 @@
 </blockquote>
 <h1 id="b树数据库索引原理">B树数据库索引原理</h1>
 <p>在一堆数据中查找一个数据时，常用的数据结构有二叉查找树（binary search tree，简称BST）、哈希桶等。以BST为例，常见的实现有AVT、红黑树等，由于这类型的树是平衡的，每次比较操作都会去掉当前数据量一半的数据，因此查找的时间复杂度为<code>O(log2n)</code>。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/bst-example.png" alt="bst-example" title="bst-example"></p>
+<p><img src="/media/imgs/20200609-btree-1/bst-example.png" alt="bst-example" title="bst-example"></p>
 <p>但是这类型数据结构的问题在于，由于每个节点只能容纳一个数据，导致树的高度很高，逻辑上挨着的节点数据可能离的很远。如果是在内存中操作数据的话，这样问题并不大。</p>
 <p>考虑在磁盘中存储数据的情况，与内存相比，读写磁盘有以下不同点：</p>
 <ul>
@@ -317,7 +319,7 @@
 <p>因为读写磁盘的这个特点，因此对应的数据结构应该尽量的满足“局部性原理”：“当一个数据被用到时，其附近的数据也通常会马上被使用”，为了满足局部性原理，应该：<strong>将逻辑上相邻的数据在物理上也尽量存储在一起</strong>。这样才能减少读写磁盘的数量。</p>
 <p>所以，对比起一个节点只能存储一个数据的BST类数据结构来，要求这种数据结构在形状上更“胖”、更加“扁平”，即：每个节点能容纳更多的数据，这样就能降低树的高度，同时让逻辑上相邻的数据都能尽量的存储在物理上也相邻的硬盘空间上，减少磁盘读写。</p>
 <p>以下图为例：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/disk-ds.png" alt="disk-ds" title="disk-ds"></p>
+<p><img src="/media/imgs/20200609-btree-1/disk-ds.png" alt="disk-ds" title="disk-ds"></p>
 <p>图中从根节点出发，查找数据14的过程中，经过的第二个节点中有键值<code>[3,7,13]</code>，这三个值在“逻辑”上是相邻的，如果它们在磁盘上的存储也能做到在“物理”上相邻，那么只需要一次读操作就能把这个节点的数据从磁盘上加载到内存中进行数据比较，这样整个查找过程就只需要两次磁盘读操作。</p>
 <p>在这里，一个节点越“胖”，意味着扇出（fanout）越大，同时高度越低，这两个性质决定了：</p>
 <ul>
@@ -325,7 +327,7 @@
 <li>低高度：遍历期间的寻道次数更少。</li>
 </ul>
 <p>可以证明，查找数据的次数（searchnum）与degree、以及数据总量有以下关系：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btree-num.png" alt="btree-num" title="btree-num"></p>
+<p><img src="/media/imgs/20200609-btree-1/btree-num.png" alt="btree-num" title="btree-num"></p>
 <p>B树和B+树就是两种利用磁盘局部性原理进行优化的树结构，B+树基于B树做了一些改进，这里首先将介绍B树的原理。本系列将用两篇文章讲解这两种数据结构的原理，并且提供Python实现代码。</p>
 <h1 id="b树的定义及性质">B树的定义及性质</h1>
 <p>在B树中，分为两种节点：</p>
@@ -344,7 +346,7 @@
 <li>无论是内部节点还是叶子节点，其存储的键值数量在<code>[t-1,2t-1]</code>之间，如果数量不满足此条件，需要做重平衡操作。如果少于<code>t-1</code>，需要借用或合并数据；反之，如果数据量大于<code>2t-1</code>，则需要分裂成两个节点。</li>
 </ul>
 <p>我们来看下面的图示，该图中的B树，t参数的值为2（<strong>需要特别说明的是，一棵树中每个存储数据的地方，应该既有键值（key）也有数据（value），本文中为了简单起见，存储的数据只有键值。</strong>）：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btree-example.png" alt="btree-example" title="btree-example"></p>
+<p><img src="/media/imgs/20200609-btree-1/btree-example.png" alt="btree-example" title="btree-example"></p>
 <p>在上图中：</p>
 <ul>
 <li>由于<code>t=2</code>，所有所有节点的键值数量在<code>[1,3]</code>之间。</li>
@@ -361,7 +363,7 @@
 <li>沿着树向上一直执行该操作，直到不再变满为止。</li>
 </ul>
 <p>分裂操作的示意图如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btree-split.png" alt="btree-split" title="btree-split"></p>
+<p><img src="/media/imgs/20200609-btree-1/btree-split.png" alt="btree-split" title="btree-split"></p>
 <p>在上图中，由于插入数据，导致节点<code>[P,Q,R,S,T,U,V]</code>数据量不满足平衡性要求，这时将其分裂为两个节点，同时将中间的节点S提升到父节点中形成<code>[N,S,W]</code>，同时修改子树指针。</p>
 <p>因此，向B树中插入一个数据的大体流程如下：</p>
 <pre><code>向B树中插入数据：
@@ -380,9 +382,9 @@
 <p>下面将在B树中删除一个数据分为以下几种情况进行讨论。</p>
 <h3 id="情况1数据存在于叶子节点">情况1：数据存在于叶子节点</h3>
 <p>在这种情况下，只需简单的从叶子节点中删除数据即可，如下图中，从节点<code>[4,5,6]</code>中删除数据6，最开始的图如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase1.png" alt="btreeCase1" title="btreeCase1"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase1.png" alt="btreeCase1" title="btreeCase1"></p>
 <p>下图演示了删除数据6之后的情况：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase1step1.png" alt="btreeCase1step1" title="btreeCase1step1"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase1step1.png" alt="btreeCase1step1" title="btreeCase1step1"></p>
 <p>上图只是最简单的情况，因为<code>[4,5,6]</code>节点数据量即使在删除一个数据之后仍然满足平衡条件，不满足平衡条件的将在下面展开说明。</p>
 <h3 id="情况2数据存在于内部节点">情况2：数据存在于内部节点</h3>
 <p>这种情况下，如果该内部节点的数据数量不大于<code>t</code>，则需要做重新平衡操作，这里区分成两种情况：</p>
@@ -393,15 +395,15 @@
 <p>下面分这两种情况进行演示。</p>
 <h4 id="情况2-a借用相邻左右子树节点">情况2-a：借用相邻左右子树节点</h4>
 <p>首先演示从兄弟节点中借用数据的情况，这是从<code>[3,7,13]</code>的节点在删除13之前的示意图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase2step1.png" alt="btreeCase2step1" title="btreeCase2step1"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase2step1.png" alt="btreeCase2step1" title="btreeCase2step1"></p>
 <p>含有键值<code>[3,7,13]</code>的节点在删除13之后，由于其相邻子树<code>[10,11,12]</code>有足够的数据数量，因此可以从旁边的子树抽调了数据12，提升到该节点中替换了13，于是变成了<code>[3,7,12]</code>，而子树的数据也从<code>[10,11,12]</code>变成了<code>[10,11]</code>：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase2step2.png" alt="btreeCase2step2" title="btreeCase2step2"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase2step2.png" alt="btreeCase2step2" title="btreeCase2step2"></p>
 <h4 id="情况2-b合并左右相邻子树节点">情况2-b：合并左右相邻子树节点</h4>
 <p>除了上面两种从旁边子树借用数据的操作之外，如果左右两边的子树数据量都不满足不少于<code>t</code>的情况，那么只能将两者进行合并了，如下图所示。</p>
 <p>在从节点<code>[3,7,12]</code>中删除键值7之前的图示如下图，这时该节点的左右两边的子树<code>[4,5]</code>和<code>[10,11]</code>都不满足借用条件：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase2step3.png" alt="btreeCase2step3" title="btreeCase2step3"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase2step3.png" alt="btreeCase2step3" title="btreeCase2step3"></p>
 <p>在上图的基础上，从节点<code>[3,7,12]</code>中删除键值7，由于该键值左右两个子树<code>[4,5]</code>和]<code>[10,11]</code>都不满足数据量不少于<code>t</code>的条件，所以只能将两者合并成一个节点：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase2step4.png" alt="btreeCase2step4" title="btreeCase2step4"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase2step4.png" alt="btreeCase2step4" title="btreeCase2step4"></p>
 <h3 id="情况3数据不直接存在于某个内部节点的情况">情况3：数据不直接存在于某个内部节点的情况</h3>
 <p>上面两种情况，是键值直接存在于特定（叶子、内部）节点时的操作，最后一种情况则是针对它们的父节点进行操作。</p>
 <p>在这种情况中，如果待删除数据并不存在于节点X中，那么找到必然包含该数据的X的子节点X.child[i]（假设为节点Y），如果这时候Y节点数据数量不满足t这个条件，则需要用下面两种方式进行重平衡。</p>
@@ -413,17 +415,17 @@
 <li>提升兄弟节点的一个数据到父节点X中。</li>
 </ul>
 <p>假设删除数据2之前的图示如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase3bstep1.png" alt="btreeCase3bstep1" title="btreeCase3bstep1"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase3bstep1.png" alt="btreeCase3bstep1" title="btreeCase3bstep1"></p>
 <p>因为节点<code>[1,2]</code>在删除数据2之后不满足平衡条件，所以需要重平衡。其兄弟节点<code>[5,10,11]</code>够数量，因此可以父节点对应的数据3下降去填补删除2之后的空缺，而将数据5提升到父节点。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase3bstep2.png" alt="btreeCase3bstep2" title="btreeCase3bstep2"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase3bstep2.png" alt="btreeCase3bstep2" title="btreeCase3bstep2"></p>
 <h4 id="情况3-b与兄弟节点合并数据">情况3-b：与兄弟节点合并数据</h4>
 <p>在这种情况下，如果节点Y和其兄弟节点的数据量都只有<code>t-1</code>，那么将进行合并操作。</p>
 <p>在删除数据4之前如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase3step1.png" alt="btreeCase3step1" title="btreeCase3step1"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase3step1.png" alt="btreeCase3step1" title="btreeCase3step1"></p>
 <p>包含数据4的节点<code>[4,5,10,11]</code>，其父节点<code>[3,12]</code>只有2个数据，因此需要做重平衡操作。但是其兄弟节点<code>[20,23]</code>也是只有2个数据，因此只能将两者进行合并：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase3step2.png" alt="btreeCase3step2" title="btreeCase3step2"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase3step2.png" alt="btreeCase3step2" title="btreeCase3step2"></p>
 <p>由于合并数据，导致了树的高度缩减，因此需要修改根节点，从<code>[16]</code>这个节点修改为<code>[3,12,16,2023]</code>：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20200609-btree-1/btreeCase3step3.png" alt="btreeCase3step3" title="btreeCase3step3"></p>
+<p><img src="/media/imgs/20200609-btree-1/btreeCase3step3.png" alt="btreeCase3step3" title="btreeCase3step3"></p>
 <p>情况2和情况3有一些类似，以至于初学的时候会发生混淆，这里将我学习总结的区别列举一下：</p>
 <ul>
 <li>情况2操作针对的是<strong>直接</strong>包含数据的节点，而情况3操作针对的是它们的祖先节点。</li>
@@ -529,7 +531,7 @@
 </div>
       <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -563,8 +565,9 @@
 
 
   <script id="utterances" src="https://utteranc.es/client.js"
-            owner=lichuang"
+            owner=lichuang
             repo=lichuang.github.io
+              theme=preferred-color-scheme
         crossorigin="anonymous"
         async>
 </script>

@@ -7,11 +7,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-<title>Etcd Raft库的工程化实现 | codedump的网络日志</title>
+<title>Etcd Raft库的工程化实现 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
 <link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
 
 
 
@@ -110,7 +110,7 @@
         "@type": "WebPage",
         "@id": "https://www.codedump.info/post/20210515-raft/"
     },
-    "headline": "Etcd Raft库的工程化实现 | codedump的网络日志","datePublished": "2021-05-15T13:52:08+08:00",
+    "headline": "Etcd Raft库的工程化实现 - codedump的网络日志","datePublished": "2021-05-15T13:52:08+08:00",
     "dateModified": "2021-05-15T13:52:08+08:00",
     "wordCount":  9818 ,
     "publisher": {
@@ -123,7 +123,7 @@
         },
     "description": "Etcd Raft库的工程化实现"
 }
-</script><meta property="og:title" content="Etcd Raft库的工程化实现 | codedump的网络日志" />
+</script><meta property="og:title" content="Etcd Raft库的工程化实现 - codedump的网络日志" />
 <meta property="og:type" content="article" />
 
 
@@ -209,6 +209,8 @@
             <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
             <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
             <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang/add_subscriber" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
         </div>
 
         <div class="flex">
@@ -308,7 +310,7 @@
 </ul>
 <h1 id="概述">概述</h1>
 <p>在开始展开讨论前，先介绍这个Raft论文中的示意图，我认为能理解这幅图才能对一致性算法有个全貌的了解：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/statemachine.jpeg" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
+<p><img src="/media/imgs/20210515-raft/statemachine.jpeg" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
 <p>图中分为两种进程：</p>
 <ul>
 <li>server进程：server进程中运行着一致性算法模块、持久化保存的日志、以及按照日志提交的顺序来进行顺序操作的状态机。</li>
@@ -382,14 +384,14 @@
 </table>
 <p>两种实现各有自己的优缺点，braft类实现更适合提供一个需要集成raft的服务时，可以直接用来实现服务；etcd raft类的实现，由于与网络、存储层耦合不紧密，易于进行测试，更适合拿来做为库使用。</p>
 <p>如果把前面的一致性算法的几个特性做一个抽象，我认为一致性算法库本质上就是一个“维护操作日志的算法库，只要大家都按照相同的顺序将日志灌入应用层”就好，其工作原理大体如下图：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/co-algo.png" alt="一致性算法的本质" title="一致性算法的本质"></p>
+<p><img src="/media/imgs/20210515-raft/co-algo.png" alt="一致性算法的本质" title="一致性算法的本质"></p>
 <p>如果把问题抽象成这样的话，那么本质上，所谓的“一致性算法库”跟一个经常看到的tcp、kcp甚至是一个应用层的协议栈也就没有什么区别了：</p>
 <ul>
 <li>大家都要维护一个数据区：只有确认过正确的，才会抛给上一层。以TCP协议算法来说，比如发送但未确认的数据由协议栈的缓冲区维护，如果超时还未等到对端的确认，将发起超时重传等，这些都是每种协议算法的具体细节，但是本质上这些协议都要维护一个未确认数据的缓冲区。一致性算法在数据的维护上会更复杂一些，一是参与确认的节点不止通信的C/S两端，需要集群中半数以上节点的确认；同时，在未确认之前日志需要首先落盘，在提交成功之后再抛给应用层。</li>
 <li>只要保证所有参与的节点，都以相同的数据灌入日志给应用层，那么得到的结果将最终一致。</li>
 <li>确认的流程是可以pipeline异步化的，提交日志的进程并不需要一直等待日志被提交成功，而是提交之后等待。不妨以下面的流程来做解释：</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/pipeline.png" alt="流水线异步化的日志提交流程" title="流水线异步化的日志提交流程"></p>
+<p><img src="/media/imgs/20210515-raft/pipeline.png" alt="流水线异步化的日志提交流程" title="流水线异步化的日志提交流程"></p>
 <p>其中：</p>
 <ul>
 <li>clientA和clientB分别提交了两条日志数据，但是并没有阻塞等待日志提交成功，而是提交之后就继续别的操作了。</li>
@@ -462,7 +464,7 @@
 <li>Advance()：Advance函数是当使用者已经将上一次Ready数据处理之后，调用该函数告诉raft库可以进行下一步的操作。</li>
 </ul>
 <p>在<code>node</code>结构体的实现中，无论是通过<code>Propose</code>函数还是<code>Step</code>函数提交到Raft算法库的消息，最终都是调用内部的<code>step</code>函数的。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/etcd-raft.png" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
+<p><img src="/media/imgs/20210515-raft/etcd-raft.png" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
 <p>以上图来说明应用层与raft之间的交互流程，注意：etcd的实现中，raft是一个独立的线程，与应用层之间通过上面介绍的几个channel进行交互。</p>
 <ul>
 <li>首先看最中间的部分，本地提交的数据通过<code>propc</code>channel通知raft线程，而应用层从外部网络接收到的日志数据通过<code>recvc</code>通知raft线程。但是不管是哪个channel，最终都是通过上面提到的<code>step</code>函数将日志数据灌入raft线程中。</li>
@@ -486,7 +488,7 @@
 <h2 id="raft算法">Raft算法</h2>
 <p>raft算法中，有不同的角色存在：candidate、follower、leader，本质上Raft算法是输入日志数据进行处理，而每种角色对不同类型的日志数据需要有不同的处理。</p>
 <p>所以，etcd raft的实现中，针对三种不同的角色，通过修改函数指针的方式在切换了不同角色时的处理，如下图所示：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/role-algo.png" alt="不同角色的Raft算法处理" title="不同角色的Raft算法处理"></p>
+<p><img src="/media/imgs/20210515-raft/role-algo.png" alt="不同角色的Raft算法处理" title="不同角色的Raft算法处理"></p>
 <p>具体的算法细节，不打算在本文中展开，可以回头上上面给出来的几篇文章。</p>
 <h2 id="数据管理">数据管理</h2>
 <p>数据管理分为以下几部分阐述：</p>
@@ -507,7 +509,7 @@
 <li>offset uint64：保存快照和日志数组的分界线。</li>
 </ul>
 <p>可以看到，未持久化数据分为两部分：一部分是快照数据snapshot，另一部分就是日志数据数组。两者不会同时存在，快照数据只会在启动时进行快照数据恢复时存在，当应用层使用快照数据进行恢复之后，raft切换为可以接收日志数据的状态，后续的日志数据都会写到<code>entrise</code>数组中了，而两者的分界线就是<code>offset</code>变量。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/unstable.png" alt="未持久化数据" title="未持久化数据"></p>
+<p><img src="/media/imgs/20210515-raft/unstable.png" alt="未持久化数据" title="未持久化数据"></p>
 <p>由于是”未持久化数据的缓冲区“，因此这其中的数据可能会发生回滚（rollback）现象，因此<code>unstable</code>结构体需要支持能回滚的操作，见函数<code>truncateAndAppend</code>：</p>
 <pre><code>func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	// 先拿到这些数据的第一个索引
@@ -549,10 +551,10 @@
 <li>对于etcd 服务来说，还提供了写操作，包括：增加日志数据、生成快照、压缩数据。（如下图中的蓝色函数）</li>
 </ul>
 <p>因此，这个接口及其默认实现<code>MemoryStorage</code>，呈现了稍微不太一样的行为，以致于我最开始没有完全理解：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/stable.png" alt="持久化数据的内存映像" title="持久化数据的内存映像"></p>
+<p><img src="/media/imgs/20210515-raft/stable.png" alt="持久化数据的内存映像" title="持久化数据的内存映像"></p>
 <p>因为持久化数据的内存映像，提供给Raft库的仅仅只需要读操作，所以<code>Storage</code>接口就只有读操作，多出来的写操作只会在应用层中才会用到，因此这些写接口并没有放在公用的接口中。</p>
 <p>了解了持久化和未持久化数据的表示之后，etcd raft库将两者统一到<code>raftLog</code>这个结构体中：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/raftlog.png" alt="不同视角下的raftlog" title="不同视角下的raftlog"></p>
+<p><img src="/media/imgs/20210515-raft/raftlog.png" alt="不同视角下的raftlog" title="不同视角下的raftlog"></p>
 <h3 id="数据的持久化">数据的持久化</h3>
 <p>以上解释两种缓冲区的作用，数据最终还是需要持久化到磁盘上的，那么，这个持久化数据的时机在哪里？</p>
 <p>答案：当客户端提交数据时，etcd Raft库就通过<code>Ready</code>结构体的<code>Entries</code>成员通知应用层，将这些提交的数据进行持久化了。</p>
@@ -605,7 +607,7 @@
 <h3 id="数据流动的全流程">数据流动的全流程</h3>
 <p>以上解释了客户端提交的数据在两个缓冲区、持久化存储、以及最终达成一致之后给应用层的过程，下面以例子分别来解释客户端提交数据的流程以及快照数据恢复的流程。</p>
 <h4 id="客户端提交数据的流程">客户端提交数据的流程</h4>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/wal.png" alt="客户端提交数据的流动" title="客户端提交数据的流动"></p>
+<p><img src="/media/imgs/20210515-raft/wal.png" alt="客户端提交数据的流动" title="客户端提交数据的流动"></p>
 <p>1、客户端提交数据给服务器。</p>
 <p>2、接着看这条数据走过的”存储“路径：</p>
 <pre><code>1、首先，`raft`库会首先将日志数据写入`未持久化数据缓冲区`。
@@ -627,7 +629,7 @@
 <p>4、应用层（也就是etcdserver）将快照数据写入wal持久化存储中，这一步可以理解为将快照数据落盘。</p>
 <p>5、落盘之后，调用<code>MemoryStorage</code>结构体的<code>ApplySnapshot</code>将快照数据保存到持久化数据内存映像中。</p>
 <p>6、（图中未给出）调用Raft库的<code>Advance</code>接口通知raft库传递过来的<code>Ready</code>结构体数据已经操作完毕，这时候对应的，raft库就会把第二步中保存到未持久化数据缓存的快照数据给删除了。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/snapshot.png" alt="快照数据的流动" title="快照数据的流动"></p>
+<p><img src="/media/imgs/20210515-raft/snapshot.png" alt="快照数据的流动" title="快照数据的流动"></p>
 <p>以上是快照数据的流动过程，在节点N接收并持久化快照数据后，后面就可以接收正常的日志了，日志数据的流动过程跟快照数据实际是差不多的，就不再阐述了。</p>
 <p>从上面的流程中也可以看出，应用层也就是etcdserver的持久化数据，只有wal日志而已，情况确实是这样的，其接口和实现如下：</p>
 <pre><code>type Storage interface {
@@ -742,7 +744,7 @@ type Progress struct {
 <p>网络数据的收发以及日志的持久化，这两部分在etcd raft库中，并不是由raft库来实现，而是通过<code>Ready</code>结构体来通知应用层，由应用层来完成。</p>
 <h1 id="总结">总结</h1>
 <p>这里将上面的几部分总结如下，有了整体的理解才能更好的了解细节：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20210515-raft/summary.png" alt="Raft算法几要素在etcd raft中的实现" title="Raft算法几要素在etcd raft中的实现"></p>
+<p><img src="/media/imgs/20210515-raft/summary.png" alt="Raft算法几要素在etcd raft中的实现" title="Raft算法几要素在etcd raft中的实现"></p>
 
 </article>
 
@@ -773,7 +775,7 @@ type Progress struct {
 </div>
       <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -807,8 +809,9 @@ type Progress struct {
 
 
   <script id="utterances" src="https://utteranc.es/client.js"
-            owner=lichuang"
+            owner=lichuang
             repo=lichuang.github.io
+              theme=preferred-color-scheme
         crossorigin="anonymous"
         async>
 </script>

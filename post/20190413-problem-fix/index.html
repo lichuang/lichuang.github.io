@@ -7,11 +7,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-<title>线上存储服务崩溃问题分析记录 | codedump的网络日志</title>
+<title>线上存储服务崩溃问题分析记录 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
 <link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
 
 
 
@@ -110,7 +110,7 @@
         "@type": "WebPage",
         "@id": "https://www.codedump.info/post/20190413-problem-fix/"
     },
-    "headline": "线上存储服务崩溃问题分析记录 | codedump的网络日志","datePublished": "2019-04-13T12:04:59+08:00",
+    "headline": "线上存储服务崩溃问题分析记录 - codedump的网络日志","datePublished": "2019-04-13T12:04:59+08:00",
     "dateModified": "2019-04-13T12:04:59+08:00",
     "wordCount":  4233 ,
     "publisher": {
@@ -123,7 +123,7 @@
         },
     "description": "线上存储服务崩溃问题分析记录"
 }
-</script><meta property="og:title" content="线上存储服务崩溃问题分析记录 | codedump的网络日志" />
+</script><meta property="og:title" content="线上存储服务崩溃问题分析记录 - codedump的网络日志" />
 <meta property="og:type" content="article" />
 
 
@@ -203,6 +203,8 @@
             <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
             <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
             <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang/add_subscriber" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
         </div>
 
         <div class="flex">
@@ -333,7 +335,7 @@
 <li>存储引擎库负责存储落地到磁盘的数据，类似leveldb，只不过这部分是我们自己写的存储引擎。</li>
 <li>在读线程从存储引擎中查询数据返回后，将把数据返回给主线程，由主线程负责应答客户端。</li>
 </ul>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190413-problem-fix/server.png" alt="server" title="server"></p>
+<p><img src="/media/imgs/20190413-problem-fix/server.png" alt="server" title="server"></p>
 <p>在这几步中，第1和第4步是在主线程中进行的，第2和第3步是在读存储引擎线程中进行的。在这个过程中，如果同一个客户端有多个读请求，那么只有按照这四步在处理完毕一个读请求之后，才会继续从该客户端中取出下一个请求进行处理。</p>
 <p>在几次重现问题的过程中，发现出错的都是在第2步和第4步中，该请求客户端的数据结构某些成员出现了错乱，即要访问的指针地址已经无效了，导致的错误。</p>
 <p>指针无效，一般来说有两种可能性：</p>
@@ -357,7 +359,7 @@ a[100] = '1';
 <p>此时想到另一个可能，就是有没有可能是多线程在没有保护的情况下访问了某段数据导致的问题？</p>
 <p>gcc同样也有类似的工具来检查这类错误，即Thread Sanitizer工具。然而，在给项目Makefile加入该编译参数后，程序一运行就退出了，根本看不出什么有用的信息来。</p>
 <p>此时想到的另一个工具是valgrind。大多数时候，valgrind只是用来做内存泄露检测的，其实它也可以用来做线程数据竞争的检查，使用参数 &ndash;tool=helgrind 即可。使用valgrind之后，打印出来疑似有问题的代码如下：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20190413-problem-fix/valgrind.png" alt="valgrind" title="valgrind"></p>
+<p><img src="/media/imgs/20190413-problem-fix/valgrind.png" alt="valgrind" title="valgrind"></p>
 <p>到了这里，猜测问题的原因就是由于多线程访问数据导致的错误。</p>
 <p>因为有多个处理读请求数据的线程，首先猜测的是不是某些错误的处理，导致了可以在同一时间多个线程都操作该请求客户端的数据。但是通过review代码，发现这部分处理是没有问题的，另外在访问存储引擎查询数据时，入口处也确实进行了加锁的操作。</p>
 <p>为了验证我的观点，我在每个请求客户端结构体中，新增了一个数据用于保存线程id，这个线程id在进入读线程中设置，而从读线程处理完毕转发给主线程之前重置为0。有了这个数据，在每次请求从主线程进入读线程中，都会判断一下这个值是不是非0，如果有非0的值那么说明此时有另外的读线程在进行处理。然而也并没有看到有异常的情况出现。</p>
@@ -424,7 +426,7 @@ a[100] = '1';
 </div>
       <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -458,8 +460,9 @@ a[100] = '1';
 
 
   <script id="utterances" src="https://utteranc.es/client.js"
-            owner=lichuang"
+            owner=lichuang
             repo=lichuang.github.io
+              theme=preferred-color-scheme
         crossorigin="anonymous"
         async>
 </script>

@@ -7,11 +7,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-<title>sqlite3.36版本 btree实现（二）- 并发控制框架 | codedump的网络日志</title>
+<title>sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
 <link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.f1639ee98d6cbd85b2b5f034d27320da962002ff83159ed4e01dbc5948c42a1ab26c2d6e74c66e93f5cec4d24dbd166d.js"></script>
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
 
 
 
@@ -110,7 +110,7 @@
         "@type": "WebPage",
         "@id": "https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/"
     },
-    "headline": "sqlite3.36版本 btree实现（二）- 并发控制框架 | codedump的网络日志","datePublished": "2021-12-18T15:25:05+08:00",
+    "headline": "sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志","datePublished": "2021-12-18T15:25:05+08:00",
     "dateModified": "2021-12-18T15:25:05+08:00",
     "wordCount":  3545 ,
     "publisher": {
@@ -123,7 +123,7 @@
         },
     "description": "sqlite3.36版本 btree实现（二）- 并发控制框架"
 }
-</script><meta property="og:title" content="sqlite3.36版本 btree实现（二）- 并发控制框架 | codedump的网络日志" />
+</script><meta property="og:title" content="sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志" />
 <meta property="og:type" content="article" />
 
 
@@ -211,6 +211,8 @@
             <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
             <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
             <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang/add_subscriber" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
         </div>
 
         <div class="flex">
@@ -336,33 +338,33 @@
 <p>（以下流程分析，按照sqlite官网中的文档<a href="https://sqlite.org/atomiccommit.html">Atomic Commit In SQLite</a>进行讲解，图例也全部引用自官网。）</p>
 <p>sqlite的写事务，分为以下几个流程：</p>
 <h2 id="1初始化阶段initial-state">1、初始化阶段（Initial State）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" alt="初始化" title="初始化"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" alt="初始化" title="初始化"></p>
 <p>如上图中，从右到左即是系统的磁盘、操作系统缓冲区、用户空间三部分，其中磁盘和操作系统缓冲区有划分为多块的空间，每一块在sqlite里被称为一个<code>sector</code>，蓝色部分表示是修改之前的数据。</p>
 <p>这是系统初始时的样子。</p>
 <h2 id="2拿到读锁acquiring-a-read-lock">2、拿到读锁（Acquiring A Read Lock）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" alt="拿到读锁" title="拿到读锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" alt="拿到读锁" title="拿到读锁"></p>
 <p>在开始进行写操作之前，sqlite必须先把待修改的页面加载内存中（这就是上一节“页面缓存管理器”做的事情），后续的修改其实也是首先修改这部分加载到内存中的页面内容，因为可能一次提交会修改同一个页面中的多处内容，最后才把页面内容落盘。</p>
 <p>所以，这一步所要做的，是首先拿到数据库文件的读锁（shared lock），需要说明的是，这个读锁是数据库级别的锁。同一时间，系统中可以存在多个读锁，但是只要系统中还存在读锁，就不再允许分配出新的写锁（write lock）。</p>
 <h2 id="3读出页面的内容到页面缓存">3、读出页面的内容到页面缓存</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" alt="读出页面内容" title="读出页面内容"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" alt="读出页面内容" title="读出页面内容"></p>
 <p>拿到读锁之后，就可以把需要进行修改的页面读出来到用户空间的页面缓存了。从上图来看，读了三个页面的内容出来，也就是例子中的写操作要修改三个页面的内容。</p>
 <h2 id="4拿到保留锁obtaining-a-reserved-lock">4、拿到保留锁（Obtaining A Reserved Lock）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" alt="拿到保留锁" title="拿到保留锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" alt="拿到保留锁" title="拿到保留锁"></p>
 <p>在进行修改之前，还需要首先将前面拿到的读锁（shared lock）升级为保留锁（reserved lock）。同一时间，系统中保留锁可以和多个读锁并存，但是只能存在最多一个保留锁。这个机制，保证了同一时间只能有一个进程对数据库进行写操作。</p>
 <p>需要说明的是，拿到保留锁的进程，还并没有真正进行数据的修改操作，只是用这个锁，挡住了其它打算进行写操作的进程。</p>
 <h2 id="5创建回滚用的备份文件creating-a-rollback-journal-file">5、创建回滚用的备份文件（Creating A Rollback Journal File）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" alt="创建回滚用的备份文件" title="创建回滚用的备份文件"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" alt="创建回滚用的备份文件" title="创建回滚用的备份文件"></p>
 <p>到了这一步，首先将待修改的页面内容备份。官网原文写的是备份到回滚用的journal文件中，我们上面提到备份机制除了journal文件还有wal文件，所以这里的“journal文件”应该更泛化的理解为“保存到备份文件中”，这种备份文件可能是journal文件，也可能是wal文件，视机制而定。</p>
 <p>上图中，用户空间的页面写入到了备份文件中，注意到备份文件上面有一小块绿色的部分，理解为备份文件的meta信息即可。</p>
 <p>另外还需要特别说明的是，从上图中可以看到，备份工作也仅仅到了操作系统缓冲区，即图中的中间部分，而磁盘部分还是空的。即到了这一步，即便是备份页面的内容，也还并没有sync到磁盘中，即只进行了备份的写操作，并没有强制落盘。</p>
 <h2 id="6修改用户空间的页面内容changing-database-pages-in-user-space">6、修改用户空间的页面内容（Changing Database Pages In User Space）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" alt="修改用户空间的页面内容" title="修改用户空间的页面内容"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" alt="修改用户空间的页面内容" title="修改用户空间的页面内容"></p>
 <p>到了这一步，修改进程用户空间的页面内容，即上图中的橙色部分，就是修改后的用户空间数据。由于每个进程都有自己的用户空间（即便是同一个进程下的不同线程，对sqlite而言，只要使用的是不同的连接（connection），那么连接背后的页面缓冲区就不一样），所以这些修改并不被其它进程所见。这样，写进程做自己的修改，其它读进程读到的还是修改之前的页面数据。</p>
 <h2 id="7将备份文件的内容落盘flushing-the-rollback-journal-file-to-mass-storage">7、将备份文件的内容落盘（Flushing The Rollback Journal File To Mass Storage）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" alt="将备份文件的内容落盘" title="将备份文件的内容落盘"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" alt="将备份文件的内容落盘" title="将备份文件的内容落盘"></p>
 <p>上面的第5步提到，当时还只是写页面内容到备份文件中，这一步接在修改页面内容之后，将修改之前的页面内容sync到磁盘中。</p>
 <h2 id="8拿到排他锁obtaining-an-exclusive-lock">8、拿到排他锁（Obtaining An Exclusive Lock）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" alt="拿到排他锁" title="拿到排他锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" alt="拿到排他锁" title="拿到排他锁"></p>
 <p>前面的步骤做完，达到了这样的效果：</p>
 <ul>
 <li>对于待修改页面，修改之前的内容已经保存到了备份文件中。</li>
@@ -376,21 +378,21 @@
 <p>为什么要首先拿到悬锁？同一时间内，悬锁和前面的保留锁一样，只能存在最多一个；但是不同的是，悬锁不允许再分配新的读锁（shared lock），而保留锁没有这样的机制。换言之，在悬锁之前的所有读锁，可以继续读操作，悬锁会等待它们完成，再升级为排他锁；同时，只要系统中有悬锁，就不再允许有新的读操作，必须等待修改数据库完成才可以有新的读操作。</p>
 <p>这样的机制，避免了读操作时，读到了未提交的事务写到一半的数据。</p>
 <h2 id="9保存修改到数据库文件中writing-changes-to-the-database-file">9、保存修改到数据库文件中（Writing Changes To The Database File）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" alt="拿到排他锁" title="拿到排他锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" alt="拿到排他锁" title="拿到排他锁"></p>
 <p>拿到了排他锁之后，意味着此时系统中没有读操作、没有其他写操作，这时候可以放心将页面缓存中的内容落盘到数据库文件中了。</p>
 <p>同样需要注意的是，这一步的修改，还还只是到了操作系统的缓冲区，并不保证落盘到数据库文件中。</p>
 <h2 id="10落盘数据库文件修改flushing-changes-to-mass-storage">10、落盘数据库文件修改（Flushing Changes To Mass Storage）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" alt="落盘数据库文件修改" title="落盘数据库文件修改"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" alt="落盘数据库文件修改" title="落盘数据库文件修改"></p>
 <p>这一步，将对数据库文件的修改落盘。</p>
 <h2 id="11删除备份文件deleting-the-rollback-journal">11、删除备份文件（Deleting The Rollback Journal）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" alt="删除备份文件" title="删除备份文件"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" alt="删除备份文件" title="删除备份文件"></p>
 <p>至此，这一次写操作已经落盘到了数据库文件中，前面保存到备份文件中的数据可以清除了。清除备份文件内容，是一个比较费时的操作，具体实现由不同的机制去优化，后面讲到journal文件以及wal的实现时再展开描述。</p>
 <h2 id="12释放锁releasing-the-lock">12、释放锁（Releasing The Lock）</h2>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" alt="释放锁" title="释放锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" alt="释放锁" title="释放锁"></p>
 <p>写操作全部完成，备份文件也清除了，到了这一步就可以释放锁，以便后面其他的读写操作进来。</p>
 <h1 id="写事务中涉及到的锁">写事务中涉及到的锁</h1>
 <p>上面写事务流程中，依次会拿到以下类型的锁，下图中做一个简单的总结：</p>
-<p><img src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" alt="写操作中涉及到的锁" title="写操作中涉及到的锁"></p>
+<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" alt="写操作中涉及到的锁" title="写操作中涉及到的锁"></p>
 <h1 id="崩溃恢复流程">崩溃恢复流程</h1>
 <p>上面的流程中，随时都可能因为系统崩溃而导致数据错乱的，因此一个写事务如果还未完成，重启时存储引擎需要识别出来，将还没有完成的事务进行回滚操作（rollback）。</p>
 <p>分为以下几种情况来处理：</p>
@@ -453,7 +455,7 @@
 </div>
       <h1>微信公众号</h1>
 
-<img align="center" src="https://cdn.jsdelivr.net/gh/lichuang/lichuang.github.io/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
+<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -487,8 +489,9 @@
 
 
   <script id="utterances" src="https://utteranc.es/client.js"
-            owner=lichuang"
+            owner=lichuang
             repo=lichuang.github.io
+              theme=preferred-color-scheme
         crossorigin="anonymous"
         async>
 </script>
