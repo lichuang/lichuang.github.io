@@ -112,7 +112,7 @@
     },
     "headline": "周刊（第9期）：Mozilla rr使用简介 - codedump的网络日志","datePublished": "2022-03-13T11:20:59+08:00",
     "dateModified": "2022-03-13T11:20:59+08:00",
-    "wordCount":  2724 ,
+    "wordCount":  2722 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -386,31 +386,29 @@
 <p>以下对<code>rr</code>的使用做一些简单的介绍。</p>
 <h2 id="deterministically">deterministically</h2>
 <p>以下面一个最简单的多线程程序来解释何为<code>deterministically</code>：</p>
-<pre><code class="language-c">#include &lt;pthread.h&gt;
-#include &lt;stdio.h&gt;
-
-void * doPrint(void *arg)
-{
-    return NULL;
-}
-
-int main() {
-    pthread_t pid;
-    pthread_create(&amp;pid, NULL, doPrint, NULL);
-    printf(&quot;pid = %lu\n&quot;, pid);
-
-    return 0;
-}
-</code></pre>
-<p>这个程序很简单：创建一个线程之后，打印线程的pid。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;pthread.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="o">*</span> <span class="nf">doPrint</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pthread_t</span> <span class="n">pid</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pid</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">doPrint</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid = %lu</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">pid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>这个程序很简单：创建一个线程之后，打印线程的pid。</p>
 <p>如果多次执行，会发现每次打印出来的pid并不一样：</p>
-<pre><code>$ ./a.out
+<pre tabindex="0"><code>$ ./a.out
 pid = 140301410010880
 
 $ ./a.out
 pid = 139804250023680
-</code></pre>
-<p>这个原因自不必多说：每次程序执行的时候，执行环境是有变化的。</p>
+</code></pre><p>这个原因自不必多说：每次程序执行的时候，执行环境是有变化的。</p>
 <p>这个简单的结论，对应到bug出现的场景上，有的代码可能正常的情况下没有异常，但是会出现在特定的场景下：特定的输入参数、特定的线程执行顺序，等等。换言之，问题并不是必现的，即<code>un-deterministically</code>。</p>
 <p><code>rr</code>的一大功能，就是要解决这个<code>deterministically</code>问题，即在问题发现的时候，能有一个确定的环境，可以反复重现问题。</p>
 <h2 id="record-and-replay">record and replay</h2>
@@ -423,19 +421,18 @@ pid = 139804250023680
 <ul>
 <li>record：</li>
 </ul>
-<pre><code>$ rr record ./a.out
+<pre tabindex="0"><code>$ rr record ./a.out
 Freezing performance counters on SMIs should be turned on for maximum rr
 reliability on Comet Lake and later CPUs. Consider putting
-'w /sys/devices/cpu/freeze_on_smi - - - - 1' in /etc/tmpfiles.d/10-rr.conf
-See 'man 5 sysfs', 'man 5 tmpfiles.d' (systemd systems)
-rr: Saving execution to trace directory `/home/codedump/.local/share/rr/a.out-0'.
+&#39;w /sys/devices/cpu/freeze_on_smi - - - - 1&#39; in /etc/tmpfiles.d/10-rr.conf
+See &#39;man 5 sysfs&#39;, &#39;man 5 tmpfiles.d&#39; (systemd systems)
+rr: Saving execution to trace directory `/home/codedump/.local/share/rr/a.out-0&#39;.
 pid = 139837942626048
-</code></pre>
-<p>可以看到记录执行的时候，打印出来的<code>pid</code>是<code>139837942626048</code>。</p>
+</code></pre><p>可以看到记录执行的时候，打印出来的<code>pid</code>是<code>139837942626048</code>。</p>
 <ul>
 <li>replay：</li>
 </ul>
-<pre><code>$ rr replay
+<pre tabindex="0"><code>$ rr replay
 
 ...省略不重要信息...
 
@@ -456,8 +453,7 @@ Program stopped.
 (rr) c
 Continuing.
 pid = 139837942626048
-</code></pre>
-<p>可以看到，前后两次重放执行，打印的<code>pid</code>都是之前记录的值<code>139837942626048</code>。</p>
+</code></pre><p>可以看到，前后两次重放执行，打印的<code>pid</code>都是之前记录的值<code>139837942626048</code>。</p>
 <p>这就意味着：record下来的程序执行环境，后面可以不停的回放。因为重现问题的场景很重要，有时候还不好复现，那么类似<code>rr</code>这样能记录下来执行环境并且重放的能力，对于查找问题就特别重要了。</p>
 <h2 id="高级用法">高级用法</h2>
 <p>前面提到过，使用<code>rr replay</code>来重放记录时，实际会进入类似gdb那样的一个调试环境，在这个环境里，常用的gdb命令都可以使用，所以这些不会展开讨论，只说一下<code>rr</code>在这里具备的一些其他更高级的调试能力。</p>
@@ -468,27 +464,26 @@ pid = 139837942626048
 <li>事件编号。</li>
 </ul>
 <p><code>rr</code>在replay的时候，可以带上<code>-M</code>参数打印出来事件编号，比如前面的实例程序改成这样：</p>
-<pre><code class="language-c">#include &lt;pthread.h&gt;
-#include &lt;stdio.h&gt;
-
-void * doPrint(void *arg) {
-  int i = *((int*)arg);
-  printf(&quot;in thread %d\n&quot;, i);
-  return NULL;
-}
-
-int main() {
-  int i = 0;
-  for (i = 0; i &lt; 10; ++i) {
-    pthread_t pid;
-    pthread_create(&amp;pid, NULL, doPrint, &amp;i);
-    printf(&quot;pid = %lu\n&quot;, pid);
-  }
-  return 0;
-}
-</code></pre>
-<p>这里创建了10个线程，线程中分别打印循环变量，如果使用<code>-M</code>在输出时就能看到如下的信息：</p>
-<pre><code>(rr) c
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;pthread.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="o">*</span> <span class="nf">doPrint</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="o">*</span><span class="p">((</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="n">arg</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">printf</span><span class="p">(</span><span class="s">&#34;in thread %d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">i</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">;</span> <span class="o">++</span><span class="n">i</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pthread_t</span> <span class="n">pid</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pid</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">doPrint</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">i</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid = %lu</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">pid</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>这里创建了10个线程，线程中分别打印循环变量，如果使用<code>-M</code>在输出时就能看到如下的信息：</p>
+<pre tabindex="0"><code>(rr) c
 Continuing.
 [rr 4450 288]pid = 140096584951552
 [rr 4450 305]in thread 1
@@ -509,15 +504,13 @@ Continuing.
 [rr 4450 481]pid = 140096513615616
 [rr 4450 498]in thread 9
 [rr 4450 505]pid = 140096505222912
-</code></pre>
-<p>最左边显示事件的格式为<code>[rr pid 事件id]</code>。</p>
+</code></pre><p>最左边显示事件的格式为<code>[rr pid 事件id]</code>。</p>
 <p>知道了事件对应的<code>(pid,事件id)</code>二元组之后，在replay的时候，可以指定这两个值，比如：</p>
 <blockquote>
-<pre><code>rr -M replay -g 事件id
+<pre tabindex="0"><code>rr -M replay -g 事件id
 或者
 rr -M replay -p pid
-</code></pre>
-</blockquote>
+</code></pre></blockquote>
 <p>让程序replay的时候迅速到达指定事件发生的场景下。比如上面的例子中，如果使用<code>rr -M replay -g 354</code>就能马上重放到<code>[rr 4450 354]in thread 3</code>这一处。</p>
 <p>这种基于事件的调试方式，调试那种代码相同，但是由于输入参数不同导致的问题时，特别管用，因为可以直达问题发生的环境。</p>
 <h3 id="反向执行reverse-execution">反向执行（Reverse execution）</h3>

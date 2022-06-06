@@ -472,27 +472,26 @@
 <li>监听Node.Ready函数返回的Ready结构体channel，有数据变更时根据Ready结构体的不同数据类型进行相应的操作，完成了之后需要调用Node.Advance函数进行收尾。</li>
 </ol>
 <p>将以上流程用伪代码实现如下：</p>
-<pre><code class="language-Go">// HTTP server
-HttpServer主循环:
-  接收用户提交的数据：
-    如果是PUT请求：
-      将数据写入到proposeC中
-    如果是POST请求：
-      将配置变更数据写入到confChangeC中
-
-// raft Node
-raftNode结构体主循环：
-  如果proposeC中有数据写入：
-    调用node.Propose向raft库提交数据
-  如果confChangeC中有数据写入：
-    调用node.Node.ProposeConfChange向raft库提交配置变更数据
-  如果tick定时器到期：
-    调用node.Tick函数进行raft库的定时操作
-  如果node.Ready()函数返回的Ready结构体channel有数据变更：
-    依次处理Ready结构体中各成员数据
-    处理完毕之后调用node.Advance函数进行收尾处理
-</code></pre>
-<p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// HTTP server
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">HttpServer主循环</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">接收用户提交的数据</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">如果是PUT请求</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">将数据写入到proposeC中</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">如果是POST请求</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">将配置变更数据写入到confChangeC中</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// raft Node
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">raftNode结构体主循环</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">如果proposeC中有数据写入</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Propose向raft库提交数据</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">如果confChangeC中有数据写入</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Node</span><span class="p">.</span><span class="nx">ProposeConfChange向raft库提交配置变更数据</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">如果tick定时器到期</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Tick函数进行raft库的定时操作</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">如果node</span><span class="p">.</span><span class="nf">Ready</span><span class="p">()</span><span class="nx">函数返回的Ready结构体channel有数据变更</span><span class="err">：</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">依次处理Ready结构体中各成员数据</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">处理完毕之后调用node</span><span class="p">.</span><span class="nx">Advance函数进行收尾处理</span>
+</span></span></code></pre></div><p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
 <h1 id="raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</h1>
 <p>现在可以来看看raft库的代码组织了。</p>
 <p>前面已经看到了raft/node.go文件中，提供出去的是Node接口及其实现node结构体，这是外界与raft库打交道的唯一接口，除此之外该路径下的其他文件并不直接与外界打交道。</p>
@@ -606,34 +605,33 @@ raftNode结构体主循环：
 <p>raftLog结构体中，几部分数据的排列如下图所示。</p>
 <p><img src="/media/imgs/20180922-etcd-raft/raftlog.png" alt="raftlog" title="raftlog"></p>
 <p>这个数据排布的情况，可以从raftLog的初始化函数中看出来：</p>
-<pre><code class="language-Go">func newLog(storage Storage, logger Logger) *raftLog {
-	if storage == nil {
-		log.Panic(&quot;storage must not be nil&quot;)
-	}
-	log := &amp;raftLog{
-		storage: storage,
-		logger:  logger,
-	}
-	firstIndex, err := storage.FirstIndex()
-	if err != nil {
-		panic(err) // TODO(bdarnell)
-	}
-	lastIndex, err := storage.LastIndex()
-	if err != nil {
-		panic(err) // TODO(bdarnell)
-	}
-	// offset从持久化之后的最后一个index的下一个开始
-	log.unstable.offset = lastIndex + 1
-	log.unstable.logger = logger
-	// Initialize our committed and applied pointers to the time of the last compaction.
-	// committed和applied从持久化的第一个index的前一个开始
-	log.committed = firstIndex - 1
-	log.applied = firstIndex - 1
-
-	return log
-}
-</code></pre>
-<p>在这里：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="nf">newLog</span><span class="p">(</span><span class="nx">storage</span> <span class="nx">Storage</span><span class="p">,</span> <span class="nx">logger</span> <span class="nx">Logger</span><span class="p">)</span> <span class="o">*</span><span class="nx">raftLog</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">storage</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">log</span><span class="p">.</span><span class="nf">Panic</span><span class="p">(</span><span class="s">&#34;storage must not be nil&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">raftLog</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">storage</span><span class="p">:</span> <span class="nx">storage</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">logger</span><span class="p">:</span>  <span class="nx">logger</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">firstIndex</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">storage</span><span class="p">.</span><span class="nf">FirstIndex</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nb">panic</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="c1">// TODO(bdarnell)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">lastIndex</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">storage</span><span class="p">.</span><span class="nf">LastIndex</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="nb">panic</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="c1">// TODO(bdarnell)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// offset从持久化之后的最后一个index的下一个开始
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">log</span><span class="p">.</span><span class="nx">unstable</span><span class="p">.</span><span class="nx">offset</span> <span class="p">=</span> <span class="nx">lastIndex</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nx">unstable</span><span class="p">.</span><span class="nx">logger</span> <span class="p">=</span> <span class="nx">logger</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// Initialize our committed and applied pointers to the time of the last compaction.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// committed和applied从持久化的第一个index的前一个开始
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">log</span><span class="p">.</span><span class="nx">committed</span> <span class="p">=</span> <span class="nx">firstIndex</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">log</span><span class="p">.</span><span class="nx">applied</span> <span class="p">=</span> <span class="nx">firstIndex</span> <span class="o">-</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">log</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>在这里：</p>
 <ul>
 <li>firstIndex：该值取自storage.FirstIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的第一个数据索引，也就是MemoryStorage结构体中快照数据与日志条目数据的分界线。</li>
 <li>lastIndex：该值取自storage.LastIndex()，可以从MemoryStorage的实现看到，该值是MemoryStorage.ents数组的最后一个数据索引。</li>
@@ -1080,7 +1078,7 @@ raftNode结构体主循环：
 <ol>
 <li>首先该函数会判断msg.Term是否大于本节点的Term，如果消息的任期号更大则说明是一次新的选举。这种情况下将根据msg.Context是否等于“CampaignTransfer”字符串来确定是不是一次由于leader迁移导致的强制选举过程。同时也会根据当前的electionElapsed是否小于electionTimeout来确定是否还在租约期以内。如果既不是强制leader选举又在租约期以内，那么节点将忽略该消息的处理，在论文4.2.3部分论述这样做的原因，是为了避免已经离开集群的节点在不知道自己已经不在集群内的情况下，仍然频繁的向集群内节点发起选举导致耗时在这种无效的选举流程中。如果以上检查流程通过了，说明可以进行选举了，如果消息类型还不是MsgPreVote类型，那么此时节点会切换到follower状态且认为发送消息过来的节点msg.From是新的leader。</li>
 </ol>
-<pre><code>	case m.Term &gt; r.Term:
+<pre tabindex="0"><code>	case m.Term &gt; r.Term:
 		// 消息的Term大于节点当前的Term
 		lead := m.From
 		if m.Type == pb.MsgVote || m.Type == pb.MsgPreVote {
@@ -1095,7 +1093,7 @@ raftNode结构体主循环：
 				// 非强制又在租约期内可以忽略选举消息，见论文的4.2.3，这是为了阻止已经离开集群的节点再次发起投票请求
 				// If a server receives a RequestVote request within the minimum election timeout
 				// of hearing from a current leader, it does not update its term or grant its vote
-				r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] ignored %s from %x [logterm: %d, index: %d] at term %d: lease is not expired (remaining ticks: %d)&quot;,
+				r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] ignored %s from %x [logterm: %d, index: %d] at term %d: lease is not expired (remaining ticks: %d)&#34;,
 					r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term, r.electionTimeout-r.electionElapsed)
 				return nil
 			}
@@ -1114,13 +1112,12 @@ raftNode结构体主循环：
 			// rejected our vote so we should become a follower at the new
 			// term.
 		default:
-			r.logger.Infof(&quot;%x [term: %d] received a %s message with higher term from %x [term: %d]&quot;,
+			r.logger.Infof(&#34;%x [term: %d] received a %s message with higher term from %x [term: %d]&#34;,
 				r.id, r.Term, m.Type, m.From, m.Term)
 			// 变成follower状态
 			r.becomeFollower(m.Term, lead)
 		}
-</code></pre>
-<ol start="2">
+</code></pre><ol start="2">
 <li>在raft.Step函数的后面，会判断消息类型是MsgVote或者MsgPreVote来进一步进行处理。其判断条件是以下两个条件同时成立：</li>
 </ol>
 <ul>
@@ -1128,7 +1125,7 @@ raftNode结构体主循环：
 <li>同时该节点的日志数据是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm) ）。这个条件是检查这个节点上的日志数据是否足够的新。
 只有在满足以上两个条件的情况下，节点才投票给这个消息节点，将修改raft.Vote为消息发送者ID。如果不满足条件，将应答msg.Reject=true，拒绝该节点的投票消息。</li>
 </ul>
-<pre><code>	case pb.MsgVote, pb.MsgPreVote:
+<pre tabindex="0"><code>	case pb.MsgVote, pb.MsgPreVote:
 		// 收到投票类的消息
 		// The m.Term &gt; r.Term clause is for MsgPreVote. For MsgVote m.Term should
 		// always equal r.Term.
@@ -1136,7 +1133,7 @@ raftNode结构体主循环：
 			// 如果当前没有给任何节点投票（r.Vote == None）或者投票的节点term大于本节点的（m.Term &gt; r.Term）
 			// 或者是之前已经投票的节点（r.Vote == m.From）
 			// 同时还满足该节点的消息是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm)），那么就接收这个节点的投票
-			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d&quot;,
+			r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d&#34;,
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type)})
 			if m.Type == pb.MsgVote {
@@ -1147,37 +1144,35 @@ raftNode结构体主循环：
 			}
 		} else {
 			// 否则拒绝投票
-			r.logger.Infof(&quot;%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d&quot;,
+			r.logger.Infof(&#34;%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d&#34;,
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Type: voteRespMsgType(m.Type), Reject: true})
 		}
-</code></pre>
-<h3 id="msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
+</code></pre><h3 id="msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</h3>
 <p>来看节点收到投票应答数据之后的处理。</p>
 <ol>
 <li>节点调用raft.poll函数，其中传入msg.Reject参数表示发送者是否同意这次选举，根据这些来计算当前集群中有多少节点给这次选举投了同意票。</li>
 <li>如果有半数的节点同意了，如果选举类型是PreVote，那么进行Vote状态正式进行一轮选举；否则该节点就成为了新的leader，调用raft.becomeLeader函数切换状态，然后开始同步日志数据给集群中其他节点了。</li>
 <li>而如果半数以上的节点没有同意，那么重新切换到follower状态。</li>
 </ol>
-<pre><code class="language-Go">	case myVoteRespType:
-		// 计算当前集群中有多少节点给自己投了票
-		gr := r.poll(m.From, m.Type, !m.Reject)
-		r.logger.Infof(&quot;%x [quorum:%d] has received %d %s votes and %d vote rejections&quot;, r.id, r.quorum(), gr, m.Type, len(r.votes)-gr)
-		switch r.quorum() {
-		case gr:	// 如果进行投票的节点数量正好是半数以上节点数量
-			if r.state == StatePreCandidate {
-				r.campaign(campaignElection)
-			} else {
-				// 变成leader
-				r.becomeLeader()
-				r.bcastAppend()
-			}
-		case len(r.votes) - gr:	// 如果是半数以上节点拒绝了投票
-			// 变成follower
-			r.becomeFollower(r.Term, None)
-		}
-</code></pre>
-<h2 id="msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl">	<span class="k">case</span> <span class="nx">myVoteRespType</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">// 计算当前集群中有多少节点给自己投了票
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">gr</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.</span><span class="nf">poll</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">From</span><span class="p">,</span> <span class="nx">m</span><span class="p">.</span><span class="nx">Type</span><span class="p">,</span> <span class="p">!</span><span class="nx">m</span><span class="p">.</span><span class="nx">Reject</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%x [quorum:%d] has received %d %s votes and %d vote rejections&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nf">quorum</span><span class="p">(),</span> <span class="nx">gr</span><span class="p">,</span> <span class="nx">m</span><span class="p">.</span><span class="nx">Type</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">votes</span><span class="p">)</span><span class="o">-</span><span class="nx">gr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">switch</span> <span class="nx">r</span><span class="p">.</span><span class="nf">quorum</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nx">gr</span><span class="p">:</span>	<span class="c1">// 如果进行投票的节点数量正好是半数以上节点数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">state</span> <span class="o">==</span> <span class="nx">StatePreCandidate</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">r</span><span class="p">.</span><span class="nf">campaign</span><span class="p">(</span><span class="nx">campaignElection</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">				<span class="c1">// 变成leader
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="nx">r</span><span class="p">.</span><span class="nf">becomeLeader</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">				<span class="nx">r</span><span class="p">.</span><span class="nf">bcastAppend</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">			<span class="p">}</span>
+</span></span><span class="line"><span class="cl">		<span class="k">case</span> <span class="nb">len</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">votes</span><span class="p">)</span> <span class="o">-</span> <span class="nx">gr</span><span class="p">:</span>	<span class="c1">// 如果是半数以上节点拒绝了投票
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="c1">// 变成follower
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="nx">r</span><span class="p">.</span><span class="nf">becomeFollower</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">Term</span><span class="p">,</span> <span class="nx">None</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="p">}</span>
+</span></span></code></pre></div><h2 id="msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</h2>
 <p>心跳请求消息。</p>
 <table>
 <thead>
@@ -1379,43 +1374,41 @@ raftNode结构体主循环：
 <li>如果这次迁移过去的新节点，就是当前的leader ID，也直接返回不进行处理。</li>
 <li>到了这一步就是正式开始这一次的迁移leader流程了，一个节点能成为一个集群的leader，其必要条件是上面的日志与当前leader的一样多，所以这里会判断是否满足这个条件，如果满足那么发送MsgTimeoutNow消息给新的leader通知该节点进行leader迁移，否则就先进行日志同步操作让新的leader追上旧leader的日志数据。</li>
 </ol>
-<pre><code class="language-Go">
-case pb.MsgTransferLeader:
-  leadTransferee := m.From
-  lastLeadTransferee := r.leadTransferee
-  if lastLeadTransferee != None {
-    // 判断是否已经有相同节点的leader转让流程在进行中
-    if lastLeadTransferee == leadTransferee {
-      r.logger.Infof(&quot;%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x&quot;,
-        r.id, r.Term, leadTransferee, leadTransferee)
-      // 如果是，直接返回
-      return
-    }
-    // 否则中断之前的转让流程
-    r.abortLeaderTransfer()
-    r.logger.Infof(&quot;%x [term %d] abort previous transferring leadership to %x&quot;, r.id, r.Term, lastLeadTransferee)
-  }
-  // 判断是否转让过来的leader是否本节点，如果是也直接返回，因为本节点已经是leader了
-  if leadTransferee == r.id {
-    r.logger.Debugf(&quot;%x is already leader. Ignored transferring leadership to self&quot;, r.id)
-    return
-  }
-  // Transfer leadership to third party.
-  r.logger.Infof(&quot;%x [term %d] starts to transfer leadership to %x&quot;, r.id, r.Term, leadTransferee)
-  // Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
-  r.electionElapsed = 0
-  r.leadTransferee = leadTransferee
-  if pr.Match == r.raftLog.lastIndex() {
-    // 如果日志已经匹配了，那么就发送timeoutnow协议过去
-    r.sendTimeoutNow(leadTransferee)
-    r.logger.Infof(&quot;%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log&quot;, r.id, leadTransferee, leadTransferee)
-  } else {
-    // 否则继续追加日志
-    r.sendAppend(leadTransferee)
-  }
-
-</code></pre>
-<h2 id="msgtimeoutnow消息">MsgTimeoutNow消息</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">case</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">MsgTransferLeader</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">leadTransferee</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">From</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">lastLeadTransferee</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.</span><span class="nx">leadTransferee</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">lastLeadTransferee</span> <span class="o">!=</span> <span class="nx">None</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 判断是否已经有相同节点的leader转让流程在进行中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="nx">lastLeadTransferee</span> <span class="o">==</span> <span class="nx">leadTransferee</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Term</span><span class="p">,</span> <span class="nx">leadTransferee</span><span class="p">,</span> <span class="nx">leadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 如果是，直接返回
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="k">return</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 否则中断之前的转让流程
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">r</span><span class="p">.</span><span class="nf">abortLeaderTransfer</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%x [term %d] abort previous transferring leadership to %x&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Term</span><span class="p">,</span> <span class="nx">lastLeadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 判断是否转让过来的leader是否本节点，如果是也直接返回，因为本节点已经是leader了
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="nx">leadTransferee</span> <span class="o">==</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Debugf</span><span class="p">(</span><span class="s">&#34;%x is already leader. Ignored transferring leadership to self&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Transfer leadership to third party.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%x [term %d] starts to transfer leadership to %x&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Term</span><span class="p">,</span> <span class="nx">leadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">r</span><span class="p">.</span><span class="nx">electionElapsed</span> <span class="p">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">r</span><span class="p">.</span><span class="nx">leadTransferee</span> <span class="p">=</span> <span class="nx">leadTransferee</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="nx">pr</span><span class="p">.</span><span class="nx">Match</span> <span class="o">==</span> <span class="nx">r</span><span class="p">.</span><span class="nx">raftLog</span><span class="p">.</span><span class="nf">lastIndex</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果日志已经匹配了，那么就发送timeoutnow协议过去
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">r</span><span class="p">.</span><span class="nf">sendTimeoutNow</span><span class="p">(</span><span class="nx">leadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">r</span><span class="p">.</span><span class="nx">logger</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span> <span class="nx">leadTransferee</span><span class="p">,</span> <span class="nx">leadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 否则继续追加日志
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">r</span><span class="p">.</span><span class="nf">sendAppend</span><span class="p">(</span><span class="nx">leadTransferee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span></code></pre></div><h2 id="msgtimeoutnow消息">MsgTimeoutNow消息</h2>
 <table>
 <thead>
 <tr>
@@ -1609,36 +1602,33 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <h2 id="readonlysafe方式">ReadOnlySafe方式</h2>
 <p>leader在接收到读请求时，需要向集群中的超半数server确认自己仍然是当前的leader，这样它返回的就是最新的数据。</p>
 <p>在etcd-raft中，为了实现ReadOnlySafe，有如下的数据结构：</p>
-<pre><code class="language-Go">type ReadState struct {
-  Index uint64
-  RequestCtx []byte
-}
-</code></pre>
-<p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">ReadState</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">Index</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl">  <span class="nx">RequestCtx</span> <span class="p">[]</span><span class="kt">byte</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>其中：</p>
 <ol>
 <li>Index：接收到该读请求时，当前节点的commit索引。</li>
 <li>RequestCtx：客户端读请求的唯一标识。</li>
 </ol>
 <p>ReadState结构体用于保存读请求到来时的节点状态。</p>
-<pre><code class="language-Go">type readIndexStatus struct {
- req pb.Message
- index uint64
- acks map[uint64]struct{}
-}
-</code></pre>
-<p>readIndexStatus数据结构用于追踪leader向follower发送的心跳信息，其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">readIndexStatus</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">req</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">Message</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">index</span> <span class="kt">uint64</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">acks</span> <span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kd">struct</span><span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>readIndexStatus数据结构用于追踪leader向follower发送的心跳信息，其中：</p>
 <ol>
 <li>req：保存原始的readIndex请求。</li>
 <li>index：leader当前的commit日志索引。</li>
 <li>acks：存放该readIndex请求有哪些节点进行了应答，当超过半数应答时，leader就可以确认自己还是当前集群的leader。</li>
 </ol>
-<pre><code class="language-Go">type readOnly struct {
- option ReadOnlyOption
- pendingReadIndex map[string]*readIndexStatus
- readIndexQueue []string
-}
-</code></pre>
-<p>readOnly用于管理全局的readIndx数据，其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">readOnly</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">option</span> <span class="nx">ReadOnlyOption</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">pendingReadIndex</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">readIndexStatus</span>
+</span></span><span class="line"><span class="cl"> <span class="nx">readIndexQueue</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>readOnly用于管理全局的readIndx数据，其中：</p>
 <ol>
 <li>option：readOnly选项。</li>
 <li>pendingReadIndex：当前所有待处理的readIndex请求，其中key为客户端读请求的唯一标识。</li>
@@ -1690,13 +1680,12 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 <h1 id="杂项">杂项</h1>
 <h2 id="节点的几种状态">节点的几种状态</h2>
 <p>一个节点在leader上保存的状态有:</p>
-<pre><code class="language-Go">const (
-    ProgressStateProbe ProgressStateType = iota
-    ProgressStateReplicate
-    ProgressStateSnapshot
-)
-</code></pre>
-<p>以下来分开解释这几种状态。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ProgressStateProbe</span> <span class="nx">ProgressStateType</span> <span class="p">=</span> <span class="kc">iota</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ProgressStateReplicate</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">ProgressStateSnapshot</span>
+</span></span><span class="line"><span class="cl"><span class="p">)</span>
+</span></span></code></pre></div><p>以下来分开解释这几种状态。</p>
 <h3 id="progressstateprobe">ProgressStateProbe</h3>
 <p>探测状态，当节点拒绝了最近的append消息时，那么就会进入探测状态，此时leader会试图继续往前追述该节点的日志从哪里开始丢失的，让该节点的日志能跟leader同步上。在probe状态时，只能向它发送一次append消息，此后除非状态发生变化，否则就暂停向该节点发送新的append消息了。</p>
 <p>只有在以下情况才会恢复取消暂停状态（调用Progress的resume函数）：</p>

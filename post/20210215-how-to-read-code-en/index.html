@@ -305,29 +305,27 @@
 <p>Guided by this principle, the reader only needs to understand the external interfaces to the code of the stems, such as a class that does not need to understand its implementation, and to understand the entry and exit parameters and the role of these interfaces, treating this part as a &ldquo;black box&rdquo;.</p>
 <p>By the way, in the early years, I saw a way of writing C++ in which the header file contains only the external interface declaration of a class, and the implementation is transferred to the C++ file through an internal impl class, for example.</p>
 <p>Header file.</p>
-<pre><code class="language-C">// test.h
-class Test {
-public:
-  void fun();
-
-private:
-  class Impl;
-  Impl *impl_;
-};
-</code></pre>
-<p>C++ file.</p>
-<pre><code class="language-C">void Test::fun() {
-  impl_-&gt;fun()
-}
-
-class Test::Impl {
-public:
-  void fun() {
-    // Concrete implementation
-  }
-}
-</code></pre>
-<p>This way of writing makes the header file a lot cleaner: there are no private members or functions associated with the implementation, only the exposed interface, so the user can know at a glance what the class offers to the public.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// test.h
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">class</span> <span class="n">Test</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="nl">public</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">void</span> <span class="n">fun</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nl">private</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="n">class</span> <span class="n">Impl</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">Impl</span> <span class="o">*</span><span class="n">impl_</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>C++ file.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">Test</span><span class="o">::</span><span class="n">fun</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">impl_</span><span class="o">-&gt;</span><span class="n">fun</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">class</span> <span class="n">Test</span><span class="o">::</span><span class="n">Impl</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="nl">public</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">void</span> <span class="n">fun</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// Concrete implementation
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>This way of writing makes the header file a lot cleaner: there are no private members or functions associated with the implementation, only the exposed interface, so the user can know at a glance what the class offers to the public.</p>
 <p>! <a href="/media/imgs/20200605-how-to-read-code-v2020/impl.png" title="impl">impl</a></p>
 <p>The &ldquo;main&rdquo; and &ldquo;branch&rdquo; storylines switch frequently throughout the code reading process, requiring the reader to have some experience in knowing which part of the code they are reading is the main storyline.</p>
 <h1 id="vertical-and-horizontal">Vertical and horizontal</h1>
@@ -343,29 +341,28 @@ public:
 <p>For example, when I wrote <a href="https://book.douban.com/subject/27108476/">Lua Design and Implementation</a>, I explained the process of interpreting and executing Lua virtual machine instructions, and needed to analyze each instruction, so I used scenario analysis. I would simulate the Lua script code that uses the instruction, and then breakpoint in the program to debug the behavior in these scenarios.</p>
 <p>My usual approach is to add a breakpoint to an important entry function, then construct debugging code that triggers the scenario, and when the code stops at the breakpoint, observe the behavior of the code by looking at the stack, variable values, and so on.</p>
 <p>For example, in Lua interpreter code, generating Opcode will eventually call the function luaK_code, so I&rsquo;ll add a breakpoint above this function and construct the scene I want to debug, and as soon as I break at the breakpoint, I&rsquo;ll see the complete call flow through the function stack: ``C</p>
-<pre><code class="language-C">(lldb) bt
-* thread #1: tid = 0xb1dd2, 0x00000001000071b0 lua`luaK_code, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
-* frame #0: 0x00000001000071b0 lua`luaK_code
-frame #1: 0x000000010000753e lua`discharge2reg + 238
-frame #2: 0x000000010000588f lua`exp2reg + 31
-frame #3: 0x000000010000f15b lua`statement + 3131
-frame #4: 0x000000010000e0b6 lua`luaY_parser + 182
-frame #5: 0x0000000100009de9 lua`f_parser + 89
-frame #6: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
-frame #7: 0x0000000100009bf4 lua`luaD_pcall + 68
-frame #8: 0x0000000100009d65 lua`luaD_protectedparser + 69
-frame #9: 0x00000001000047e1 lua`lua_load + 65
-frame #10: 0x0000000100018071 lua`luaL_loadfile + 433
-frame #11: 0x0000000100000eb9 lua`pmain + 1545
-frame #12: 0x00000001000090cd lua`luaD_precall + 589
-frame #13: 0x00000001000098c1 lua`luaD_call + 81
-frame #14: 0x0000000100008ba5 lua`luaD_rawrunprotected + 85
-frame #15: 0x0000000100009bf4 lua`luaD_pcall + 68
-frame #16: 0x00000001000046fb lua`lua_cpcall + 43
-frame #17: 0x00000001000007af lua`main + 63
-frame #18: 0x00007fff6468708d libdyld.dylib`start + 1
-</code></pre>
-<p>The advantage of scenario analysis is that instead of looking for a needle in a haystack, you can narrow down the problem to a scope and understand it.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="p">(</span><span class="n">lldb</span><span class="p">)</span> <span class="n">bt</span>
+</span></span><span class="line"><span class="cl"><span class="o">*</span> <span class="kr">thread</span> <span class="err">#</span><span class="mi">1</span><span class="o">:</span> <span class="n">tid</span> <span class="o">=</span> <span class="mh">0xb1dd2</span><span class="p">,</span> <span class="mh">0x00000001000071b0</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaK_code</span><span class="p">,</span> <span class="n">queue</span> <span class="o">=</span> <span class="err">&#39;</span><span class="n">com</span><span class="p">.</span><span class="n">apple</span><span class="p">.</span><span class="n">main</span><span class="o">-</span><span class="kr">thread</span><span class="err">&#39;</span><span class="p">,</span> <span class="n">stop</span> <span class="n">reason</span> <span class="o">=</span> <span class="n">breakpoint</span> <span class="mf">1.1</span>
+</span></span><span class="line"><span class="cl"><span class="o">*</span> <span class="n">frame</span> <span class="err">#</span><span class="mi">0</span><span class="o">:</span> <span class="mh">0x00000001000071b0</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaK_code</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">1</span><span class="o">:</span> <span class="mh">0x000000010000753e</span> <span class="n">lua</span><span class="err">`</span><span class="n">discharge2reg</span> <span class="o">+</span> <span class="mi">238</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">2</span><span class="o">:</span> <span class="mh">0x000000010000588f</span> <span class="n">lua</span><span class="err">`</span><span class="n">exp2reg</span> <span class="o">+</span> <span class="mi">31</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">3</span><span class="o">:</span> <span class="mh">0x000000010000f15b</span> <span class="n">lua</span><span class="err">`</span><span class="n">statement</span> <span class="o">+</span> <span class="mi">3131</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">4</span><span class="o">:</span> <span class="mh">0x000000010000e0b6</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaY_parser</span> <span class="o">+</span> <span class="mi">182</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">5</span><span class="o">:</span> <span class="mh">0x0000000100009de9</span> <span class="n">lua</span><span class="err">`</span><span class="n">f_parser</span> <span class="o">+</span> <span class="mi">89</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">6</span><span class="o">:</span> <span class="mh">0x0000000100008ba5</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_rawrunprotected</span> <span class="o">+</span> <span class="mi">85</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">7</span><span class="o">:</span> <span class="mh">0x0000000100009bf4</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_pcall</span> <span class="o">+</span> <span class="mi">68</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">8</span><span class="o">:</span> <span class="mh">0x0000000100009d65</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_protectedparser</span> <span class="o">+</span> <span class="mi">69</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">9</span><span class="o">:</span> <span class="mh">0x00000001000047e1</span> <span class="n">lua</span><span class="err">`</span><span class="n">lua_load</span> <span class="o">+</span> <span class="mi">65</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">10</span><span class="o">:</span> <span class="mh">0x0000000100018071</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaL_loadfile</span> <span class="o">+</span> <span class="mi">433</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">11</span><span class="o">:</span> <span class="mh">0x0000000100000eb9</span> <span class="n">lua</span><span class="err">`</span><span class="n">pmain</span> <span class="o">+</span> <span class="mi">1545</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">12</span><span class="o">:</span> <span class="mh">0x00000001000090cd</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_precall</span> <span class="o">+</span> <span class="mi">589</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">13</span><span class="o">:</span> <span class="mh">0x00000001000098c1</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_call</span> <span class="o">+</span> <span class="mi">81</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">14</span><span class="o">:</span> <span class="mh">0x0000000100008ba5</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_rawrunprotected</span> <span class="o">+</span> <span class="mi">85</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">15</span><span class="o">:</span> <span class="mh">0x0000000100009bf4</span> <span class="n">lua</span><span class="err">`</span><span class="n">luaD_pcall</span> <span class="o">+</span> <span class="mi">68</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">16</span><span class="o">:</span> <span class="mh">0x00000001000046fb</span> <span class="n">lua</span><span class="err">`</span><span class="n">lua_cpcall</span> <span class="o">+</span> <span class="mi">43</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">17</span><span class="o">:</span> <span class="mh">0x00000001000007af</span> <span class="n">lua</span><span class="err">`</span><span class="n">main</span> <span class="o">+</span> <span class="mi">63</span>
+</span></span><span class="line"><span class="cl"><span class="n">frame</span> <span class="err">#</span><span class="mi">18</span><span class="o">:</span> <span class="mh">0x00007fff6468708d</span> <span class="n">libdyld</span><span class="p">.</span><span class="n">dylib</span><span class="err">`</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span></code></pre></div><p>The advantage of scenario analysis is that instead of looking for a needle in a haystack, you can narrow down the problem to a scope and understand it.</p>
 <p>The concept of &ldquo;scenario analysis&rdquo; is not a term I came up with. For example, there are several books that analyze code, such as <a href="https://book.douban.com/subject/1231584/">Linux Kernel Source Code Scenario Analysis</a>, <a href="https://book.douban.com/subject/1231584/">Windows Kernel Scenario Analysis</a>, and <a href="https://book.douban.com/subject/1231584/">Windows Kernel Scenario Analysis</a>. Windows Kernel Scenario Analysis&quot;](<a href="https://book.douban.com/subject/3715700/)">https://book.douban.com/subject/3715700/)</a>.</p>
 <h1 id="make-use-of-good-test-cases">Make use of good test cases</h1>
 <p>Good projects come with a lot of use cases, examples of this type are: etcd, a few open source projects produced by google.</p>

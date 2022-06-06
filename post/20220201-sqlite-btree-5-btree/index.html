@@ -374,7 +374,7 @@
 <p>因为每个表都有自己的btree树形结构，如果每个表都有一个对应的根页面编号，比如图中的两个表，对应的树形结构中，根节点所在的页面分别是1和2。</p>
 <p>接着来看不同的页面类型，以及存储上的差异。</p>
 <p>以一个例子来说明，创建以下的数据库，插入数据，以及索引：</p>
-<pre><code>// 创建数据库COMPANY
+<pre tabindex="0"><code>// 创建数据库COMPANY
 CREATE TABLE COMPANY(
    ID             INT      NOT NULL,
    NAME           TEXT    NOT NULL,
@@ -387,9 +387,9 @@ CREATE TABLE COMPANY(
 CREATE INDEX id_index ON COMPANY (id);
 
 // 插入2条数据
-INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, 'Paul', 32, 'California', 20000.00 );
+INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, &#39;Paul&#39;, 32, &#39;California&#39;, 20000.00 );
 INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY)
-VALUES (2, 'Allen', 25, 'Texas', 15000.00 );
+VALUES (2, &#39;Allen&#39;, 25, &#39;Texas&#39;, 15000.00 );
 
 // 查询数据
 sqlite&gt; select * from COMPANY;
@@ -400,8 +400,7 @@ sqlite&gt; select * from COMPANY;
 sqlite&gt; select rowid,* from COMPANY;
 1|1|Paul|32|California|20000.0
 2|2|Allen|25|Texas|15000.0
-</code></pre>
-<p>在上面的流程里：</p>
+</code></pre><p>在上面的流程里：</p>
 <ul>
 <li>创建一个表<code>COMPANY</code>，注意这个表在最开始是没有任何索引的。</li>
 <li>接下来，以字段<code>id</code>来创建一个索引，插入2条数据。</li>
@@ -444,16 +443,15 @@ sqlite&gt; select rowid,* from COMPANY;
 </li>
 </ul>
 <p>为了表示这些页面，有如下几种页面标志位：</p>
-<pre><code class="language-c">/*
-** Page type flags.  An ORed combination of these flags appear as the
-** first byte of on-disk image of every BTree page.
-*/
-#define PTF_INTKEY    0x01
-#define PTF_ZERODATA  0x02
-#define PTF_LEAFDATA  0x04
-#define PTF_LEAF      0x08
-</code></pre>
-<ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">** Page type flags.  An ORed combination of these flags appear as the
+</span></span></span><span class="line"><span class="cl"><span class="cm">** first byte of on-disk image of every BTree page.
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define PTF_INTKEY    0x01
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_ZERODATA  0x02
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_LEAFDATA  0x04
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_LEAF      0x08
+</span></span></span></code></pre></div><ul>
 <li>PTF_INTKEY（1）：表示key为int类型数据，一般是rowid，即前面的<code>全量数据表</code>。</li>
 <li>PTF_ZERODATA（2）：表示这是索引表的页面。</li>
 <li>PTF_LEAFDATA（4）：数据存储在叶子节点，这个标志位要和PTF_INTKEY一起作用。即：key为int类型数据的时候，有两种页面：一种只存储int类型的key，一种只存储数据。</li>
@@ -473,27 +471,26 @@ sqlite&gt; select rowid,* from COMPANY;
 </ul>
 <h2 id="物理页面的大体划分">物理页面的大体划分</h2>
 <p>来看看sqlite代码中<code>btreeInt.h</code>文件里对btree一个物理页面内数据组织的注释：</p>
-<pre><code class="language-c">** Each btree pages is divided into three sections:  The header, the
-** cell pointer array, and the cell content area.  Page 1 also has a 100-byte
-** file header that occurs before the page header.
-**
-**      |----------------|
-**      | file header    |   100 bytes.  Page 1 only.
-**      |----------------|
-**      | page header    |   8 bytes for leaves.  12 bytes for interior nodes
-**      |----------------|
-**      | cell pointer   |   |  2 bytes per cell.  Sorted order.
-**      | array          |   |  Grows downward
-**      |                |   v
-**      |----------------|
-**      | unallocated    |
-**      | space          |
-**      |----------------|   ^  Grows upwards
-**      | cell content   |   |  Arbitrary order interspersed with freeblocks.
-**      | area           |   |  and free space fragments.
-**      |----------------|
-</code></pre>
-<p><img src="/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="o">**</span> <span class="n">Each</span> <span class="n">btree</span> <span class="n">pages</span> <span class="n">is</span> <span class="n">divided</span> <span class="n">into</span> <span class="n">three</span> <span class="nl">sections</span><span class="p">:</span>  <span class="n">The</span> <span class="n">header</span><span class="p">,</span> <span class="n">the</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span> <span class="n">cell</span> <span class="n">pointer</span> <span class="n">array</span><span class="p">,</span> <span class="n">and</span> <span class="n">the</span> <span class="n">cell</span> <span class="n">content</span> <span class="n">area</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">also</span> <span class="n">has</span> <span class="n">a</span> <span class="mi">100</span><span class="o">-</span><span class="n">byte</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span> <span class="n">file</span> <span class="n">header</span> <span class="n">that</span> <span class="n">occurs</span> <span class="n">before</span> <span class="n">the</span> <span class="n">page</span> <span class="n">header</span><span class="p">.</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">file</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">100</span> <span class="n">bytes</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">only</span><span class="p">.</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">page</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">8</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">leaves</span><span class="p">.</span>  <span class="mi">12</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">interior</span> <span class="n">nodes</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">pointer</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="mi">2</span> <span class="n">bytes</span> <span class="n">per</span> <span class="n">cell</span><span class="p">.</span>  <span class="n">Sorted</span> <span class="n">order</span><span class="p">.</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">array</span>          <span class="o">|</span>   <span class="o">|</span>  <span class="n">Grows</span> <span class="n">downward</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span>                <span class="o">|</span>   <span class="n">v</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">unallocated</span>    <span class="o">|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">space</span>          <span class="o">|</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>   <span class="o">^</span>  <span class="n">Grows</span> <span class="n">upwards</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">content</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="n">Arbitrary</span> <span class="n">order</span> <span class="n">interspersed</span> <span class="n">with</span> <span class="n">freeblocks</span><span class="p">.</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">area</span>           <span class="o">|</span>   <span class="o">|</span>  <span class="n">and</span> <span class="n">free</span> <span class="n">space</span> <span class="n">fragments</span><span class="p">.</span>
+</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
+</span></span></code></pre></div><p><img src="/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
 <p>按照这里的说法，一个物理页面在btree中划分为以下几部分：</p>
 <ul>
 <li>文件头（file header）：100字节，但是只有第一个页面才会存在文件头。</li>
@@ -506,8 +503,8 @@ sqlite&gt; select rowid,* from COMPANY;
 <h2 id="file-header文件头">file header（文件头）</h2>
 <p>其中，file header部分只有第一页才有，固定长度100字节，存储整个数据库文件的元信息。</p>
 <p>页面1是一个特殊的页面，其前100个字节是整个数据库的header部分，内容如下：</p>
-<pre><code>**   OFFSET   SIZE    DESCRIPTION
-**      0      16     Header string: &quot;SQLite format 3\000&quot;
+<pre tabindex="0"><code>**   OFFSET   SIZE    DESCRIPTION
+**      0      16     Header string: &#34;SQLite format 3\000&#34;
 **     16       2     Page size in bytes.  
 **     18       1     File format write version
 **     19       1     File format read version
@@ -522,8 +519,7 @@ sqlite&gt; select rowid,* from COMPANY;
 **     40      60     15 4-byte meta values passed to higher layers
 **
 ** All of the integer values are big-endian (most significant byte first).
-</code></pre>
-<p>逐个解析这个header里的内容：</p>
+</code></pre><p>逐个解析这个header里的内容：</p>
 <ul>
 <li>0-16字节：magic string。</li>
 <li>16-18字节：页面大小，不能小于512或者大于32768，同时需要是8位对齐。</li>
@@ -544,7 +540,7 @@ sqlite&gt; select rowid,* from COMPANY;
 <h2 id="page-header页面头">page header（页面头）</h2>
 <p>除了第一页以外，其他情况下页面头在页面的开始位置（即偏移量为0开始），第一页从偏移量100开始。</p>
 <p>其内容如下：</p>
-<pre><code>** The page headers looks like this:
+<pre tabindex="0"><code>** The page headers looks like this:
 **
 **   OFFSET   SIZE     DESCRIPTION
 **      0       1      Flags. 1: intkey, 2: zerodata, 4: leafdata, 8: leaf
@@ -553,8 +549,7 @@ sqlite&gt; select rowid,* from COMPANY;
 **      5       2      first byte of the cell content area
 **      7       1      number of fragmented free bytes
 **      8       4      Right child (the Ptr(N) value).  Omitted on leaves.
-</code></pre>
-<p>分析如下：</p>
+</code></pre><p>分析如下：</p>
 <ul>
 <li>0-1：表示页面类型的标志位，至于页面的类型上面已经有阐述。</li>
 <li>1-2：首个空闲block在页面内的偏移量。</li>
@@ -576,11 +571,10 @@ sqlite&gt; select rowid,* from COMPANY;
 <h3 id="空闲空间链表">空闲空间链表</h3>
 <p>所谓的“空闲空间”，就是夹在<code>cell数组</code>和<code>cell内容数组</code>中间的部分，最开始是一大整块的空间。</p>
 <p>但是随着写入操作进行，比如一行数据被删除之后，回收的空间就会放到空闲空间链表上。空闲空间链表就是用来组织现在空闲空间的数据的，其中的每个元素为4字节，其内容是：</p>
-<pre><code>   **    SIZE    DESCRIPTION
+<pre tabindex="0"><code>   **    SIZE    DESCRIPTION
    **      2     Byte offset of the next freeblock
    **      2     Bytes in this freeblock
-</code></pre>
-<p>其中：</p>
+</code></pre><p>其中：</p>
 <ul>
 <li>0-2字节：下一块空闲空间链表的页内偏移量。</li>
 <li>3-4字节：当前这块空闲空间的大小。</li>
@@ -593,7 +587,7 @@ sqlite&gt; select rowid,* from COMPANY;
 <p>见前面<code>页面类型</code>部分的解释。</p>
 <h2 id="cell的结构">cell的结构</h2>
 <p>一个<code>cell</code>，就是存储一行数据的单位，由于要考虑一行数据有不同的长度，因此<code>cell</code>里面就要有应对变长数据的准备，来看<code>cell</code>的结构。</p>
-<pre><code>** The content of a cell looks like this:
+<pre tabindex="0"><code>** The content of a cell looks like this:
 **
 **    SIZE    DESCRIPTION
 **      4     Page number of the left child. Omitted if leaf flag is set.
@@ -601,8 +595,7 @@ sqlite&gt; select rowid,* from COMPANY;
 **     var    Number of bytes of key. Or the key itself if intkey flag is set.
 **      *     Payload
 **      4     First page of the overflow chain.  Omitted if no overflow
-</code></pre>
-<p>逐个解释：</p>
+</code></pre><p>逐个解释：</p>
 <ul>
 <li>0-4：左子树的页面编号（如果是叶子页面这部分没有）。</li>
 <li>变长：数据部分的大小。</li>
@@ -628,15 +621,14 @@ sqlite&gt; select rowid,* from COMPANY;
 </ul>
 <p>为什么非int类型的表，会没有数据部分？这是因为，完整的数据，都以rowid为key的情况，存储在了int类型的表中；而非int类型的表，只要存储这个表的键值整数即可。</p>
 <p>而溢出页面的结构如下：</p>
-<pre><code>** Overflow pages form a linked list.  Each page except the last is completely
+<pre tabindex="0"><code>** Overflow pages form a linked list.  Each page except the last is completely
 ** filled with data (pagesize - 4 bytes).  The last page can have as little
 ** as 1 byte of data.
 **
 **    SIZE    DESCRIPTION
 **      4     Page number of next overflow page
 **      *     Data
-</code></pre>
-<p>即：对于存储溢出数据的页面而言，头部的4字节存储下一个溢出页面的页面编号（如果还有溢出页面的话），而剩余则存储数据。</p>
+</code></pre><p>即：对于存储溢出数据的页面而言，头部的4字节存储下一个溢出页面的页面编号（如果还有溢出页面的话），而剩余则存储数据。</p>
 <p>结合起来，一个存储了溢出数据（即当前页面不足以存储这个cell的所有数据）的结构大体是：</p>
 <p><img src="/media/imgs/20220201-sqlite-btree-5-btree/cell-overflow.png" alt="有溢出页面的cell结构" title="有溢出页面的cell结构"></p>
 <h1 id="空间利用和碎片整理">空间利用和碎片整理</h1>

@@ -511,7 +511,7 @@
 <p>可以看到，未持久化数据分为两部分：一部分是快照数据snapshot，另一部分就是日志数据数组。两者不会同时存在，快照数据只会在启动时进行快照数据恢复时存在，当应用层使用快照数据进行恢复之后，raft切换为可以接收日志数据的状态，后续的日志数据都会写到<code>entrise</code>数组中了，而两者的分界线就是<code>offset</code>变量。</p>
 <p><img src="/media/imgs/20210515-raft/unstable.png" alt="未持久化数据" title="未持久化数据"></p>
 <p>由于是”未持久化数据的缓冲区“，因此这其中的数据可能会发生回滚（rollback）现象，因此<code>unstable</code>结构体需要支持能回滚的操作，见函数<code>truncateAndAppend</code>：</p>
-<pre><code>func (u *unstable) truncateAndAppend(ents []pb.Entry) {
+<pre tabindex="0"><code>func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	// 先拿到这些数据的第一个索引
 	after := ents[0].Index
 	switch {
@@ -521,7 +521,7 @@
 		// directly append
 		u.entries = append(u.entries, ents...)
 	case after &lt;= u.offset:
-		u.logger.Infof(&quot;replace the unstable entries from index %d&quot;, after)
+		u.logger.Infof(&#34;replace the unstable entries from index %d&#34;, after)
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries
 		// 如果比当前偏移量小，那用新的数据替换当前数据，需要同时更改offset和entries
@@ -532,13 +532,12 @@
 		// then append
 		// 到了这里，说明 u.offset &lt; after &lt; u.offset+uint64(len(u.entries))
 		// 那么新的entries需要拼接而成
-		u.logger.Infof(&quot;truncate the unstable entries before index %d&quot;, after)
+		u.logger.Infof(&#34;truncate the unstable entries before index %d&#34;, after)
 		u.entries = append([]pb.Entry{}, u.slice(u.offset, after)...)
 		u.entries = append(u.entries, ents...)
 	}
 }
-</code></pre>
-<p>函数中分为三种情况：</p>
+</code></pre><p>函数中分为三种情况：</p>
 <ul>
 <li>如果传入的日志数据，刚好跟当前数据紧挨着（after == u.offset+uint64(len(u.entries))），就可以直接进行append操作。</li>
 <li>如果传入的日志数据的第一条数据索引不大于当前的offset（after &lt;= u.offset），说明数据发生了回滚，直接用新的数据替换旧的数据。</li>
@@ -560,7 +559,7 @@
 <p>答案：当客户端提交数据时，etcd Raft库就通过<code>Ready</code>结构体的<code>Entries</code>成员通知应用层，将这些提交的数据进行持久化了。</p>
 <p>有代码为证。</p>
 <p>首先来看<code>raft</code>中如何生成<code>Ready</code>数据：</p>
-<pre><code>func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
+<pre tabindex="0"><code>func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
 	rd := Ready{
 		// entries保存的是没有持久化的数据数组
 		Entries:          r.raftLog.unstableEntries(),
@@ -571,10 +570,9 @@
 	}
 	// ...
 }
-</code></pre>
-<p>可以看到，<code>raft</code>库中将未持久化数据塞到了<code>Entries</code>数组中，而已经达成一致可以提交的日志数据放入到<code>CommittedEntries</code>数组中。</p>
+</code></pre><p>可以看到，<code>raft</code>库中将未持久化数据塞到了<code>Entries</code>数组中，而已经达成一致可以提交的日志数据放入到<code>CommittedEntries</code>数组中。</p>
 <p>以<code>etcd</code>代码中自带的<code>raftexample</code>目录中的例子代码来看应用层在收到<code>Ready</code>数据后的做法：</p>
-<pre><code>func (rc *raftNode) serveChannels() {
+<pre tabindex="0"><code>func (rc *raftNode) serveChannels() {
 		case rd := &lt;-rc.node.Ready():
 			// 将HardState，entries写入持久化存储中
 			rc.wal.Save(rd.HardState, rd.Entries)
@@ -594,8 +592,7 @@
 			rc.node.Advance()
 	// ....
 }
-</code></pre>
-<p>其中：</p>
+</code></pre><p>其中：</p>
 <ul>
 <li>rc.wal.Save(rd.HardState, rd.Entries)：将客户端提交数据的数据写入wal中。</li>
 <li>rc.raftStorage.Append(rd.Entries)：这里的<code>raftStorage</code>即前面提到的持久化数据缓冲区的<code>Storage</code>接口，由<code>MemoryStorage</code>接口实现，这一步将这些客户端提交的数据也写入持久化缓冲区的内部映像。</li>
@@ -632,7 +629,7 @@
 <p><img src="/media/imgs/20210515-raft/snapshot.png" alt="快照数据的流动" title="快照数据的流动"></p>
 <p>以上是快照数据的流动过程，在节点N接收并持久化快照数据后，后面就可以接收正常的日志了，日志数据的流动过程跟快照数据实际是差不多的，就不再阐述了。</p>
 <p>从上面的流程中也可以看出，应用层也就是etcdserver的持久化数据，只有wal日志而已，情况确实是这样的，其接口和实现如下：</p>
-<pre><code>type Storage interface {
+<pre tabindex="0"><code>type Storage interface {
 	// Save function saves ents and state to the underlying stable storage.
 	// Save MUST block until st and ents are on stable storage.
 	Save(st raftpb.HardState, ents []raftpb.Entry) error
@@ -649,8 +646,7 @@ type storage struct {
 	*wal.WAL
 	*snap.Snapshotter
 }
-</code></pre>
-<p><code>Storage</code>接口是etcdserver持久化数据的接口，其保存的数据有两个接口：</p>
+</code></pre><p><code>Storage</code>接口是etcdserver持久化数据的接口，其保存的数据有两个接口：</p>
 <ul>
 <li>Save(st raftpb.HardState, ents []raftpb.Entry) error：保存日志数据。</li>
 <li>SaveSnap(snap raftpb.Snapshot) error：保存快照数据。</li>
@@ -663,7 +659,7 @@ type storage struct {
 <p>这里就不展开讨论了。</p>
 <h3 id="节点进度的管理">节点进度的管理</h3>
 <p>前面提到过，一致性算法与TCP之类的协议，本质上都需要管理未确认数据的缓冲区，但是不同的是，参与一致性算法确认的成员，不会像一般的点对点通信协议那样只有两个，在raft算法中，leader节点除了要维护未持久化缓冲区之外，还需要维护一个数据结构，用于保存集群中其他节点的进度，这部分数据在etcd raft中保存在结构体<code>Progress</code>中，我将我之前阅读过程中加上的注释一并贴出来：</p>
-<pre><code>// 该数据结构用于在leader中保存每个follower的状态信息，leader将根据这些信息决定发送给节点的日志
+<pre tabindex="0"><code>// 该数据结构用于在leader中保存每个follower的状态信息，leader将根据这些信息决定发送给节点的日志
 // Progress represents a follower’s progress in the view of the leader. Leader maintains
 // progresses of all followers, and sends entries to the follower based on its progress.
 type Progress struct {
@@ -731,8 +727,7 @@ type Progress struct {
 	// 用于实现滑动窗口，用来做流量控制
 	ins *inflights
 }
-</code></pre>
-<p>总结来说，<code>Progress</code>结构体做的工作：</p>
+</code></pre><p>总结来说，<code>Progress</code>结构体做的工作：</p>
 <ul>
 <li>维护follower节点的match、next索引，以便知道下一次从哪里开始同步数据。</li>
 <li>维护着follower节点当前的状态。</li>

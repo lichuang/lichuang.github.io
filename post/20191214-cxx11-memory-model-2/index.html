@@ -335,7 +335,7 @@
 <p>显然，满足synchronizes-with关系的操作一定满足happens-before关系了。</p>
 <h1 id="c11中支持的内存模型">C++11中支持的内存模型</h1>
 <p>从C++11开始，就支持以下几种内存模型：</p>
-<pre><code>enum memory_order {
+<pre tabindex="0"><code>enum memory_order {
     memory_order_relaxed,
     memory_order_consume,
     memory_order_acquire,
@@ -343,12 +343,11 @@
     memory_order_acq_rel,
     memory_order_seq_cst
 };
-</code></pre>
-<p>与内存模型相关的枚举类型有以上六种，但是其实分为四类，如下图所示，其中对一致性的要求逐渐减弱，以下来分别讲解。</p>
+</code></pre><p>与内存模型相关的枚举类型有以上六种，但是其实分为四类，如下图所示，其中对一致性的要求逐渐减弱，以下来分别讲解。</p>
 <p><img src="/media/imgs/20191214-cxx11-memory-model-2/c++model.png" alt="c++model" title="c++model"></p>
 <h1 id="memory_order_seq_cst">memory_order_seq_cst</h1>
 <p>这是默认的内存模型，即上篇文章中分析过的顺序一致性内存模型，由于在上篇中的相关概念已经做过详细的介绍，这里就不再阐述了。仅列出引用自《C++  Concurrency In Action》的示例代码。</p>
-<pre><code>#include &lt;atomic&gt;
+<pre tabindex="0"><code>#include &lt;atomic&gt;
 #include &lt;thread&gt;
 #include &lt;assert.h&gt;
 
@@ -394,8 +393,7 @@ int main()
     d.join();
     assert(z.load()!=0);
 }
-</code></pre>
-<p>由于采用了顺序一致性模型，因此最后的断言不可能发生，即在程序结束时不可能出现z为0的情况。</p>
+</code></pre><p>由于采用了顺序一致性模型，因此最后的断言不可能发生，即在程序结束时不可能出现z为0的情况。</p>
 <h1 id="memory_order_relaxed">memory_order_relaxed</h1>
 <p>这种类型对应的松散内存模型，这种内存模型的特点是：</p>
 <ul>
@@ -403,7 +401,7 @@ int main()
 <li>不同线程之间针对该变量的访问操作先后顺序不能得到保证，即有可能乱序。</li>
 </ul>
 <p>来看示例代码：</p>
-<pre><code>#include &lt;atomic&gt;
+<pre tabindex="0"><code>#include &lt;atomic&gt;
 #include &lt;thread&gt;
 #include &lt;assert.h&gt;
 
@@ -434,8 +432,7 @@ int main()
     b.join();
     assert(z.load()!=0);
 }
-</code></pre>
-<p>在上面的代码中，对原子变量的访问都使用memory_order_relaxed模型，导致了最后的断言可能失败，即在程序结束时z可能为0。</p>
+</code></pre><p>在上面的代码中，对原子变量的访问都使用memory_order_relaxed模型，导致了最后的断言可能失败，即在程序结束时z可能为0。</p>
 <h1 id="acquire-release">Acquire-Release</h1>
 <ul>
 <li>memory_order_acquire：用来修饰一个读操作，表示在本线程中，所有后续的关于此变量的内存操作都必须在本条原子操作完成后执行。</li>
@@ -449,7 +446,7 @@ int main()
 <li>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</li>
 </ul>
 <p>来看示例代码：</p>
-<pre><code>// 5.7.cpp
+<pre tabindex="0"><code>// 5.7.cpp
 #include &lt;atomic&gt;
 #include &lt;thread&gt;
 #include &lt;assert.h&gt;
@@ -496,8 +493,7 @@ int main()
     d.join();
     assert(z.load()!=0);
 }
-</code></pre>
-<p>上面这个例子中，并不能保证程序最后的断言即z!=0为真，其原因在于：在不同的线程中分别针对x、y两个变量进行了同步操作并不能保证x、y变量的读取操作。</p>
+</code></pre><p>上面这个例子中，并不能保证程序最后的断言即z!=0为真，其原因在于：在不同的线程中分别针对x、y两个变量进行了同步操作并不能保证x、y变量的读取操作。</p>
 <p>线程write_x针对变量x使用了write-release模型，这样保证了read_x_then_y函数中，在load变量y之前x为true；同理线程write_y针对变量y使用了write-release模型，这样保证了read_y_then_x函数中，在load变量x之前y为true。</p>
 <p>然而即便是这样，仍然可能出现以下类似的情况：</p>
 <p><img src="/media/imgs/20191214-cxx11-memory-model-2/5.7.png" alt="5.7" title="5.7"></p>
@@ -508,7 +504,7 @@ int main()
 <li>然而即便如此，也可能出现在read_x_then_y中针对y的load操作在y的store操作之前完成，因为y.store操作与此之间没有先后顺序关系；同理也不能保证x一定读到true值，因此到程序结束是就出现了z = 0的情况。</li>
 </ul>
 <p>从上面的分析可以看到，即便在这里使用了release-acquire模型，仍然没有保证z=0，其原因在于：最开始针对x、y两个变量的写操作是分别在write_x和write_y线程中进行的，不能保证两者执行的顺序导致。因此修改如下：</p>
-<pre><code>// 5.8.cpp
+<pre tabindex="0"><code>// 5.8.cpp
 #include &lt;atomic&gt;
 #include &lt;thread&gt;
 #include &lt;assert.h&gt;
@@ -540,8 +536,7 @@ int main()
     b.join();
     assert(z.load()!=0);
 }
-</code></pre>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-2/5.8.png" alt="5.8" title="5.8"></p>
+</code></pre><p><img src="/media/imgs/20191214-cxx11-memory-model-2/5.8.png" alt="5.8" title="5.8"></p>
 <p>如上图所示：</p>
 <ul>
 <li>初始条件为x = y = false。</li>
@@ -553,12 +548,11 @@ int main()
 <h1 id="release-consume">Release-Consume</h1>
 <p>从上面对Acquire-Release模型的分析可以知道，虽然可以使用这个模型做到两个线程之间某些操作的synchronizes-with关系，然后这个粒度有些过于大了。</p>
 <p>在很多时候，线程间只想针对有依赖关系的操作进行同步，除此之外线程中的其他操作顺序如何无所谓。比如下面的代码中：</p>
-<pre><code>b = *a;
+<pre tabindex="0"><code>b = *a;
 c = *b;
-</code></pre>
-<p>其中第二行代码的执行结果依赖于第一行代码的执行结果，此时称这两行代码之间的关系为“carry-a-dependency ”。C++中引入的memory_order_consume内存模型就针对这类代码间有明确的依赖关系的语句限制其先后顺序。</p>
+</code></pre><p>其中第二行代码的执行结果依赖于第一行代码的执行结果，此时称这两行代码之间的关系为“carry-a-dependency ”。C++中引入的memory_order_consume内存模型就针对这类代码间有明确的依赖关系的语句限制其先后顺序。</p>
 <p>来看下面的示例代码：</p>
-<pre><code>// 5.10
+<pre tabindex="0"><code>// 5.10
 #include &lt;string&gt;
 #include &lt;thread&gt;
 #include &lt;atomic&gt;
@@ -576,7 +570,7 @@ void create_x()
 {
     X* x=new X;
     x-&gt;i=42;
-    x-&gt;s=&quot;hello&quot;;
+    x-&gt;s=&#34;hello&#34;;
     a.store(99,std::memory_order_relaxed);
     p.store(x,std::memory_order_release);
 }
@@ -587,7 +581,7 @@ void use_x()
     while(!(x=p.load(std::memory_order_consume)))
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     assert(x-&gt;i==42);
-    assert(x-&gt;s==&quot;hello&quot;);
+    assert(x-&gt;s==&#34;hello&#34;);
     assert(a.load(std::memory_order_relaxed)==99);
 }
 int main()
@@ -597,9 +591,7 @@ int main()
     t1.join();
     t2.join();
 }
-
-</code></pre>
-<p>以上的代码中：</p>
+</code></pre><p>以上的代码中：</p>
 <ul>
 <li>create_x线程中的store(x)操作使用memory_order_release，而在use_x线程中，有针对x的使用memory_order_consume内存模型的load操作，两者之间由于有carry-a-dependency关系，因此能保证两者的先后执行顺序。所以，x-&gt;i == 42以及x-&gt;s==&ldquo;hello&quot;这两个断言都不会失败。</li>
 <li>然而，create_x中针对变量a的使用relax内存模型的store操作，use_x线程中也有针对变量a的使用relax内存模型的load操作。这两者的先后执行顺序，并不受前面的memory_order_consume内存模型影响，所以并不能保证前后顺序，因此断言a.load(std::memory_order_relaxed)==99真假都有可能。</li>

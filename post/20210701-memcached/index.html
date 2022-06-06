@@ -389,19 +389,17 @@
 <li>COLD_LRU：存储冷数据的LRU链表。</li>
 </ul>
 <p>需要说明的是：热（参数<code>settings.hot_lru_pct</code>）和暖（参数<code>settings.warm_lru_pct</code>）数据的占总体内存的比例有限制，而冷数据则无限。</p>
-<pre><code class="language-C">#define HOT_LRU 0
-#define WARM_LRU 64
-#define COLD_LRU 128
-</code></pre>
-<p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
-<pre><code class="language-C">#define POWER_LARGEST  256 /* actual cap is 255 */
-
-#define LARGEST_ID POWER_LARGEST
-
-static item *heads[LARGEST_ID];
-static item *tails[LARGEST_ID];
-</code></pre>
-<p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define HOT_LRU 0
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define WARM_LRU 64
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define COLD_LRU 128
+</span></span></span></code></pre></div><p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define POWER_LARGEST  256 </span><span class="cm">/* actual cap is 255 */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define LARGEST_ID POWER_LARGEST
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">heads</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">tails</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+</span></span></code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
 <p><img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
 <p>前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。</p>

@@ -308,34 +308,32 @@
 <p>即这是一个per-thread-per-loop的线程设计，线程之间的通信通过消息邮箱来进行。</p>
 <p>除了io线程之外，io对象也有mailbox，即如果想与某个IO对象通信也是通过该mailbox进行。由于消息邮箱是zeromq中的重要组成部分，下面将专门分析zeromq是如何实现的。</p>
 <p>所有需要收发消息的对象都继承自object_t：</p>
-<pre><code class="language-C">class object_t
-{
-public:
-  object_t (zmq::ctx_t *ctx_, uint32_t tid_);
-  void process_command (zmq::command_t &amp;cmd_);
-private:
-  zmq::ctx_t *ctx;//  Context provides access to the global state.
-  uint32_t tid;//  Thread ID of the thread the object belongs to.
-  void send_command (command_t &amp;cmd_);
-}
-</code></pre>
-<p>而IO对象之间的命令通过command_t结构体来定义：</p>
-<pre><code class="language-C">struct command_t
-{
-  //  Object to process the command.
-  zmq::object_t *destination;
-
-  enum type_t
-  {
-    ...
-  } type;
-
-  union {
-    ...
-  } args;
-};
-</code></pre>
-<p>可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">class</span> <span class="n">object_t</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="nl">public</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="n">object_t</span> <span class="p">(</span><span class="n">zmq</span><span class="o">::</span><span class="n">ctx_t</span> <span class="o">*</span><span class="n">ctx_</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">tid_</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">void</span> <span class="nf">process_command</span> <span class="p">(</span><span class="n">zmq</span><span class="o">::</span><span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nl">private</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="n">zmq</span><span class="o">::</span><span class="n">ctx_t</span> <span class="o">*</span><span class="n">ctx</span><span class="p">;</span><span class="c1">//  Context provides access to the global state.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">tid</span><span class="p">;</span><span class="c1">//  Thread ID of the thread the object belongs to.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">void</span> <span class="nf">send_command</span> <span class="p">(</span><span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>而IO对象之间的命令通过command_t结构体来定义：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">command_t</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Object to process the command.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">zmq</span><span class="o">::</span><span class="n">object_t</span> <span class="o">*</span><span class="n">destination</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">enum</span> <span class="n">type_t</span>
+</span></span><span class="line"><span class="cl">  <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="n">type</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">union</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="n">args</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。</p>
 <h1 id="使用无锁队列实现的消息邮箱">使用无锁队列实现的消息邮箱</h1>
 <p>zeromq内部类似actor模型，每个actor内部有一个mailbox，负责收发消息，对外暴露的接口就是收发相关的send、recv接口。</p>
 <p>负责收发消息的类是mailbox_t，内部实现使用了ypipe_t来实现无锁消息队列，而ypipe_t内部又使用了yqueue_t来实现队列，这个实现的目的是为了减少内部的分配。</p>
@@ -385,36 +383,34 @@ private:
 <h3 id="1初始化">1、初始化</h3>
 <p>ypipe_t构造函数在初始化的时候，将push进去一个哑元素在队列尾部，然后_r、_w、_c、_f指针都同时指向队列头。
 而经过这个操作之后，begin_pos和back_pos都为0，end_pos为1（因为push了一个元素）。</p>
-<pre><code class="language-C">inline ypipe_t ()
-{
-  //  Insert terminator element into the queue.
-  //  先放入一个空元素
-  _queue.push ();
-
-  //  Let all the pointers to point to the terminator.
-  //  (unless pipe is dead, in which case c is set to NULL).
-  _r = _w = _f = &amp;_queue.back ();
-  _c.set (&amp;_queue.back ());
-}
-</code></pre>
-<h3 id="2writea-true">2、write(&lsquo;a&rsquo;, true)</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kr">inline</span> <span class="nf">ypipe_t</span> <span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Insert terminator element into the queue.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  先放入一个空元素
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">_queue</span><span class="p">.</span><span class="n">push</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Let all the pointers to point to the terminator.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  (unless pipe is dead, in which case c is set to NULL).
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">_r</span> <span class="o">=</span> <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">_c</span><span class="p">.</span><span class="n">set</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">());</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="2writea-true">2、write(&lsquo;a&rsquo;, true)</h3>
 <p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
 <p>写入一个元素a，同时incomplete为true，意味着写入还未完成，所以并没有更新flush指针，_w指针也没有在这个函数中被更新，因此当incomplete为true时不会更新上面的四个指针。</p>
-<pre><code class="language-C">//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
-inline void write (const T &amp;value_, bool incomplete_)
-{
-  // 注意在这里写入数据的时候修改的是_f指针
-  //  Place the value to the queue, add new terminator element.
-  _queue.back () = value_;
-  _queue.push ();
-
-  //  Move the &quot;flush up to here&quot; poiter.
-  if (!incomplete_)
-    // incomplete_为false表示写完毕数据了，可以修改flush指针指向
-    _f = &amp;_queue.back ();
-}
-</code></pre>
-<h3 id="3writeb-false">3、write(&lsquo;b&rsquo;, false)</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kr">inline</span> <span class="kt">void</span> <span class="nf">write</span> <span class="p">(</span><span class="k">const</span> <span class="n">T</span> <span class="o">&amp;</span><span class="n">value_</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">incomplete_</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 注意在这里写入数据的时候修改的是_f指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  Place the value to the queue, add new terminator element.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">()</span> <span class="o">=</span> <span class="n">value_</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">_queue</span><span class="p">.</span><span class="n">push</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Move the &#34;flush up to here&#34; poiter.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">incomplete_</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// incomplete_为false表示写完毕数据了，可以修改flush指针指向
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">_f</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="3writeb-false">3、write(&lsquo;b&rsquo;, false)</h3>
 <p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
 <p>写入一个元素b，同时incomplete为false，意味着写入完成，此时需要修改flush指针指向队列尾，即新的back_pos位置2。</p>
 <h3 id="4flush">4、flush()</h3>
@@ -430,37 +426,36 @@ inline void write (const T &amp;value_, bool incomplete_)
 </ul>
 </li>
 </ul>
-<pre><code class="language-C">inline bool flush ()
-{
-  //  If there are no un-flushed items, do nothing.
-  //  _w等于_f，意味着没有需要刷新的元素了，直接返回
-  if (_w == _f)
-    return true;
-
-  //  Try to set 'c' to 'f'.
-  //  如果c原来是_w，切换为_f，同时返回旧的值
-  //  如果返回值不是_w，意味着旧的值不是_w
-  if (_c.cas (_w, _f) != _w) {
-    //  Compare-and-swap was unseccessful because 'c' is NULL.
-    //  This means that the reader is asleep. Therefore we don't
-    //  care about thread-safeness and update c in non-atomic
-    //  manner. We'll return false to let the caller know
-    //  that reader is sleeping.
-    //  cas操作返回不是_w，意味着_c指针为NULL
-    //  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
-    _c.set (_f);
-    _w = _f;
-    return false;
-  }
-
-  //  Reader is alive. Nothing special to do now. Just move
-  //  the 'first un-flushed item' pointer to 'f'.
-  //  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
-  _w = _f;
-  return true;
-}
-</code></pre>
-<h3 id="5readret">5、read(&amp;ret)</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">flush</span> <span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">//  If there are no un-flushed items, do nothing.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  _w等于_f，意味着没有需要刷新的元素了，直接返回
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">_w</span> <span class="o">==</span> <span class="n">_f</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Try to set &#39;c&#39; to &#39;f&#39;.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  如果c原来是_w，切换为_f，同时返回旧的值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  如果返回值不是_w，意味着旧的值不是_w
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">_c</span><span class="p">.</span><span class="n">cas</span> <span class="p">(</span><span class="n">_w</span><span class="p">,</span> <span class="n">_f</span><span class="p">)</span> <span class="o">!=</span> <span class="n">_w</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">//  Compare-and-swap was unseccessful because &#39;c&#39; is NULL.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  This means that the reader is asleep. Therefore we don&#39;t
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  care about thread-safeness and update c in non-atomic
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  manner. We&#39;ll return false to let the caller know
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  that reader is sleeping.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  cas操作返回不是_w，意味着_c指针为NULL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">//  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">_c</span><span class="p">.</span><span class="n">set</span> <span class="p">(</span><span class="n">_f</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Reader is alive. Nothing special to do now. Just move
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  the &#39;first un-flushed item&#39; pointer to &#39;f&#39;.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="5readret">5、read(&amp;ret)</h3>
 <p>第一次读操作，read函数返回true表示读到了数据，ret中保存的是&rsquo;a&rsquo;返回。</p>
 <p>读操作首先进入check_read函数中检查是否有数据可读，做以下的判断：</p>
 <ul>
@@ -469,48 +464,47 @@ inline void write (const T &amp;value_, bool incomplete_)
 <li>否则，返回true意味着有数据可读。</li>
 </ul>
 <p>而在check_read函数返回true表示有数据可读的情况下，read函数将pop出队列的头部数据，这个操作将begin_pos递增一位。</p>
-<pre><code class="language-C">//  返回是否有数据可以读
-inline bool check_read ()
-{
-  //  Was the value prefetched already? If so, return.
-  //  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
-  if (&amp;_queue.front () != _r &amp;&amp; _r)
-    return true;
-
-  //  There's no prefetched value, so let us prefetch more values.
-  //  Prefetching is to simply retrieve the
-  //  pointer from c in atomic fashion. If there are no
-  //  items to prefetch, set c to NULL (using compare-and-swap).
-  //  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
-  _r = _c.cas (&amp;_queue.front (), NULL);
-
-  //  If there are no elements prefetched, exit.
-  //  During pipe's lifetime r should never be NULL, however,
-  //  it can happen during pipe shutdown when items
-  //  are being deallocated.
-  //  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
-  if (&amp;_queue.front () == _r || !_r)
-    return false;
-
-  //  There was at least one value prefetched.
-  return true;
-}
-//  Reads an item from the pipe. Returns false if there is no value.
-//  available.
-inline bool read (T *value_)
-{
-  //  Try to prefetch a value.
-  if (!check_read ())
-    return false;
-
-  //  There was at least one value prefetched.
-  //  Return it to the caller.
-  *value_ = _queue.front ();
-  _queue.pop ();
-  return true;
-}
-</code></pre>
-<p>明白了以上的流程，具体解释第一次调用read(&amp;ret)操作：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">//  返回是否有数据可以读
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">check_read</span> <span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Was the value prefetched already? If so, return.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">()</span> <span class="o">!=</span> <span class="n">_r</span> <span class="o">&amp;&amp;</span> <span class="n">_r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  There&#39;s no prefetched value, so let us prefetch more values.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  Prefetching is to simply retrieve the
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  pointer from c in atomic fashion. If there are no
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  items to prefetch, set c to NULL (using compare-and-swap).
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">_r</span> <span class="o">=</span> <span class="n">_c</span><span class="p">.</span><span class="n">cas</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">(),</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  If there are no elements prefetched, exit.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  During pipe&#39;s lifetime r should never be NULL, however,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  it can happen during pipe shutdown when items
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  are being deallocated.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">()</span> <span class="o">==</span> <span class="n">_r</span> <span class="o">||</span> <span class="o">!</span><span class="n">_r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  There was at least one value prefetched.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">//  Reads an item from the pipe. Returns false if there is no value.
+</span></span></span><span class="line"><span class="cl"><span class="c1">//  available.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">read</span> <span class="p">(</span><span class="n">T</span> <span class="o">*</span><span class="n">value_</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">//  Try to prefetch a value.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">check_read</span> <span class="p">())</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">//  There was at least one value prefetched.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">//  Return it to the caller.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="o">*</span><span class="n">value_</span> <span class="o">=</span> <span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="n">_queue</span><span class="p">.</span><span class="n">pop</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>明白了以上的流程，具体解释第一次调用read(&amp;ret)操作：</p>
 <ul>
 <li>在调用之前，_r指向队列头，由于_c不是指向队列头，所以_r = _c.cas (&amp;_queue.front (), NULL)的操作并没有修改_c的值，只是将_r置为_c，然后check_read函数返回true表示有数据可读。</li>
 <li>由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为1。</li>
@@ -541,18 +535,17 @@ inline bool read (T *value_)
 </ul>
 <h2 id="mailbox_t">mailbox_t</h2>
 <p>有了以上的介绍，实际理解起来mailbox_t的实现就比较简单了。但是前面分析ypipe_t的时候提到过，这个无锁队列的实现是单写单读的，而正常情况下，会有多个不同的线程同时往一个actor发消息，即需要的是多写多读的模式，来看mailbox_t中send函数的实现：</p>
-<pre><code class="language-C">void zmq::mailbox_t::send (const command_t &amp;cmd_)
-{
-    // 这里需要加锁，因为是多写一读的邮箱
-    _sync.lock ();
-    _cpipe.write (cmd_, false);
-    const bool ok = _cpipe.flush ();
-    _sync.unlock ();
-    if (!ok)  // flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
-        _signaler.send ();
-}
-</code></pre>
-<p>可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">zmq</span><span class="o">::</span><span class="n">mailbox_t</span><span class="o">::</span><span class="n">send</span> <span class="p">(</span><span class="k">const</span> <span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里需要加锁，因为是多写一读的邮箱
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">_sync</span><span class="p">.</span><span class="n">lock</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_cpipe</span><span class="p">.</span><span class="n">write</span> <span class="p">(</span><span class="n">cmd_</span><span class="p">,</span> <span class="nb">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">const</span> <span class="kt">bool</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">_cpipe</span><span class="p">.</span><span class="n">flush</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_sync</span><span class="p">.</span><span class="n">unlock</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">ok</span><span class="p">)</span>  <span class="c1">// flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="n">_signaler</span><span class="p">.</span><span class="n">send</span> <span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
 因此，<strong>zeromq号称的无锁消息队列设计，其实准确的说只是针对读写线程无锁，对于多个写线程而言还是有锁的</strong>。</p>
 <p>另外，由于在没有元素可读的情况下，读线程会休眠，因此需要一个唤醒读线程的机制，这里采用了signaler_t类型的成员变量_signaler，内部实现实际上一个pipe，向这个pipe写入一个字符用于唤醒读线程。</p>
 

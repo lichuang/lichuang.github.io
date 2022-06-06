@@ -444,27 +444,25 @@
 <h2 id="判断页面是否已经备份">判断页面是否已经备份</h2>
 <p>启动一个写事务的时候，可能会修改多个页面，但是这其中可能有些修改，修改的是同一个页面的内容，因此这种情况下只需要对这个页面备份一次即可。</p>
 <p>如何知道页面是否已经被备份过？页面管理器通过一个位图数据结构来保存这个信息：</p>
-<pre><code>Bitvec *pInJournal;         /* One bit for each page in the database file */
-</code></pre>
-<h2 id="计算页面校验值">计算页面校验值</h2>
+<pre tabindex="0"><code>Bitvec *pInJournal;         /* One bit for each page in the database file */
+</code></pre><h2 id="计算页面校验值">计算页面校验值</h2>
 <p>计算一个页面校验码的流程在函数<code>pager_cksum</code>中实现，其核心逻辑是：</p>
 <ul>
 <li>以随机算出的校验值为初始值，这个初始值就是存在journal文件头中偏移量为[12,16]的数据。</li>
 <li>从后往前遍历页面数据，每隔200字节取一个u32类型的值，累加起来。</li>
 </ul>
 <p>有了这样的关联，进行数据恢复时就能马上通过文件头存储的随机数，计算出来页面的数据是否准确。</p>
-<pre><code class="language-C">static u32 pager_cksum(Pager *pPager, const u8 *aData){
-  u32 cksum = pPager-&gt;cksumInit;         /* Checksum value to return */
-  int i = pPager-&gt;pageSize-200;          /* Loop counter */
-  // 每隔200字节算一个值累加起来
-  while( i&gt;0 ){
-    cksum += aData[i];
-    i -= 200;
-  }
-  return cksum;
-}
-</code></pre>
-<h2 id="备份页面">备份页面</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">static</span> <span class="n">u32</span> <span class="nf">pager_cksum</span><span class="p">(</span><span class="n">Pager</span> <span class="o">*</span><span class="n">pPager</span><span class="p">,</span> <span class="k">const</span> <span class="n">u8</span> <span class="o">*</span><span class="n">aData</span><span class="p">){</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">cksum</span> <span class="o">=</span> <span class="n">pPager</span><span class="o">-&gt;</span><span class="n">cksumInit</span><span class="p">;</span>         <span class="cm">/* Checksum value to return */</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">pPager</span><span class="o">-&gt;</span><span class="n">pageSize</span><span class="o">-</span><span class="mi">200</span><span class="p">;</span>          <span class="cm">/* Loop counter */</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 每隔200字节算一个值累加起来
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">while</span><span class="p">(</span> <span class="n">i</span><span class="o">&gt;</span><span class="mi">0</span> <span class="p">){</span>
+</span></span><span class="line"><span class="cl">    <span class="n">cksum</span> <span class="o">+=</span> <span class="n">aData</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">    <span class="n">i</span> <span class="o">-=</span> <span class="mi">200</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="n">cksum</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="备份页面">备份页面</h2>
 <p>有了前面计算校验值、以位图来判断页面是否已经备份过的了解，现在开始将备份页面的流程。</p>
 <p>每一次需要修改一个页面之前，都会调用函数<code>pager_write</code>，这样就能在修改之前首先备份这个页面的内容。</p>
 <p>要区分两种不同的页面：</p>

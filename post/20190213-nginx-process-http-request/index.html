@@ -112,7 +112,7 @@
     },
     "headline": "Nginx源码阅读笔记-处理HTTP请求 - codedump的网络日志","datePublished": "2019-02-13T09:09:19+08:00",
     "dateModified": "2019-02-13T09:09:19+08:00",
-    "wordCount":  7677 ,
+    "wordCount":  7676 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -300,53 +300,52 @@
 <h1 id="处理http请求的11个阶段">处理HTTP请求的11个阶段</h1>
 <p>nginx将处理HTTP请求划分为了11个阶段，原因在于nginx是一个重度模块化的系统，划分为不同阶段以后，不同的模块可以根据自己的需求在相应的模块中添加自己的处理函数。</p>
 <p>简单看看这11个模块的定义：</p>
-<pre><code class="language-C">typedef enum {
-  // 在接收到完整的HTTP头部后处理的HTTP阶段
-  NGX_HTTP_POST_READ_PHASE = 0,
-
-  // 在将请求的URI与location表达式匹配前，修改请求的
-  // URI（所谓的重定向）是一个独立的HTTP阶段
-  NGX_HTTP_SERVER_REWRITE_PHASE,
-
-  // 根据请求的URL寻找匹配的location表达式，这个阶段
-  // 只能由ngx_http_core_module模块实现，不建议其他HTTP
-  // 模块模块重新定义这一阶段的行为
-  NGX_HTTP_FIND_CONFIG_PHASE,
-
-  // 在NGX_HTTP_FIND_CONFIG_PHASE阶段寻找到匹配的location
-  // 之后再修改请求的URI
-  NGX_HTTP_REWRITE_PHASE,
-
-  // 这一阶段用于在rewrite重写URL后，防止错误的nginx配置导致
-  // 死循环（递归地修改URI），因此，这一阶段仅由ngx_http_core_module
-  // 模块处理。目前，控制死循环的方法就是看rewrite次数，超过一定阈值
-  // 就认为出现了死循环，返回500
-  NGX_HTTP_POST_REWRITE_PHASE,
-
-  // 表示在处理NGX_HTTP_ACCESS_PHASE阶段决定请求的访问权限前，HTTP模块可以介入的处理阶段
-  NGX_HTTP_PREACCESS_PHASE,
-
-  // 这个阶段用于让HTTP模块判断是否允许这个请求访问Nginx服务器
-  NGX_HTTP_ACCESS_PHASE,
-
-  // 在NGX_HTTP_ACCESS_PHASE阶段中，当HTTP模块的handler处理函数返回不允许访问的错误码时（
-  // 实际就是NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED），这里将负责向用户发送拒绝服务的
-  // 错误响应，因此这个阶段实际上用于给NGX_HTTP_ACCESS_PHASE阶段收尾
-  NGX_HTTP_POST_ACCESS_PHASE,
-
-  // 这个阶段完全为try_files配置项而设立的，当HTTP访问静态文件资源时，try_files配置项可以
-  // 使这个请求顺序地访问多个静态文件资源，如果某一次访问失败，则继续访问try_files中指定的
-  // 下一个静态资源。
-  NGX_HTTP_PRECONTENT_PHASE,
-
-  // 用于处理HTTP请求内容的阶段，这是大部分HTTP模块最愿意介入的阶段
-  NGX_HTTP_CONTENT_PHASE,
-
-  // 处理完请求记录日志的阶段。
-  NGX_HTTP_LOG_PHASE
-} ngx_http_phases;
-</code></pre>
-<p>这11个阶段里，有一些是可以由模块开发者插入自己的处理函数，有一些只能使用nginx的http框架的实现。另外，每个阶段并不是一定只能有一个处理函数，有的可以提供多个处理函数，在同一个阶段中顺序被调用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">enum</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 在接收到完整的HTTP头部后处理的HTTP阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_POST_READ_PHASE</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 在将请求的URI与location表达式匹配前，修改请求的
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// URI（所谓的重定向）是一个独立的HTTP阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_SERVER_REWRITE_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 根据请求的URL寻找匹配的location表达式，这个阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 只能由ngx_http_core_module模块实现，不建议其他HTTP
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 模块模块重新定义这一阶段的行为
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_FIND_CONFIG_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 在NGX_HTTP_FIND_CONFIG_PHASE阶段寻找到匹配的location
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 之后再修改请求的URI
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_REWRITE_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 这一阶段用于在rewrite重写URL后，防止错误的nginx配置导致
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 死循环（递归地修改URI），因此，这一阶段仅由ngx_http_core_module
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 模块处理。目前，控制死循环的方法就是看rewrite次数，超过一定阈值
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 就认为出现了死循环，返回500
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_POST_REWRITE_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 表示在处理NGX_HTTP_ACCESS_PHASE阶段决定请求的访问权限前，HTTP模块可以介入的处理阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_PREACCESS_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 这个阶段用于让HTTP模块判断是否允许这个请求访问Nginx服务器
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_ACCESS_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 在NGX_HTTP_ACCESS_PHASE阶段中，当HTTP模块的handler处理函数返回不允许访问的错误码时（
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 实际就是NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED），这里将负责向用户发送拒绝服务的
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 错误响应，因此这个阶段实际上用于给NGX_HTTP_ACCESS_PHASE阶段收尾
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_POST_ACCESS_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 这个阶段完全为try_files配置项而设立的，当HTTP访问静态文件资源时，try_files配置项可以
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 使这个请求顺序地访问多个静态文件资源，如果某一次访问失败，则继续访问try_files中指定的
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 下一个静态资源。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_PRECONTENT_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 用于处理HTTP请求内容的阶段，这是大部分HTTP模块最愿意介入的阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_CONTENT_PHASE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 处理完请求记录日志的阶段。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">NGX_HTTP_LOG_PHASE</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">ngx_http_phases</span><span class="p">;</span>
+</span></span></code></pre></div><p>这11个阶段里，有一些是可以由模块开发者插入自己的处理函数，有一些只能使用nginx的http框架的实现。另外，每个阶段并不是一定只能有一个处理函数，有的可以提供多个处理函数，在同一个阶段中顺序被调用。</p>
 <h2 id="核心数据结构">核心数据结构</h2>
 <h3 id="ngx_http_phase_handler_t">ngx_http_phase_handler_t</h3>
 <p>定义每阶段相关的处理方法，在数据结构ngx_http_phase_handler_t中，包括以下成员：</p>
@@ -369,11 +368,10 @@
 <li>ngx_http_phase_t phases[NGX_HTTP_LOG_PHASE + 1]：用于在HTTP框架初始化时帮助各个HTTP模块在任意阶段中添加HTTP处理方法，由11个成员组成（因为有11个HTTP阶段）的数组，其中每个成员对应一个HTTP阶段。在HTTP框架初始化完毕之后，运行过程中的phases数组是无用的。</li>
 </ul>
 <p>而ngx_http_phase_t结构体实际上就是一个存放handler的数组：</p>
-<pre><code class="language-C">typedef struct {
-  ngx_array_t                handlers;
-} ngx_http_phase_t;
-</code></pre>
-<p>ngx_http_core_main_conf_t.phases数组，仅在启动时用于保存初始化注册进来的handler只用，是一个”静态“的数据，后续不会再做变动了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_array_t</span>                <span class="n">handlers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">ngx_http_phase_t</span><span class="p">;</span>
+</span></span></code></pre></div><p>ngx_http_core_main_conf_t.phases数组，仅在启动时用于保存初始化注册进来的handler只用，是一个”静态“的数据，后续不会再做变动了。</p>
 <h2 id="核心流程">核心流程</h2>
 <p>介绍完处理HTTP请求相关的核心数据结构，现在回到处理HTTP请求的流程分析中。</p>
 <p>在前面<a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">分析读HTTP请求</a>部分，提到过当读取完毕HTTP请求，nginx将进入到ngx_http_process_request函数正式开始处理HTTP请求。</p>
@@ -396,28 +394,27 @@
 <li>调用ngx_http_core_run_phases函数。</li>
 </ul>
 <p>终于来到与HTTP不同阶段处理流程相关的函数ngx_http_core_run_phases了，代码如下：</p>
-<pre><code class="language-C">void
-ngx_http_core_run_phases(ngx_http_request_t *r)
-{
-  ngx_int_t                   rc;
-  ngx_http_phase_handler_t   *ph;
-  ngx_http_core_main_conf_t  *cmcf;
-
-  cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
-
-  ph = cmcf-&gt;phase_engine.handlers;
-
-  while (ph[r-&gt;phase_handler].checker) {
-
-    rc = ph[r-&gt;phase_handler].checker(r, &amp;ph[r-&gt;phase_handler]);
-
-    if (rc == NGX_OK) {
-      return;
-    }
-  }
-}
-</code></pre>
-<p>可以看到该函数的核心流程就是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span>
+</span></span><span class="line"><span class="cl"><span class="nf">ngx_http_core_run_phases</span><span class="p">(</span><span class="n">ngx_http_request_t</span> <span class="o">*</span><span class="n">r</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_int_t</span>                   <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_http_phase_handler_t</span>   <span class="o">*</span><span class="n">ph</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_http_core_main_conf_t</span>  <span class="o">*</span><span class="n">cmcf</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">cmcf</span> <span class="o">=</span> <span class="n">ngx_http_get_module_main_conf</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ngx_http_core_module</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">ph</span> <span class="o">=</span> <span class="n">cmcf</span><span class="o">-&gt;</span><span class="n">phase_engine</span><span class="p">.</span><span class="n">handlers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">while</span> <span class="p">(</span><span class="n">ph</span><span class="p">[</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="p">].</span><span class="n">checker</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">rc</span> <span class="o">=</span> <span class="n">ph</span><span class="p">[</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="p">].</span><span class="n">checker</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ph</span><span class="p">[</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_OK</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以看到该函数的核心流程就是：</p>
 <ul>
 <li>根据当前phase_handler索引，取出checker（如果存在的话）进行调用。</li>
 <li>返回值为非NGX_OK，意味着将继续向下执行phase_engine的各处理函数；</li>
@@ -518,158 +515,156 @@ checker函数同上面的NGX_HTTP_SERVER_REWRITE_PHASE阶段。</p>
 <li>NGX_AGAIN, NGX_DONE：当前的ngx_http_handler_pt方法尚未结束，当前方法有机会被再次调用。</li>
 <li>NGX_HTTP_FORBIDDEN: 如果在配置文件中配置了satisfy any，那么将ngx_http_request_t中的access_code成员设置为返回值。按照顺序执行下一个ngx_http_handler_pt处理方法；如果是satisfy all，那么调用ngx_http_finalize_request结束请求。</li>
 </ul>
-<pre><code class="language-C">// NGX_HTTP_ACCESS_PHASE阶段的处理函数，用于控制用户发起的请求是否合法，
-// 如检测客户端的IP地址是否允许被访问
-ngx_int_t
-ngx_http_core_access_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
-{
-  ngx_int_t                  rc;
-  ngx_http_core_loc_conf_t  *clcf;
-
-  // r != r-&gt;main表示当前请求只是派生出来的子请求，子请求不需要执行
-  // NGX_HTTP_ACCESS_PHASE阶段的处理
-  if (r != r-&gt;main) {
-    r-&gt;phase_handler = ph-&gt;next;
-    return NGX_AGAIN;
-  }
-
-  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,
-    &quot;access phase: %ui&quot;, r-&gt;phase_handler);
-
-  rc = ph-&gt;handler(r);
-
-  // 返回NGX_DECLINED意味着希望立刻执行下一个handler，
-  // 无论是否属于NGX_HTTP_ACCESS_PHASE
-  if (rc == NGX_DECLINED) {
-    r-&gt;phase_handler++;
-    return NGX_AGAIN;
-  }
-
-  // 返回AGAIN或者DONE意味着当前的NGX_HTTP_ACCESS_PHASE没有一次性执行完毕
-  if (rc == NGX_AGAIN || rc == NGX_DONE) {
-    return NGX_OK;
-  }
-
-  // 以下是返回值不是 NGX_DECLINED、NGX_AGAIN、NGX_DONE的情况
-
-  // 由于NGX_HTTP_ACCESS_PHASE阶段在NGX_HTTP_FIND_CONFIG_PHASE阶段后面，
-  // 因此此时请求已经找到了匹配的的location模块
-  clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-
-  if (clcf-&gt;satisfy == NGX_HTTP_SATISFY_ALL) { // NGX_HTTP_SATISFY_ALL表示nginx配置文件中配置了satisfy all参数
-    // satisfy all要求所有NGX_HTTP_ACCESS_PHASE阶段的handler方法共同作用于该请求
-
-    if (rc == NGX_OK) { // 该模块返回NGX_OK，意味着该模块认为满足访问要求，需要继续调用下一个模块查询是否满足要求
-      r-&gt;phase_handler++;
-      return NGX_AGAIN;
-    }
-
-    // 如果返回值不是NGX_OK，则调用ngx_http_finalize_request结束请求
-  } else {  // 这里是配置中配置了satisfy any的情况
-    // satisfy any不要求所有NGX_HTTP_ACCESS_PHASE阶段的模块都通过请求，只要有一个同意就可以放行
-
-    // 返回NGX_OK，表示该模块认为有权限访问，因此phase_handler指向下一个handler
-    // 并且access_code置为0
-    if (rc == NGX_OK) {
-      r-&gt;access_code = 0;
-
-      if (r-&gt;headers_out.www_authenticate) {
-        r-&gt;headers_out.www_authenticate-&gt;hash = 0;
-      }
-
-      r-&gt;phase_handler = ph-&gt;next;
-      return NGX_AGAIN;
-    }
-
-    // NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED表示该模块不同意访问
-    if (rc == NGX_HTTP_FORBIDDEN || rc == NGX_HTTP_UNAUTHORIZED) {
-      if (r-&gt;access_code != NGX_HTTP_UNAUTHORIZED) {
-        r-&gt;access_code = rc;
-      }
-
-      r-&gt;phase_handler++;
-      return NGX_AGAIN;
-    }
-  }
-
-  /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
-  // 到这里是请求出错的情况，结束这次请求
-  ngx_http_finalize_request(r, rc);
-  return NGX_OK;
-}              
-</code></pre>
-<h3 id="ngx_http_post_access_phase不可添加自定义http模块">NGX_HTTP_POST_ACCESS_PHASE（不可添加自定义HTTP模块）</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// NGX_HTTP_ACCESS_PHASE阶段的处理函数，用于控制用户发起的请求是否合法，
+</span></span></span><span class="line"><span class="cl"><span class="c1">// 如检测客户端的IP地址是否允许被访问
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_int_t</span>
+</span></span><span class="line"><span class="cl"><span class="nf">ngx_http_core_access_phase</span><span class="p">(</span><span class="n">ngx_http_request_t</span> <span class="o">*</span><span class="n">r</span><span class="p">,</span> <span class="n">ngx_http_phase_handler_t</span> <span class="o">*</span><span class="n">ph</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_int_t</span>                  <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_http_core_loc_conf_t</span>  <span class="o">*</span><span class="n">clcf</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// r != r-&gt;main表示当前请求只是派生出来的子请求，子请求不需要执行
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// NGX_HTTP_ACCESS_PHASE阶段的处理
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">r</span> <span class="o">!=</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">main</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span> <span class="o">=</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_HTTP</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;access phase: %ui&#34;</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">rc</span> <span class="o">=</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 返回NGX_DECLINED意味着希望立刻执行下一个handler，
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 无论是否属于NGX_HTTP_ACCESS_PHASE
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_DECLINED</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 返回AGAIN或者DONE意味着当前的NGX_HTTP_ACCESS_PHASE没有一次性执行完毕
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_AGAIN</span> <span class="o">||</span> <span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_DONE</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 以下是返回值不是 NGX_DECLINED、NGX_AGAIN、NGX_DONE的情况
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 由于NGX_HTTP_ACCESS_PHASE阶段在NGX_HTTP_FIND_CONFIG_PHASE阶段后面，
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 因此此时请求已经找到了匹配的的location模块
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">clcf</span> <span class="o">=</span> <span class="n">ngx_http_get_module_loc_conf</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ngx_http_core_module</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">clcf</span><span class="o">-&gt;</span><span class="n">satisfy</span> <span class="o">==</span> <span class="n">NGX_HTTP_SATISFY_ALL</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// NGX_HTTP_SATISFY_ALL表示nginx配置文件中配置了satisfy all参数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// satisfy all要求所有NGX_HTTP_ACCESS_PHASE阶段的handler方法共同作用于该请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_OK</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 该模块返回NGX_OK，意味着该模块认为满足访问要求，需要继续调用下一个模块查询是否满足要求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果返回值不是NGX_OK，则调用ngx_http_finalize_request结束请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>  <span class="c1">// 这里是配置中配置了satisfy any的情况
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// satisfy any不要求所有NGX_HTTP_ACCESS_PHASE阶段的模块都通过请求，只要有一个同意就可以放行
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 返回NGX_OK，表示该模块认为有权限访问，因此phase_handler指向下一个handler
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 并且access_code置为0
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_OK</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="n">r</span><span class="o">-&gt;</span><span class="n">access_code</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">headers_out</span><span class="p">.</span><span class="n">www_authenticate</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">r</span><span class="o">-&gt;</span><span class="n">headers_out</span><span class="p">.</span><span class="n">www_authenticate</span><span class="o">-&gt;</span><span class="n">hash</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span> <span class="o">=</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// NGX_HTTP_FORBIDDEN或者NGX_HTTP_UNAUTHORIZED表示该模块不同意访问
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_HTTP_FORBIDDEN</span> <span class="o">||</span> <span class="n">rc</span> <span class="o">==</span> <span class="n">NGX_HTTP_UNAUTHORIZED</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">access_code</span> <span class="o">!=</span> <span class="n">NGX_HTTP_UNAUTHORIZED</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">r</span><span class="o">-&gt;</span><span class="n">access_code</span> <span class="o">=</span> <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* rc == NGX_ERROR || rc == NGX_HTTP_...  */</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 到这里是请求出错的情况，结束这次请求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">ngx_http_finalize_request</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">rc</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>              
+</span></span></code></pre></div><h3 id="ngx_http_post_access_phase不可添加自定义http模块">NGX_HTTP_POST_ACCESS_PHASE（不可添加自定义HTTP模块）</h3>
 <p>本阶段处理上一阶段的处理结果，具体是根据ngx_http_request_t的access_code成员来进行处理。本阶段不允许添加自定义HTTP模块。</p>
 <h3 id="ngx_http_try_files_phase不可添加自定义http模块">NGX_HTTP_TRY_FILES_PHASE（不可添加自定义HTTP模块）</h3>
 <p>本阶段的checker函数为ngx_http_core_try_files_phase，与nginx配置文件中的try_files配置指令相关。</p>
 <h3 id="ngx_http_content_phase可添加自定义http模块">NGX_HTTP_CONTENT_PHASE（可添加自定义HTTP模块）</h3>
 <p>处理HTTP请求内容的阶段，绝大部分用户自定义的HTTP模块工作在这一阶段。</p>
 <p>与其他阶段不同的是，该阶段除了可以调用注册进来的HTTP模块的handler之外，还可以调用location配置中的content_handler，在存在location配置的content_handler的情况下，将优先调用这个函数处理请求。</p>
-<pre><code class="language-C">// NGX_HTTP_CONTENT_PHASE阶段的处理函数
-ngx_int_t
-ngx_http_core_content_phase(ngx_http_request_t *r,
-  ngx_http_phase_handler_t *ph)
-{
-  size_t     root;
-  ngx_int_t  rc;
-  ngx_str_t  path;
-
-  if (r-&gt;content_handler) {
-    // content_handler不为空意味着在NGX_HTTP_FIND_CONFIG_PHASE阶段中，
-    // 匹配了URI请求的location内，是否有HTTP模块把处理方法设置到了
-    // ngx_http_core_loc_conf_t结构体的handler成员中。
-
-    // ngx_http_request_empty_handler是什么都不做的方法，设置为这个函数
-    // 意味着再有写事件不做任何事情
-    r-&gt;write_event_handler = ngx_http_request_empty_handler;
-    // 将content_handler的返回值放入ngx_http_finalize_request中
-    ngx_http_finalize_request(r, r-&gt;content_handler(r));
-    return NGX_OK;
-  }
-
-  // 到了这里说明没有content_handler
-
-  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,
-    &quot;content phase: %ui&quot;, r-&gt;phase_handler);
-
-  rc = ph-&gt;handler(r);
-
-  if (rc != NGX_DECLINED) {
-    // 没有返回NGX_DECLINED意味着不再执行该阶段的其他handler
-    ngx_http_finalize_request(r, rc);
-    return NGX_OK;
-  }
-
-  /* rc == NGX_DECLINED */
-  // 以下是返回NGX_DECLINED的情况
-  ph++;
-
-  if (ph-&gt;checker) {  // 只有在该阶段下一个handler存在的情况下才继续执行
-    r-&gt;phase_handler++;
-    return NGX_AGAIN;
-  }
-
-  // 以下是找不到该阶段handler的情况
-  /* no content handler was found */
-
-  if (r-&gt;uri.data[r-&gt;uri.len - 1] == '/') {
-    // URI以/结尾，返回403
-    if (ngx_http_map_uri_to_path(r, &amp;path, &amp;root, 0) != NULL) {
-      ngx_log_error(NGX_LOG_ERR, r-&gt;connection-&gt;log, 0,
-        &quot;directory index of \&quot;%s\&quot; is forbidden&quot;, path.data);
-    }
-
-    ngx_http_finalize_request(r, NGX_HTTP_FORBIDDEN);
-    return NGX_OK;
-  }
-
-  ngx_log_error(NGX_LOG_ERR, r-&gt;connection-&gt;log, 0, &quot;no handler found&quot;);
-  // 返回404
-  ngx_http_finalize_request(r, NGX_HTTP_NOT_FOUND);
-  return NGX_OK;
-}
-</code></pre>
-<h3 id="ngx_http_log_phase">NGX_HTTP_LOG_PHASE</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// NGX_HTTP_CONTENT_PHASE阶段的处理函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_int_t</span>
+</span></span><span class="line"><span class="cl"><span class="nf">ngx_http_core_content_phase</span><span class="p">(</span><span class="n">ngx_http_request_t</span> <span class="o">*</span><span class="n">r</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_http_phase_handler_t</span> <span class="o">*</span><span class="n">ph</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">size_t</span>     <span class="n">root</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_int_t</span>  <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_str_t</span>  <span class="n">path</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">content_handler</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// content_handler不为空意味着在NGX_HTTP_FIND_CONFIG_PHASE阶段中，
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 匹配了URI请求的location内，是否有HTTP模块把处理方法设置到了
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// ngx_http_core_loc_conf_t结构体的handler成员中。
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ngx_http_request_empty_handler是什么都不做的方法，设置为这个函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 意味着再有写事件不做任何事情
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">r</span><span class="o">-&gt;</span><span class="n">write_event_handler</span> <span class="o">=</span> <span class="n">ngx_http_request_empty_handler</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 将content_handler的返回值放入ngx_http_finalize_request中
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">ngx_http_finalize_request</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">content_handler</span><span class="p">(</span><span class="n">r</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 到了这里说明没有content_handler
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_log_debug1</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_HTTP</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s">&#34;content phase: %ui&#34;</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">rc</span> <span class="o">=</span> <span class="n">ph</span><span class="o">-&gt;</span><span class="n">handler</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">rc</span> <span class="o">!=</span> <span class="n">NGX_DECLINED</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 没有返回NGX_DECLINED意味着不再执行该阶段的其他handler
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">ngx_http_finalize_request</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">rc</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* rc == NGX_DECLINED */</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 以下是返回NGX_DECLINED的情况
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">ph</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">ph</span><span class="o">-&gt;</span><span class="n">checker</span><span class="p">)</span> <span class="p">{</span>  <span class="c1">// 只有在该阶段下一个handler存在的情况下才继续执行
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">r</span><span class="o">-&gt;</span><span class="n">phase_handler</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_AGAIN</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 以下是找不到该阶段handler的情况
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="cm">/* no content handler was found */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">uri</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="n">r</span><span class="o">-&gt;</span><span class="n">uri</span><span class="p">.</span><span class="n">len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="sc">&#39;/&#39;</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// URI以/结尾，返回403
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">ngx_http_map_uri_to_path</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">path</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">root</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="n">ngx_log_error</span><span class="p">(</span><span class="n">NGX_LOG_ERR</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="s">&#34;directory index of </span><span class="se">\&#34;</span><span class="s">%s</span><span class="se">\&#34;</span><span class="s"> is forbidden&#34;</span><span class="p">,</span> <span class="n">path</span><span class="p">.</span><span class="n">data</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">ngx_http_finalize_request</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">NGX_HTTP_FORBIDDEN</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">ngx_log_error</span><span class="p">(</span><span class="n">NGX_LOG_ERR</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s">&#34;no handler found&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 返回404
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">ngx_http_finalize_request</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">NGX_HTTP_NOT_FOUND</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="n">NGX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="ngx_http_log_phase">NGX_HTTP_LOG_PHASE</h3>
 <p>记录访问日志。</p>
 <h1 id="参考资料">参考资料</h1>
 <ul>

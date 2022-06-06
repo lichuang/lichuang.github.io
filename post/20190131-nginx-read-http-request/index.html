@@ -298,46 +298,45 @@
 <p>如果两次请求，分开为几次接收，但是某次接收的数据中，有跨两次请求的数据，这就是所谓的“粘包(sticky-package)”问题。如下图所示：</p>
 <p><img src="/media/imgs/20190131-nginx-read-http-request/sticky-package-problem.png" alt="sticky-package-problem" title="sticky-package-problem"></p>
 <p>结合epoll之类的事件派发器来设计一个TCP协议的服务器时，因为并不能确保每一次接收数据，都能完整的接收到协议所需的所有数据。因此一般而言，写一个高性能服务器的协议解析部分，会以状态机的方式来实现，即定义了协议数据的每个部分，如下伪代码所示：</p>
-<pre><code class="language-C">// 定义协议头数据
-typedef struct header_t {
-  // 协议版本号
-  int version;
-  // 定义body部分大小
-  int size;
-} header_t;
-
-// 定义协议数据
-typedef struct protocol_t {
-  header_t header;
-  char body[0];
-} protocol;
-
-// 定义接收数据的状态机类型
-enum state_t {
-  RECV_HEADER,        // 接收包头
-  RECV_BODY,          // 接收包体
-  PROCESS_PROTOCOL,   // 处理协议
-  SEND_RESPONSE       // 发送回复
-};
-
-// 处理请求的状态机
-void statemachine() {
-  switch (state) {
-  case RECV_HEADER:
-    // 接收协议包头数据
-    // 接收完毕之后，切换state到RECV_BODY
-  case RECV_BODY:
-    // 接收协议包体数据
-    // 接收完毕之后，切换state到PROCESS_PROTOCOL
-  case PROCESS_PROTOCOL:
-    // 处理协议
-    // 处理完毕之后，切换state到SEND_RESPONSE
-  case SEND_RESPONSE:
-    // 发送应答
-  }
-}
-</code></pre>
-<p>如上面的伪代码所示，接收一个请求之后，会初始化一个变量state用于保存当前协议处理的状态类型，假如第一次接收数据时还不能接收完毕协议的数据，就将接收fd重新放入到事件派发器中，下一次被唤醒之后再根据当前的状态继续接收数据进行处理。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 定义协议头数据
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">header_t</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 协议版本号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">version</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 定义body部分大小
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">header_t</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 定义协议数据
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">protocol_t</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">header_t</span> <span class="n">header</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">char</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">protocol</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 定义接收数据的状态机类型
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">enum</span> <span class="n">state_t</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">RECV_HEADER</span><span class="p">,</span>        <span class="c1">// 接收包头
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">RECV_BODY</span><span class="p">,</span>          <span class="c1">// 接收包体
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">PROCESS_PROTOCOL</span><span class="p">,</span>   <span class="c1">// 处理协议
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">SEND_RESPONSE</span>       <span class="c1">// 发送回复
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// 处理请求的状态机
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">statemachine</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">switch</span> <span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">case</span> <span class="nl">RECV_HEADER</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 接收协议包头数据
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到RECV_BODY
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">RECV_BODY</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 接收协议包体数据
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到PROCESS_PROTOCOL
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">PROCESS_PROTOCOL</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 处理协议
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 处理完毕之后，切换state到SEND_RESPONSE
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">SEND_RESPONSE</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 发送应答
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>如上面的伪代码所示，接收一个请求之后，会初始化一个变量state用于保存当前协议处理的状态类型，假如第一次接收数据时还不能接收完毕协议的数据，就将接收fd重新放入到事件派发器中，下一次被唤醒之后再根据当前的状态继续接收数据进行处理。</p>
 <p>协议的包头部分，一般有两个特点：</p>
 <ul>
 <li>包头大小固定，这个原因还是因为不能确定每次都能接收完整的数据，而总是需要一个长度或者确定的结束符（如HTTP协议最后的两个\r\n）来告诉你是否接收完了数据。如果后面还需要对包头数据有扩展，会根据不同的版本进行区别，所以一般而言包头部分还会有个版本号，以便以后包头数据发生了变化，可以根据包头来进行区分。</li>

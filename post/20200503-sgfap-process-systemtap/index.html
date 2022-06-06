@@ -172,6 +172,10 @@
 
 
 
+<meta property="og:see_also" content="https://www.codedump.info/post/20200620-sgfap-loadavg/" />
+
+
+
 <meta property="og:see_also" content="https://www.codedump.info/post/20200522-sgfap-softirq/" />
 
 
@@ -347,24 +351,22 @@
 </ul>
 <p>从这里看出来，一个进程虽然看上去一直存在，但并不是所有时间都在执行，跟进一个程序的运行时间时，需要区分其<code>on</code>和<code>off</code> cpu的时间，如果off的时间过长，那需要看看是什么原因导致了进程一直没有被唤醒执行。</p>
 <p>另外需要注意的是，进程处于就绪状态，并不一定就是在运行，有可能还在就绪队列中等待被调度执行；但是反之则不然，一个占用CPU在执行的进程，其状态一定是就绪状态。即：</p>
-<pre><code>进程处于就绪状态的时间 = 进程在就绪队列的时间 + 进程在执行的时间
-</code></pre>
-<p>关于<code>off cpu</code>这一概念，<a href="http://www.brendangregg.com/offcpuanalysis.html">Off-CPU Analysis</a>一文中有更多的讲述。</p>
+<pre tabindex="0"><code>进程处于就绪状态的时间 = 进程在就绪队列的时间 + 进程在执行的时间
+</code></pre><p>关于<code>off cpu</code>这一概念，<a href="http://www.brendangregg.com/offcpuanalysis.html">Off-CPU Analysis</a>一文中有更多的讲述。</p>
 <p>有了上面对<code>on cpu</code>和<code>off cpu</code>的介绍，下面来看看使用systemtap如何跟踪这些状态以及所处的时间。</p>
 <h2 id="off-cpu">off CPU</h2>
 <p>systemtap中自带的tapset中，有一个scheduler.stp文件，里面定义了与调度器相关的一些probe。</p>
 <p>其中跟踪<code>off cpu</code>的probe是<code>scheduler.cpu_off</code> ：</p>
-<pre><code>probe scheduler.cpu_off =
-	kernel.trace(&quot;sched_switch&quot;) !,
-	kernel.function(&quot;context_switch&quot;)
+<pre tabindex="0"><code>probe scheduler.cpu_off =
+	kernel.trace(&#34;sched_switch&#34;) !,
+	kernel.function(&#34;context_switch&#34;)
 {
-    name = &quot;cpu_off&quot;
+    name = &#34;cpu_off&#34;
     task_prev = $prev
     task_next = $next
     idle = __is_idle()
 }
-</code></pre>
-<p>结合代码和最开始的示意图，可以知道该probe事件是针对内核trace事件<code>sched_switch</code>以及内核函数<code>context_switch</code>的封装，这两个事件都在进程上下文切换时触发。</p>
+</code></pre><p>结合代码和最开始的示意图，可以知道该probe事件是针对内核trace事件<code>sched_switch</code>以及内核函数<code>context_switch</code>的封装，这两个事件都在进程上下文切换时触发。</p>
 <p>在该probe事件中，能获取到的参数是：</p>
 <ul>
 <li>task_prev：保存切换之前的进程<code>task_struct</code>结构体。</li>
@@ -372,7 +374,7 @@
 <li>idle：表示当前CPU是否空闲。</li>
 </ul>
 <p>因为这个probe事件记录了进程切换前后的信息，因此可以用来完成类似记录系统切换最多的进程跟踪的功能：</p>
-<pre><code class="language-stp">global csw_count
+<pre tabindex="0"><code class="language-stp" data-lang="stp">global csw_count
 global idle_count
  
 probe scheduler.cpu_off {
@@ -382,7 +384,7 @@ probe scheduler.cpu_off {
 
 function fmt_task(task_prev, task_next)
 {
-   return sprintf(&quot;%s(%d)-&gt;%s(%d)&quot;,
+   return sprintf(&#34;%s(%d)-&gt;%s(%d)&#34;,
                                 task_execname(task_prev),
                                 task_pid(task_prev),
                                 task_execname(task_next),
@@ -390,11 +392,11 @@ function fmt_task(task_prev, task_next)
 }
  
 function print_cswtop () {
-  printf (&quot;%45s %10s\n&quot;, &quot;Context switch&quot;, &quot;COUNT&quot;)
+  printf (&#34;%45s %10s\n&#34;, &#34;Context switch&#34;, &#34;COUNT&#34;)
   foreach ([task_prev, task_next] in csw_count- limit 20) {
-    printf(&quot;%45s %10d\n&quot;, fmt_task(task_prev, task_next), csw_count[task_prev, task_next])
+    printf(&#34;%45s %10d\n&#34;, fmt_task(task_prev, task_next), csw_count[task_prev, task_next])
   }
-  printf(&quot;%45s %10d\n&quot;, &quot;idle&quot;, idle_count)
+  printf(&#34;%45s %10d\n&#34;, &#34;idle&#34;, idle_count)
  
   delete csw_count
   delete idle_count
@@ -402,12 +404,11 @@ function print_cswtop () {
  
 probe timer.s($1) {
   print_cswtop ()
-  printf(&quot;--------------------------------------------------------------\n&quot;)
+  printf(&#34;--------------------------------------------------------------\n&#34;)
 }
-</code></pre>
-<p>（脚本出自文章<a href="https://blog.yufeng.info/archives/747">Linux下谁在切换我们的进程</a>）</p>
+</code></pre><p>（脚本出自文章<a href="https://blog.yufeng.info/archives/747">Linux下谁在切换我们的进程</a>）</p>
 <p>该脚本在<code>scheduler.cpu_off</code>中累加进程切换的次数，然后在定时器中按照进程切换次数进行排序输出：</p>
-<pre><code>$ sudo stap process/cswmon.stp 1 -T 2
+<pre tabindex="0"><code>$ sudo stap process/cswmon.stp 1 -T 2
                                Context switch      COUNT
            swapper/0(0)-&gt;update-manager(3926)        515
            update-manager(3926)-&gt;swapper/0(0)        514
@@ -431,17 +432,15 @@ probe timer.s($1) {
             kworker/u8:1(28452)-&gt;swapper/1(0)          8
                                          idle       1202
 --------------------------------------------------------------
-</code></pre>
-<h2 id="on-cpu">on CPU</h2>
+</code></pre><h2 id="on-cpu">on CPU</h2>
 <p>与<code>scheduler.cpu_off</code>相反的是，<code>scheduler.cpu_on</code>就是追踪进程获得CPU执行权时的probe事件了：</p>
-<pre><code>probe scheduler.cpu_on = kernel.function(&quot;finish_task_switch&quot;) ?
+<pre tabindex="0"><code>probe scheduler.cpu_on = kernel.function(&#34;finish_task_switch&#34;) ?
 {
-    name = &quot;cpu_on&quot;
+    name = &#34;cpu_on&#34;
     task_prev = $prev
     idle = __is_idle()
 }
-</code></pre>
-<p>内核函数在<code>finish_task_switch</code>在完成进程切换时被调用，其中的参数<code>task_prev</code>记录的是被切换出去的进程<code>task_struct</code>结构体指针。</p>
+</code></pre><p>内核函数在<code>finish_task_switch</code>在完成进程切换时被调用，其中的参数<code>task_prev</code>记录的是被切换出去的进程<code>task_struct</code>结构体指针。</p>
 <p>需要注意的是，<code>scheduler.cpu_off</code>是在<code>context_switch</code>函数中被触发，而<code>scheduler.cpu_on</code>是在<code>finish_task_switch</code>函数中被触发，<code>context_switch</code>函数中调用了<code>finish_task_switch</code>函数来完成进程上下文切换的工作，这时候才意味着新的进程真正获得了执行权。</p>
 <p><img src="/media/imgs/20200503-sgfap-process-systemtap/context_switch_probe.png" alt="context_switch_probe" title="context_switch_probe"></p>
 <p>因此，可以认为：</p>
@@ -456,8 +455,8 @@ probe timer.s($1) {
 <li><code>scheduler.cpu_on</code>中将上一步的就绪时间差记录到统计数组中。</li>
 </ul>
 <p>上述核心代码简略如下：</p>
-<pre><code>probe kernel.trace(&quot;deactivate_task&quot;) !,
-      kernel.function(&quot;deactivate_task&quot;) {
+<pre tabindex="0"><code>probe kernel.trace(&#34;deactivate_task&#34;) !,
+      kernel.function(&#34;deactivate_task&#34;) {
   s = task_state($p)
   # 只有满足TASK_INTERRUPTIBLE和TASK_UNINTERRUPTIBLE状态的才记录
   if (log_event($p) &amp;&amp; (s &amp; 3)) {
@@ -467,8 +466,8 @@ probe timer.s($1) {
 }
 
 # activate_task在一个任务不活跃的时候触发
-probe kernel.trace(&quot;activate_task&quot;) !,
-      kernel.function(&quot;activate_task&quot;) {
+probe kernel.trace(&#34;activate_task&#34;) !,
+      kernel.function(&#34;activate_task&#34;) {
   a = gettimeofday_us()
   # 拿到开始休眠的时间点
   d = dequeue[$p]
@@ -493,20 +492,17 @@ probe scheduler.cpu_on {
      sleep_time[backtrace()] &lt;&lt;&lt; t
    }
 }
-</code></pre>
-<p>其实这个以调用栈为键值记录时间到统计数组的工作，完全可以同样放在<code>activate_task</code>函数中，官方的解释是，在<code>activate_task</code>函数中做这个操作会增大这个监控在进程上下文切换时的影响，所以就放在<code>scheduler.cpu_on</code>这个probe中来完成了：</p>
-<pre><code>#FIXME: It would be nicer to get backtrace information in activate_task probe.
+</code></pre><p>其实这个以调用栈为键值记录时间到统计数组的工作，完全可以同样放在<code>activate_task</code>函数中，官方的解释是，在<code>activate_task</code>函数中做这个操作会增大这个监控在进程上下文切换时的影响，所以就放在<code>scheduler.cpu_on</code>这个probe中来完成了：</p>
+<pre tabindex="0"><code>#FIXME: It would be nicer to get backtrace information in activate_task probe.
 # This would eliminate the overhead of probing every context switch
 # and this_sleep associate array. However, this needs a properly working
 # task_backtrace() to eliminate this probe.
-</code></pre>
-<h2 id="off-cpu的时间计算以及调用栈">off cpu的时间计算以及调用栈</h2>
+</code></pre><h2 id="off-cpu的时间计算以及调用栈">off cpu的时间计算以及调用栈</h2>
 <p>从上面的分析可以看到，将进程的时间按照按照其是否占用CPU来执行的时间来划分，可以分为<code>on cpu</code>和<code>off cpu</code>时间。观察一个服务进程，如果其在繁忙的时候，CPU时间一直上不去，说明某些原因导致其<code>off cpu</code>时间过多，这时候就需要查看原因了。</p>
 <p><code>scheduler.cpu_off</code>和<code>scheduler.cpu_on</code>这两个probe事件，在进程被调度进出CPU资源的时候触发，在这里可以记录等待CPU时间以及调用堆栈。</p>
 <p><a href="https://github.com/openresty/openresty-systemtap-toolkit">openresty-systemtap-toolkit</a>项目中的<a href="https://github.com/openresty/openresty-systemtap-toolkit/blob/master/sample-bt-off-cpu">sample-bt-off-cpu</a>脚本，可以用来观测并打印进程<code>off cpu</code>时间的调用栈，该脚本由perl语言实现，如果带上<code>-d</code>参数可以输出成systemtap的stap脚本内容，如下：</p>
-<pre><code>sudo ./sample-bt-off-cpu -p `pidof top` -t 2 -u -d
-</code></pre>
-<p>这里几个参数的含义：</p>
+<pre tabindex="0"><code>sudo ./sample-bt-off-cpu -p `pidof top` -t 2 -u -d
+</code></pre><p>这里几个参数的含义：</p>
 <ul>
 <li>-p：待观测的进程pid，这里为了示范就选择top命令。</li>
 <li>-t：采集多少秒的数据之后就退出。</li>
@@ -514,14 +510,14 @@ probe scheduler.cpu_on {
 <li>-u：打印的调用栈是用户层调用栈，反之如果使用<code>-k</code>就是输出的内核调用栈。</li>
 </ul>
 <p>以上命令在我机器上输出的stp脚本内容如下：</p>
-<pre><code>global bts
+<pre tabindex="0"><code>global bts
 global start_time
 
 global quit = 0;
 global found
 
 probe begin {
-    warn(sprintf(&quot;Tracing %d (/usr/bin/top)...\n&quot;, target()))
+    warn(sprintf(&#34;Tracing %d (/usr/bin/top)...\n&#34;, target()))
 }
 
 
@@ -533,7 +529,7 @@ probe scheduler.cpu_off {
         } else {
             foreach (bt in bts- limit 1024) {
                 print_ustack(bt)
-                printf(&quot;\t%d\n&quot;, @sum(bts[bt]))
+                printf(&#34;\t%d\n&#34;, @sum(bts[bt]))
             }
 
             exit()
@@ -558,16 +554,15 @@ probe scheduler.cpu_on {
 
 probe timer.s(2) {
     if (!found) {
-        warn(&quot;No backtraces found. Quitting now...\n&quot;)
+        warn(&#34;No backtraces found. Quitting now...\n&#34;)
         exit()
 
     } else {
-        warn(&quot;Time's up. Quitting now...(it may take a while)\n&quot;)
+        warn(&#34;Time&#39;s up. Quitting now...(it may take a while)\n&#34;)
         quit = 1
     }
 }
-</code></pre>
-<p>可以看到，这段脚本有在两个probe事件上加了处理函数：</p>
+</code></pre><p>可以看到，这段脚本有在两个probe事件上加了处理函数：</p>
 <ul>
 <li>scheduler.cpu_off：进程失去cpu时，记录此时的时间。</li>
 <li>scheduler.cpu_on：进程获取到cpu资源准备执行时，拿到此时的时间，如果与off cpu的时间相差了超过4us，就记录下此时的用户层调用栈以及时间差。</li>
@@ -576,11 +571,10 @@ probe timer.s(2) {
 <h2 id="on-cpu的时间计算以及调用栈">on cpu的时间计算以及调用栈</h2>
 <p>进程除了在<code>off cpu</code>时间上等待被唤醒之外，就是在<code>on cpu</code>时间上一直执行了。与<code>off cpu</code>测量所不同的是，<code>on cpu</code>的时间上可以看出程序执行的热点，这部分调用栈的观察使用的是采样的方式。即：定时打印进程调用栈的信息。</p>
 <p><a href="https://github.com/openresty/openresty-systemtap-toolkit">openresty-systemtap-toolkit</a>项目中的<a href="https://github.com/openresty/openresty-systemtap-toolkit/blob/master/sample-bt">sample-bt</a>脚本，其使用时的命令行参数与前面的<code>sample-bt-off-cpu</code>并无不同，这个脚本打印的是进程在<code>on cpu</code>状态下的调用栈，这样就可以观察出程序的执行热点来：</p>
-<pre><code>sudo ./sample-bt -p `pidof top` -t 2 -u -d
-</code></pre>
-<p>输出如下：</p>
-<pre><code>probe begin {
-    warn(sprintf(&quot;Tracing %d (/usr/bin/top) in user-space only...\n&quot;, target()))
+<pre tabindex="0"><code>sudo ./sample-bt -p `pidof top` -t 2 -u -d
+</code></pre><p>输出如下：</p>
+<pre tabindex="0"><code>probe begin {
+    warn(sprintf(&#34;Tracing %d (/usr/bin/top) in user-space only...\n&#34;, target()))
 }
 
 
@@ -596,7 +590,7 @@ probe timer.profile {
 
             foreach (bt in bts- limit 1024) {
                 print_ustack(bt);
-                printf(&quot;\t%d\n&quot;, @count(bts[bt]));
+                printf(&#34;\t%d\n&#34;, @count(bts[bt]));
             }
 
             exit()
@@ -611,22 +605,21 @@ probe timer.s(2) {
     }
 
     if (nstacks == 0) {
-        warn(&quot;No backtraces found. Quitting now...\n&quot;)
+        warn(&#34;No backtraces found. Quitting now...\n&#34;)
         exit()
 
     } else {
-        warn(&quot;Time's up. Quitting now...(it may take a while)\n&quot;)
+        warn(&#34;Time&#39;s up. Quitting now...(it may take a while)\n&#34;)
         quit = 1
     }
 }
-</code></pre>
-<p>这段脚本的工作原理是：在<code>timer.profile</code>这个probe事件中，判断当前执行的pid如果是所要观察的pid，就记录其调用栈信息到统计数组里，在最后脚本到期的时候按照统计数组的降序排列打印调用栈即可。</p>
+</code></pre><p>这段脚本的工作原理是：在<code>timer.profile</code>这个probe事件中，判断当前执行的pid如果是所要观察的pid，就记录其调用栈信息到统计数组里，在最后脚本到期的时候按照统计数组的降序排列打印调用栈即可。</p>
 <h2 id="火焰图">火焰图</h2>
 <p>以上，解释了如何打印进程在<code>off cpu</code>和<code>on cpu</code>两种状态下的调用栈信息，由于这些信息都是使用采样的方式进行收集的，因此还统计并且输出进程在这些状态下到底消耗在哪些地方。</p>
 <p>此时，就需要召唤“火焰图”了。火焰图是一种根据输入的采样信息，统计生成热点的图片，在这里可以很方便的看到从采集的数据中，进程都消耗在哪些函数调用里。</p>
 <p>生成火焰图的工具由<code>brendangregg</code>提供的项目<a href="https://github.com/brendangregg/FlameGraph">FlameGraph</a>生成，该项目提供多种Perl语言编写的脚本，数据源可以来自Perf、systemtap等多种Linux下面的profile工具，systemtap的输出可以由项目中的stackcollapse-stap.pl脚本来生成火焰图。</p>
 <p>以使用前面的<code>openresty-systemtap-toolkit</code>项目中的<code>sample-bt</code>脚本为例，搭配火焰图使用的步骤大体如下：</p>
-<pre><code># 跟踪pid为22222的进程，采样时间20秒，只采用用户层信息，输出到tmp.bt文件中
+<pre tabindex="0"><code># 跟踪pid为22222的进程，采样时间20秒，只采用用户层信息，输出到tmp.bt文件中
 ./sample-bt -p 22222 -t 20 -u &gt; tmp.bt
 
 # 调用stackcollapse-stap.pl文件，将第一步采样的数据生成cbt格式文件
@@ -634,8 +627,7 @@ probe timer.s(2) {
 
 # 生成火焰图的svg文件
 ./flamegraph.pl flame.cbt &gt; flame.svg
-</code></pre>
-<p>以上的流程总结如下：</p>
+</code></pre><p>以上的流程总结如下：</p>
 <p><img src="/media/imgs/20200503-sgfap-process-systemtap/hotpot.png" alt="hotpot" title="hotpot"></p>
 <p>下图是火焰图的一个示例，火焰图分为以下几个部分：</p>
 <ul>
@@ -653,11 +645,10 @@ probe timer.s(2) {
 <p>本节中来看看如何使用systemtap脚本来具体统计程序在这几个细分状态中的执行时间。</p>
 <p>先从描述进程的<code>task_struct</code>结构体信息说起，这部分在前面专门讲解<code>task_struct</code>结构体的部分有专门介绍，这里仅作简单的回顾。</p>
 <p><code>task_struct</code>结构体中，成员<code>state</code>用来表示进程当前的状态，有以下几个互斥的值：</p>
-<pre><code class="language-C">#define TASK_RUNNING			0x0000
-#define TASK_INTERRUPTIBLE		0x0001
-#define TASK_UNINTERRUPTIBLE		0x0002
-</code></pre>
-<p>其中，<code>TASK_RUNNING</code>状态就是就绪状态。可以认为，只要<code>state</code>值为0（即TASK_RUNNING）的情况下，进程就是就绪状态的，此时只可能处于两种状态：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define TASK_RUNNING			0x0000
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define TASK_INTERRUPTIBLE		0x0001
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define TASK_UNINTERRUPTIBLE		0x0002
+</span></span></span></code></pre></div><p>其中，<code>TASK_RUNNING</code>状态就是就绪状态。可以认为，只要<code>state</code>值为0（即TASK_RUNNING）的情况下，进程就是就绪状态的，此时只可能处于两种状态：</p>
 <ul>
 <li>占用CPU在执行。</li>
 <li>在就绪队列中等待被唤醒执行，这种进程还是就绪状态却被调度出CPU的情况，一般都是被优先级更高的进程抢占了执行权。</li>
@@ -676,7 +667,7 @@ probe timer.s(2) {
 <li>第三种情况就是进程状态小于0的状态，此时进程已经死亡。</li>
 </ul>
 <p>systemtap中自带的例子脚本<a href="https://sourceware.org/systemtap/examples/process/schedtimes.stp">schedtimes</a>提供了统计以上三种时间的例子：</p>
-<pre><code>$ sudo stap schedtimes.stp -T 10
+<pre tabindex="0"><code>$ sudo stap schedtimes.stp -T 10
 
         execname:    pid    run(us)  sleep(us) iowait(us) queued(us)  total(us)
 
@@ -687,15 +678,14 @@ probe timer.s(2) {
      ksoftirqd/1:     16         50   10028298          0          9   10028357
       watchdog/2:     20         68    8280096          0         76    8280240
      ksoftirqd/2:     22         97    7916416          0        141    7916654
-</code></pre>
-<p>脚本中能统计出程序在执行状态（run）、休眠状态（sleep）、等待IO状态（iowait）、在就绪队列中等待被调度状态（queued）的时间。</p>
+</code></pre><p>脚本中能统计出程序在执行状态（run）、休眠状态（sleep）、等待IO状态（iowait）、在就绪队列中等待被调度状态（queued）的时间。</p>
 <p>这个脚本的工作原理如下：</p>
 <ul>
 <li><code>kernel.trace(&quot;sched_switch&quot;)</code>事件中：这个事件在进程被切换出去cpu时被触发，此时可以拿到进程<code>task_struct</code>结构体的<code>state</code>成员，根据上面描述进程状态判断，就可以知道是主动让出执行权、排在就绪队列等待、还是死亡状态了。</li>
 <li><code>kernel.trace(&quot;sched_wakeup&quot;)</code>事件中：这个事件在进程被再次执行时触发，此时判断进程在切换出去时的状态如果是主动让出执行权的话，那么如果这时<code>task_struct-&gt;in_iowait</code>为1，说明在等待IO，否则就是在休眠状态。</li>
 </ul>
 <p>这部分相关代码及注释如下：</p>
-<pre><code>// 进程状态发生变化时触发，用于更新进程各种状态的统计时间
+<pre tabindex="0"><code>// 进程状态发生变化时触发，用于更新进程各种状态的统计时间
 function update_times(pid, now)
 {
   delta = now - previous_timestamp[pid]
@@ -718,7 +708,7 @@ function update_times(pid, now)
   return delta
 }
 
-probe kernel.trace(&quot;sched_switch&quot;)
+probe kernel.trace(&#34;sched_switch&#34;)
 {
   // Task $prev is scheduled off this cpu
   if (task_targeted($prev)) {
@@ -751,7 +741,7 @@ probe kernel.trace(&quot;sched_switch&quot;)
 }
 
 // 进程被唤醒时触发
-probe kernel.trace(&quot;sched_wakeup&quot;)
+probe kernel.trace(&#34;sched_wakeup&#34;)
 {
   // Task $p is awakened
   if (@choose_defined($success, 1) &amp;&amp; task_targeted($p)) {
@@ -765,8 +755,7 @@ probe kernel.trace(&quot;sched_wakeup&quot;)
     pid_state[pid] = QUEUED
   }
 }
-</code></pre>
-<h1 id="小结">小结</h1>
+</code></pre><h1 id="小结">小结</h1>
 <p>总结一下这一节涉及到的知识点：</p>
 <ul>
 <li>进程的执行划分为<code>on cpu</code>和<code>off cpu</code>两部分时间。前者表示进程在占用CPU执行的时间，后者是除此之外的进程时间。</li>

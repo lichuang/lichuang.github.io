@@ -329,9 +329,8 @@
 </table>
 <h2 id="queue">queue</h2>
 <p>libuv的queue实现比较奇葩，一个queue里面的元素会有两个指针，一个指向队列前一个成员，一个指向队列下一个成员，在这里不做阐述，看到类似：</p>
-<pre><code class="language-C">void* watcher_queue[2]
-</code></pre>
-<p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span><span class="o">*</span> <span class="n">watcher_queue</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+</span></span></code></pre></div><p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
 <h2 id="uv_timer_t">uv_timer_t</h2>
 <p>定义定时器的结构体，libuv中使用最小堆来维护定时器。</p>
 <p>一般而言，都是首先从这个最小堆数据结构中获得距离当前最近的定时器，然后拿到它的超时时间，以该超时时间做为下一次loop事件循环的时间，某些情况下会无视这个值，比如存在idle handler的情况下，此时会以0做为超时时间。</p>
@@ -342,22 +341,21 @@
 <li>继承自某个基类的子类按照继承顺序依次放它前面基类的宏。</li>
 </ul>
 <p>比如uv_tcp_t继承自uv_stream_t，而后者又继承自uv_handle_t，三者的定义如下：</p>
-<pre><code class="language-C">struct uv_handle_s {
-  UV_HANDLE_FIELDS
-};
-
-struct uv_stream_s {
-  UV_HANDLE_FIELDS
-  UV_STREAM_FIELDS
-};
-
-struct uv_tcp_s {
-  UV_HANDLE_FIELDS
-  UV_STREAM_FIELDS
-  UV_TCP_PRIVATE_FIELDS
-};
-</code></pre>
-<p>代码中可以看到：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">uv_handle_s</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_HANDLE_FIELDS</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">uv_stream_s</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_HANDLE_FIELDS</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_STREAM_FIELDS</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">uv_tcp_s</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_HANDLE_FIELDS</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_STREAM_FIELDS</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV_TCP_PRIVATE_FIELDS</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>代码中可以看到：</p>
 <ul>
 <li>uv_handle_t的成员放在宏UV_HANDLE_FIELDS。</li>
 <li>uv_stream_t继承自uv_handle_t，所以在它结构体定义的开始部分先放的就是前面的宏UV_HANDLE_FIELDS。另外，uv_stream_t本身的成员定义又放在了宏UV_STREAM_FIELDS里。</li>
@@ -365,13 +363,12 @@ struct uv_tcp_s {
 </ul>
 <p><img src="/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
 <p>可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：</p>
-<pre><code class="language-C">  uv_tcp_t *tcp;
-
-  uv_stream_t *stream = (uv_stream_t*)tcp;
-
-  uv_handle_t *handle = (uv_handle_t*)stream;
-</code></pre>
-<p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl">  <span class="n">uv_tcp_t</span> <span class="o">*</span><span class="n">tcp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">uv_stream_t</span> <span class="o">*</span><span class="n">stream</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_stream_t</span><span class="o">*</span><span class="p">)</span><span class="n">tcp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">uv_handle_t</span> <span class="o">*</span><span class="n">handle</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_handle_t</span><span class="o">*</span><span class="p">)</span><span class="n">stream</span><span class="p">;</span>
+</span></span></code></pre></div><p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
 <p>简单看下UV_HANDLE_FIELDS的成员：</p>
 <table>
 <thead>
@@ -409,7 +406,7 @@ struct uv_tcp_s {
 <h2 id="uv_req_t及其子类">uv_req_t及其子类</h2>
 <p>handler主要应对一定与某个文件fd相关联的事件，除了这些以外，libuv希望把所有可能导致阻塞的操作全部异步化，包括：文件操作、查询域名操作等。这部分需要异步化的流程，全部封装到了uv_req_t结构体中。</p>
 <p>每个uv_req_t子类中，都有一个类型为struct uv__work的成员：</p>
-<pre><code>struct uv__work {
+<pre tabindex="0"><code>struct uv__work {
   // 工作时回调函数
   void (*work)(struct uv__work *w);
   // 工作结束时回调函数
@@ -419,8 +416,7 @@ struct uv_tcp_s {
   // 工作队列指针
   void* wq[2];
 };
-</code></pre>
-<p>最终，每一个uv_req_t都会被放到一个线程中进行处理，处理完毕了才回调对应的函数。后面会展开讨论这个流程。</p>
+</code></pre><p>最终，每一个uv_req_t都会被放到一个线程中进行处理，处理完毕了才回调对应的函数。后面会展开讨论这个流程。</p>
 <p>uv_req_t有以下子类：</p>
 <ul>
 <li>uv_getaddrinfo_t：用于getaddrinfo调用。</li>
@@ -527,13 +523,12 @@ struct uv_tcp_s {
 <p>有了对以上核心数据结构的了解，可以来看看libuv的核心流程了。</p>
 <h2 id="事件循环">事件循环</h2>
 <p>先来简单了解一下一个事件框架的主流程，有如下的伪代码：</p>
-<pre><code class="language-C">循环：
-  根据定时器拿到距离最近的定时器超时时间
-  进行事件查询，以刚刚的超时时间做为查询最大时间
-  遍历查询回来的事件，对事件进行处理
-  遍历定时器，取出超时的事件进行处理
-</code></pre>
-<p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="err">循环：</span>
+</span></span><span class="line"><span class="cl">  <span class="err">根据定时器拿到距离最近的定时器超时时间</span>
+</span></span><span class="line"><span class="cl">  <span class="err">进行事件查询，以刚刚的超时时间做为查询最大时间</span>
+</span></span><span class="line"><span class="cl">  <span class="err">遍历查询回来的事件，对事件进行处理</span>
+</span></span><span class="line"><span class="cl">  <span class="err">遍历定时器，取出超时的事件进行处理</span>
+</span></span></code></pre></div><p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
 <h3 id="新增的io事件">新增的IO事件</h3>
 <p>uv_loop_t结构体中有watcher_queue队列，新增加进来的IO事件，并不首先直接添加到epoll事件中，而是首先放在watcher队列，待到下一次进行poll操作时，会首先将watcher队列中的IO事件添加进来，然后再执行poll操作。而定义一个IO事件，用到的就是前面的uv__io_t结构体。</p>
 <p>同时，由于IO事件肯定是uv_handler_t的子类，因此同时uv_loop_t又有一个handler queue，用于保存所有的handler。每次loop的循环中，也会去查看有哪些handler可以被释放了。</p>
@@ -573,20 +568,18 @@ struct uv_tcp_s {
 <p>原因在于：libuv的设计中，不希望存在这些可能导致阻塞的操作，而是希望把这些操作全部异步化。</p>
 <p>以uv_getaddrinfo函数为例，本质上这个操作封装了getaddrinfo，该操作对应的uv__work结构体中，work函数为uv__getaddrinfo_work，即在该操作被回调时的回调函数，内部封装了getaddrinfo函数，done函数为uv__getaddrinfo_done，封装了执行结束之后的回调操作。</p>
 <p>libuv中，最终调用uv__work_submit函数向某个线程发送一个uv__work结构体指针来完成操作，其原型为：</p>
-<pre><code class="language-C">void uv__work_submit(uv_loop_t* loop,
-                     struct uv__work* w,
-                     enum uv__work_kind kind,
-                     void (*work)(struct uv__work* w),
-                     void (*done)(struct uv__work* w, int status))
-</code></pre>
-<p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
-<pre><code class="language-C">enum uv__work_kind {
-  UV__WORK_CPU,     // 耗CPU的操作
-  UV__WORK_FAST_IO, // 快速IO操作
-  UV__WORK_SLOW_IO  // 慢速IO操作
-};
-</code></pre>
-<p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">uv__work_submit</span><span class="p">(</span><span class="n">uv_loop_t</span><span class="o">*</span> <span class="n">loop</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                     <span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                     <span class="k">enum</span> <span class="n">uv__work_kind</span> <span class="n">kind</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                     <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">work</span><span class="p">)(</span><span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">                     <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">done</span><span class="p">)(</span><span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">,</span> <span class="kt">int</span> <span class="n">status</span><span class="p">))</span>
+</span></span></code></pre></div><p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">enum</span> <span class="n">uv__work_kind</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">UV__WORK_CPU</span><span class="p">,</span>     <span class="c1">// 耗CPU的操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">UV__WORK_FAST_IO</span><span class="p">,</span> <span class="c1">// 快速IO操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">UV__WORK_SLOW_IO</span>  <span class="c1">// 慢速IO操作
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">};</span>
+</span></span></code></pre></div><p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
 <p>如果worker是UV__WORK_SLOW_IO，则该任务会放到slow_io_pending_wq队列中，如果慢速IO的任务数量，大于当前线程数量的一半以上，此时将暂停线程的执行，等待这些慢IO的操作完成才继续调度其它任务来执行。</p>
 <h1 id="总结">总结</h1>
 <p>以下是读代码之后的一些简单总结：</p>

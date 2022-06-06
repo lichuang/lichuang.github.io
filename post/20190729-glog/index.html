@@ -314,32 +314,29 @@
 </ul>
 <p>前者的好处在于可以对输入的数据格式进行严格检查，不匹配的情况下编译器会进行告警。缺点则是不够灵活。
 后者的好处是灵活，除了用了进行一般的日志输入，还可以写出类似</p>
-<pre><code>CHECK_IF(某条件不成立) &lt;&lt; 输出日志
-</code></pre>
-<p>的操作。</p>
+<pre tabindex="0"><code>CHECK_IF(某条件不成立) &lt;&lt; 输出日志
+</code></pre><p>的操作。</p>
 <p>glog中选择了第二种方式。</p>
 <p>首先来看glog对外暴露的用于日志输入的接口。其对应的宏是：</p>
-<pre><code>#define LOG(severity) COMPACT_GOOGLE_LOG_ ## severity.stream()
+<pre tabindex="0"><code>#define LOG(severity) COMPACT_GOOGLE_LOG_ ## severity.stream()
 
 #define COMPACT_GOOGLE_LOG_INFO google::LogMessage( \
     __FILE__, __LINE__)
 #define COMPACT_GOOGLE_LOG_WARNING google::LogMessage( \
     __FILE__, __LINE__, google::GLOG_WARNING)
-</code></pre>
-<p>从中可以看到glog中每一条日志，都对应一个LogMessage的类，然后将返回其中的stream()对象输入日志数据。</p>
+</code></pre><p>从中可以看到glog中每一条日志，都对应一个LogMessage的类，然后将返回其中的stream()对象输入日志数据。</p>
 <p>每个LogMessage内部有一个名为LogMessageData的成员，用于保存这些数据，其中比较重要的成员有以下几个：</p>
-<pre><code>char message_text_[LogMessage::kMaxLogMessageLen+1]; // 用户存储日志的固定长度数组，大小为30KB。
+<pre tabindex="0"><code>char message_text_[LogMessage::kMaxLogMessageLen+1]; // 用户存储日志的固定长度数组，大小为30KB。
 LogStream stream_; // 用于接收用户日志的C++stream，构造时传入上面的message_text_来构造，所以实际写数据会到message_text_中。
 void (LogMessage::*send_method_)(); // 用户最终发送日志数据的函数指针。
 timestamp_、tm_time_：保存日志时间相关的成员。
-</code></pre>
-<p>实际根据日志创建出一个LogMessage对象时，会根据不同类型的日志，传入不同的send_method函数指针，而每个不同的LogMessage构造时都会去调用其内部的Init函数完成LogMessageData的构造，Init函数主要做的事情有：</p>
+</code></pre><p>实际根据日志创建出一个LogMessage对象时，会根据不同类型的日志，传入不同的send_method函数指针，而每个不同的LogMessage构造时都会去调用其内部的Init函数完成LogMessageData的构造，Init函数主要做的事情有：</p>
 <ul>
 <li>存储send_method函数指针。</li>
 <li>获取当前的系统时间，存放到相应的成员中。</li>
 </ul>
 <p>而LOG之类的宏，实际返回的就是LogMessageData的stream指针，待到一切的输入完毕，这一条日志对应的LogMessage就会被析构，其析构函数内又会调用成员函数Flush，这个函数最终完成将日志输出的操作：</p>
-<pre><code>void LogMessage::Flush() {
+<pre tabindex="0"><code>void LogMessage::Flush() {
   // ...
   {
     MutexLock l(&amp;log_mutex);
@@ -348,13 +345,12 @@ timestamp_、tm_time_：保存日志时间相关的成员。
   }
   // ...
 }
-</code></pre>
-<p>有了以上的准备，实际回头来看一个日志的输入</p>
+</code></pre><p>有了以上的准备，实际回头来看一个日志的输入</p>
 <p><img src="/media/imgs/20190729-glog/log-generate.png" alt="log-generate" title="log-generate"></p>
 <h1 id="输出日志">输出日志</h1>
 <p>以上解决了生成日志的问题，继续往下看生成日志之后发到哪里去。</p>
 <p>日志的分发由类LogDestination来负责，其提供出去的接口多为静态函数。 以某个send_method函数的实现来看，如LogMessage::SendToLog，省略大部分细节，其内部实现为：</p>
-<pre><code>void LogMessage::SendToLog() EXCLUSIVE_LOCKS_REQUIRED(log_mutex) {
+<pre tabindex="0"><code>void LogMessage::SendToLog() EXCLUSIVE_LOCKS_REQUIRED(log_mutex) {
     // ...
 
     // log this message to all log files of severity &lt;= severity_
@@ -369,8 +365,7 @@ timestamp_、tm_time_：保存日志时间相关的成员。
                             - data_-&gt;num_prefix_chars_ - 1));
     // ...
 }
-</code></pre>
-<p>其中：</p>
+</code></pre><p>其中：</p>
 <ul>
 <li>LogDestination::LogToAllLogfiles：写日志到对应级别的日志文件中。</li>
 <li>LogDestination::LogToSinks：写到用户自定义的sink输出中，传递那么多参数是为了去掉添加进去的logprefix，包括severity，ts，线程id，文件basename等。</li>
@@ -378,10 +373,9 @@ timestamp_、tm_time_：保存日志时间相关的成员。
 <p>接下来分别分析这两部分输出的操作。</p>
 <h2 id="写到对应级别的日志中">写到对应级别的日志中</h2>
 <p>LogDestination内部有一个与不同日志级别相关的LogDestination数组：</p>
-<pre><code>static LogDestination* log_destinations_[NUM_SEVERITIES];
-</code></pre>
-<p>首先来看LogToAllLogfiles函数的实现：</p>
-<pre><code>inline void LogDestination::LogToAllLogfiles(LogSeverity severity,
+<pre tabindex="0"><code>static LogDestination* log_destinations_[NUM_SEVERITIES];
+</code></pre><p>首先来看LogToAllLogfiles函数的实现：</p>
+<pre tabindex="0"><code>inline void LogDestination::LogToAllLogfiles(LogSeverity severity,
                                              time_t timestamp,
                                              const char* message,
                                              size_t len) {
@@ -393,10 +387,9 @@ timestamp_、tm_time_：保存日志时间相关的成员。
       LogDestination::MaybeLogToLogfile(i, timestamp, message, len);
   }
 }
-</code></pre>
-<p>可以看到，对某个级别的日志而言，会依次调用级别值更小的日志输出，比如WARN级别的日志也会输出到INFO级别的日志文件中。</p>
+</code></pre><p>可以看到，对某个级别的日志而言，会依次调用级别值更小的日志输出，比如WARN级别的日志也会输出到INFO级别的日志文件中。</p>
 <p>接着看MaybeLogToLogfile函数的实现：</p>
-<pre><code>inline void LogDestination::MaybeLogToLogfile(LogSeverity severity,
+<pre tabindex="0"><code>inline void LogDestination::MaybeLogToLogfile(LogSeverity severity,
                                               time_t timestamp,
 					      const char* message,
 					      size_t len) {
@@ -412,25 +405,22 @@ inline LogDestination* LogDestination::log_destination(LogSeverity severity) {
   }
   return log_destinations_[severity];
 }
-</code></pre>
-<p>可以看到：</p>
+</code></pre><p>可以看到：</p>
 <ul>
 <li>首先会从log_destination中根据日志级别，得到对应的log_destinations_数组成员返回。</li>
 <li>然后调用destination-&gt;logger_成员的Write函数写日志，其中会传入一个叫should_flush的参数，仅在传入的日志级别大于FLAGS_logbuflevel才会为真，这样可以控制不同级别日志的flush到磁盘的行为。</li>
 </ul>
 <p>而logger_成员是一个Logger接口，本质上是一个纯虚类，因此glog也提供了接口给用户定制不同级别日志对应的Logger类：</p>
-<pre><code>// Set the logger for the specified severity level.  The logger
+<pre tabindex="0"><code>// Set the logger for the specified severity level.  The logger
 // becomes the property of the logging module and should not
 // be deleted by the caller.  Thread-safe.
 extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
-</code></pre>
-<h2 id="写到用户自定义sink中">写到用户自定义sink中</h2>
+</code></pre><h2 id="写到用户自定义sink中">写到用户自定义sink中</h2>
 <p>接下来看看怎么将日志输出到用户自定义sink中的流程。</p>
 <p>而每个LogDestination内部又有一个叫LogSink的类来真正负责日志的输出，该类也是一个纯虚类，用户需要实现其中的send方法来完成日志的输出。对于每个级别的日志而言，会将同级别的LogSink一起放在一个向量中：</p>
-<pre><code>static vector&lt;LogSink*&gt;* sinks_
-</code></pre>
-<p>因此，当需要输出自定义的日志时，就遍历该向量进行调用：</p>
-<pre><code>inline void LogDestination::LogToSinks(LogSeverity severity,
+<pre tabindex="0"><code>static vector&lt;LogSink*&gt;* sinks_
+</code></pre><p>因此，当需要输出自定义的日志时，就遍历该向量进行调用：</p>
+<pre tabindex="0"><code>inline void LogDestination::LogToSinks(LogSeverity severity,
                                        const char *full_filename,
                                        const char *base_filename,
                                        int line,
@@ -445,8 +435,7 @@ extern GOOGLE_GLOG_DLL_DECL void SetLogger(LogSeverity level, Logger* logger);
     }
   }
 }
-</code></pre>
-<p><img src="/media/imgs/20190729-glog/log-output.png" alt="log-output" title="log-output"></p>
+</code></pre><p><img src="/media/imgs/20190729-glog/log-output.png" alt="log-output" title="log-output"></p>
 <h1 id="性能分析">性能分析</h1>
 <p>写了一个简单的测试程序，起多个线程同时一起使用glog写入日志，用火焰图分别分析它的on和off CPU消耗如下：</p>
 <p>on CPU：</p>

@@ -172,6 +172,10 @@
 
 
 
+<meta property="og:see_also" content="https://www.codedump.info/post/20200620-sgfap-loadavg/" />
+
+
+
 
 
 <meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" />
@@ -353,43 +357,39 @@
 可以并发运行在多个CPU上（即使同一类型的也可以）。所以软中断必须设计为可重入的函数（允许多个CPU同时操作），因此也需要使用自旋锁来保其数据结构。</p>
 <h2 id="数据结构">数据结构</h2>
 <p>软中断由系统在启动的时候注册到内核中，由一个全局数组来维护软中断：</p>
-<pre><code class="language-C">struct softirq_action
-{
-	void	(*action)(struct softirq_action *);
-};
-
-static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
-</code></pre>
-<p>可以看到，本质上结构体softirq_action存储的是函数指针而已，软中断有以下类型：</p>
-<pre><code class="language-C">enum
-{
-	HI_SOFTIRQ=0,     // 处理高优先级的tasklet
-	TIMER_SOFTIRQ,    // 定时器的下半部
-	NET_TX_SOFTIRQ,   // 网卡发送数据包
-	NET_RX_SOFTIRQ,   // 网卡接收数据包
-	BLOCK_SOFTIRQ,    // BLOCK装置     
-	IRQ_POLL_SOFTIRQ, 
-	TASKLET_SOFTIRQ,  // 处理常规的tasklet
-	SCHED_SOFTIRQ,
-	HRTIMER_SOFTIRQ, 
-	RCU_SOFTIRQ,
-	NR_SOFTIRQS
-};
-</code></pre>
-<p>系统提供了open_softirq函数用于各个需要使用到软中断的系统注册对应的软中断处理函数。</p>
-<pre><code class="language-C">void open_softirq(int nr, void (*action)(struct softirq_action *))
-{
-	softirq_vec[nr].action = action;
-}
-</code></pre>
-<p>同时，还提供了softirq_to_name数组，用于把软中断的索引映射到对应的软中断名称：</p>
-<pre><code class="language-C">const char * const softirq_to_name[NR_SOFTIRQS] = {
-	&quot;HI&quot;, &quot;TIMER&quot;, &quot;NET_TX&quot;, &quot;NET_RX&quot;, &quot;BLOCK&quot;, &quot;IRQ_POLL&quot;,
-	&quot;TASKLET&quot;, &quot;SCHED&quot;, &quot;HRTIMER&quot;, &quot;RCU&quot;
-};
-</code></pre>
-<p>在Linux下面，可以通过查看<code>/proc/softirqs</code>文件知道当前系统软中断的情况：</p>
-<pre><code>$ cat /proc/softirqs
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">softirq_action</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">void</span>	<span class="p">(</span><span class="o">*</span><span class="n">action</span><span class="p">)(</span><span class="k">struct</span> <span class="n">softirq_action</span> <span class="o">*</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">struct</span> <span class="n">softirq_action</span> <span class="n">softirq_vec</span><span class="p">[</span><span class="n">NR_SOFTIRQS</span><span class="p">]</span> <span class="n">__cacheline_aligned_in_smp</span><span class="p">;</span>
+</span></span></code></pre></div><p>可以看到，本质上结构体softirq_action存储的是函数指针而已，软中断有以下类型：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">enum</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">HI_SOFTIRQ</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>     <span class="c1">// 处理高优先级的tasklet
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">TIMER_SOFTIRQ</span><span class="p">,</span>    <span class="c1">// 定时器的下半部
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">NET_TX_SOFTIRQ</span><span class="p">,</span>   <span class="c1">// 网卡发送数据包
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">NET_RX_SOFTIRQ</span><span class="p">,</span>   <span class="c1">// 网卡接收数据包
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">BLOCK_SOFTIRQ</span><span class="p">,</span>    <span class="c1">// BLOCK装置     
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IRQ_POLL_SOFTIRQ</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="n">TASKLET_SOFTIRQ</span><span class="p">,</span>  <span class="c1">// 处理常规的tasklet
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">SCHED_SOFTIRQ</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">HRTIMER_SOFTIRQ</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">	<span class="n">RCU_SOFTIRQ</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="n">NR_SOFTIRQS</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>系统提供了open_softirq函数用于各个需要使用到软中断的系统注册对应的软中断处理函数。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">open_softirq</span><span class="p">(</span><span class="kt">int</span> <span class="n">nr</span><span class="p">,</span> <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">action</span><span class="p">)(</span><span class="k">struct</span> <span class="n">softirq_action</span> <span class="o">*</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">softirq_vec</span><span class="p">[</span><span class="n">nr</span><span class="p">].</span><span class="n">action</span> <span class="o">=</span> <span class="n">action</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>同时，还提供了softirq_to_name数组，用于把软中断的索引映射到对应的软中断名称：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span> <span class="k">const</span> <span class="n">softirq_to_name</span><span class="p">[</span><span class="n">NR_SOFTIRQS</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;HI&#34;</span><span class="p">,</span> <span class="s">&#34;TIMER&#34;</span><span class="p">,</span> <span class="s">&#34;NET_TX&#34;</span><span class="p">,</span> <span class="s">&#34;NET_RX&#34;</span><span class="p">,</span> <span class="s">&#34;BLOCK&#34;</span><span class="p">,</span> <span class="s">&#34;IRQ_POLL&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">	<span class="s">&#34;TASKLET&#34;</span><span class="p">,</span> <span class="s">&#34;SCHED&#34;</span><span class="p">,</span> <span class="s">&#34;HRTIMER&#34;</span><span class="p">,</span> <span class="s">&#34;RCU&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>在Linux下面，可以通过查看<code>/proc/softirqs</code>文件知道当前系统软中断的情况：</p>
+<pre tabindex="0"><code>$ cat /proc/softirqs
                     CPU0       CPU1       CPU2       CPU3
           HI:     276180     286764    2509097     254357
        TIMER:    1550133    1285854    1440533    1812909
@@ -401,29 +401,26 @@ static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp
        SCHED:    1484942    1207449    1310735    1724911
      HRTIMER:          0          0          0          0
          RCU:     690954     685825     787447     878963
-</code></pre>
-<h2 id="触发软中断">触发软中断</h2>
+</code></pre><h2 id="触发软中断">触发软中断</h2>
 <p>触发软中断的入口函数是raise_softirq：</p>
-<pre><code class="language-C">void raise_softirq(unsigned int nr)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	raise_softirq_irqoff(nr);
-	local_irq_restore(flags);
-}
-</code></pre>
-<p>首先，由于调用软中断处理函数必须禁用中断，所以local_irq_save宏将保存在eflags寄存器中的IF标志，同时禁用本地处理器的中断。对应的，local_irq_restore宏将保存下来的flags标志位恢复回去，同时打开本地处理器的中断。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">raise_softirq</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">nr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_save</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">raise_softirq_irqoff</span><span class="p">(</span><span class="n">nr</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_restore</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>首先，由于调用软中断处理函数必须禁用中断，所以local_irq_save宏将保存在eflags寄存器中的IF标志，同时禁用本地处理器的中断。对应的，local_irq_restore宏将保存下来的flags标志位恢复回去，同时打开本地处理器的中断。</p>
 <p>接着看raise_softirq_irqoff函数：</p>
-<pre><code class="language-C">inline void raise_softirq_irqoff(unsigned int nr)
-{
-	__raise_softirq_irqoff(nr);
-
-	if (!in_interrupt())
-		wakeup_softirqd();
-}
-</code></pre>
-<ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kr">inline</span> <span class="kt">void</span> <span class="nf">raise_softirq_irqoff</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">nr</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">__raise_softirq_irqoff</span><span class="p">(</span><span class="n">nr</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">in_interrupt</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">		<span class="n">wakeup_softirqd</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
 <li>
 <p>首先，调用<code>__raise_softirq_irqoff</code>将本地处理器的中<code>__softirq_pending</code>变量对应nr这个软中断的位置为1，表示该类型的软中断被触发了。</p>
 </li>
@@ -431,26 +428,24 @@ static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp
 <p>然后，通过<code>in_interrupt</code>函数来判断处理器当前是否在处理中断状态，如果没有则调用<code>wakeup_softirqd</code>函数唤醒本处理器的<code>ksoftirqd</code>内核进程：</p>
 </li>
 </ul>
-<pre><code class="language-C">static void wakeup_softirqd(void)
-{
-	struct task_struct *tsk = __this_cpu_read(ksoftirqd);
-
-	if (tsk &amp;&amp; tsk-&gt;state != TASK_RUNNING)
-		wake_up_process(tsk);
-}
-</code></pre>
-<p>在Linux系统中，每个CPU都会运行一个<code>ksoftirqd</code>内核进程，专门由这个进程来处理本CPU的软中断。<code>ksoftirqd</code>内核进程的主要流程在函数<code>__do_softirq</code>中完成，其核心是一个循环，用来检测当前有哪些未处理的软中断，调用其注册的处理函数来处理软中断：</p>
-<pre><code class="language-C">asmlinkage __visible void __softirq_entry __do_softirq(void)
-{
-	// ...
-	while ((softirq_bit = ffs(pending))) {
-		trace_softirq_entry(vec_nr);	// 记录开始处理软中断的trace event
-		h-&gt;action(h);									// 调用注册的软中断处理函数
-		trace_softirq_exit(vec_nr);		// 记录结束处理软中断的trace event
-	}
-}
-</code></pre>
-<p><img src="/media/imgs/20200522-sgfap-softirq/softirq.png" alt="softirq" title="softirq"></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">wakeup_softirqd</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">task_struct</span> <span class="o">*</span><span class="n">tsk</span> <span class="o">=</span> <span class="n">__this_cpu_read</span><span class="p">(</span><span class="n">ksoftirqd</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">tsk</span> <span class="o">&amp;&amp;</span> <span class="n">tsk</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">!=</span> <span class="n">TASK_RUNNING</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="n">wake_up_process</span><span class="p">(</span><span class="n">tsk</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>在Linux系统中，每个CPU都会运行一个<code>ksoftirqd</code>内核进程，专门由这个进程来处理本CPU的软中断。<code>ksoftirqd</code>内核进程的主要流程在函数<code>__do_softirq</code>中完成，其核心是一个循环，用来检测当前有哪些未处理的软中断，调用其注册的处理函数来处理软中断：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">asmlinkage</span> <span class="n">__visible</span> <span class="kt">void</span> <span class="n">__softirq_entry</span> <span class="nf">__do_softirq</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">while</span> <span class="p">((</span><span class="n">softirq_bit</span> <span class="o">=</span> <span class="n">ffs</span><span class="p">(</span><span class="n">pending</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">trace_softirq_entry</span><span class="p">(</span><span class="n">vec_nr</span><span class="p">);</span>	<span class="c1">// 记录开始处理软中断的trace event
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">h</span><span class="o">-&gt;</span><span class="n">action</span><span class="p">(</span><span class="n">h</span><span class="p">);</span>									<span class="c1">// 调用注册的软中断处理函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">trace_softirq_exit</span><span class="p">(</span><span class="n">vec_nr</span><span class="p">);</span>		<span class="c1">// 记录结束处理软中断的trace event
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><img src="/media/imgs/20200522-sgfap-softirq/softirq.png" alt="softirq" title="softirq"></p>
 <p>总结来说，要触发一个软中断只需要以下几步：</p>
 <ol>
 <li>保存IF标志，禁用中断。</li>
@@ -473,32 +468,30 @@ static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp
 </ul>
 <p>tasklet是在两种软中断类型的基础上实现的，因此如果不需要软中断的并行特性，tasklet就是最好的选择。也就是说tasklet是软中断的一种特殊用法，即延迟情况下的串行执行。</p>
 <p>首先来看初始化，对应的是softirq_init函数：</p>
-<pre><code class="language-C">void __init softirq_init(void)
-{
-	int cpu;
-
-	for_each_possible_cpu(cpu) {
-		per_cpu(tasklet_vec, cpu).tail =
-			&amp;per_cpu(tasklet_vec, cpu).head;
-		per_cpu(tasklet_hi_vec, cpu).tail =
-			&amp;per_cpu(tasklet_hi_vec, cpu).head;
-	}
-
-	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
-	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
-}
-</code></pre>
-<p>可以看到，tasklet各有一个基于TASKLET_SOFTIRQ和HI_SOFTIRQ两个类型软中断的tasklet，这两个类型分别对应低优先级和高优先级的tasklet，变量tasklet_vec和tasklet_hi_vec的定义如下：</p>
-<pre><code class="language-C">struct tasklet_head {
-	struct tasklet_struct *head;
-	struct tasklet_struct **tail;
-};
-
-static DEFINE_PER_CPU(struct tasklet_head, tasklet_vec);
-static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
-</code></pre>
-<p>这两个变量分别定义了两个存储tasklet_struct结构体的链表。结构体tasklet_struct定义如下：</p>
-<pre><code>struct tasklet_struct
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">__init</span> <span class="nf">softirq_init</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">cpu</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">for_each_possible_cpu</span><span class="p">(</span><span class="n">cpu</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">per_cpu</span><span class="p">(</span><span class="n">tasklet_vec</span><span class="p">,</span> <span class="n">cpu</span><span class="p">).</span><span class="n">tail</span> <span class="o">=</span>
+</span></span><span class="line"><span class="cl">			<span class="o">&amp;</span><span class="n">per_cpu</span><span class="p">(</span><span class="n">tasklet_vec</span><span class="p">,</span> <span class="n">cpu</span><span class="p">).</span><span class="n">head</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">per_cpu</span><span class="p">(</span><span class="n">tasklet_hi_vec</span><span class="p">,</span> <span class="n">cpu</span><span class="p">).</span><span class="n">tail</span> <span class="o">=</span>
+</span></span><span class="line"><span class="cl">			<span class="o">&amp;</span><span class="n">per_cpu</span><span class="p">(</span><span class="n">tasklet_hi_vec</span><span class="p">,</span> <span class="n">cpu</span><span class="p">).</span><span class="n">head</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">open_softirq</span><span class="p">(</span><span class="n">TASKLET_SOFTIRQ</span><span class="p">,</span> <span class="n">tasklet_action</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">open_softirq</span><span class="p">(</span><span class="n">HI_SOFTIRQ</span><span class="p">,</span> <span class="n">tasklet_hi_action</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以看到，tasklet各有一个基于TASKLET_SOFTIRQ和HI_SOFTIRQ两个类型软中断的tasklet，这两个类型分别对应低优先级和高优先级的tasklet，变量tasklet_vec和tasklet_hi_vec的定义如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">tasklet_head</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">*</span><span class="n">head</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">**</span><span class="n">tail</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="nf">DEFINE_PER_CPU</span><span class="p">(</span><span class="k">struct</span> <span class="n">tasklet_head</span><span class="p">,</span> <span class="n">tasklet_vec</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="nf">DEFINE_PER_CPU</span><span class="p">(</span><span class="k">struct</span> <span class="n">tasklet_head</span><span class="p">,</span> <span class="n">tasklet_hi_vec</span><span class="p">);</span>
+</span></span></code></pre></div><p>这两个变量分别定义了两个存储tasklet_struct结构体的链表。结构体tasklet_struct定义如下：</p>
+<pre tabindex="0"><code>struct tasklet_struct
 {
 	struct tasklet_struct *next;
 	unsigned long state;
@@ -506,8 +499,7 @@ static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
 	void (*func)(unsigned long);
 	unsigned long data;
 };
-</code></pre>
-<p>其中包含了五个成员变量，分别是：</p>
+</code></pre><p>其中包含了五个成员变量，分别是：</p>
 <ul>
 <li>struct tasklet_struct *next：链表中下一个成员的指针。</li>
 <li>unsigned long state：tasklet的状态。</li>
@@ -517,44 +509,40 @@ static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
 </ul>
 <h2 id="触发tasklet">触发tasklet</h2>
 <p>内核通过函数tasklet_schedule触发一个tasklet被执行：</p>
-<pre><code class="language-C">static inline void tasklet_schedule(struct tasklet_struct *t)
-{
-	if (!test_and_set_bit(TASKLET_STATE_SCHED, &amp;t-&gt;state))
-		__tasklet_schedule(t);
-}
-</code></pre>
-<p>首先，使用test_and_set_bit函数判断t-&gt;state中的TASKLET_STATE_SCHED是否被置为1，如果没有则调用函数__tasklet_schedule调度tasklet来执行：</p>
-<pre><code class="language-C">// kernel/softirq.c
-void __tasklet_schedule(struct tasklet_struct *t)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	t-&gt;next = NULL;
-	*__this_cpu_read(tasklet_vec.tail) = t;
-	__this_cpu_write(tasklet_vec.tail, &amp;(t-&gt;next));
-	raise_softirq_irqoff(TASKLET_SOFTIRQ);
-	local_irq_restore(flags);
-}
-</code></pre>
-<p>该函数首先和前面软中断的处理一样，保存IF标志位同时禁用中断，然后修改tasklet_vec链表将新增的tasklet添加到链表尾部，调用raise_softirq_irqoff触发TASKLET_SOFTIRQ类型的软中断执行，最后恢复IF标志位同时启用中断。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="nf">tasklet_schedule</span><span class="p">(</span><span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">*</span><span class="n">t</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">test_and_set_bit</span><span class="p">(</span><span class="n">TASKLET_STATE_SCHED</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">t</span><span class="o">-&gt;</span><span class="n">state</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="n">__tasklet_schedule</span><span class="p">(</span><span class="n">t</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>首先，使用test_and_set_bit函数判断t-&gt;state中的TASKLET_STATE_SCHED是否被置为1，如果没有则调用函数__tasklet_schedule调度tasklet来执行：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/softirq.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">__tasklet_schedule</span><span class="p">(</span><span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">*</span><span class="n">t</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_save</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">t</span><span class="o">-&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="o">*</span><span class="n">__this_cpu_read</span><span class="p">(</span><span class="n">tasklet_vec</span><span class="p">.</span><span class="n">tail</span><span class="p">)</span> <span class="o">=</span> <span class="n">t</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">__this_cpu_write</span><span class="p">(</span><span class="n">tasklet_vec</span><span class="p">.</span><span class="n">tail</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">t</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="n">raise_softirq_irqoff</span><span class="p">(</span><span class="n">TASKLET_SOFTIRQ</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_restore</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>该函数首先和前面软中断的处理一样，保存IF标志位同时禁用中断，然后修改tasklet_vec链表将新增的tasklet添加到链表尾部，调用raise_softirq_irqoff触发TASKLET_SOFTIRQ类型的软中断执行，最后恢复IF标志位同时启用中断。</p>
 <p>在函数softirq_init中，两类用于处理tasklet的处理函数分别是：</p>
-<pre><code>	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
+<pre tabindex="0"><code>	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
 	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
-</code></pre>
-<p>接着看函数tasklet_action的实现，其核心就是从前面的链表中依次取出tasklet_struct结构体数据调用其处理函数：</p>
-<pre><code class="language-C">// kernel/softirq.c
-static __latent_entropy void tasklet_action(struct softirq_action *a)
-{
-	struct tasklet_struct *list;
-
-	while (list) {
-		struct tasklet_struct *t = list;
-		t-&gt;func(t-&gt;data);
-	}
-}
-</code></pre>
-<p>该函数的工作流程是：</p>
+</code></pre><p>接着看函数tasklet_action的实现，其核心就是从前面的链表中依次取出tasklet_struct结构体数据调用其处理函数：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/softirq.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="n">__latent_entropy</span> <span class="kt">void</span> <span class="nf">tasklet_action</span><span class="p">(</span><span class="k">struct</span> <span class="n">softirq_action</span> <span class="o">*</span><span class="n">a</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">*</span><span class="n">list</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">while</span> <span class="p">(</span><span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">struct</span> <span class="n">tasklet_struct</span> <span class="o">*</span><span class="n">t</span> <span class="o">=</span> <span class="n">list</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">		<span class="n">t</span><span class="o">-&gt;</span><span class="n">func</span><span class="p">(</span><span class="n">t</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>该函数的工作流程是：</p>
 <ol>
 <li>调用local_irq_disable禁用本地CPU的中断。</li>
 <li>从tasklet_vec链表头取出头元素list。</li>
@@ -570,113 +558,106 @@ static __latent_entropy void tasklet_action(struct softirq_action *a)
 </ul>
 <h2 id="数据结构-1">数据结构</h2>
 <p>内核使用结构体worker_pool来管理所有CPU上面的worker，在这里仅列举其中的一部分成员：</p>
-<pre><code class="language-C">// kernel/workqueue.c
-struct worker_pool {
-	spinlock_t		lock;		/* the pool lock */
-	int			cpu;		/* I: the associated cpu */
-	int			node;		/* I: the associated node ID */
-	int			id;		/* I: pool ID */
-	unsigned int		flags;		/* X: flags */
-
-	unsigned long		watchdog_ts;	/* L: watchdog timestamp */
-
-	struct list_head	worklist;	/* L: list of pending works */
-	int			nr_workers;	/* L: total number of workers */
-
-	....
-}
-</code></pre>
-<p>worker_pool中管理的每个worker如下定义：</p>
-<pre><code class="language-C">// kernel/workqueue_internal.h
-struct worker {
-	/* on idle list while idle, on busy hash table while busy */
-	union {
-		struct list_head	entry;	/* L: while idle */
-		struct hlist_node	hentry;	/* L: while busy */
-	};
-
-	struct work_struct	*current_work;	/* L: work being processed */
-	work_func_t		current_func;	/* L: current_work's fn */
-	struct pool_workqueue	*current_pwq; /* L: current_work's pwq */
-	bool			desc_valid;	/* -&gt;desc is valid */
-	struct list_head	scheduled;	/* L: scheduled works */
-
-	....
-}
-</code></pre>
-<p>每个CPU上运行的kworker进程：</p>
-<pre><code>$ ps aux | grep kworker
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/workqueue.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">struct</span> <span class="n">worker_pool</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="n">spinlock_t</span>		<span class="n">lock</span><span class="p">;</span>		<span class="cm">/* the pool lock */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span>			<span class="n">cpu</span><span class="p">;</span>		<span class="cm">/* I: the associated cpu */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span>			<span class="n">node</span><span class="p">;</span>		<span class="cm">/* I: the associated node ID */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span>			<span class="n">id</span><span class="p">;</span>		<span class="cm">/* I: pool ID */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">int</span>		<span class="n">flags</span><span class="p">;</span>		<span class="cm">/* X: flags */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span>		<span class="n">watchdog_ts</span><span class="p">;</span>	<span class="cm">/* L: watchdog timestamp */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">list_head</span>	<span class="n">worklist</span><span class="p">;</span>	<span class="cm">/* L: list of pending works */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span>			<span class="n">nr_workers</span><span class="p">;</span>	<span class="cm">/* L: total number of workers */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="p">....</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>worker_pool中管理的每个worker如下定义：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/workqueue_internal.h
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">struct</span> <span class="n">worker</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/* on idle list while idle, on busy hash table while busy */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">union</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">struct</span> <span class="n">list_head</span>	<span class="n">entry</span><span class="p">;</span>	<span class="cm">/* L: while idle */</span>
+</span></span><span class="line"><span class="cl">		<span class="k">struct</span> <span class="n">hlist_node</span>	<span class="n">hentry</span><span class="p">;</span>	<span class="cm">/* L: while busy */</span>
+</span></span><span class="line"><span class="cl">	<span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">work_struct</span>	<span class="o">*</span><span class="n">current_work</span><span class="p">;</span>	<span class="cm">/* L: work being processed */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">work_func_t</span>		<span class="n">current_func</span><span class="p">;</span>	<span class="cm">/* L: current_work&#39;s fn */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">pool_workqueue</span>	<span class="o">*</span><span class="n">current_pwq</span><span class="p">;</span> <span class="cm">/* L: current_work&#39;s pwq */</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span>			<span class="n">desc_valid</span><span class="p">;</span>	<span class="cm">/* -&gt;desc is valid */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">list_head</span>	<span class="n">scheduled</span><span class="p">;</span>	<span class="cm">/* L: scheduled works */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="p">....</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>每个CPU上运行的kworker进程：</p>
+<pre tabindex="0"><code>$ ps aux | grep kworker
 root         4  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/0:0H]
 root        18  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/1:0H]
 root        24  0.0  0.0      0     0 ?        I&lt;   1月30   0:00 [kworker/2:0H]
-</code></pre>
-<h2 id="添加任务到workqueue">添加任务到workqueue</h2>
+</code></pre><h2 id="添加任务到workqueue">添加任务到workqueue</h2>
 <p>内核提供函数queue_work将任务放入workqueue中：</p>
-<pre><code>// include/linux/workqueue.h
+<pre tabindex="0"><code>// include/linux/workqueue.h
 static inline bool queue_work(struct workqueue_struct *wq,
 			      struct work_struct *work)
 {
 	return queue_work_on(WORK_CPU_UNBOUND, wq, work);
 }
-</code></pre>
-<p>接着看函数queue_work_on：</p>
-<pre><code class="language-C">// kernel/workqueue.c
-bool queue_work_on(int cpu, struct workqueue_struct *wq,
-		   struct work_struct *work)
-{
-	bool ret = false;
-	unsigned long flags;
-
-	local_irq_save(flags);
-
-	if (!test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))) {
-		__queue_work(cpu, wq, work);
-		ret = true;
-	}
-
-	local_irq_restore(flags);
-	return ret;
-}
-</code></pre>
-<p>它做的事情很简单，同样也是前后禁用、启用中断，在判断WORK_STRUCT_PENDING_BIT被置为1失败之后，调用__queue_work将任务放入workqueue：</p>
-<pre><code class="language-C">static void __queue_work(int cpu, struct workqueue_struct *wq,
-			 struct work_struct *work)
-{
-	// ....
-
-	if (req_cpu == WORK_CPU_UNBOUND)
-		cpu = wq_select_unbound_cpu(raw_smp_processor_id());
-
-	if (!(wq-&gt;flags &amp; WQ_UNBOUND))
-		pwq = per_cpu_ptr(wq-&gt;cpu_pwqs, cpu);
-	else
-		pwq = unbound_pwq_by_node(wq, cpu_to_node(cpu));
-
-	// ...
-
-	insert_work(pwq, work, worklist, work_flags);
-
-	// ...
-}
-</code></pre>
-<p>这里裁剪掉无关的代码，来看核心的部分：</p>
+</code></pre><p>接着看函数queue_work_on：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/workqueue.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">bool</span> <span class="nf">queue_work_on</span><span class="p">(</span><span class="kt">int</span> <span class="n">cpu</span><span class="p">,</span> <span class="k">struct</span> <span class="n">workqueue_struct</span> <span class="o">*</span><span class="n">wq</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">		   <span class="k">struct</span> <span class="n">work_struct</span> <span class="o">*</span><span class="n">work</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">ret</span> <span class="o">=</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_save</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">test_and_set_bit</span><span class="p">(</span><span class="n">WORK_STRUCT_PENDING_BIT</span><span class="p">,</span> <span class="n">work_data_bits</span><span class="p">(</span><span class="n">work</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="n">__queue_work</span><span class="p">(</span><span class="n">cpu</span><span class="p">,</span> <span class="n">wq</span><span class="p">,</span> <span class="n">work</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ret</span> <span class="o">=</span> <span class="nb">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">local_irq_restore</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">ret</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>它做的事情很简单，同样也是前后禁用、启用中断，在判断WORK_STRUCT_PENDING_BIT被置为1失败之后，调用__queue_work将任务放入workqueue：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">__queue_work</span><span class="p">(</span><span class="kt">int</span> <span class="n">cpu</span><span class="p">,</span> <span class="k">struct</span> <span class="n">workqueue_struct</span> <span class="o">*</span><span class="n">wq</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			 <span class="k">struct</span> <span class="n">work_struct</span> <span class="o">*</span><span class="n">work</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ....
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">req_cpu</span> <span class="o">==</span> <span class="n">WORK_CPU_UNBOUND</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="n">cpu</span> <span class="o">=</span> <span class="n">wq_select_unbound_cpu</span><span class="p">(</span><span class="n">raw_smp_processor_id</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="n">wq</span><span class="o">-&gt;</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">WQ_UNBOUND</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">		<span class="n">pwq</span> <span class="o">=</span> <span class="n">per_cpu_ptr</span><span class="p">(</span><span class="n">wq</span><span class="o">-&gt;</span><span class="n">cpu_pwqs</span><span class="p">,</span> <span class="n">cpu</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">else</span>
+</span></span><span class="line"><span class="cl">		<span class="n">pwq</span> <span class="o">=</span> <span class="n">unbound_pwq_by_node</span><span class="p">(</span><span class="n">wq</span><span class="p">,</span> <span class="n">cpu_to_node</span><span class="p">(</span><span class="n">cpu</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">	<span class="n">insert_work</span><span class="p">(</span><span class="n">pwq</span><span class="p">,</span> <span class="n">work</span><span class="p">,</span> <span class="n">worklist</span><span class="p">,</span> <span class="n">work_flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p>这里裁剪掉无关的代码，来看核心的部分：</p>
 <ul>
 <li>首先，如果work加入时未指定要运行的CPU，通过wq_select_unbound_cpu进行选择，默认使用当前CPU。如果该CPU不在wq_unbound_cpumask (全局 cpumask)内，则从wq_unbound_cpumask中通过round robin方式选择。</li>
 <li>对于 bound workqueue ，取出当前 per CPU变量中的pool_workqueue 。对于unbound workqueue，取出当前CPU 所在node对应的pool_workqueue。</li>
 </ul>
 <p>在kwork内核进程内部，最终会在函数<code>process_one_work</code>中处理work：</p>
-<pre><code class="language-C">// kernel/workqueue.c
-static void process_one_work(struct worker *worker, struct work_struct *work)
-{
-	// ...
-	trace_workqueue_execute_start(work);	// 记录开始处理work的trace event
-	worker-&gt;current_func(work);						// 调用work的处理函数
-	trace_workqueue_execute_end(work);		// 记录结束处理work的trace event
-}
-</code></pre>
-<h1 id="使用systemtap追踪软中断">使用systemtap追踪软中断</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/workqueue.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">void</span> <span class="nf">process_one_work</span><span class="p">(</span><span class="k">struct</span> <span class="n">worker</span> <span class="o">*</span><span class="n">worker</span><span class="p">,</span> <span class="k">struct</span> <span class="n">work_struct</span> <span class="o">*</span><span class="n">work</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">trace_workqueue_execute_start</span><span class="p">(</span><span class="n">work</span><span class="p">);</span>	<span class="c1">// 记录开始处理work的trace event
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">worker</span><span class="o">-&gt;</span><span class="n">current_func</span><span class="p">(</span><span class="n">work</span><span class="p">);</span>						<span class="c1">// 调用work的处理函数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">trace_workqueue_execute_end</span><span class="p">(</span><span class="n">work</span><span class="p">);</span>		<span class="c1">// 记录结束处理work的trace event
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><h1 id="使用systemtap追踪软中断">使用systemtap追踪软中断</h1>
 <p><code>systemtap</code>上提供了可以跟踪软中断以及工作队列的<code>probe</code>事件，可以在<code>systemtap</code>的<code>tapset\linux\irq.stp</code>中看到相关的定义，比较简单这里就不做解释，这里仅列举网上看到的一个使用这些tapset来追踪软中断事件的例子：</p>
-<pre><code>global hard, soft, wq
+<pre tabindex="0"><code>global hard, soft, wq
  
 // 记录硬中断
 probe irq_handler.entry {
@@ -685,22 +666,22 @@ probe irq_handler.entry {
  
 // 每隔一秒打印中断、软中断、工作队列的统计信息
 probe timer.s(1) {
-  println(&quot;==irq number:dev_name&quot;)
+  println(&#34;==irq number:dev_name&#34;)
   foreach( [irq, dev_name] in hard- limit 5) {
-    printf(&quot;%d,%s-&gt;%d\n&quot;, irq, kernel_string(dev_name), hard[irq, dev_name]);       
+    printf(&#34;%d,%s-&gt;%d\n&#34;, irq, kernel_string(dev_name), hard[irq, dev_name]);       
   }
  
-  println(&quot;==softirq cpu:h:vec:action&quot;)
+  println(&#34;==softirq cpu:h:vec:action&#34;)
   foreach(  in soft- limit 5) {
-    printf(&quot;%d:%x:%x:%s-&gt;%d\n&quot;, c, h, vec, symdata(action), soft);       
+    printf(&#34;%d:%x:%x:%s-&gt;%d\n&#34;, c, h, vec, symdata(action), soft);       
   }
  
-  println(&quot;==workqueue wq_thread:work_func&quot;)
+  println(&#34;==workqueue wq_thread:work_func&#34;)
   foreach( [wq_thread,work_func] in wq- limit 5) {
-    printf(&quot;%x:%x-&gt;%d\n&quot;, wq_thread, work_func, wq[wq_thread, work_func]);  
+    printf(&#34;%x:%x-&gt;%d\n&#34;, wq_thread, work_func, wq[wq_thread, work_func]);  
   }
  
-  println(&quot;\n&quot;)
+  println(&#34;\n&#34;)
   delete hard
   delete soft
   delete wq
@@ -718,11 +699,9 @@ probe workqueue.execute {
  
  
 probe begin {
-  println(&quot;~&quot;)
+  println(&#34;~&#34;)
 }
-
-</code></pre>
-<h1 id="参考文献">参考文献</h1>
+</code></pre><h1 id="参考文献">参考文献</h1>
 <ul>
 <li><a href="https://tech.meituan.com/2018/03/16/redis-high-concurrency-optimization.html">Redis 高负载下的中断优化</a></li>
 <li><a href="http://blog.yufeng.info/archives/2037">MYSQL数据库网卡软中断不平衡问题及解决方案</a></li>

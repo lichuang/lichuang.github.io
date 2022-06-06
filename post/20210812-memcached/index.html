@@ -359,19 +359,17 @@
 <li>COLD_LRU：存储冷数据的LRU链表。</li>
 </ul>
 <p>需要说明的是：热（参数<code>settings.hot_lru_pct</code>）和暖（参数<code>settings.warm_lru_pct</code>）数据的占总体内存的比例有限制，而冷数据则无限。</p>
-<pre><code class="language-C">#define HOT_LRU 0
-#define WARM_LRU 64
-#define COLD_LRU 128
-</code></pre>
-<p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
-<pre><code class="language-C">#define POWER_LARGEST  256 /* actual cap is 255 */
-
-#define LARGEST_ID POWER_LARGEST
-
-static item *heads[LARGEST_ID];
-static item *tails[LARGEST_ID];
-</code></pre>
-<p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define HOT_LRU 0
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define WARM_LRU 64
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define COLD_LRU 128
+</span></span></span></code></pre></div><p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define POWER_LARGEST  256 </span><span class="cm">/* actual cap is 255 */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define LARGEST_ID POWER_LARGEST
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">heads</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">tails</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+</span></span></code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
 <p><img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
 <p>前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。</p>
@@ -419,37 +417,34 @@ static item *tails[LARGEST_ID];
 <p>对item的数据组织有了大体的概念之后，下面展开来说读写操作的具体实现。</p>
 <h2 id="读操作">读操作</h2>
 <p>由于被使用数据存储在hash表中，所以查询操作相对简单，其伪代码是：</p>
-<pre><code>读操作：
+<pre tabindex="0"><code>读操作：
   加锁
     在hash表中查询数据
   释放锁
 
   返回查询的结果
-</code></pre>
-<p>虽然简单，但是其中有一个值得注意的细节。这里的加锁操作，并不是一个全局锁，否则系统的并发性会大大折扣；同时，也不是给hash数组中的某一个hash桶进行加锁，实际上hash表本身并不存在锁操作。</p>
+</code></pre><p>虽然简单，但是其中有一个值得注意的细节。这里的加锁操作，并不是一个全局锁，否则系统的并发性会大大折扣；同时，也不是给hash数组中的某一个hash桶进行加锁，实际上hash表本身并不存在锁操作。</p>
 <p>在这里，加的锁是首先根据所查询数据的键进行hash计算，再得到对应的锁，在memcached里被称为“item lock”（见全局变量<code>static pthread_mutex_t *item_locks</code>）。这个锁虽然与数据的键值相关，但是如果hash数组数量与item_locks不相等，那么就不是一一对应的关系，所以才说不是针对hash桶进行加锁。如果hash桶的数量大于item lock的数量，那么这就是一对多的关系，也就是对一个item lock加锁之后，获得锁的线程可以访问多个hash桶。</p>
 <p><img src="/media/imgs/20210812-memcached/item-lock.png" alt="item锁与hash桶的对应关系" title="item锁与hash桶的对应关系"></p>
 <p>上图中，索引为N的item锁，管理着索引为M、P这两个hash桶，因此拿到该item锁的线程可以同时访问这两个hash桶。</p>
 <p>因此，上面的读操作更准确的描述应该是：</p>
-<pre><code>读操作：
+<pre tabindex="0"><code>读操作：
   根据查询键值加item锁
     在hash表中查询数据
   根据查询键值释放item锁
 
   返回查询的结果
-</code></pre>
-<h2 id="写操作">写操作</h2>
+</code></pre><h2 id="写操作">写操作</h2>
 <p>与前面非常简单的读操作相比，写操作会更加复杂，因为当内存不足时需要淘汰在LRU数组中的item。</p>
-<pre><code>写操作：  
+<pre tabindex="0"><code>写操作：  
   根据查询键值加item锁
 
     分配足够内存的item，写入新的数据
     向hash表中写入数据
 
   根据查询键值释放item锁
-</code></pre>
-<p>在上面的步骤中，<code>分配足够内存的item</code>这一步，暂不考虑分析内存足够下的情况，因为这种情况相对简单，只分析内存不足时需要淘汰的情况。将这部分代码展开来讨论，则伪代码如下：</p>
-<pre><code>写操作：  
+</code></pre><p>在上面的步骤中，<code>分配足够内存的item</code>这一步，暂不考虑分析内存足够下的情况，因为这种情况相对简单，只分析内存不足时需要淘汰的情况。将这部分代码展开来讨论，则伪代码如下：</p>
+<pre tabindex="0"><code>写操作：  
   1:根据查询键值加item锁
 
     2:内存不足情况下分配足够内存的item，写入新的数据：
@@ -466,38 +461,36 @@ static item *tails[LARGEST_ID];
     3:向hash表中写入数据
 
   4:根据查询键值释放item锁
-</code></pre>
-<p>需要注意的是，步骤2.2.1中，是尝试对当前item的键值所在的item锁加锁，这一步是可能失败的，因为在第一步中已经加上了item锁，两者有可能相同，如果这里不是尝试而是直接等待解锁，则可能造成死锁。</p>
+</code></pre><p>需要注意的是，步骤2.2.1中，是尝试对当前item的键值所在的item锁加锁，这一步是可能失败的，因为在第一步中已经加上了item锁，两者有可能相同，如果这里不是尝试而是直接等待解锁，则可能造成死锁。</p>
 <p>但是仅有上面的步骤仍然是不够的，因为即便找到了一个可以被回收的item，也要确定该item没有被其他线程引用，判断的标准是根据item中的引用计数：首先将引用计数加1，如果为2的情况下（使用中的item默认引用计数为1）说明当前只有本线程引用了这个item，后面就可以安全的回收该item。</p>
 <p>在memcached代码中，如果上一步增加引用计数之后不为2时，有可能是item泄露了，如果打开tail_repair_time开关且满足时间的情况下，可以进行强制回收，但是作者也提醒了这样可能会造成程序core掉，也就是出现上面提到的被引用的item被释放的情况：</p>
-<pre><code class="language-C">int lru_pull_tail(const int orig_id, const int cur_lru,
-        const uint64_t total_bytes, const uint8_t flags, const rel_time_t max_age,
-        struct lru_pull_tail_return *ret_it) {
-        
-        // ...
-
-        if (refcount_incr(search) != 2) {
-            /* Note pathological case with ref'ed items in tail.
-             * Can still unlink the item, but it won't be reusable yet */
-            itemstats[id].lrutail_reflocked++;
-            /* In case of refcount leaks, enable for quick workaround. */
-            /* WARNING: This can cause terrible corruption */
-            if (settings.tail_repair_time &amp;&amp;
-                    search-&gt;time + settings.tail_repair_time &lt; current_time) {
-                itemstats[id].tailrepairs++;
-                search-&gt;refcount = 1;
-                /* This will call item_remove -&gt; item_free since refcnt is 1 */
-                STORAGE_delete(ext_storage, search);
-                do_item_unlink_nolock(search, hv);
-                item_trylock_unlock(hold_lock);
-                continue;
-            }
-        }
-
-        // ...
-}
-</code></pre>
-<p>步骤2，内存不足情况下分配足够内存的item，其完整实现在函数<code>lru_pull_tail</code>中，读者可以自行结合上面的伪代码以及前面提及的LRU算法自行分析。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">lru_pull_tail</span><span class="p">(</span><span class="k">const</span> <span class="kt">int</span> <span class="n">orig_id</span><span class="p">,</span> <span class="k">const</span> <span class="kt">int</span> <span class="n">cur_lru</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="k">const</span> <span class="kt">uint64_t</span> <span class="n">total_bytes</span><span class="p">,</span> <span class="k">const</span> <span class="kt">uint8_t</span> <span class="n">flags</span><span class="p">,</span> <span class="k">const</span> <span class="n">rel_time_t</span> <span class="n">max_age</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="k">struct</span> <span class="n">lru_pull_tail_return</span> <span class="o">*</span><span class="n">ret_it</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">refcount_incr</span><span class="p">(</span><span class="n">search</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="cm">/* Note pathological case with ref&#39;ed items in tail.
+</span></span></span><span class="line"><span class="cl"><span class="cm">             * Can still unlink the item, but it won&#39;t be reusable yet */</span>
+</span></span><span class="line"><span class="cl">            <span class="n">itemstats</span><span class="p">[</span><span class="n">id</span><span class="p">].</span><span class="n">lrutail_reflocked</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="cm">/* In case of refcount leaks, enable for quick workaround. */</span>
+</span></span><span class="line"><span class="cl">            <span class="cm">/* WARNING: This can cause terrible corruption */</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">settings</span><span class="p">.</span><span class="n">tail_repair_time</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">search</span><span class="o">-&gt;</span><span class="n">time</span> <span class="o">+</span> <span class="n">settings</span><span class="p">.</span><span class="n">tail_repair_time</span> <span class="o">&lt;</span> <span class="n">current_time</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">itemstats</span><span class="p">[</span><span class="n">id</span><span class="p">].</span><span class="n">tailrepairs</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="n">search</span><span class="o">-&gt;</span><span class="n">refcount</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">                <span class="cm">/* This will call item_remove -&gt; item_free since refcnt is 1 */</span>
+</span></span><span class="line"><span class="cl">                <span class="n">STORAGE_delete</span><span class="p">(</span><span class="n">ext_storage</span><span class="p">,</span> <span class="n">search</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="n">do_item_unlink_nolock</span><span class="p">(</span><span class="n">search</span><span class="p">,</span> <span class="n">hv</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="n">item_trylock_unlock</span><span class="p">(</span><span class="n">hold_lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">                <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p>步骤2，内存不足情况下分配足够内存的item，其完整实现在函数<code>lru_pull_tail</code>中，读者可以自行结合上面的伪代码以及前面提及的LRU算法自行分析。</p>
 <p>以上的整个流程如下图所示：</p>
 <p><img src="/media/imgs/20210812-memcached/item-recycle.png" alt="需淘汰item时的写入数据流程图" title="需淘汰item时的写入数据流程图"></p>
 <p>解释完毕了读写操作流程之后，需要回答这个问题：为什么针对键值的锁加在了item锁上，而不是hash桶？</p>

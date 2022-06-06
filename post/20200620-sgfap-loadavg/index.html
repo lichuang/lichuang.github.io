@@ -168,17 +168,31 @@
 
 
 
+
+
+
+
+
+
 <meta property="og:see_also" content="https://www.codedump.info/post/20200522-sgfap-softirq/" />
 
-<meta property="og:see_also" content="https://www.codedump.info/post/20200516-sgfap-syscall/" />
+
 
 <meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" />
 
-<meta property="og:see_also" content="https://www.codedump.info/post/20200218-linux-traceevent/" />
 
-<meta property="og:see_also" content="https://www.codedump.info/post/20200128-systemtap-by-example/" />
 
 <meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-schedule/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200502-sgfap-process/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" />
+
+
 
 
 
@@ -294,6 +308,15 @@
   
 
   
+    <div class="me-6 my-2">
+      <i class="fas fa-th-list me-1"></i>
+      
+        <a href="https://www.codedump.info/series/%E9%9D%A2%E5%90%91%E5%BA%94%E7%94%A8%E5%BC%80%E5%8F%91%E8%80%85%E7%9A%84%E7%B3%BB%E7%BB%9F%E6%8C%87%E5%8D%97/" class="hover:text-eureka"
+          >面向应用开发者的系统指南</a
+        >
+      
+    </div>
+  
 </div>
 
 
@@ -305,10 +328,9 @@
 </blockquote>
 <h1 id="概述">概述</h1>
 <p>Linux中可以使用uptime、top等命令来查看系统的平均负载情况，比如：</p>
-<pre><code>$ uptime
+<pre tabindex="0"><code>$ uptime
  10:54:37 up 29 days,  1:35,  2 users,  load average: 0.81, 0.65, 0.64
-</code></pre>
-<p>其中的<code>load average: 0.81, 0.65, 0.64</code>数据，给出了系统在最近1分钟、5分钟、15分钟的系统平均负载情况。</p>
+</code></pre><p>其中的<code>load average: 0.81, 0.65, 0.64</code>数据，给出了系统在最近1分钟、5分钟、15分钟的系统平均负载情况。</p>
 <p>这一节讲解系统平均负载这个数据的来源，内容包括以下几方面：</p>
 <ul>
 <li>系统平均负载值来源于哪里？</li>
@@ -318,30 +340,27 @@
 </ul>
 <h1 id="平均负载值的来源">平均负载值的来源</h1>
 <p>通过uptime命令可以看到系统最近1分钟、5分钟以及15分钟的平均负载值，所以要知道这个值的来源，最简单的方式就是了解uptime命令是从哪里获取到这些数据的，一方面可以看uptime命令的代码实现，但是直觉告诉我们一般这类命令都是通过读取/proc文件系统来获取系统的一些指标，所以更简单的方式是strace一下uptime命令，看看都去读取了哪些/proc文件系统的文件，果然看到了如下一行：</p>
-<pre><code>openat(AT_FDCWD, &quot;/proc/loadavg&quot;, O_RDONLY) = 4
+<pre tabindex="0"><code>openat(AT_FDCWD, &#34;/proc/loadavg&#34;, O_RDONLY) = 4
 lseek(4, 0, SEEK_SET)                   = 0
-read(4, &quot;0.42 0.20 0.07 3/137 1322\n&quot;, 8191) = 26
+read(4, &#34;0.42 0.20 0.07 3/137 1322\n&#34;, 8191) = 26
 fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 0), ...}) = 0
-</code></pre>
-<p>可以看到读取了<code>/proc/loadavg</code>文件，通过<code>man proc</code>命令来看看关于这个文件的说明：</p>
-<pre><code>/proc/loadavg
+</code></pre><p>可以看到读取了<code>/proc/loadavg</code>文件，通过<code>man proc</code>命令来看看关于这个文件的说明：</p>
+<pre tabindex="0"><code>/proc/loadavg
 		The first three fields in this file are load average figures giving the number of jobs in the run queue (state R) or  wait‐
 		ing  for  disk  I/O  (state  D) averaged over 1, 5, and 15 minutes.  They are the same as the load average numbers given by
 		uptime(1) and other programs.  The fourth field consists of two numbers separated by a slash (/).  The first  of  these  is
 		the  number of currently runnable kernel scheduling entities (processes, threads).  The value after the slash is the number
 		of kernel scheduling entities that currently exist on the system.  The fifth field is the PID of the process that was  most
 		recently created on the system.
-</code></pre>
-<p>以上文档中说明了，系统负载的统计数据源，包括：</p>
+</code></pre><p>以上文档中说明了，系统负载的统计数据源，包括：</p>
 <ul>
 <li>系统当前就绪队列中的进程（处于就绪状态即R状态）；</li>
 <li>以及处于等待IO的不可被信号中断（即D状态）的进程。</li>
 </ul>
 <p><code>/proc/loadavg</code>文件的前三个字段，正是uptime命令用于输出系统平均负载的数据来源，可以cat该文件内容来看看：</p>
-<pre><code>➜  ~ cat /proc/loadavg
+<pre tabindex="0"><code>➜  ~ cat /proc/loadavg
 0.03 0.01 0.00 1/135 1735
-</code></pre>
-<p>于是，这里的第一个疑问解决了：<code>uptime</code>等命令行工具是通过读取<code>/proc/loadavg</code>文件获取当前系统在最近1分钟、5分钟、15分钟的平均负载值。</p>
+</code></pre><p>于是，这里的第一个疑问解决了：<code>uptime</code>等命令行工具是通过读取<code>/proc/loadavg</code>文件获取当前系统在最近1分钟、5分钟、15分钟的平均负载值。</p>
 <h2 id="负载进程来源">负载进程来源</h2>
 <p>在前面的描述中，提到了参与计算平均负载的进程包括：</p>
 <ul>
@@ -397,15 +416,14 @@ $$ 0.994459848 * 2^{11} = 2037 $$</p>
 <h2 id="linux内核的实现代码">Linux内核的实现代码</h2>
 <p>有了前面的分析，可以看到通过“指数退避算法”，并不需要详细的保存过去1分钟、5分钟、15分钟的所有负载值来做计算，而是在每次计算的时候，拿到当前的值以及上一次保存的值，套用到前面的公式计算即可，这样做的好处是只需要保持一份上一次的数据即可。同时，由于需要拿到就绪状态以及不可中断中断状态的进程数量之和，也是通过采样的方式去定时获取这个值，默认是5秒采样一次。</p>
 <p>与平均负载计算相关的几个宏列举如下：</p>
-<pre><code>（linux/sched.h）
+<pre tabindex="0"><code>（linux/sched.h）
 #define FSHIFT		11		/* nr of bits of precision */
 #define FIXED_1		(1&lt;&lt;FSHIFT)	/* 1.0 as fixed-point */
 #define LOAD_FREQ	(5*HZ+1)	/* 5 sec intervals */
 #define EXP_1		1884		/* 1/exp(5sec/1min) as fixed-point */
 #define EXP_5		2014		/* 1/exp(5sec/5min) */
 #define EXP_15		2037		/* 1/exp(5sec/15min) */
-</code></pre>
-<p>其中：</p>
+</code></pre><p>其中：</p>
 <ul>
 <li>FSHIFT：计算精度，可以看到是11位精度。</li>
 <li>FIXED_1：2进程11位精度下的1.0。</li>
@@ -413,7 +431,7 @@ $$ 0.994459848 * 2^{11} = 2037 $$</p>
 <li>EXP_1、EXP_5、EXP_15：1分钟、5分钟、15分钟平滑时间常数的2进程11位精度定点数，也就是前面定点计算部分介绍的预计算出来的几个常量。</li>
 </ul>
 <p>内核中根据“指数退避算法”计算平均负载的工作由函数<code>calc_load</code>完成：</p>
-<pre><code>(sched/proc.c)
+<pre tabindex="0"><code>(sched/proc.c)
 
 /*
  * a1 = a0 * e + a * (1 - e)
@@ -426,11 +444,10 @@ calc_load(unsigned long load, unsigned long exp, unsigned long active)
 	load += 1UL &lt;&lt; (FSHIFT - 1);
 	return load &gt;&gt; FSHIFT;
 }
-</code></pre>
-<p>可以看到，该函数的内容，就是通过前面列举出来的宏，套用指数退避算法的公式计算即可。</p>
+</code></pre><p>可以看到，该函数的内容，就是通过前面列举出来的宏，套用指数退避算法的公式计算即可。</p>
 <p>内核中使用数组<code>avenrun</code>来保存上一次计算得到的1分钟、5分钟、15分钟的平均负载，每一次的计算结果保存在这个数组之中，下一次再计算的时候将上次保存的结果拿出来做为这一次计算的参数就好。</p>
 <p>有了算法、数据，最后就是介绍计算的触发点以及入口函数了，这个函数是内核中的<code>calc_global_load</code>函数：</p>
-<pre><code>/*
+<pre tabindex="0"><code>/*
  * calc_load - update the avenrun load estimates 10 ticks after the
  * CPUs have updated calc_load_tasks.
  */
@@ -442,7 +459,7 @@ void calc_global_load(unsigned long ticks)
 		return;
 
 	/*
-	 * Fold the 'old' idle-delta to include all NO_HZ cpus.
+	 * Fold the &#39;old&#39; idle-delta to include all NO_HZ cpus.
 	 */
 	delta = calc_load_fold_idle();
 	if (delta)
@@ -462,8 +479,7 @@ void calc_global_load(unsigned long ticks)
 	 */
 	calc_global_nohz();
 }
-</code></pre>
-<h1 id="系统平均负载的意义">系统平均负载的意义</h1>
+</code></pre><h1 id="系统平均负载的意义">系统平均负载的意义</h1>
 <p>从以上的分析，可以看出来，“系统平均负载”值反映的是系统在过去一段时间中，“就绪状态进程数量”加上“不可被中断进程数量”之和的一种趋势，只是进程状态的一些统计信息，和CPU的使用率并没有直接关系。</p>
 <p>因为“系统平均负载”统计了这两类进程的总和，所以如果仔细区分起来，与CPU使用率可能存在以下几种关系：</p>
 <ul>

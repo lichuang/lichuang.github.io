@@ -112,7 +112,7 @@
     },
     "headline": "周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构 - codedump的网络日志","datePublished": "2022-04-10T11:38:16+08:00",
     "dateModified": "2022-04-10T11:38:16+08:00",
-    "wordCount":  2973 ,
+    "wordCount":  3119 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -337,7 +337,7 @@
   </div>
   <div class="me-6 my-2">
     <i class="fas fa-clock me-1"></i>
-    <span>6分钟阅读时长</span>
+    <span>7分钟阅读时长</span>
   </div>
 
   
@@ -419,32 +419,29 @@
 <p><img src="/media/imgs/20220201-sqlite-btree-5-btree/btree-rowid.png" alt="数据库文件的rowid全量数据表和索引表" title="数据库文件的rowid全量数据表和索引表"></p>
 <p>下面，以sqlite中的一个表为例来解释上面这个流程。</p>
 <p>首先，创建一个表以及索引：</p>
-<pre><code class="language-sql">// 创建数据库COMPANY
-CREATE TABLE COMPANY(
-   ID             INT      NOT NULL,
-   NAME           TEXT    NOT NULL,
-   AGE            INT     NOT NULL,
-);
-// 创建索引
-CREATE INDEX id_index ON COMPANY (id);
-</code></pre>
-<p>上面这个建表以及创建索引之后，对应的在这个数据文件中就有了两个树形结构：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="o">//</span><span class="w"> </span><span class="err">创建数据库</span><span class="n">COMPANY</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">COMPANY</span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">   </span><span class="n">ID</span><span class="w">             </span><span class="nb">INT</span><span class="w">      </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">   </span><span class="n">NAME</span><span class="w">           </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">   </span><span class="n">AGE</span><span class="w">            </span><span class="nb">INT</span><span class="w">     </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="o">//</span><span class="w"> </span><span class="err">创建索引</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">id_index</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></div><p>上面这个建表以及创建索引之后，对应的在这个数据文件中就有了两个树形结构：</p>
 <ul>
 <li>存储<code>COMPANY</code>表数据的table-tree。</li>
 <li>存储索引<code>id</code>到<code>rowid</code>关系的index-tree。</li>
 </ul>
 <p>如果向这个表插入数据，比如：</p>
-<pre><code class="language-sql">INSERT INTO COMPANY (ID,NAME,AGE) VALUES (1, 'Paul', 32 );
-</code></pre>
-<p>那么，这个插入操作背后实际对应了向这两棵树的插入操作：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="p">(</span><span class="n">ID</span><span class="p">,</span><span class="n">NAME</span><span class="p">,</span><span class="n">AGE</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Paul&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="w"> </span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></div><p>那么，这个插入操作背后实际对应了向这两棵树的插入操作：</p>
 <ul>
 <li>首先，将这一行数据插入到table-tree中，同时得到<code>rowid</code>以及插入时候的<code>id</code>。</li>
 <li>再将第一步得到的<code>rowid</code>以及<code>id</code>插入到index-tree中。</li>
 </ul>
 <p>如果使用<code>id_index</code>索引来查询<code>COMPANY</code>表，比如：</p>
-<pre><code class="language-sql">select * from COMPANY where id = 1;
-</code></pre>
-<p>这个查询操作也实际上经过了上面这两个表：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">select</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>这个查询操作也实际上经过了上面这两个表：</p>
 <ul>
 <li>首先，通过存储<code>id_index</code>到<code>rowid</code>关系的index-tree，找到<code>id=1</code>对应的<code>rowid</code>。</li>
 <li>然后，再根据第一步得到的<code>rowid</code>到table-tree中查询到这一行数据。</li>

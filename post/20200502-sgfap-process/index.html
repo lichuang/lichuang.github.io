@@ -112,7 +112,7 @@
     },
     "headline": "《面向应用开发者的系统指南》CPU篇之进程 - codedump的网络日志","datePublished": "2020-05-02T14:41:22+08:00",
     "dateModified": "2020-05-02T14:41:22+08:00",
-    "wordCount":  6139 ,
+    "wordCount":  6133 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -169,6 +169,10 @@
 
 
 
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20200620-sgfap-loadavg/" />
 
 
 
@@ -386,9 +390,8 @@
 <li>exec函数组：在fork调用返回后，子进程就创建完成了，如果需要运行一个与父进程不同的可执行文件，就通过<code>exec</code>函数组来完成这个工作。如果不调用<code>exec</code>，那么也就意味着父子进程运行的是同一份可执行文件代码。</li>
 </ul>
 <p>其他操作系统，有一些把以上两步合在一个函数中完成，即在同一个函数中既完成子进程的创建，也完成子进程的执行，Unix系统将以上两步分开成两个步骤，为shell执行程序提供了方便，因为shell可以在<code>fork</code>创建进程之后，调用<code>exec</code>来执行程序之前改变子进程的一些行为。比如让shell方便的实现类似重定向（redirect）的功能：</p>
-<pre><code>wc test.txt &gt; stat
-</code></pre>
-<p>在上面的脚本中，希望将<code>wc</code>命令的输出结果重定向到文件<code>stat</code>中。shell在<code>fork</code>创建了子进程之后，在<code>exec</code>执行之前，关闭该子进程的标准输出，然后打开文件<code>stat</code>，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行<code>wc</code>命令的子进程结果就写入到了文件<code>stat</code>中。</p>
+<pre tabindex="0"><code>wc test.txt &gt; stat
+</code></pre><p>在上面的脚本中，希望将<code>wc</code>命令的输出结果重定向到文件<code>stat</code>中。shell在<code>fork</code>创建了子进程之后，在<code>exec</code>执行之前，关闭该子进程的标准输出，然后打开文件<code>stat</code>，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行<code>wc</code>命令的子进程结果就写入到了文件<code>stat</code>中。</p>
 <h2 id="写时复制机制">写时复制机制</h2>
 <p>前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。</p>
 <p>因此，Linux内核在实现时，使用了写时复制的技术（Copy On Write，简称COW），子进程在刚开始创建时与父进程共享同样的地址空间，仅当子进程要修改父进程地址空间的内容时才创建新的地址空间，从而使父子进程有各自的拷贝。</p>
@@ -415,27 +418,26 @@
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，执行相关的初始化，主要是初始化<code>completion</code>结构体。</p>
 <h4 id="wake_up_new_task">wake_up_new_task</h4>
 <p><code>wake_up_new_task</code>函数将初始化一些与进程调度器相关的数据，将新创建的子进程加入到调度器的就绪队列中，让子进程有机会被调度器调度执行，同时切换进程状态为<code>TASK_RUNNING</code>:</p>
-<pre><code class="language-C">// kernel/sched/core.c
-void wake_up_new_task(struct task_struct *p)
-{
-	struct rq_flags rf;
-	struct rq *rq;
-
-  raw_spin_lock_irqsave(&amp;p-&gt;pi_lock, rf.flags);
-  // 切换进程状态为TASK_RUNNING
-	p-&gt;state = TASK_RUNNING;
-
-  // 对调度器运行队列加锁
-	rq = __task_rq_lock(p, &amp;rf);
-  // 将进程放入调度器运行队列
-	activate_task(rq, p, ENQUEUE_NOCLOCK);
-  // 进程入队列的trace event
-	trace_sched_wakeup_new(p);
-
-	task_rq_unlock(rq, p, &amp;rf);
-}
-</code></pre>
-<h4 id="vfork相关的处理">vfork相关的处理</h4>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/sched/core.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">wake_up_new_task</span><span class="p">(</span><span class="k">struct</span> <span class="n">task_struct</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">rq_flags</span> <span class="n">rf</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">rq</span> <span class="o">*</span><span class="n">rq</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="n">raw_spin_lock_irqsave</span><span class="p">(</span><span class="o">&amp;</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pi_lock</span><span class="p">,</span> <span class="n">rf</span><span class="p">.</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 切换进程状态为TASK_RUNNING
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">TASK_RUNNING</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 对调度器运行队列加锁
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">rq</span> <span class="o">=</span> <span class="n">__task_rq_lock</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rf</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 将进程放入调度器运行队列
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">activate_task</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">ENQUEUE_NOCLOCK</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 进程入队列的trace event
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">trace_sched_wakeup_new</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">task_rq_unlock</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rf</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="vfork相关的处理">vfork相关的处理</h4>
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，父进程等待子进程执行exec函数来替换地址空间。在这里，会用到前面初始化的<code>completion</code>结构体，用于父进程等待子进程执行完毕。</p>
 <h3 id="copy_process函数的流程">copy_process函数的流程</h3>
 <p><code>copy_process</code>函数负责在创建子进程时拷贝父进程的相关信息，即创建好子进程的<code>task_struct</code>结构体，其主要流程如下图所示：</p>
@@ -448,28 +450,27 @@ void wake_up_new_task(struct task_struct *p)
 </ul>
 <h4 id="sched_fork">sched_fork</h4>
 <p><code>sched_fork</code>函数用于初始化子进程与调度器相关的信息：</p>
-<pre><code class="language-C">// kernel/sched/core.c
-int sched_fork(unsigned long clone_flags, struct task_struct *p)
-{
-  // 分配进程执行的cpu
-	int cpu = get_cpu();
-
-  // 设置调度器相关的信息
-	__sched_fork(clone_flags, p);
-
-  // 刚创建好的进程，其状态为TASK_NEW
-	p-&gt;state = TASK_NEW;
-
-  // 设置进程优先级
-	p-&gt;prio = current-&gt;normal_prio;
-
-  // 设置进程的cpu信息
-	__set_task_cpu(p, cpu);
-
-	return 0;
-}
-</code></pre>
-<h4 id="复制共享父进程资源数据">复制/共享父进程资源数据</h4>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/sched/core.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">int</span> <span class="nf">sched_fork</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">clone_flags</span><span class="p">,</span> <span class="k">struct</span> <span class="n">task_struct</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// 分配进程执行的cpu
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kt">int</span> <span class="n">cpu</span> <span class="o">=</span> <span class="n">get_cpu</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置调度器相关的信息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">__sched_fork</span><span class="p">(</span><span class="n">clone_flags</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 刚创建好的进程，其状态为TASK_NEW
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">TASK_NEW</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置进程优先级
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">prio</span> <span class="o">=</span> <span class="n">current</span><span class="o">-&gt;</span><span class="n">normal_prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 设置进程的cpu信息
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">__set_task_cpu</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">cpu</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="复制共享父进程资源数据">复制/共享父进程资源数据</h4>
 <p>task_struct结构体中包含一些表示进程资源的指针，比如<code>mm</code>，<code>files</code>等，创建进程的标志位中有很多名为<code>CLONE_*</code>的标志，表示是从父进程拷贝一份这部分数据，还是与父进程共享一份数据。</p>
 <ul>
 <li>当这个标志位为0时：说明需要从父进程复制一份该类型资源数据，子进程复制完毕之后，将该资源计数赋值为1，而父进程资源计数维持不变。</li>
@@ -509,43 +510,42 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 <p>相反，僵尸进程因为一直没有被回收，其占用的进程pid也就一直不会回收，而进程pid属于系统的一个资源，这将导致这个资源的泄露，因此僵尸进程是有害的。如果使用<code>ps aux</code>命令来查看进程状态，那么僵尸进程的状态就是<code>Z</code>。</p>
 <p>下面简单演示两种进程的产生。</p>
 <p>首先是孤儿进程：</p>
-<pre><code class="language-C">#include &lt;stdio.h&gt;
-#include &lt;stdlib.h&gt;
-#include &lt;errno.h&gt;
-#include &lt;unistd.h&gt;
-
-int main()
-{
-    pid_t pid;
-    pid = fork();
-    if (pid &lt; 0)
-    {
-        perror(&quot;fork error:&quot;);
-        exit(1);
-    }
-
-    if (pid == 0) {
-        printf(&quot;I am the child process.\n&quot;);
-        printf(&quot;pid: %d\tppid:%d\n&quot;,getpid(),getppid());
-        printf(&quot;I will sleep five seconds.\n&quot;);
-        sleep(5);
-        printf(&quot;pid: %d\tppid:%d\n&quot;,getpid(),getppid());
-        printf(&quot;child process is exited.\n&quot;);
-    } else {
-        printf(&quot;I am father process.\n&quot;);
-        sleep(1);
-        printf(&quot;father process is  exited.\n&quot;);
-    }
-    return 0;
-}
-</code></pre>
-<p>上面的代码中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;errno.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pid_t</span> <span class="n">pid</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">perror</span><span class="p">(</span><span class="s">&#34;fork error:&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am the child process.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid: %d</span><span class="se">\t</span><span class="s">ppid:%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">getpid</span><span class="p">(),</span><span class="n">getppid</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I will sleep five seconds.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid: %d</span><span class="se">\t</span><span class="s">ppid:%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">getpid</span><span class="p">(),</span><span class="n">getppid</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;child process is exited.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am father process.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;father process is  exited.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>上面的代码中：</p>
 <ul>
 <li>父进程调用<code>fork</code>函数创建一个子进程，返回之后马上退出。</li>
 <li>子进程在<code>fork</code>调用返回之后打印出自己的父进程pid，此时就是上面的父进程，然后休眠五秒钟等待父进程退出，然后再次打印父进程pid。</li>
 </ul>
 <p>在我的机器上输出如下：</p>
-<pre><code>I am father process.
+<pre tabindex="0"><code>I am father process.
 I am the child process.
 pid: 5938	ppid:5937
 I will sleep five seconds.
@@ -553,42 +553,40 @@ father process is  exited.
 
 pid: 5938	ppid:1
 child process is exited.
-</code></pre>
-<p>可以看到，子进程的父进程pid在五秒之后变成1，即<code>init</code>进程。</p>
+</code></pre><p>可以看到，子进程的父进程pid在五秒之后变成1，即<code>init</code>进程。</p>
 <p>再来看僵尸进程的产生：</p>
-<pre><code class="language-C">#include &lt;stdio.h&gt;
-#include &lt;unistd.h&gt;
-#include &lt;errno.h&gt;
-#include &lt;stdlib.h&gt;
-
-int main()
-{
-    pid_t pid;
-    pid = fork();
-    if (pid &lt; 0)
-    {
-        perror(&quot;fork error:&quot;);
-        exit(1);
-    }
-    else if (pid == 0)
-    {
-        printf(&quot;I am child process.I am exiting.\n&quot;);
-        exit(0);
-    }
-    printf(&quot;I am father process.I will sleep two seconds\n&quot;);
-    sleep(2);
-    system(&quot;ps -o pid,ppid,state,tty,command&quot;);
-    printf(&quot;father process is exiting.\n&quot;);
-    return 0;
-}
-</code></pre>
-<p>上面的代码中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;errno.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pid_t</span> <span class="n">pid</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">perror</span><span class="p">(</span><span class="s">&#34;fork error:&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am child process.I am exiting.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am father process.I will sleep two seconds</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">system</span><span class="p">(</span><span class="s">&#34;ps -o pid,ppid,state,tty,command&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;father process is exiting.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>上面的代码中：</p>
 <ul>
 <li>子进程在<code>fork</code>调用返回之后马上退出。</li>
 <li>父进程在<code>fork</code>调用返回之后先休眠2秒等待子进程退出，然后调用<code>system</code>函数打印出<code>ps</code>命令的结果。</li>
 </ul>
 <p>输出如下：</p>
-<pre><code>I am father process.I will sleep two seconds
+<pre tabindex="0"><code>I am father process.I will sleep two seconds
 I am child process.I am exiting.
   PID  PPID S TT       COMMAND
  5817  5816 S pts/19   -zsh
@@ -597,8 +595,7 @@ I am child process.I am exiting.
  5973  5971 S pts/19   sh -c ps -o pid,ppid,state,tty,command
  5974  5973 R pts/19   ps -o pid,ppid,state,tty,command
 father process is exiting.
-</code></pre>
-<p>可以看到，子进程的状态变成了<code>Z</code>，也就是僵尸进程。</p>
+</code></pre><p>可以看到，子进程的状态变成了<code>Z</code>，也就是僵尸进程。</p>
 <h1 id="小结">小结</h1>
 <p>总结一下进程这一节涉及到的知识点：</p>
 <ul>

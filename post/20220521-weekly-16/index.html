@@ -405,9 +405,8 @@
 <li><code>no-steal+force</code>策略：运行时效率低，但是数据恢复的效率高。</li>
 </ul>
 <p>目前更常见的做法是WAL。在WAL这个策略中，任意时刻都满足以下条件：</p>
-<pre><code>全量数据 = 数据库文件数据 + WAL中已提交但还未转入数据库文件的数据
-</code></pre>
-<p>即可以认为，WAL中的<code>已提交但还未转入数据库文件的数据</code>是增量的数据。</p>
+<pre tabindex="0"><code>全量数据 = 数据库文件数据 + WAL中已提交但还未转入数据库文件的数据
+</code></pre><p>即可以认为，WAL中的<code>已提交但还未转入数据库文件的数据</code>是增量的数据。</p>
 <p>另外，为了避免WAL文件无限增大，还引入了<code>checkpoint</code>流程，但是就目前来看在<code>checkpoint</code>时，需要终止写事务，这导致了写操作的卡顿。</p>
 <p>前情回顾完毕，本篇正式开始介绍ARIES论文的思想，ARIES在此基础上提供了更高效的事务回滚、<code>checkpoint</code>算法的实现。</p>
 <p>为了能够回滚事务，以及在<code>checkpoint</code>操作时不阻塞写事务，ARIES算法引入了一种重要的变量LSN（Log Sequence Number），下面几乎所有的相关算法、数据结构都跟这个变量有关系，从写事务开始说起。</p>
@@ -525,9 +524,8 @@
 </ul>
 <p>可以看到，有了<code>prevLSN</code>这个字段以后，可以将同一个事务的修改按照逆序串联起来，于是就可以根据这个逆序使用保存的<code>undo</code>值来回滚事务之前的修改。</p>
 <p>只有这样还不够，因为还有可能在中断事务回滚的过程中也发生了宕机，这时候需要记录下来回滚进行到哪里了。记录回滚进度的日志被称为<code>CLR（Compensation Log Record，补偿日志记录）</code>日志，<code>CLR</code>日志和事务的修改操作日志格式大体相同，但是还需要新增一个<code>UndoNext</code>字段，表示回滚操作中下一个需要回滚的日志，显然有如下的关系：</p>
-<pre><code>假如CLR(A)是针对WAL(B)的回滚操作，那么CLR(A).UndoNext = WAL(B).prevLSN
-</code></pre>
-<p>于是在前面扩展之后的日志格式继续进行扩展新增<code>CLR</code>类型的日志：</p>
+<pre tabindex="0"><code>假如CLR(A)是针对WAL(B)的回滚操作，那么CLR(A).UndoNext = WAL(B).prevLSN
+</code></pre><p>于是在前面扩展之后的日志格式继续进行扩展新增<code>CLR</code>类型的日志：</p>
 <ul>
 <li>事务开始：<code>LSN|prevLSN:&lt;事务编号,BEGIN&gt;</code>。</li>
 <li>事务的修改操作：<code>LSN|prevLSN:&lt;事务编号,修改的键值,修改之前的值,修改之后的值&gt;</code>。</li>

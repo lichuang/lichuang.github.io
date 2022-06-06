@@ -345,19 +345,18 @@
 <p>看上去这个好像方便了很多，其实并不建议在存储引擎中使用内存映射这样“偷懒”的技术。原因在于：操作系统内核除了知道什么时候换入换出物理内存之外，对数据库的其他操作一无所知，并不能很精准的控制其行为。</p>
 <p><img src="/media/imgs/20200726-boltdb-4/db-mmap.png" alt="db-mmap" title="db-mmap"></p>
 <p>对数据库进行内存映射的操作在函数<code>db.mmap</code>函数中进行，大体流程如下：</p>
-<pre><code class="language-Go">func (db *DB) mmap(minsz int) error {
-	db.mmaplock.Lock()
-  defer db.mmaplock.Unlock()
-  
-  // 计算至少要多大的文件大小才能满足minsz需求
-	// Memory-map the data file as a byte slice.
-	if err := mmap(db, size); err != nil {
-		return err
-  }
-    
-}
-</code></pre>
-<p>这个函数只有在以下两种情况会被调用到：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="k">defer</span> <span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  
+</span></span><span class="line"><span class="cl">  <span class="c1">// 计算至少要多大的文件大小才能满足minsz需求
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// Memory-map the data file as a byte slice.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">db</span><span class="p">,</span> <span class="nx">size</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">err</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>这个函数只有在以下两种情况会被调用到：</p>
 <ul>
 <li>db初始化时，即初次加载db文件到内存映射中。</li>
 <li>当前文件不够大，需要进行扩容时，即在<code>db.allocate</code>中分配新页面而当前页面不足需要扩充文件大小时。</li>
