@@ -1738,17 +1738,7 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 </div>
       
 
-      <h1><b>邮件订阅</b></h1>
 
-<div class="custom-footer">
-  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
-    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
-    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
-  </form>
-</div>
-      <h1><b>微信公众号</b></h1>
-
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -1794,75 +1784,88 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
 >
   <nav id="TableOfContents">
   <ul>
-    <li><a href="#raft库日志存储相关结构">raft库日志存储相关结构</a>
+    <li><a href="#概述">概述</a></li>
+    <li><a href="#序言">序言</a></li>
+    <li><a href="#输入及输出">输入及输出</a></li>
+    <li><a href="#raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</a>
       <ul>
-        <li><a href="#unstable">unstable</a></li>
-        <li><a href="#storage接口">Storage接口</a></li>
-        <li><a href="#raftlog的实现">raftLog的实现</a></li>
+        <li><a href="#raft库日志存储相关结构">raft库日志存储相关结构</a>
+          <ul>
+            <li><a href="#unstable">unstable</a></li>
+            <li><a href="#storage接口">Storage接口</a></li>
+            <li><a href="#raftlog的实现">raftLog的实现</a></li>
+          </ul>
+        </li>
+        <li><a href="#raft消息结构体">raft消息结构体</a></li>
+        <li><a href="#msghup消息">MsgHup消息</a></li>
+        <li><a href="#msgbeat消息">MsgBeat消息</a></li>
+        <li><a href="#msgprop消息">MsgProp消息</a>
+          <ul>
+            <li><a href="#candidate">candidate</a></li>
+            <li><a href="#follower">follower</a></li>
+            <li><a href="#leader">leader</a></li>
+          </ul>
+        </li>
+        <li><a href="#msgappmsgsnap消息">MsgApp/MsgSnap消息</a>
+          <ul>
+            <li><a href="#msgapp消息">MsgApp消息</a></li>
+            <li><a href="#msgsnap消息">MsgSnap消息</a></li>
+          </ul>
+        </li>
+        <li><a href="#msgappresp消息">MsgAppResp消息</a>
+          <ul>
+            <li><a href="#msgreject为true的情况">msg.Reject为true的情况</a></li>
+            <li><a href="#msgreject为false的情况">msg.Reject为false的情况</a></li>
+          </ul>
+        </li>
+        <li><a href="#msgvotemsgprevote消息以及msgvoterespmsgprevoteresp消息">MsgVote/MsgPreVote消息以及MsgVoteResp/MsgPreVoteResp消息</a>
+          <ul>
+            <li><a href="#prevote">PreVote</a></li>
+            <li><a href="#msgvotemsgprevote的处理流程">MsgVote/MsgPreVote的处理流程</a></li>
+            <li><a href="#msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</a></li>
+          </ul>
+        </li>
+        <li><a href="#msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</a></li>
+        <li><a href="#msgunreachable消息">MsgUnreachable消息</a></li>
+        <li><a href="#msgsnapstatus消息">MsgSnapStatus消息</a></li>
+        <li><a href="#msgcheckquorum消息">MsgCheckQuorum消息</a></li>
+        <li><a href="#msgtransferleader消息">MsgTransferLeader消息</a></li>
+        <li><a href="#msgtimeoutnow消息">MsgTimeoutNow消息</a></li>
+        <li><a href="#msgreadindex和msgreadindexresp消息">MsgReadIndex和MsgReadIndexResp消息</a></li>
       </ul>
     </li>
-    <li><a href="#raft消息结构体">raft消息结构体</a></li>
-    <li><a href="#msghup消息">MsgHup消息</a></li>
-    <li><a href="#msgbeat消息">MsgBeat消息</a></li>
-    <li><a href="#msgprop消息">MsgProp消息</a>
+    <li><a href="#节点状态">节点状态</a></li>
+    <li><a href="#选举流程">选举流程</a>
       <ul>
-        <li><a href="#candidate">candidate</a></li>
-        <li><a href="#follower">follower</a></li>
-        <li><a href="#leader">leader</a></li>
+        <li><a href="#发起选举的节点">发起选举的节点</a></li>
+        <li><a href="#收到选举消息的节点">收到选举消息的节点</a></li>
       </ul>
     </li>
-    <li><a href="#msgappmsgsnap消息">MsgApp/MsgSnap消息</a>
+    <li><a href="#集群成员变化流程">集群成员变化流程</a>
       <ul>
-        <li><a href="#msgapp消息">MsgApp消息</a></li>
-        <li><a href="#msgsnap消息">MsgSnap消息</a></li>
+        <li><a href="#一般的成员删减">一般的成员删减</a></li>
+        <li><a href="#leader转让">leader转让</a></li>
       </ul>
     </li>
-    <li><a href="#msgappresp消息">MsgAppResp消息</a>
+    <li><a href="#如何做到线性一致性">如何做到线性一致性？</a>
       <ul>
-        <li><a href="#msgreject为true的情况">msg.Reject为true的情况</a></li>
-        <li><a href="#msgreject为false的情况">msg.Reject为false的情况</a></li>
+        <li><a href="#readonlysafe方式">ReadOnlySafe方式</a></li>
       </ul>
     </li>
-    <li><a href="#msgvotemsgprevote消息以及msgvoterespmsgprevoteresp消息">MsgVote/MsgPreVote消息以及MsgVoteResp/MsgPreVoteResp消息</a>
+    <li><a href="#杂项">杂项</a>
       <ul>
-        <li><a href="#prevote">PreVote</a></li>
-        <li><a href="#msgvotemsgprevote的处理流程">MsgVote/MsgPreVote的处理流程</a></li>
-        <li><a href="#msgvoterespmsgprevoteresp的处理流程">MsgVoteResp/MsgPreVoteResp的处理流程</a></li>
+        <li><a href="#节点的几种状态">节点的几种状态</a>
+          <ul>
+            <li><a href="#progressstateprobe">ProgressStateProbe</a></li>
+            <li><a href="#progressstatereplicate">ProgressStateReplicate</a></li>
+            <li><a href="#progressstatesnapshot">ProgressStateSnapshot</a></li>
+          </ul>
+        </li>
+        <li><a href="#progress上的数据索引">Progress上的数据索引</a></li>
+        <li><a href="#流量控制">流量控制</a></li>
       </ul>
     </li>
-    <li><a href="#msgheartbeatmsgheartbeatresp消息">MsgHeartbeat/MsgHeartbeatResp消息</a></li>
-    <li><a href="#msgunreachable消息">MsgUnreachable消息</a></li>
-    <li><a href="#msgsnapstatus消息">MsgSnapStatus消息</a></li>
-    <li><a href="#msgcheckquorum消息">MsgCheckQuorum消息</a></li>
-    <li><a href="#msgtransferleader消息">MsgTransferLeader消息</a></li>
-    <li><a href="#msgtimeoutnow消息">MsgTimeoutNow消息</a></li>
-    <li><a href="#msgreadindex和msgreadindexresp消息">MsgReadIndex和MsgReadIndexResp消息</a></li>
-  </ul>
-
-  <ul>
-    <li><a href="#发起选举的节点">发起选举的节点</a></li>
-    <li><a href="#收到选举消息的节点">收到选举消息的节点</a></li>
-  </ul>
-
-  <ul>
-    <li><a href="#一般的成员删减">一般的成员删减</a></li>
-    <li><a href="#leader转让">leader转让</a></li>
-  </ul>
-
-  <ul>
-    <li><a href="#readonlysafe方式">ReadOnlySafe方式</a></li>
-  </ul>
-
-  <ul>
-    <li><a href="#节点的几种状态">节点的几种状态</a>
-      <ul>
-        <li><a href="#progressstateprobe">ProgressStateProbe</a></li>
-        <li><a href="#progressstatereplicate">ProgressStateReplicate</a></li>
-        <li><a href="#progressstatesnapshot">ProgressStateSnapshot</a></li>
-      </ul>
-    </li>
-    <li><a href="#progress上的数据索引">Progress上的数据索引</a></li>
-    <li><a href="#流量控制">流量控制</a></li>
+    <li><a href="#疑问采集">疑问采集</a></li>
   </ul>
 </nav>
 </div>
@@ -1945,6 +1948,13 @@ b.  否则继续发append消息到新的leader上，目的为了让其能够与�
   <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
       <i class="fas fa-rss"></i> 
     </a>
+</div>
+
+      <div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+  </form>
 </div>
 
 <div class="text-center">

@@ -1301,17 +1301,7 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </div>
       
 
-      <h1><b>邮件订阅</b></h1>
 
-<div class="custom-footer">
-  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
-    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
-    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
-  </form>
-</div>
-      <h1><b>微信公众号</b></h1>
-
-<img align="center" src="https://www.codedump.info/media/imgs/reward/qrcode.png" alt="wechat-account-qrcode">
 
       
 
@@ -1357,75 +1347,83 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 >
   <nav id="TableOfContents">
   <ul>
-    <li><a href="#wal相关文件结构">WAL相关文件结构</a></li>
-    <li><a href="#checkpoint">checkpoint</a></li>
-    <li><a href="#并发的实现">并发的实现</a></li>
-    <li><a href="#读操作和checkpoint的联系">读操作和checkpoint的联系</a></li>
-  </ul>
-
-  <ul>
-    <li><a href="#wal的文件格式">WAL的文件格式</a>
+    <li><a href="#概述">概述</a></li>
+    <li><a href="#wal工作原理">WAL工作原理</a>
       <ul>
-        <li><a href="#wal文件头格式">WAL文件头格式</a></li>
-        <li><a href="#wal帧头部格式">WAL帧头部格式</a></li>
-        <li><a href="#页面内容校验算法">页面内容校验算法</a></li>
+        <li><a href="#wal相关文件结构">WAL相关文件结构</a></li>
+        <li><a href="#checkpoint">checkpoint</a></li>
+        <li><a href="#并发的实现">并发的实现</a></li>
+        <li><a href="#读操作和checkpoint的联系">读操作和checkpoint的联系</a></li>
       </ul>
     </li>
-    <li><a href="#wal页面索引">WAL页面索引</a>
+    <li><a href="#wal的实现">WAL的实现</a>
       <ul>
-        <li><a href="#结构">结构</a>
+        <li><a href="#wal的文件格式">WAL的文件格式</a>
           <ul>
-            <li><a href="#索引文件头结构">索引文件头结构</a>
+            <li><a href="#wal文件头格式">WAL文件头格式</a></li>
+            <li><a href="#wal帧头部格式">WAL帧头部格式</a></li>
+            <li><a href="#页面内容校验算法">页面内容校验算法</a></li>
+          </ul>
+        </li>
+        <li><a href="#wal页面索引">WAL页面索引</a>
+          <ul>
+            <li><a href="#结构">结构</a>
               <ul>
-                <li><a href="#为什么需要两个相同大小的wal索引头部">为什么需要两个相同大小的WAL索引头部？</a></li>
-                <li><a href="#mxframe和nbackfill">mxFrame和nBackfill</a></li>
+                <li><a href="#索引文件头结构">索引文件头结构</a>
+                  <ul>
+                    <li><a href="#为什么需要两个相同大小的wal索引头部">为什么需要两个相同大小的WAL索引头部？</a></li>
+                    <li><a href="#mxframe和nbackfill">mxFrame和nBackfill</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+            <li><a href="#实现">实现</a>
+              <ul>
+                <li><a href="#索引页面的存储">索引页面的存储</a></li>
+                <li><a href="#根据帧数查询页面编号">根据帧数查询页面编号</a></li>
+                <li><a href="#根据页面编号查询所在帧">根据页面编号查询所在帧</a></li>
               </ul>
             </li>
           </ul>
         </li>
-        <li><a href="#实现">实现</a>
+        <li><a href="#锁的实现">锁的实现</a>
           <ul>
-            <li><a href="#索引页面的存储">索引页面的存储</a></li>
-            <li><a href="#根据帧数查询页面编号">根据帧数查询页面编号</a></li>
-            <li><a href="#根据页面编号查询所在帧">根据页面编号查询所在帧</a></li>
+            <li><a href="#数据结构">数据结构</a></li>
+            <li><a href="#加解锁操作">加解锁操作</a></li>
+            <li><a href="#特殊的0号读锁">特殊的0号读锁</a></li>
           </ul>
         </li>
-      </ul>
-    </li>
-    <li><a href="#锁的实现">锁的实现</a>
-      <ul>
-        <li><a href="#数据结构">数据结构</a></li>
-        <li><a href="#加解锁操作">加解锁操作</a></li>
-        <li><a href="#特殊的0号读锁">特殊的0号读锁</a></li>
-      </ul>
-    </li>
-    <li><a href="#读操作">读操作</a>
-      <ul>
-        <li><a href="#readmark">readMark</a></li>
-        <li><a href="#读锁">读锁</a></li>
-      </ul>
-    </li>
-    <li><a href="#写操作">写操作</a>
-      <ul>
-        <li><a href="#写锁">写锁</a></li>
-        <li><a href="#写操作-1">写操作</a></li>
-        <li><a href="#页面校验值的计算">页面校验值的计算</a></li>
-      </ul>
-    </li>
-    <li><a href="#checkpoint-1">checkpoint</a>
-      <ul>
-        <li><a href="#总体流程">总体流程</a></li>
-        <li><a href="#不同的checkpoint模式">不同的checkpoint模式</a>
+        <li><a href="#读操作">读操作</a>
           <ul>
-            <li><a href="#sqlite_checkpoint_passive">SQLITE_CHECKPOINT_PASSIVE</a></li>
-            <li><a href="#sqlite_checkpoint_full">SQLITE_CHECKPOINT_FULL</a></li>
-            <li><a href="#sqlite_checkpoint_restart">SQLITE_CHECKPOINT_RESTART</a></li>
-            <li><a href="#sqlite_checkpoint_truncate">SQLITE_CHECKPOINT_TRUNCATE</a></li>
+            <li><a href="#readmark">readMark</a></li>
+            <li><a href="#读锁">读锁</a></li>
           </ul>
         </li>
+        <li><a href="#写操作">写操作</a>
+          <ul>
+            <li><a href="#写锁">写锁</a></li>
+            <li><a href="#写操作-1">写操作</a></li>
+            <li><a href="#页面校验值的计算">页面校验值的计算</a></li>
+          </ul>
+        </li>
+        <li><a href="#checkpoint-1">checkpoint</a>
+          <ul>
+            <li><a href="#总体流程">总体流程</a></li>
+            <li><a href="#不同的checkpoint模式">不同的checkpoint模式</a>
+              <ul>
+                <li><a href="#sqlite_checkpoint_passive">SQLITE_CHECKPOINT_PASSIVE</a></li>
+                <li><a href="#sqlite_checkpoint_full">SQLITE_CHECKPOINT_FULL</a></li>
+                <li><a href="#sqlite_checkpoint_restart">SQLITE_CHECKPOINT_RESTART</a></li>
+                <li><a href="#sqlite_checkpoint_truncate">SQLITE_CHECKPOINT_TRUNCATE</a></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+        <li><a href="#错误恢复">错误恢复</a></li>
       </ul>
     </li>
-    <li><a href="#错误恢复">错误恢复</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考资料">参考资料</a></li>
   </ul>
 </nav>
 </div>
@@ -1523,6 +1521,13 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
       <i class="fas fa-rss"></i> 
     </a>
+</div>
+
+      <div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+  </form>
 </div>
 
 <div class="text-center">
