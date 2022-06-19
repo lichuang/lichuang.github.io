@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+<title>周刊（第19期）：Rust并发安全相关的几个概念(上) - codedump的网络日志</title>
+
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
+      ],
+    });
+  });
+</script>
+
+
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
+
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/dog_hu5c22961f17f3d038037c179f30645f4a_467474_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/dog_hu5c22961f17f3d038037c179f30645f4a_467474_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="周刊（第19期）：Rust并发安全相关的几个概念（上）">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"周刊（第19期）：Rust并发安全相关的几个概念(上)",
+      "item":"https://www.codedump.info/post/20220619-weekly-19/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20220619-weekly-19/"
+    },
+    "headline": "周刊（第19期）：Rust并发安全相关的几个概念(上) - codedump的网络日志","datePublished": "2022-06-19T10:42:40+08:00",
+    "dateModified": "2022-06-19T10:42:40+08:00",
+    "wordCount":  2398 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/dog.png"
+        }
+        },
+    "description": "周刊（第19期）：Rust并发安全相关的几个概念（上）"
+}
+</script><meta property="og:title" content="周刊（第19期）：Rust并发安全相关的几个概念(上) - codedump的网络日志" />
+<meta property="og:type" content="article" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/dog.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20220619-weekly-19/" />
+
+
+
+<meta property="og:description" content="周刊（第19期）：Rust并发安全相关的几个概念（上）" />
+
+
+
+<meta property="og:locale" content="zh" />
+
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2022-06-19T10:42:40&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2022-06-19T10:42:40&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="周刊" />
+
+<meta property="article:tag" content="Rust" />
+
+
+
+
+
+
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
+
+
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
+    
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
+  
+  
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">周刊（第19期）：Rust并发安全相关的几个概念(上)</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2022-06-19</span
+    >
+  </div>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>5分钟阅读时长</span>
+  </div>
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
+          >周刊</a
+        >
+      
+        
+          <span>, </span>
+        <a href="https://www.codedump.info/categories/rust/" class="hover:text-eureka"
+          >Rust</a
+        >
+      
+    </div>
+  
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-th-list me-1"></i>
+      
+        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
+          >2022周刊</a
+        >
+      
+    </div>
+  
+</div>
+
+
+  
+  
+
+  <hr>
+<p>引言：本文介绍Rust并发安全相关的几个概念的几个概念：<code>Send</code>、<code>Sync</code>、<code>Arc</code>，<code>Mutex</code>、<code>RwLock</code>等之间的联系。这是其中的上篇，主要介绍<code>Send</code>、<code>Sync</code>这两个<code>trait</code>。</p>
+<hr>
+<h1 id="rust并发安全相关的几个概念上">Rust并发安全相关的几个概念（上）</h1>
+<h2 id="rust的所有权概念">Rust的所有权概念</h2>
+<p>在展开介绍并发相关的几个概念之前，有必要先了解一下Rust的所有权概念，Rust对值（value）的所有权有明确的限制：</p>
+<ul>
+<li>一个值只能有一个owner。</li>
+<li>可以同时存在同一个值的多个共享的非可变引用（immutable reference）。</li>
+<li>但是只能存在一个值的可变引用（mutable reference）。</li>
+</ul>
+<p>比如下面这段代码，user在创建线程之后，被移动（move）到两个不同的线程中：</p>
+<pre tabindex="0"><code>fn main() {
+    let user = User { name: &#34;drogus&#34;.to_string() };
+
+    let t1 = spawn(move || {
+        println!(&#34;Hello from the first thread {}&#34;, user.name);
+    });
+
+    let t2 = spawn(move || {
+        println!(&#34;Hello from the second thread {}&#34;, user.name);
+    });
+
+    t1.join().unwrap();
+    t2.join().unwrap();
+}
+</code></pre><p>由于<code>一个值只能有一个owner</code>，所以编译器报错，报错信息如下：</p>
+<pre tabindex="0"><code>error[E0382]: use of moved value: `user.name`
+  --&gt; src/main.rs:15:20
+   |
+11 |     let t1 = spawn(move || {
+   |                    ------- value moved into closure here
+12 |         println!(&#34;Hello from the first thread {}&#34;, user.name);
+   |                                                    --------- variable moved due to use in closure
+...
+15 |     let t2 = spawn(move || {
+   |                    ^^^^^^^ value used here after move
+16 |         println!(&#34;Hello from the second thread {}&#34;, user.name);
+   |                                                    --------- use occurs due to use in closure
+   |
+   = note: move occurs because `user.name` has type `String`, which does not implement the `Copy` trait
+</code></pre><h2 id="send和sync的约束作用">Send和Sync的约束作用</h2>
+<p>于是，如果一个类型会被多个线程所使用，是需要明确说明其共享属性的。<code>Send</code>和<code>Sync</code>这两个<code>trait</code>作用就在于此，注意到这两个<code>trait</code>都是<code>std::marker</code>，实现这两个<code>trait</code>并不需要对应实现什么方法，可以理解为这两个<code>trait</code>是类型的<code>约束</code>，编译器通过这些<code>约束</code>在编译时对类型进行检查。到目前为止，暂时不展开对两个概念的理解，先来看看两者是如何在类型检查中起<code>约束</code>作用的。</p>
+<p>比如<code>std::thread::spawn()</code>的定义如下：</p>
+<pre tabindex="0"><code>pub fn spawn&lt;F, T&gt;(f: F) -&gt; JoinHandle&lt;T&gt; 
+where
+    F: FnOnce() -&gt; T,
+    F: Send + &#39;static,
+    T: Send + &#39;static,
+</code></pre><p>可以看到，对于<code>spawn</code>传入的函数和返回的类型，都要求满足<code>Send</code>这个约束。结合前面<code>Send</code>的定义：</p>
+<ul>
+<li>函数类型F需要满足<code>Send</code>约束：这是因为创建线程之后，需要把函数类型传入新创建的线程里，于是要求所有权能够在线程之间传递。</li>
+<li>返回类型需要满足<code>Send</code>约束：这是因为创建线程之后，返回值也需要转移回去原先的线程。</li>
+</ul>
+<p>有了对类型的约束，编译器就会在调用<code>std::thread::spawn</code>函数时针对类型进行检查，比如下面这段代码：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[derive(Debug)]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{};</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">});</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>类型<code>Foo</code>标记自己并不实现<code>Send</code>这个<code>trait</code>，于是在编译的时候报错了：</p>
+<pre tabindex="0"><code>error[E0277]: `Foo` cannot be sent between threads safely
+   --&gt; src/main.rs:7:5
+    |
+7   |       std::thread::spawn(move || {
+    |  _____^^^^^^^^^^^^^^^^^^_-
+    | |     |
+    | |     `Foo` cannot be sent between threads safely
+8   | |         dbg!(foo);
+9   | |     });
+    | |_____- within this `[closure@src/main.rs:7:24: 9:6]`
+    |
+    = help: within `[closure@src/main.rs:7:24: 9:6]`, the trait `Send` is not implemented for `Foo`
+    = note: required because it appears within the type `[closure@src/main.rs:7:24: 9:6]`
+note: required by a bound in `spawn`
+</code></pre><p>如果把<code>impl !Send for Foo {}</code>这一行去掉，代码就能编译通过了。</p>
+<p>以上还有一个知识点：所有类型默认都是满足<code>Send</code>、<code>Sync</code>约束的，直到显示声明不满足这个约束，比如上面的<code>impl !Send</code>就是这样一个显示声明。这就带来一个疑问：能不能跟编译器耍一些心思，明明某个类型就不满足这个约束，睁一只眼闭一只眼看看能不能在编译器那里蒙混过关？</p>
+<p>答案是不能，编译器会检查这个类型中所有包含的成员，只有所有成员都满足这个约束，该类型才能算满足约束。可以在上面的基础上继续做实验，给<code>Foo</code>结构体新增一个<code>Rc</code>类型的成员：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[derive(Debug)]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">rc</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">std</span>::<span class="n">rc</span>::<span class="n">Rc</span><span class="o">&lt;</span><span class="kt">i32</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">rc</span>: <span class="nb">None</span> <span class="p">};</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">});</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>由于<code>Rc</code>并不满足<code>Send</code>约束（即显示声明了<code>impl !Send</code>，见：<a href="https://doc.rust-lang.org/std/rc/struct.Rc.html#impl-Send">impl-send</a>），导致类型<code>Foo</code>并不能蒙混过关满足<code>Send</code>约束，编译上面代码时报错信息如下：</p>
+<pre tabindex="0"><code>error[E0277]: `Rc&lt;i32&gt;` cannot be sent between threads safely
+   --&gt; src/main.rs:8:5
+    |
+8   |       std::thread::spawn(move || {
+    |  _____^^^^^^^^^^^^^^^^^^_-
+    | |     |
+    | |     `Rc&lt;i32&gt;` cannot be sent between threads safely
+9   | |         dbg!(foo);
+10  | |     });
+    | |_____- within this `[closure@src/main.rs:8:24: 10:6]`
+    |
+    = help: within `[closure@src/main.rs:8:24: 10:6]`, the trait `Send` is not implemented for `Rc&lt;i32&gt;`
+    = note: required because it appears within the type `Option&lt;Rc&lt;i32&gt;&gt;`
+note: required because it appears within the type `Foo`
+</code></pre><p>因此：<code>一个类型要满足某个约束，当且仅当该类型下的所有成员都满足该约束</code>才行。</p>
+<h2 id="理解send和sync-trait">理解Send和Sync trait</h2>
+<p>继续回到<code>Send</code>和<code>Sync</code>这两个<code>trait</code>中来，两者在rust官方文档中定义如下：</p>
+<ul>
+<li><code>Send</code>：Types that can be transferred across thread boundaries。</li>
+<li><code>Sync</code>：Types for which it is safe to share references between threads。</li>
+</ul>
+<p>上面的定义翻译过来：</p>
+<ul>
+<li><code>Send</code>标记表明该类型的所有权可以在线程之间传递。</li>
+<li><code>Sync</code>标记表明该类型的引用可以安全的在多个线程之间被共享。</li>
+</ul>
+<p>我发现上面的这个解释还是有点难理解了，可以换用更直白一点的方式来解释这两类约束：</p>
+<ul>
+<li>
+<p><code>Send</code>：</p>
+<ul>
+<li>满足<code>Send</code>约束的类型，能在多线程之间安全的排它使用（Exclusive access is thread-safe）。</li>
+<li>满足<code>Send</code>约束的类型<code>T</code>，表示<code>T</code>和<code>&amp;mut T</code>（<code>mut</code>表示能修改这个引用，甚至于删除即<code>drop</code>这个数据）这两种类型的数据能在多个线程之间传递，说得直白些：能在多个线程之间<code>move</code>值以及修改引用到的值。</li>
+</ul>
+</li>
+<li>
+<p><code>Sync</code>：</p>
+<ul>
+<li>满足<code>Sync</code>约束的类型，能在多线程之间安全的共享使用（Shared access is thread-safe）。</li>
+<li>满足<code>Sync</code>约束的类型<code>T</code>，只表示该类型能在多个线程中读共享，即：不能<code>move</code>，也不能修改，仅仅只能通过引用<code>&amp;T</code>来读取这个值。</li>
+</ul>
+</li>
+<li>
+<p>有了上面的定义，可以知道：一个类型<code>T</code>的引用只有在满足<code>Send</code>约束的条件下，类型<code>T</code>才能满足<code>Sync</code>约束（a type T is Sync if and only if &amp;T is Send）。即：<code>T: Sync ≡ &amp;T: Send</code>。</p>
+</li>
+</ul>
+<p>对于那些基本的类型（primitive types）而言，比如<code>i32</code>类型，大多是同时满足<code>Send</code>和<code>Sync</code>这两个约束的，因为这些类型的共享引用（&amp;）既能在多个多个线程中使用，同时也能在多个线程中被修改（&amp;mut ）。</p>
+<p>了解了<code>Send</code>和<code>Sync</code>这两类约束，就可以接着看在并发安全中的运用了，这是下一篇的内容。</p>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li><a href="https://itsallaboutthebit.com/arc-mutex/">Arc and Mutex in Rust | It&rsquo;s all about the bit</a></li>
+<li><a href="https://doc.rust-lang.org/std/marker/trait.Sync.html">Sync in std::marker - Rust</a></li>
+<li><a href="https://doc.rust-lang.org/std/marker/trait.Send.html">Send in std::marker - Rust</a></li>
+<li><a href="https://doc.rust-lang.org/nomicon/send-and-sync.html">Send and Sync - The Rustonomicon</a></li>
+<li><a href="https://stackoverflow.com/questions/59428096/understanding-the-send-trait">rust - Understanding the Send trait - Stack Overflow</a></li>
+<li><a href="https://onesignal.com/blog/thread-safety-rust/">Understanding Rust Thread Safety</a></li>
+<li><a href="https://nyanpasu64.github.io/blog/an-unsafe-tour-of-rust-s-send-and-sync/#example-passing-mut-t-send-between-threads">An unsafe tour of Rust’s Send and Sync | nyanpasu64’s blog</a></li>
+<li><a href="https://limpet.net/mbrubeck/2019/02/07/rust-a-unique-perspective.html">Rust: A unique perspective</a></li>
+</ul>
+
+</article>
+
+
+      
+        <div class="my-4">
+    
+    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
+    
+    <a href="https://www.codedump.info/tags/rust/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Rust</a>
+    
+</div>
+      
+
+
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20220612-weekly-18/" class="block">周刊（第18期）：网状的思考，线性的写作</a>
+      
+    </div>
+  </div>
+
+
+    </div>
+    
+      <div class="col-span-2">
+
+        
+          <div
+  class="
+    bg-primary-bg
+   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
+>
+  <h3>本页目录</h3>
+</div>
+<div
+  class="sticky-toc  hidden px-6 pb-6 lg:block"
+>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#rust并发安全相关的几个概念上">Rust并发安全相关的几个概念（上）</a>
+      <ul>
+        <li><a href="#rust的所有权概念">Rust的所有权概念</a></li>
+        <li><a href="#send和sync的约束作用">Send和Sync的约束作用</a></li>
+        <li><a href="#理解send和sync-trait">理解Send和Sync trait</a></li>
+        <li><a href="#参考资料">参考资料</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+</div>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    enableStickyToc();
+  });
+</script>
+
+        
+      </div>
+    
+
+    
+    
+      <div
+        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20220227-weekly-7/" class="no-underline">周刊（第7期）：一个C系程序员的Rust初体验</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220612-weekly-18/" class="no-underline">周刊（第18期）：网状的思考，线性的写作</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220528-weekly-17/" class="no-underline">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220521-weekly-16/" class="no-underline">周刊（第16期）：图解ARIES论文（下）</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220514-weekly-15/" class="no-underline">周刊（第15期）：图解ARIES论文（上）</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220507-weekly-14/" class="no-underline">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>
+          <br />
+        
+      </div>
+    
+
+    <div
+    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+  >      
+      
+
+
+
+  <script src="https://utteranc.es/client.js"
+  repo="lichuang/lichuang.github.io"
+  issue-term="pathname"
+  theme="github-light"
+  crossorigin="anonymous"
+  async>
+</script>
+
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
+
+    </div>
+  </div>
+
+
+  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
+
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
+      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
+        <i class="fab fa-github"></i>
+      </a>
+      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
+        <i class="fab fa-zhihu"></i>
+      </a>
+      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
+        <i class="fab fa-weibo"></i>
+      </a>
+      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
+        <i class="fab fa-twitter"></i>
+      </a>
+
+  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
+      <i class="fas fa-rss"></i> 
+    </a>
+</div>
+
+      <div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+  </form>
+</div>
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
+  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
+</span>
+ &middot; 
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+</div>
+
+</div>
+    </footer>
+  </body>
+</html>
