@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html
+  lang="zh"
+  dir="ltr"
+  
+><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+<title>周刊（第21期）：Lamport时钟 - codedump的网络日志</title>
+
+<meta name="generator" content="Hugo Eureka 0.9.1" />
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload"
+  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
+  as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
+   media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
+   crossorigin></script>
+  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
+     crossorigin></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
+
+
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
+   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
+  onload="this.media='all';this.onload=null" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
+  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
+   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
+      ],
+    });
+  });
+</script>
+
+
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
+  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
+<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'UA-126255685-1');
+</script>
+
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info/images/dog_hu5c22961f17f3d038037c179f30645f4a_467474_32x32_fill_box_center_3.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info/images/dog_hu5c22961f17f3d038037c179f30645f4a_467474_180x180_fill_box_center_3.png">
+
+<meta name="description"
+  content="引言：在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 《Time, Clocks, and the Ordering of Events in a">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1 ,
+      "name":"Posts",
+      "item":"https://www.codedump.info/post/"},{
+      "@type": "ListItem",
+      "position": 2 ,
+      "name":"周刊（第21期）：Lamport时钟",
+      "item":"https://www.codedump.info/post/20220703-weekly-21/"}]
+}
+</script>
+
+
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://www.codedump.info/post/20220703-weekly-21/"
+    },
+    "headline": "周刊（第21期）：Lamport时钟 - codedump的网络日志","datePublished": "2022-07-03T10:59:09+08:00",
+    "dateModified": "2022-07-03T10:59:09+08:00",
+    "wordCount":  4194 ,
+    "publisher": {
+        "@type": "Person",
+        "name": "lichuang",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.codedump.info/images/dog.png"
+        }
+        },
+    "description": "引言：在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 《Time, Clocks, and the Ordering of Events in a"
+}
+</script><meta property="og:title" content="周刊（第21期）：Lamport时钟 - codedump的网络日志" />
+<meta property="og:type" content="article" />
+
+
+<meta property="og:image" content="https://www.codedump.info/images/dog.png">
+
+
+<meta property="og:url" content="https://www.codedump.info/post/20220703-weekly-21/" />
+
+
+
+
+<meta property="og:description" content="引言：在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 《Time, Clocks, and the Ordering of Events in a" />
+
+
+
+
+<meta property="og:locale" content="zh" />
+
+
+
+
+<meta property="og:site_name" content="codedump的网络日志" />
+
+
+
+
+
+
+<meta property="article:published_time" content="2022-07-03T10:59:09&#43;08:00" />
+
+
+<meta property="article:modified_time" content="2022-07-03T10:59:09&#43;08:00" />
+
+
+
+<meta property="article:section" content="post" />
+
+
+<meta property="article:tag" content="周刊" />
+
+<meta property="article:tag" content="分布" />
+
+
+
+
+
+
+
+
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
+
+
+
+<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
+
+
+
+
+
+
+  <body class="flex min-h-screen flex-col">
+    <header
+      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
+    >
+      <div class="mx-auto w-full max-w-screen-xl"><script>
+    let storageColorScheme = localStorage.getItem("lightDarkMode")
+    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
+        document.getElementsByTagName('html')[0].classList.add('dark')
+    }
+</script>
+<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
+    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
+    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div id="target"
+        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
+        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
+            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
+            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
+            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
+            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
+            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
+            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
+            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
+        </div>
+
+        <div class="flex">
+            <div class="relative pt-4 md:pt-0">
+                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
+                    <i class="fas fa-adjust"></i>
+                </div>
+                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
+                </div>
+                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
+                    id='lightDarkOptions'>
+                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
+                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
+    </div>
+
+</nav>
+<script>
+    
+    let element = document.getElementById('lightDarkMode')
+    if (storageColorScheme == null || storageColorScheme == 'Auto') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
+        })
+    } else if (storageColorScheme == "Light") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'sun')
+        element.firstElementChild.classList.add('fa-sun')
+    } else if (storageColorScheme == "Dark") {
+        element.firstElementChild.classList.remove('fa-adjust')
+        element.firstElementChild.setAttribute("data-icon", 'moon')
+        element.firstElementChild.classList.add('fa-moon')
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        getcolorscheme();
+        switchBurger();
+    });
+</script>
+</div>
+    </header>
+    <main class="grow pt-16">
+        <div class="pl-scrollbar">
+          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
+  
+  
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
+    <div
+      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+    >
+      <article class="prose">
+  <h1 class="mb-4">周刊（第21期）：Lamport时钟</h1>
+
+  <div
+  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
+>
+  <div class="me-6 my-2">
+    <i class="fas fa-calendar me-1"></i>
+    <span
+      >2022-07-03</span
+    >
+  </div>
+  <div class="me-6 my-2">
+    <i class="fas fa-clock me-1"></i>
+    <span>9分钟阅读时长</span>
+  </div>
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-folder me-1"></i>
+      
+        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
+          >周刊</a
+        >
+      
+        
+          <span>, </span>
+        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
+          >分布式</a
+        >
+      
+    </div>
+  
+
+  
+    <div class="me-6 my-2">
+      <i class="fas fa-th-list me-1"></i>
+      
+        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
+          >2022周刊</a
+        >
+      
+    </div>
+  
+</div>
+
+
+  
+  
+
+  <hr>
+<p>引言：在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 <a href="https://lamport.azurewebsites.net/pubs/time-clocks.pdf">《Time, Clocks, and the Ordering of Events in a Distributed System》</a>中提到的Lamport时钟。</p>
+<hr>
+<h1 id="heading"></h1>
+<h1 id="lamport时钟">Lamport时钟</h1>
+<h2 id="概论">概论</h2>
+<p>在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 <a href="https://lamport.azurewebsites.net/pubs/time-clocks.pdf">《Time, Clocks, and the Ordering of Events in a Distributed System》</a>中提到的Lamport时钟。</p>
+<p>内容以如下的顺序展开：</p>
+<ul>
+<li>物理时钟的问题在哪里？（解决了什么问题）</li>
+<li>全序和偏序关系。（数学基础）</li>
+<li>Lamport时钟的原理介绍、<code>happen-before</code>关系介绍。（原理介绍）</li>
+<li>分布式一致性的基础。（更远的影响）</li>
+</ul>
+<h2 id="物理时钟的问题">物理时钟的问题</h2>
+<p>分布式系统中定义一个事件的先后顺序是一个难点，下意识的第一反应是：给每个事件加上一个物理的时间戳，不就可以比较不同事件的时间戳来决定其顺序了吗？</p>
+<p>这样做的问题在于：在分布式系统中，由多个机器组合起来协调工作，而每个机器上的物理时间也不尽相同，所以“物理时间戳”本质上是一个机器属性，并不一定系统中所有机器都满足同一个时间度量。</p>
+<p>以下图为例：</p>
+<p><img src="https://sookocheff.com/post/time/lamport-clock/assets/clock-adjustment-error.png" alt=""></p>
+<p>（引用自<a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a>）</p>
+<p>上图中：</p>
+<ul>
+<li>server A在发出事件A时，打上了本机的时间戳1点。</li>
+<li>同理，server B给事件B打上了本机的时间戳12:59。</li>
+<li>可以看到这两个事件都以本地时间为准，当观察者进程收到这两个事件的时候，先后顺序与事件上所带的时间戳并不一致：先收到了时间戳更大的事件A。</li>
+</ul>
+<p>这个例子说明：在分布式系统中，以“物理时间”来衡量事件的先后顺序，并不可行。</p>
+<h2 id="全序和偏序">全序和偏序</h2>
+<p>在继续讲解之前，还需要了解两个数学上的概念：全序（total ordering）和偏序（partial ordering）关系。</p>
+<p>我们首先来定义集合上的几种关系，对一个集合${\displaystyle X}$中的${\displaystyle a,b}$和${\displaystyle c}$ 而言，有以下这些关系：</p>
+<ul>
+<li>自反性：∀a∈S，有a≤a。</li>
+<li>反对称性：若 $ {\displaystyle a\leq b}$且$ {\displaystyle b\leq a} $ 则 $ {\displaystyle a=b} $。</li>
+<li>传递性：若${\displaystyle a\leq b} $ 且 $ {\displaystyle b\leq c} $ 则 $ {\displaystyle a\leq c} $。</li>
+<li>完全性：$ {\displaystyle a\leq b} $ 或 $ {\displaystyle b\leq a} $。</li>
+</ul>
+<p>有了这几种关系之后，就可以看看全序和偏序关系分别满足以上的哪些关系了：</p>
+<ul>
+<li>全序关系：满足反对称性、传递性、完全性。</li>
+<li>偏序关系：满足反对称性、传递性、自反性。</li>
+<li>由于完全性也包含自反性，所以全序关系必然也是偏序关系。</li>
+</ul>
+<p>可以看到，上面两者的定义差别，仅在自反性和完全性上，完全性要求：集合中任意两个元素都能比较大小，因此：</p>
+<ul>
+<li>全序：集合中任意两个元素（这两个元素可以相同）在这个关系下都是可以相互比较的。</li>
+<li>偏序：集合中只有部分元素在这个关系下是可以比较的。</li>
+</ul>
+<p>上面的数学定义有些晦涩，我们来举几个直观的例子。</p>
+<p>比如整数集合就是一个全序集合，因为任取这个集合中的两个元素，都是能比较其大小的。而一个树形的结构，同一层级的节点之间，由于是同层级的，所以并没有大小之分，从这个意义上来说，这是一种偏序的关系。</p>
+<p>再比如，知乎问题<a href="https://www.zhihu.com/question/36758436/answer/1078452247">全序关系和偏序关系的区别是什么？ - 知乎</a>的回答中举了另一个直观的说法：</p>
+<blockquote>
+<p>我来胡说一下，你的家庭关系，就是一个偏序，如果你可以自己到自己的话：</p>
+<p>你爷爷生了你爸爸和你叔叔，你爸爸生了你，满足传递；</p>
+<p>你不能生你爷爷，满足反对称；</p>
+<p>但不是全序，因为你有堂兄弟姐妹（这里认为你叔叔有子女）啊！</p>
+<p>那全序是啥？就是九代单传呗</p>
+</blockquote>
+<h2 id="lamport时钟-1">Lamport时钟</h2>
+<p>了解了物理时间的问题，以及全序、偏序关系的定义，可以正式来到Lamport时钟的解释。</p>
+<p>由于物理时钟天然的缺陷，就不能使用这个属性来定义事件的顺序了。Lamport时钟被定义为各进程来维护的一个只能递增的数字（即时间不能发生回退），它有两个规则：</p>
+<ul>
+<li>规则1：每次进程发出新的事件之前，将本进程当前的Lamport时钟附带在事件上做为事件的一个属性，同时该计数加一。</li>
+</ul>
+<p>等一等，前面提到不能使用“物理时钟”是因为各进程的物理时钟不一样，可是规则一中还是使用了各进程维护的一个计数器，这不还是没有解决前面物理时钟遇到的问题吗？于是，进程在接收到事件时还需要遵守规则2：</p>
+<ul>
+<li>规则2：进程在接收到事件之后，调整接收进程的Lamport时钟为当前时钟以及事件中带上的时钟这两者的最大值+1。</li>
+</ul>
+<p>用伪代码来表达规则1、2就是：</p>
+<ul>
+<li>规则1：</li>
+</ul>
+<pre tabindex="0"><code># event happens
+send(message, time);
+time = time + 1;
+</code></pre><ul>
+<li>规则2：</li>
+</ul>
+<pre tabindex="0"><code>(message, incoming_time) = receive();
+time = max(incoming_time, time) + 1;
+</code></pre><p>举一个具体的例子：</p>
+<p><img src="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock-request-sequence.png" alt=""></p>
+<p>（引用自<a href="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock.html">Lamport Clock</a>）</p>
+<p>上图中：</p>
+<ul>
+<li>有client、blue、green三个进程组成的分布式系统在工作。</li>
+<li>在client的时间1，client向blue进程发出了事件，带上了此时client的Lamport时钟1。</li>
+<li>blue在收到client的事件之后，调整本进程的Lamport时钟为 $max(1,收到的事件时间) + 1$</li>
+</ul>
+<p>，于是blue进程的时间调整为2。</p>
+<ul>
+<li>紧跟着blue进程向client进程发出事件，由于上面blue已经调整本地时间为2，于是这个事件的时间为2。</li>
+<li>其它的可以依次类推，就不再阐述了。</li>
+</ul>
+<h2 id="happen-before关系">happen-before关系</h2>
+<p>可以看到，有了上面的两条规则之后，一个分布式系统中的事件，在很多情况（只是很多情况下，并没有全部，下面会展开讨论）下都能定义其先后顺序了，在论文中，lamport将这个关系定义为<code>happen-before</code>关系：</p>
+<ul>
+<li>引入符号$→ $做为表示事件之间<code>happen-before</code>的记号。</li>
+<li>在同一个进程中，如果事件${\displaystyle a}$在事件${\displaystyle b}$之前发生，那么${\displaystyle a → b}$。（这是因为根据规则1，进程每次发出事件之后都会将本地的lamport时钟加一，于是可以在同一个进程内定义事件的先后顺序了）</li>
+<li>在不同的进程中，如果事件${\displaystyle a}$表示一个进程发出一个事件，事件${\displaystyle b}$表示接收进程收到这个事件，那么也必然满足${\displaystyle a → b}$。（这是因为根据规则2，接收进程在收到事件之后会取本地时钟和事件时钟的最大值并且+1，于是发出事件和接收事件尽管在不同的进程，但是也可以比较其lamport时钟知道其先后顺序了）</li>
+<li>最后，<code>happend-before</code>关系是满足传递性的，即：如果${\displaystyle a → b}$且${\displaystyle b → c}$，那么也一定有${\displaystyle a → c}$。</li>
+</ul>
+<p>讲到了这里，似乎已经明白了lamport时钟要解决的问题，以及分布式系统中事件之间<code>happend-before</code>关系的定义。但是还有疑点没有解开：</p>
+<ul>
+<li>一个分布式系统中的事件是否都满足<code>happen-before</code>关系？按照前面全序、偏序关系的定义，这个问题相当于问：<code>happen-before</code>关系是全序还是偏序关系？</li>
+</ul>
+<p>这两个问题可以放在一起解答：分布式系统中的所有事件并不都满足<code>happen-before</code>关系，按照前面全序、偏序关系的定义，由于这个集合中并不是所有情况下都满足这种关系，所以说<code>happen-before</code>关系是一种偏序关系。</p>
+<p>以下图来看看：</p>
+<p><img src="https://sookocheff.com/post/time/lamport-clock/assets/process-events.gif" alt=""></p>
+<p>（引用自<a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a>）</p>
+<p>这个系统的工作方式，在前面解释规则1、2的时候已经有说明，在这里就不再阐述。可以注意到$P_3$进程和$P_2$进程都有一个时间2，在这个时间上这两个进程做了两个不同的事件：</p>
+<ul>
+<li>从进程$P_3$的视角来看：时间2发出事件给进程$P_2$，按照算法最后进程$P_2$计算出来收到这个事件的时间为5。</li>
+<li>从进程$P_2$的视角来看，在本进程上时间2也在时间5之前。</li>
+</ul>
+<p>所以无论如何，这两个进程上在时间2上发生的事件都不能比较先后顺序了。</p>
+<p>如果分布式系统中的两个事件，不满足<code>happen-before</code>关系，在论文中称这两个事件为“并行事件（concurrent event）”。</p>
+<p>现实的系统中，确实存在很多并行事件。比如向一个KV系统中同时写入两个并无关联的数据，由于无法根据Lamport时钟对比出先后来，这些操作就可以认为是并行的。</p>
+<h2 id="分布式一致性的基础">分布式一致性的基础</h2>
+<p>Lamport时钟本质解决的是如何定义一个分布式系统中不同事件的前后顺序，这是分布式系统一致性的基础。</p>
+<p>以日志-状态机模型来看：组成一个分布式系统中的任意一个机器，如果都能按照同一个顺序来“灌入”日志到状态机中，最后都能得到一致的状态。</p>
+<p>但是上面在介绍Lamport时钟时，提到过<code>happen-before</code>关系是一种偏序关系，即并不是所有分布式系统中的事件都能有确定的先后顺序，对于这类不能确定先后顺序的事件（如前面提到的$P_3$和$P_2$进程在时间2发生的两件不同事件），可以通过对比其进程ID来确定先后顺序。</p>
+<p>综上，如何比较分布式系统中两个事件的先后顺序可以通过下面的算法来完成：</p>
+<ul>
+<li>如果两个事件满足<code>happen-before</code>关系，则直接根据这个关系的比较结果返回；</li>
+<li>否则对比发出两个事件的进程ID号。</li>
+</ul>
+<p>有了这个补充之后，基于Lamport时钟的分布式事件，就能有一个确定的先后顺序来灌入状态机执行，既然顺序都是一致的最后状态也肯定是一致的：</p>
+<p><img src="/media/imgs/20210515-raft/statemachine.jpeg" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
+<h2 id="总结">总结</h2>
+<ul>
+<li>依赖“物理时间”来定义一个分布式系统中事件的先后顺序并不可行。</li>
+<li>全序、偏序关系的定义：
+<ul>
+<li>全序：集合中任意两个元素（这两个元素可以相同）在这个关系下都是可以相互比较的。</li>
+<li>偏序：集合中只有部分元素在这个关系下是可以比较的。</li>
+</ul>
+</li>
+<li>Lamport时钟的两个更新规则：
+<ul>
+<li>规则1：每次进程发出新的事件之前，将本进程当前的Lamport时钟附带在事件上做为事件的一个属性，同时该计数加一。</li>
+<li>规则2：进程在接收到事件之后，调整接收进程的Lamport时钟为当前时钟以及事件中带上的时钟这两者的最大值加一。</li>
+</ul>
+</li>
+<li>有了Lamport时钟之后，就能定义一个分布式系统中不同事件之间的<code>happen-before</code>关系，这种关系是一种偏序关系，不满足<code>happen-before</code>关系的事件，在一个分布式系统中是并行事件。</li>
+<li>Lamport时钟是达成分布式一致性的基础，因为有了这个时钟就能给系统中所有发送的事件定义一个确定的关系。只要系统中的每个状态机都按照一个顺序灌入日志，最终都能达成一致的状态。</li>
+</ul>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li><a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a></li>
+<li><a href="https://zh.wikipedia.org/wiki/%E5%85%A8%E5%BA%8F%E5%85%B3%E7%B3%BB">全序关系 - 维基百科，自由的百科全书</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Lamport_timestamp">Lamport timestamp - Wikipedia</a></li>
+<li><a href="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock.html">Lamport Clock</a></li>
+<li><a href="http://zhangtielei.com/posts/blog-time-clock-ordering.html">分布式领域最重要的一篇论文，到底讲了什么？ - 铁蕾的个人博客</a></li>
+</ul>
+
+</article>
+
+
+      
+        <div class="my-4">
+    
+    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
+    
+    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布</a>
+    
+</div>
+      
+
+
+
+      
+
+
+
+      
+
+      
+  <div
+    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
+  >
+    <div>
+      
+    </div>
+    <div class="mt-4 md:mt-0 md:text-right">
+      
+        <span class="text-primary-text block font-bold">下一页</span>
+        <a href="https://www.codedump.info/post/20220625-weekly-20/" class="block">周刊（第20期）：Rust并发安全相关的几个概念(下)</a>
+      
+    </div>
+  </div>
+
+
+    </div>
+    
+      <div class="col-span-2">
+
+        
+          <div
+  class="
+    bg-primary-bg
+   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
+>
+  <h3>本页目录</h3>
+</div>
+<div
+  class="sticky-toc  hidden px-6 pb-6 lg:block"
+>
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#heading"></a></li>
+    <li><a href="#lamport时钟">Lamport时钟</a>
+      <ul>
+        <li><a href="#概论">概论</a></li>
+        <li><a href="#物理时钟的问题">物理时钟的问题</a></li>
+        <li><a href="#全序和偏序">全序和偏序</a></li>
+        <li><a href="#lamport时钟-1">Lamport时钟</a></li>
+        <li><a href="#happen-before关系">happen-before关系</a></li>
+        <li><a href="#分布式一致性的基础">分布式一致性的基础</a></li>
+        <li><a href="#总结">总结</a></li>
+        <li><a href="#参考资料">参考资料</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+</div>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    enableStickyToc();
+  });
+</script>
+
+        
+      </div>
+    
+
+    
+    
+      <div
+        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
+      >
+        <h3>相关</h3>
+        
+          <a href="https://www.codedump.info/post/20220625-weekly-20/" class="no-underline">周刊（第20期）：Rust并发安全相关的几个概念(下)</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220619-weekly-19/" class="no-underline">周刊（第19期）：Rust并发安全相关的几个概念(上)</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220227-weekly-7/" class="no-underline">周刊（第7期）：一个C系程序员的Rust初体验</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220612-weekly-18/" class="no-underline">周刊（第18期）：网状的思考，线性的写作</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220528-weekly-17/" class="no-underline">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</a>
+          <br />
+        
+          <a href="https://www.codedump.info/post/20220521-weekly-16/" class="no-underline">周刊（第16期）：图解ARIES论文（下）</a>
+          <br />
+        
+      </div>
+    
+
+    <div
+    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
+  >      
+      
+
+
+
+  <script src="https://utteranc.es/client.js"
+  repo="lichuang/lichuang.github.io"
+  issue-term="pathname"
+  theme="github-light"
+  crossorigin="anonymous"
+  async>
+</script>
+
+<script>
+    if (storageColorScheme == "Light") {
+      document.getElementById('utterances').setAttribute('theme', 'github-light')
+    } else if (storageColorScheme == "Dark") {
+      document.getElementById('utterances').setAttribute('theme', 'github-dark')
+    }
+</script>
+
+    </div>
+  </div>
+
+
+  
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        hljs.highlightAll();
+      });
+    </script>
+
+          </div>
+        </div>
+      
+    </main>
+    <footer class="pl-scrollbar">
+      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
+      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
+        <i class="fab fa-github"></i>
+      </a>
+      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
+        <i class="fab fa-zhihu"></i>
+      </a>
+      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
+        <i class="fab fa-weibo"></i>
+      </a>
+      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
+        <i class="fab fa-twitter"></i>
+      </a>
+
+  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
+      <i class="fas fa-rss"></i> 
+    </a>
+</div>
+
+      <div class="custom-footer">
+  <form action="https://www.getrevue.co/profile/lichuang/add_subscriber" method="post" id="revue-form" name="revue-form"  target="_blank" align="center">
+    <input class="newsletter-email-field" placeholder="邮件订阅本站更新" type="email" name="member[email]" size="26">
+    <input class="newsletter-submit-button" type="submit" value="点击订阅" name="member[subscribe]">
+  </form>
+</div>
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
+  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
+</span>
+ &middot; 
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+</div>
+
+</div>
+    </footer>
+  </body>
+</html>
