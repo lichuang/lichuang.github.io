@@ -10,8 +10,8 @@
 <title>Nginx源码阅读笔记-接收HTTP请求流程 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -298,21 +298,21 @@
 <p><img src="/media/imgs/20190131-nginx-read-http-request/sticky-package-problem.png" alt="sticky-package-problem" title="sticky-package-problem"></p>
 <p>结合epoll之类的事件派发器来设计一个TCP协议的服务器时，因为并不能确保每一次接收数据，都能完整的接收到协议所需的所有数据。因此一般而言，写一个高性能服务器的协议解析部分，会以状态机的方式来实现，即定义了协议数据的每个部分，如下伪代码所示：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 定义协议头数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">header_t</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="kt">header_t</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="c1">// 协议版本号
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">version</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">  <span class="c1">// 定义body部分大小
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">header_t</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="kt">header_t</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 定义协议数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">protocol_t</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">header_t</span> <span class="n">header</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="kt">protocol_t</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">header_t</span> <span class="n">header</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">  <span class="kt">char</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">protocol</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 定义接收数据的状态机类型
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">enum</span> <span class="n">state_t</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">enum</span> <span class="kt">state_t</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="n">RECV_HEADER</span><span class="p">,</span>        <span class="c1">// 接收包头
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">RECV_BODY</span><span class="p">,</span>          <span class="c1">// 接收包体
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">PROCESS_PROTOCOL</span><span class="p">,</span>   <span class="c1">// 处理协议

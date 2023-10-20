@@ -10,8 +10,8 @@
 <title>etcd Raft库解析 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -472,24 +472,24 @@
 </ol>
 <p>将以上流程用伪代码实现如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// HTTP server
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">HttpServer主循环</span><span class="p">:</span>
-</span></span><span class="line"><span class="cl">  <span class="nx">接收用户提交的数据</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">如果是PUT请求</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">      <span class="nx">将数据写入到proposeC中</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">如果是POST请求</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">      <span class="nx">将配置变更数据写入到confChangeC中</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">HttpServer</span><span class="err">主循环</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="err">接收用户提交的数据：</span>
+</span></span><span class="line"><span class="cl">    <span class="err">如果是</span><span class="nx">PUT</span><span class="err">请求：</span>
+</span></span><span class="line"><span class="cl">      <span class="err">将数据写入到</span><span class="nx">proposeC</span><span class="err">中</span>
+</span></span><span class="line"><span class="cl">    <span class="err">如果是</span><span class="nx">POST</span><span class="err">请求：</span>
+</span></span><span class="line"><span class="cl">      <span class="err">将配置变更数据写入到</span><span class="nx">confChangeC</span><span class="err">中</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// raft Node
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">raftNode结构体主循环</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">  <span class="nx">如果proposeC中有数据写入</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Propose向raft库提交数据</span>
-</span></span><span class="line"><span class="cl">  <span class="nx">如果confChangeC中有数据写入</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Node</span><span class="p">.</span><span class="nx">ProposeConfChange向raft库提交配置变更数据</span>
-</span></span><span class="line"><span class="cl">  <span class="nx">如果tick定时器到期</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">调用node</span><span class="p">.</span><span class="nx">Tick函数进行raft库的定时操作</span>
-</span></span><span class="line"><span class="cl">  <span class="nx">如果node</span><span class="p">.</span><span class="nf">Ready</span><span class="p">()</span><span class="nx">函数返回的Ready结构体channel有数据变更</span><span class="err">：</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">依次处理Ready结构体中各成员数据</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">处理完毕之后调用node</span><span class="p">.</span><span class="nx">Advance函数进行收尾处理</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nx">raftNode</span><span class="err">结构体主循环：</span>
+</span></span><span class="line"><span class="cl">  <span class="err">如果</span><span class="nx">proposeC</span><span class="err">中有数据写入：</span>
+</span></span><span class="line"><span class="cl">    <span class="err">调用</span><span class="nx">node</span><span class="p">.</span><span class="nx">Propose</span><span class="err">向</span><span class="nx">raft</span><span class="err">库提交数据</span>
+</span></span><span class="line"><span class="cl">  <span class="err">如果</span><span class="nx">confChangeC</span><span class="err">中有数据写入：</span>
+</span></span><span class="line"><span class="cl">    <span class="err">调用</span><span class="nx">node</span><span class="p">.</span><span class="nx">Node</span><span class="p">.</span><span class="nx">ProposeConfChange</span><span class="err">向</span><span class="nx">raft</span><span class="err">库提交配置变更数据</span>
+</span></span><span class="line"><span class="cl">  <span class="err">如果</span><span class="nx">tick</span><span class="err">定时器到期：</span>
+</span></span><span class="line"><span class="cl">    <span class="err">调用</span><span class="nx">node</span><span class="p">.</span><span class="nx">Tick</span><span class="err">函数进行</span><span class="nx">raft</span><span class="err">库的定时操作</span>
+</span></span><span class="line"><span class="cl">  <span class="err">如果</span><span class="nx">node</span><span class="p">.</span><span class="nf">Ready</span><span class="p">()</span><span class="err">函数返回的</span><span class="nx">Ready</span><span class="err">结构体</span><span class="nx">channel</span><span class="err">有数据变更：</span>
+</span></span><span class="line"><span class="cl">    <span class="err">依次处理</span><span class="nx">Ready</span><span class="err">结构体中各成员数据</span>
+</span></span><span class="line"><span class="cl">    <span class="err">处理完毕之后调用</span><span class="nx">node</span><span class="p">.</span><span class="nx">Advance</span><span class="err">函数进行收尾处理</span>
 </span></span></code></pre></div><p>到了这里，已经对raft的使用有一个基本的概念了，即通过node结构体实现的Node接口与raft库进行交互，涉及数据变更的核心数据结构就是Ready结构体，接下来可以进一步来分析该库的实现了。</p>
 <h1 id="raft库代码结构及核心数据结构">raft库代码结构及核心数据结构</h1>
 <p>现在可以来看看raft库的代码组织了。</p>

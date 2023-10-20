@@ -10,8 +10,8 @@
 <title>Libuv代码简单分析 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -362,11 +362,11 @@
 </ul>
 <p><img src="/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
 <p>可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl">  <span class="n">uv_tcp_t</span> <span class="o">*</span><span class="n">tcp</span><span class="p">;</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl">  <span class="kt">uv_tcp_t</span> <span class="o">*</span><span class="n">tcp</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="n">uv_stream_t</span> <span class="o">*</span><span class="n">stream</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_stream_t</span><span class="o">*</span><span class="p">)</span><span class="n">tcp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">uv_stream_t</span> <span class="o">*</span><span class="n">stream</span> <span class="o">=</span> <span class="p">(</span><span class="kt">uv_stream_t</span><span class="o">*</span><span class="p">)</span><span class="n">tcp</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="n">uv_handle_t</span> <span class="o">*</span><span class="n">handle</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_handle_t</span><span class="o">*</span><span class="p">)</span><span class="n">stream</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">uv_handle_t</span> <span class="o">*</span><span class="n">handle</span> <span class="o">=</span> <span class="p">(</span><span class="kt">uv_handle_t</span><span class="o">*</span><span class="p">)</span><span class="n">stream</span><span class="p">;</span>
 </span></span></code></pre></div><p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
 <p>简单看下UV_HANDLE_FIELDS的成员：</p>
 <table>
@@ -567,7 +567,7 @@
 <p>原因在于：libuv的设计中，不希望存在这些可能导致阻塞的操作，而是希望把这些操作全部异步化。</p>
 <p>以uv_getaddrinfo函数为例，本质上这个操作封装了getaddrinfo，该操作对应的uv__work结构体中，work函数为uv__getaddrinfo_work，即在该操作被回调时的回调函数，内部封装了getaddrinfo函数，done函数为uv__getaddrinfo_done，封装了执行结束之后的回调操作。</p>
 <p>libuv中，最终调用uv__work_submit函数向某个线程发送一个uv__work结构体指针来完成操作，其原型为：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">uv__work_submit</span><span class="p">(</span><span class="n">uv_loop_t</span><span class="o">*</span> <span class="n">loop</span><span class="p">,</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">uv__work_submit</span><span class="p">(</span><span class="kt">uv_loop_t</span><span class="o">*</span> <span class="n">loop</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">                     <span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">                     <span class="k">enum</span> <span class="n">uv__work_kind</span> <span class="n">kind</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">                     <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">work</span><span class="p">)(</span><span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">),</span>

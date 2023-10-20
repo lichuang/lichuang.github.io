@@ -10,8 +10,8 @@
 <title>OpenResty Lua Stream实现分析 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.a3e627c430c1281e6e0f18283a36c9cd4ddd90b993c45656c2290b897d81d6b0753b8fd02dc595974e0b8afcb4e8e1ea.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.30595d8a9ed7468eba3aa95ad3a1030aec262644fb8e8c8a2ac064630c5a2b4aebf09c5105e5497b5e596c982d93cf45.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -367,42 +367,42 @@
 <p>OR通过在nginx配置文件中填写&quot;content_by_lua_block&quot;等，来配置新建一个连接时对应的Lua脚本，这种场景下OR会默认创建出来一个Lua协程来执行这段脚本代码。</p>
 <p>对应创建Lua协程的代码在函数ngx_stream_lua_new_thread中，下面来分析这个函数的流程。</p>
 <p>OR中需要在Registry表中存储每个创建出来的Lua协程的reference，这个存储协程的表在Registry表中对应的key是全局变量ngx_stream_lua_coroutines_key的指针，因此下面这段代码就是从Registry表中查询这个表返回到栈顶：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">lua_pushlightuserdata</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_stream_lua_coroutines_key</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="n">lua_rawget</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">LUA_REGISTRYINDEX</span><span class="p">);</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="nf">lua_pushlightuserdata</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_stream_lua_coroutines_key</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nf">lua_rawget</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">LUA_REGISTRYINDEX</span><span class="p">);</span>
 </span></span></code></pre></div><p>接着下来就是创建了一个新的协程，同时初始化其全局表：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 创建Lua协程
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">co</span> <span class="o">=</span> <span class="n">lua_newthread</span><span class="p">(</span><span class="n">L</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">co</span> <span class="o">=</span> <span class="nf">lua_newthread</span><span class="p">(</span><span class="n">L</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 创建该协程的全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_create_new_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_create_new_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 再创建一个新表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_createtable</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_createtable</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 全局表的__index指向新创建的表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_setfield</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="s">&#34;__index&#34;</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_setfield</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="s">&#34;__index&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 全局表的meta table指向新创建的表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_setmetatable</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_setmetatable</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// set 全局表回去
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_set_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_set_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
 </span></span></code></pre></div><p>从上面的代码可以看出，新创建的协程，其全局表目前是一个空表。</p>
 <p>此时的Lua虚拟机栈顶情况如下图所示：</p>
 <p><img src="/media/imgs/20190501-lua-stream/ngx_stream_lua_new_thread.png" alt="ngx_stream_lua_new_thread" title="ngx_stream_lua_new_thread"></p>
 <p>由于上面的第一步已经将Registry表中存储Lua协程的表压入了Lua栈顶，而此时新创建的协程也在栈上了，于是下面一步就是在Lua虚拟机中创建一个reference保存这个新创建的协程：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="o">*</span><span class="n">ref</span> <span class="o">=</span> <span class="n">luaL_ref</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="o">*</span><span class="n">ref</span> <span class="o">=</span> <span class="nf">luaL_ref</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="o">*</span><span class="n">ref</span> <span class="o">==</span> <span class="n">LUA_NOREF</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="n">lua_settop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">base</span><span class="p">);</span>  <span class="cm">/* restore main thread stack */</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">lua_settop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">base</span><span class="p">);</span>  <span class="cm">/* restore main thread stack */</span>
 </span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p>最后恢复堆栈：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">lua_settop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">base</span><span class="p">);</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="nf">lua_settop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">base</span><span class="p">);</span>
 </span></span></code></pre></div><p>以上这些步骤，还只是创建一个什么都不能做的Lua协程，返回这个协程之后，还需要把入口函数放入到协程中，来看函数ngx_stream_lua_content_by_chunk接下来的工作。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 将lua虚拟机VM的入口closure move到新创建的协程上面，这样协程就有了虚拟机已经解析完毕的代码了
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 入口函数的环境表为全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_setfenv</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_setfenv</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
 </span></span></code></pre></div><p>以上工作将在配置中的Lua脚本解析之后的入口函数移动到新创建的Lua协程中，同时还配置了该入口函数的环境表为Lua协程的环境表。</p>
 <p>到了这里，协程已经创建出来并且有入口函数了，下面需要做的就是让它能运行起来，让调度器能够调度它运行：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 保存当协程执行环境中
@@ -419,7 +419,7 @@
 <p>这里需要首先说明一点，前面在接收连接创建协程的场景中，新创建协程的父协程是Lua虚拟机（也就是Lua主线程），而在创建用户线程这个场景中，因为是在Lua代码中调用spawn创建用户线程的，所以在这里新创建的协程其父协程也是一个协程而不是Lua虚拟机。</p>
 <p>因此在ngx_stream_lua_coroutine_create_helper函数中，首先要做的就是拿到Lua虚拟机：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 拿到进程的Lua虚拟机
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">vm</span> <span class="o">=</span> <span class="n">ngx_stream_lua_get_lua_vm</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ctx</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">vm</span> <span class="o">=</span> <span class="nf">ngx_stream_lua_get_lua_vm</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ctx</span><span class="p">);</span>
 </span></span></code></pre></div><p>需要注意的是，在本函数中的以下三个lua_State*变量分别是：</p>
 <ul>
 <li>vm：进程级别的Lua虚拟机。</li>
@@ -430,19 +430,19 @@
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cm">/* make new coroutine share globals of the parent coroutine.
 </span></span></span><span class="line"><span class="cl"><span class="cm"> * NOTE: globals don&#39;t have to be separated! */</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到父协程的全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">L</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_get_globals_table</span><span class="p">(</span><span class="n">L</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 移动到新创建的协程co中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 写入新协程的全局表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ngx_stream_lua_set_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">ngx_stream_lua_set_globals_table</span><span class="p">(</span><span class="n">co</span><span class="p">);</span>
 </span></span></code></pre></div><p>由于创建新协程是在Lua虚拟机完成的，此时需要把它移动到父协程中：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 将新创建的协程从进程虚拟机，移动到父协程中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_xmove</span><span class="p">(</span><span class="n">vm</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* move coroutine from main thread to L */</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_xmove</span><span class="p">(</span><span class="n">vm</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* move coroutine from main thread to L */</span>
 </span></span></code></pre></div><p>紧跟着就是将父协程的入口函数移动到新创建的协程了：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 将父协程L的入口函数压入栈中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_pushvalue</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* copy entry function to top of L*/</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_pushvalue</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* copy entry function to top of L*/</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 移动到新创建的协程中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* move entry function from L to co */</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>    <span class="cm">/* move entry function from L to co */</span>
 </span></span></code></pre></div><h3 id="初始化uthread">初始化uthread</h3>
 <p>以上已经分析了ngx_stream_lua_coroutine_create_helper函数的实现了， 可以看到，ngx_stream_lua_coroutine_create_helper调用返回之后，父协程L是这样的：</p>
 <ul>
@@ -455,23 +455,23 @@
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cm">/* anchor the newly created coroutine into the Lua registry */</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 把新创建的协程写入Lua registry表中
 </span></span></span><span class="line"><span class="cl"><span class="c1">// 将ngx_stream_lua_coroutines_key的地址压入栈中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_pushlightuserdata</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_stream_lua_coroutines_key</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_pushlightuserdata</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_stream_lua_coroutines_key</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 从registry表中查询该地址，registry表中该地址对应的一个数组，用于存储coroutine的
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>
-</span></span><span class="line"><span class="cl"><span class="n">lua_rawget</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">LUA_REGISTRYINDEX</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="nf">lua_rawget</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">LUA_REGISTRYINDEX</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 此时栈顶是查询返回的值，即ngx_stream_lua_coroutines_key对应的数组
 </span></span></span><span class="line"><span class="cl"><span class="c1">// 栈顶-1位置是新协程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 压入协程的值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_pushvalue</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_pushvalue</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// -2位置目前是前面那个表了，于是这里得到了这个coroutine在表中的索引值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">coctx</span><span class="o">-&gt;</span><span class="n">co_ref</span> <span class="o">=</span> <span class="n">luaL_ref</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">coctx</span><span class="o">-&gt;</span><span class="n">co_ref</span> <span class="o">=</span> <span class="nf">luaL_ref</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 栈顶位置：存储协程的表
 </span></span></span><span class="line"><span class="cl"><span class="c1">// 栈顶位置 - 1：协程值
 </span></span></span><span class="line"><span class="cl"><span class="c1">// 因此下面的操作弹出这个表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_pop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_pop</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span></code></pre></div><p>紧跟着就是初始化运行环境了：</p>
 <p>下面这一段代码，首先调用lua_replace函数将入口函数移动到栈顶，然后将传入ngx.thread.spawn函数的参数中，除去第一个线程入口函数之外的其他参数移动到新创建协程中。</p>
 <p><img src="/media/imgs/20190501-lua-stream/ngx.thread.spawn.png" alt="ngx.thread.spawn" title="ngx.thread.spawn"></p>
@@ -479,9 +479,9 @@
 </span></span><span class="line"><span class="cl">    <span class="c1">// 由于lua函数压栈顺序是从左到右
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 因此base位置的就是压入的第一个参数，而spawn的第一个参数就是入口函数
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 所以这里的工作，就是把线程入口函数移动到栈顶
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">lua_replace</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">lua_replace</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 将L栈顶的元素移动到协程中，这一步就是把除去线程入口函数的其他参数移动到新创建的协程
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">coctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">lua_xmove</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">coctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p>接下来设置协程上下文之间的父子关系，同时将新创建的协程变成下一步被调度执行的协程：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 保存用户线程的父协程上下文为当前协程
@@ -500,25 +500,25 @@
 <p>对于一个“内核”而言，哪怕是再简陋，其也应该做到：无论被调度的程序出现了什么错误，都应该影响整个系统的继续运行，而应该在出错的时候将出错信息打印出来。</p>
 <p>所以在ngx_stream_lua_run_thread内部，就做了这样的异常保护，用一个宏封装的setjmp、longjmp包住了协程的调度执行：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 注册vm panic回调函数
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_atpanic</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">ngx_stream_lua_atpanic</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_atpanic</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">ngx_stream_lua_atpanic</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="n">NGX_LUA_EXCEPTION_TRY</span> <span class="cm">/* setjmp保存环境 */</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="c1">// 调度执行协程代码
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span> <span class="n">NGX_LUA_EXCEPTION_CATCH</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">dd</span><span class="p">(</span><span class="s">&#34;nginx execution restored&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">dd</span><span class="p">(</span><span class="s">&#34;nginx execution restored&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p>vm panic的回调函数ngx_stream_lua_atpanic如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">int</span>
 </span></span><span class="line"><span class="cl"><span class="nf">ngx_stream_lua_atpanic</span><span class="p">(</span><span class="n">lua_State</span> <span class="o">*</span><span class="n">L</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#ifdef NGX_LUA_ABORT_AT_PANIC
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">abort</span><span class="p">();</span>
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="nf">abort</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#else
 </span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">u_char</span>                  <span class="o">*</span><span class="n">s</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="n">size_t</span>                   <span class="n">len</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">size_t</span>                   <span class="n">len</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">lua_type</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">LUA_TSTRING</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">u_char</span> <span class="o">*</span><span class="p">)</span> <span class="n">lua_tolstring</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">len</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nf">lua_type</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">LUA_TSTRING</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">u_char</span> <span class="o">*</span><span class="p">)</span> <span class="nf">lua_tolstring</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">len</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">  <span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">s</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
@@ -526,11 +526,11 @@
 </span></span><span class="line"><span class="cl">    <span class="n">len</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="s">&#34;unknown reason&#34;</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">  <span class="p">}</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="n">ngx_log_stderr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#34;lua atpanic: Lua VM crashed, reason: %*s&#34;</span><span class="p">,</span> <span class="n">len</span><span class="p">,</span> <span class="n">s</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">ngx_log_stderr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#34;lua atpanic: Lua VM crashed, reason: %*s&#34;</span><span class="p">,</span> <span class="n">len</span><span class="p">,</span> <span class="n">s</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">  <span class="n">ngx_quit</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="cm">/*  restore nginx execution */</span>
-</span></span><span class="line"><span class="cl">  <span class="n">NGX_LUA_EXCEPTION_THROW</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">NGX_LUA_EXCEPTION_THROW</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="cm">/* impossible to reach here */</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#endif
@@ -571,10 +571,10 @@
 <p>下面以ngx.socker.tcp.receive函数为例，这个函数的实现是ngx_stream_lua_socket_tcp_receive函数。</p>
 <p>由于这个API是创建出一个向后端upstream的连接，所以有一个对应的ngx_stream_lua_socket_tcp_upstream_t与之对应。因此这里的做法就是在这个upstream中记录下来下次被触发时的一些状态参数：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">u</span><span class="o">-&gt;</span><span class="n">input_filter</span> <span class="o">=</span> <span class="n">ngx_stream_lua_socket_read_chunk</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">u</span><span class="o">-&gt;</span><span class="n">length</span> <span class="o">=</span> <span class="p">(</span><span class="n">size_t</span><span class="p">)</span> <span class="n">bytes</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">u</span><span class="o">-&gt;</span><span class="n">length</span> <span class="o">=</span> <span class="p">(</span><span class="kt">size_t</span><span class="p">)</span> <span class="n">bytes</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="n">u</span><span class="o">-&gt;</span><span class="n">rest</span> <span class="o">=</span> <span class="n">u</span><span class="o">-&gt;</span><span class="n">length</span><span class="p">;</span>
 </span></span></code></pre></div><p>这里的u就是ngx_stream_lua_socket_tcp_upstream_t指针，在这里设置了input_filter回调函数，在下一次IO被触发回调时自然会走到这个函数，另外rest成员中保存了这次调用receive函数传入的长度，而在ngx_stream_lua_socket_read_chunk函数中：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">bytes</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="n">ssize_t</span><span class="p">)</span> <span class="n">u</span><span class="o">-&gt;</span><span class="n">rest</span><span class="p">)</span> <span class="p">{</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">bytes</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="kt">ssize_t</span><span class="p">)</span> <span class="n">u</span><span class="o">-&gt;</span><span class="n">rest</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="n">u</span><span class="o">-&gt;</span><span class="n">buf_in</span><span class="o">-&gt;</span><span class="n">buf</span><span class="o">-&gt;</span><span class="n">last</span> <span class="o">+=</span> <span class="n">u</span><span class="o">-&gt;</span><span class="n">rest</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="n">b</span><span class="o">-&gt;</span><span class="n">pos</span> <span class="o">+=</span> <span class="n">u</span><span class="o">-&gt;</span><span class="n">rest</span><span class="p">;</span>
@@ -589,7 +589,7 @@
 <p>由于ngx.thread.spawn函数的返回值是新创建的协程，因此此时拿到父协程传递进来的线程参数，继续下一次lua_resume执行：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">case</span> <span class="nl">NGX_STREAM_LUA_USER_THREAD_RESUME</span><span class="p">:</span> <span class="c1">// lua代码中创建了用户线程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>
-</span></span><span class="line"><span class="cl">  <span class="n">ngx_log_debug0</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_STREAM</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">ngx_log_debug0</span><span class="p">(</span><span class="n">NGX_LOG_DEBUG_STREAM</span><span class="p">,</span> <span class="n">r</span><span class="o">-&gt;</span><span class="n">connection</span><span class="o">-&gt;</span><span class="n">log</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">    <span class="s">&#34;lua user thread resume&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="c1">// 设置为NGX_STREAM_LUA_USER_CORO_NOP
@@ -597,8 +597,8 @@
 </span></span><span class="line"><span class="cl">  <span class="c1">// 此时的ctx-&gt;cur_co_ctx-&gt;co是由thread.spawn创建的用户线程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// 以下这里得到传入这个用户线程的函数参数数量
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// -1是因为传入thread.spawn的第一个参数是线程入口函数，因此要略过这个参数
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">nrets</span> <span class="o">=</span> <span class="n">lua_gettop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="n">dd</span><span class="p">(</span><span class="s">&#34;nrets = %d&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">nrets</span> <span class="o">=</span> <span class="nf">lua_gettop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">dd</span><span class="p">(</span><span class="s">&#34;nrets = %d&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="c1">// break意味着下一次循环继续执行resume操作
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">break</span><span class="p">;</span>
@@ -617,7 +617,7 @@
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">p_coctx</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到待resume协程的ngx_stream_lua_co_ctx_t指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">coctx</span> <span class="o">=</span> <span class="n">ngx_stream_lua_get_co_ctx</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="n">ctx</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">coctx</span> <span class="o">=</span> <span class="nf">ngx_stream_lua_get_co_ctx</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="n">ctx</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 待resume协程的父协程上下文修改为当前协程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">coctx</span><span class="o">-&gt;</span><span class="n">parent_co_ctx</span> <span class="o">=</span> <span class="n">p_coctx</span><span class="p">;</span>
@@ -633,14 +633,14 @@
 </span></span><span class="line"><span class="cl"><span class="cm">/* yield and pass args to main thread, and resume target coroutine from
 </span></span></span><span class="line"><span class="cl"><span class="cm"> * there */</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 让出执行权给主线程，在那里做resume coroutine的操作
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">return</span> <span class="nf">lua_yield</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">lua_gettop</span><span class="p">(</span><span class="n">L</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">return</span> <span class="nf">lua_yield</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="nf">lua_gettop</span><span class="p">(</span><span class="n">L</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
 </span></span></code></pre></div><p><img src="/media/imgs/20190501-lua-stream/lua_resume.png" alt="lua_resume" title="lua_resume"></p>
 <p>而这种由于Lua脚本中调用了lua_resume函数让出执行权的情况，对应的co_op就是NGX_STREAM_LUA_USER_CORO_RESUME，此时在ngx_stream_lua_run_thread函数中的处理就是将父协程的参数移动到子协程中，即将函数参数从上面的p_coctx移动到coctx管理的协程中：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">nrets</span> <span class="o">=</span> <span class="n">lua_gettop</span><span class="p">(</span><span class="n">old_co</span><span class="p">);</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">nrets</span> <span class="o">=</span> <span class="nf">lua_gettop</span><span class="p">(</span><span class="n">old_co</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">nrets</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">dd</span><span class="p">(</span><span class="s">&#34;moving %d return values to parent&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">dd</span><span class="p">(</span><span class="s">&#34;moving %d return values to parent&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">  <span class="c1">// 移动协程resume函数的参数
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">lua_xmove</span><span class="p">(</span><span class="n">old_co</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">lua_xmove</span><span class="p">(</span><span class="n">old_co</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><h5 id="luayield">lua.yield</h5>
 <p>lua.yield函数对应的实现是函数ngx_stream_lua_coroutine_yield，该函数的实现相对就简单很多：</p>
@@ -649,21 +649,21 @@
 </span></span><span class="line"><span class="cl"><span class="c1">// 修改co_op
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">co_op</span> <span class="o">=</span> <span class="n">NGX_STREAM_LUA_USER_CORO_YIELD</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// 让出执行权给主线程，在那里做yield coroutine操作
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">return</span> <span class="nf">lua_yield</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">lua_gettop</span><span class="p">(</span><span class="n">L</span><span class="p">));</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">return</span> <span class="nf">lua_yield</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="nf">lua_gettop</span><span class="p">(</span><span class="n">L</span><span class="p">));</span>
 </span></span></code></pre></div><p>这种情况对应的co_op值为NGX_STREAM_LUA_USER_CORO_YIELD，来看ngx_stream_lua_run_thread函数针对这种情况的处理。</p>
 <p>首先判断调用lua.yield让出执行权的是不是用户线程：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">ngx_stream_lua_is_thread</span><span class="p">(</span><span class="n">ctx</span><span class="p">))</span> <span class="p">{</span>    <span class="c1">// 如果ctx是用户线程
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="nf">ngx_stream_lua_is_thread</span><span class="p">(</span><span class="n">ctx</span><span class="p">))</span> <span class="p">{</span>    <span class="c1">// 如果ctx是用户线程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="cm">/* discard any return values from user
 </span></span></span><span class="line"><span class="cl"><span class="cm">     * coroutine.yield()&#39;s arguments */</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 这里将yield的参数全都抛弃掉
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">lua_settop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">lua_settop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="n">ngx_stream_lua_probe_info</span><span class="p">(</span><span class="s">&#34;set co running&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">ngx_stream_lua_probe_info</span><span class="p">(</span><span class="s">&#34;set co running&#34;</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co_status</span> <span class="o">=</span> <span class="n">NGX_STREAM_LUA_CO_RUNNING</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">posted_threads</span><span class="p">)</span> <span class="p">{</span>  <span class="c1">// 如果有post线程队列，说明有pending的线程
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="c1">// 加入到posted_threads中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="n">ngx_stream_lua_post_thread</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="nf">ngx_stream_lua_post_thread</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">        <span class="c1">// 置当前协程上下文指针为NULL
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">        <span class="c1">// 返回等待下一次被唤醒调度
@@ -681,7 +681,7 @@
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cm">/* being a user coroutine that has a parent */</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到栈顶数据数量
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">nrets</span> <span class="o">=</span> <span class="n">lua_gettop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">nrets</span> <span class="o">=</span> <span class="nf">lua_gettop</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// 拿到父协程上下文
 </span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">next_coctx</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">parent_co_ctx</span><span class="p">;</span>
@@ -692,12 +692,12 @@
 </span></span></span><span class="line"><span class="cl"><span class="cm"> * (true plus any retvals)
 </span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
 </span></span><span class="line"><span class="cl"><span class="c1">// push到父协程中一个bool数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">lua_pushboolean</span><span class="p">(</span><span class="n">next_co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">lua_pushboolean</span><span class="p">(</span><span class="n">next_co</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">nrets</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="n">dd</span><span class="p">(</span><span class="s">&#34;moving %d return values to next co&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">dd</span><span class="p">(</span><span class="s">&#34;moving %d return values to next co&#34;</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 将返回值move到父协程中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">lua_xmove</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">next_co</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">lua_xmove</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">cur_co_ctx</span><span class="o">-&gt;</span><span class="n">co</span><span class="p">,</span> <span class="n">next_co</span><span class="p">,</span> <span class="n">nrets</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// +1是为了多加上bool值
