@@ -10,8 +10,8 @@
 <title>KCP 1.4源码分析 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -421,49 +421,49 @@
 </code></pre><h2 id="kcp结构体">KCP结构体</h2>
 <p>除了上面定义每个报文的结构体之外，<code>kcp</code>协议栈还有一个负责记录kcp协议栈信息的结构体<code>IKCPCB</code>。</p>
 <p>其定义及成员的注释如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">IKCPCB</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// mss：MSS（Maximum Segment Size），最大报文长度
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">conv</span><span class="p">,</span> <span class="n">mtu</span><span class="p">,</span> <span class="n">mss</span><span class="p">,</span> <span class="n">state</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// snd_una：最小的未ack序列号，即这个编号前面的所有报都收到了的标志
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// snd_nxt：下一个待发送的序列号
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// rcv_nxt：下一个待接收的序列号，会通过包头中的una字段通知对端
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_una</span><span class="p">,</span> <span class="n">snd_nxt</span><span class="p">,</span> <span class="n">rcv_nxt</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// ssthresh：slow start threshhold，慢启动阈值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">ts_recent</span><span class="p">,</span> <span class="n">ts_lastack</span><span class="p">,</span> <span class="n">ssthresh</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// RTT：Round Trip Time，往返时间
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// rx_rttval：RTT的平均偏差
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// rx_srtt：RTT的一个加权RTT平均值，平滑值。
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IINT32</span> <span class="n">rx_rttval</span><span class="p">,</span> <span class="n">rx_srtt</span><span class="p">,</span> <span class="n">rx_rto</span><span class="p">,</span> <span class="n">rx_minrto</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// rmt_wnd：对端（rmt=remote）窗口
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// probe：存储探测标志位
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_wnd</span><span class="p">,</span> <span class="n">rcv_wnd</span><span class="p">,</span> <span class="n">rmt_wnd</span><span class="p">,</span> <span class="n">cwnd</span><span class="p">,</span> <span class="n">probe</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">current</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">ts_flush</span><span class="p">,</span> <span class="n">xmit</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 接收和发送缓冲区大小
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_buf</span><span class="p">,</span> <span class="n">nsnd_buf</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 接收和发送队列大小
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_que</span><span class="p">,</span> <span class="n">nsnd_que</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">nodelay</span><span class="p">,</span> <span class="n">updated</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">ts_probe</span><span class="p">,</span> <span class="n">probe_wait</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">dead_link</span><span class="p">,</span> <span class="n">incr</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_queue</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_queue</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_buf</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_buf</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="o">*</span><span class="n">acklist</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">ackcount</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IUINT32</span> <span class="n">ackblock</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">fastresend</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">fastlimit</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// nocwnd：是否关闭流控，0表示不关闭，默认值为0
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kt">int</span> <span class="n">nocwnd</span><span class="p">,</span> <span class="n">stream</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="n">logmask</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">output</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">writelog</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">log</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">};</span>
-</span></span></code></pre></div><p>kcp库对外的接口中，首先需要调用<code>ikcp_create</code>函数创建该结构体，才能继续后面的工作。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">IKCPCB</span>
+<span class="p">{</span>
+	<span class="c1">// mss：MSS（Maximum Segment Size），最大报文长度
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">conv</span><span class="p">,</span> <span class="n">mtu</span><span class="p">,</span> <span class="n">mss</span><span class="p">,</span> <span class="n">state</span><span class="p">;</span>
+	<span class="c1">// snd_una：最小的未ack序列号，即这个编号前面的所有报都收到了的标志
+</span><span class="c1"></span>	<span class="c1">// snd_nxt：下一个待发送的序列号
+</span><span class="c1"></span>	<span class="c1">// rcv_nxt：下一个待接收的序列号，会通过包头中的una字段通知对端
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_una</span><span class="p">,</span> <span class="n">snd_nxt</span><span class="p">,</span> <span class="n">rcv_nxt</span><span class="p">;</span>
+	<span class="c1">// ssthresh：slow start threshhold，慢启动阈值
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">ts_recent</span><span class="p">,</span> <span class="n">ts_lastack</span><span class="p">,</span> <span class="n">ssthresh</span><span class="p">;</span>
+	<span class="c1">// RTT：Round Trip Time，往返时间
+</span><span class="c1"></span>	<span class="c1">// rx_rttval：RTT的平均偏差
+</span><span class="c1"></span>	<span class="c1">// rx_srtt：RTT的一个加权RTT平均值，平滑值。
+</span><span class="c1"></span>	<span class="n">IINT32</span> <span class="n">rx_rttval</span><span class="p">,</span> <span class="n">rx_srtt</span><span class="p">,</span> <span class="n">rx_rto</span><span class="p">,</span> <span class="n">rx_minrto</span><span class="p">;</span>
+	<span class="c1">// rmt_wnd：对端（rmt=remote）窗口
+</span><span class="c1"></span>	<span class="c1">// probe：存储探测标志位
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_wnd</span><span class="p">,</span> <span class="n">rcv_wnd</span><span class="p">,</span> <span class="n">rmt_wnd</span><span class="p">,</span> <span class="n">cwnd</span><span class="p">,</span> <span class="n">probe</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">current</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">ts_flush</span><span class="p">,</span> <span class="n">xmit</span><span class="p">;</span>
+	<span class="c1">// 接收和发送缓冲区大小
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_buf</span><span class="p">,</span> <span class="n">nsnd_buf</span><span class="p">;</span>
+	<span class="c1">// 接收和发送队列大小
+</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_que</span><span class="p">,</span> <span class="n">nsnd_que</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">nodelay</span><span class="p">,</span> <span class="n">updated</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">ts_probe</span><span class="p">,</span> <span class="n">probe_wait</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">dead_link</span><span class="p">,</span> <span class="n">incr</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_queue</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_queue</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_buf</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_buf</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="o">*</span><span class="n">acklist</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">ackcount</span><span class="p">;</span>
+	<span class="n">IUINT32</span> <span class="n">ackblock</span><span class="p">;</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">;</span>
+	<span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">fastresend</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">fastlimit</span><span class="p">;</span>
+	<span class="c1">// nocwnd：是否关闭流控，0表示不关闭，默认值为0
+</span><span class="c1"></span>	<span class="kt">int</span> <span class="n">nocwnd</span><span class="p">,</span> <span class="n">stream</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">logmask</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">output</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
+	<span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">writelog</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">log</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre></div><p>kcp库对外的接口中，首先需要调用<code>ikcp_create</code>函数创建该结构体，才能继续后面的工作。</p>
 <h2 id="几个队列">几个队列</h2>
 <p>从上面定义的数据结构中，还看到了其中有队列指针，不难想象每个报文数据都是某种队列中的元素，确实也是这样，在KCP中定义了以下几个和报文相关的队列：</p>
 <ul>
@@ -517,31 +517,31 @@
 <li>rx_minrto：最小RTO，系统启动时配置，在nodelay的情况下值为<code>IKCP_RTO_NDL</code>，否则就是<code>IKCP_RTO_MIN</code>。</li>
 <li>rx_rto：估算出来的rto值，为平滑值+max（interval，平均值），在[rx_minrto,IKCP_RTO_MAX]之间。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">ikcp_update_ack</span><span class="p">(</span><span class="n">ikcpcb</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="n">IINT32</span> <span class="n">rtt</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="n">IINT32</span> <span class="n">rto</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 当前没有rtt加权平均值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// 以这次RTT值来设置
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="n">rtt</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 平均值要除以2
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">/</span> <span class="mi">2</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 计算两者之差
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="kt">long</span> <span class="n">delta</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">-</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">delta</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="n">delta</span> <span class="o">=</span> <span class="o">-</span><span class="n">delta</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 算平均值，可以看到平均值是最近4次的平均
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span> <span class="o">/</span> <span class="mi">4</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 算加权值，加权值是最近8次加权值的平均
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="p">(</span><span class="mi">7</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="n">rtt</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 不能小于1
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 计算RTO值：平滑值+max（interval，平均值）
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">rto</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="nf">_imax_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">interval</span><span class="p">,</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 最终在[rx_minrto,IKCP_RTO_MAX]之间
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rto</span> <span class="o">=</span> <span class="nf">_ibound_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_minrto</span><span class="p">,</span> <span class="n">rto</span><span class="p">,</span> <span class="n">IKCP_RTO_MAX</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>可见，以上流程最终要算出来当前KCP协议栈的<code>rx_rto</code>，这个值最终会影响每个报文的超时发送时间，这在后面的发送流程中再解释。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">static</span> <span class="kt">void</span> <span class="nf">ikcp_update_ack</span><span class="p">(</span><span class="n">ikcpcb</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="n">IINT32</span> <span class="n">rtt</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="n">IINT32</span> <span class="n">rto</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 当前没有rtt加权平均值
+</span><span class="c1"></span>		<span class="c1">// 以这次RTT值来设置
+</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="n">rtt</span><span class="p">;</span>
+		<span class="c1">// 平均值要除以2
+</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">/</span> <span class="mi">2</span><span class="p">;</span>
+	<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span>
+		<span class="c1">// 计算两者之差
+</span><span class="c1"></span>		<span class="kt">long</span> <span class="n">delta</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">-</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span><span class="p">;</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">delta</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="n">delta</span> <span class="o">=</span> <span class="o">-</span><span class="n">delta</span><span class="p">;</span>
+		<span class="c1">// 算平均值，可以看到平均值是最近4次的平均
+</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span> <span class="o">/</span> <span class="mi">4</span><span class="p">;</span>
+		<span class="c1">// 算加权值，加权值是最近8次加权值的平均
+</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="p">(</span><span class="mi">7</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="n">rtt</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">;</span>
+		<span class="c1">// 不能小于1
+</span><span class="c1"></span>		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="c1">// 计算RTO值：平滑值+max（interval，平均值）
+</span><span class="c1"></span>	<span class="n">rto</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="n">_imax_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">interval</span><span class="p">,</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span><span class="p">);</span>
+	<span class="c1">// 最终在[rx_minrto,IKCP_RTO_MAX]之间
+</span><span class="c1"></span>	<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rto</span> <span class="o">=</span> <span class="n">_ibound_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_minrto</span><span class="p">,</span> <span class="n">rto</span><span class="p">,</span> <span class="n">IKCP_RTO_MAX</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div><p>可见，以上流程最终要算出来当前KCP协议栈的<code>rx_rto</code>，这个值最终会影响每个报文的超时发送时间，这在后面的发送流程中再解释。</p>
 <p>另外还需要专门聊一下<code>ikcp_parse_fastack</code>函数，以及快速重传的处理。快速重传的原理是这样的：假设当前有序列号<code>[1,2,3]</code>的报文等待对端应答，当KCP协议栈收到报文2的ack时，知道报文1被跳过1次了；同样的，当收到报文3的ack时，报文1又被跳过1次。</p>
 <p>这里的“跳过次数”就存储在<code>IKCPSEG.fastack</code>成员中，KCP协议栈提供<code>ikcp_nodelay</code>函数可以配置快速重传值<code>resend</code>，当报文的跳过次数超过<code>resend</code>时，就马上重传该报文，不会等待报文超时，一定程度上加速报文的重传降低了延迟。</p>
 <h2 id="ikcp_cmd_push">IKCP_CMD_PUSH</h2>
@@ -570,30 +570,30 @@
 </li>
 <li>最后，拥塞窗口不能超过对端窗口大小。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl">	<span class="c1">// 前面处理完毕之后，最新的una更大，说明接收到了新的ack
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="nf">_itimediff</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">snd_una</span><span class="p">,</span> <span class="n">prev_una</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span>	<span class="c1">// 拥塞窗口小于对端窗口
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="n">IUINT32</span> <span class="n">mss</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">mss</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">ssthresh</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口小于慢启动阈值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>	<span class="c1">// 递增拥塞窗口
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="n">mss</span><span class="p">;</span>	<span class="c1">// 递增mss
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span> <span class="c1">// 拥塞窗口大于等于慢启动阈值
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="c1">// 不能小于mss了
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">&lt;</span> <span class="n">mss</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">mss</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">				<span class="c1">// 增加 mss + 1/16 mss
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="p">(</span><span class="n">mss</span> <span class="o">*</span> <span class="n">mss</span><span class="p">)</span> <span class="o">/</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+</span> <span class="p">(</span><span class="n">mss</span> <span class="o">/</span> <span class="mi">16</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">				<span class="c1">// 只有在拥塞窗口递增后不超过incr的情况下才允许加一
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="k">if</span> <span class="p">((</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">mss</span> <span class="o">&lt;=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">					<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">				<span class="p">}</span>
-</span></span><span class="line"><span class="cl">			<span class="p">}</span>
-</span></span><span class="line"><span class="cl">			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&gt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口不能比对端窗口大
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span> <span class="o">*</span> <span class="n">mss</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">			<span class="p">}</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span></code></pre></div><h1 id="ikcp_recv函数">ikcp_recv函数</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C">	<span class="c1">// 前面处理完毕之后，最新的una更大，说明接收到了新的ack
+</span><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="n">_itimediff</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">snd_una</span><span class="p">,</span> <span class="n">prev_una</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span>	<span class="c1">// 拥塞窗口小于对端窗口
+</span><span class="c1"></span>			<span class="n">IUINT32</span> <span class="n">mss</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">mss</span><span class="p">;</span>
+			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">ssthresh</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口小于慢启动阈值
+</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>	<span class="c1">// 递增拥塞窗口
+</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="n">mss</span><span class="p">;</span>	<span class="c1">// 递增mss
+</span><span class="c1"></span>			<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span> <span class="c1">// 拥塞窗口大于等于慢启动阈值
+</span><span class="c1"></span>				<span class="c1">// 不能小于mss了
+</span><span class="c1"></span>				<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">&lt;</span> <span class="n">mss</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">mss</span><span class="p">;</span>
+				<span class="c1">// 增加 mss + 1/16 mss
+</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="p">(</span><span class="n">mss</span> <span class="o">*</span> <span class="n">mss</span><span class="p">)</span> <span class="o">/</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+</span> <span class="p">(</span><span class="n">mss</span> <span class="o">/</span> <span class="mi">16</span><span class="p">);</span>
+				<span class="c1">// 只有在拥塞窗口递增后不超过incr的情况下才允许加一
+</span><span class="c1"></span>				<span class="k">if</span> <span class="p">((</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">mss</span> <span class="o">&lt;=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span><span class="p">)</span> <span class="p">{</span>
+					<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>
+				<span class="p">}</span>
+			<span class="p">}</span>
+			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&gt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口不能比对端窗口大
+</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">;</span>
+				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span> <span class="o">*</span> <span class="n">mss</span><span class="p">;</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+</code></pre></div><h1 id="ikcp_recv函数">ikcp_recv函数</h1>
 <p>前面的<code>ikcp_input</code>解析完毕之后，将用户缓冲区的数据解析到一个一个的报文放到了接收队列<code>rcv_queue</code>中，<code>ikcp_recv</code>函数就负责将这些报文重新组装起来放入用户缓冲区返回给用户层。</p>
 <p>之所以这里还需要“组装”，是因为对端发送的数据由于超过MTU所以被KCP协议栈分成多个报文发送了。所以这里需要兼容多个分片的情况，如果待接收报文的所有分片没有接收完毕，那么不能处理。接收完毕或者不分片的情况下，就遍历这些报文将数据拷贝到缓冲区中。</p>
 <p>上面的步骤完成之后，如果接收缓冲区<code>rcv_buf</code>还有报文，那么依然是把这部分报文移动到接收队列中，等待下一次<code>ikcp_recv</code>调用。</p>

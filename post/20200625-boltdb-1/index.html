@@ -10,8 +10,8 @@
 <title>boltdb 1.3.0实现分析（一） - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -369,13 +369,13 @@
 <li>Leaf页面，存储B+树数据节点，也就是叶子节点的页面。</li>
 </ul>
 <p>boltdb代码中定义页面类型如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">branchPageFlag</span>   <span class="p">=</span> <span class="mh">0x01</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">leafPageFlag</span>     <span class="p">=</span> <span class="mh">0x02</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">metaPageFlag</span>     <span class="p">=</span> <span class="mh">0x04</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">freelistPageFlag</span> <span class="p">=</span> <span class="mh">0x10</span>
-</span></span><span class="line"><span class="cl"><span class="p">)</span>
-</span></span></code></pre></div><p>这四种页面，在boltdb的数据库文件的布局大体如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">const</span> <span class="p">(</span>
+	<span class="nx">branchPageFlag</span>   <span class="p">=</span> <span class="mh">0x01</span>
+	<span class="nx">leafPageFlag</span>     <span class="p">=</span> <span class="mh">0x02</span>
+	<span class="nx">metaPageFlag</span>     <span class="p">=</span> <span class="mh">0x04</span>
+	<span class="nx">freelistPageFlag</span> <span class="p">=</span> <span class="mh">0x10</span>
+<span class="p">)</span>
+</code></pre></div><p>这四种页面，在boltdb的数据库文件的布局大体如下：</p>
 <p><img src="/media/imgs/20200625-boltdb-1/boltdb-layout.png" alt="boltdb-layout" title="boltdb-layout"></p>
 <p>从上图中可以看出：</p>
 <ul>
@@ -386,16 +386,16 @@
 <p>接下来就这几种页面具体的结构展开说明，不过在此之前还是首先来看看<code>page</code>结构体，它用于表示一个磁盘页面的数据结构。</p>
 <h2 id="page结构体">page结构体</h2>
 <p><code>page</code>结构体的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">pgid</span> <span class="kt">uint64</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">page</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">id</span>       <span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">flags</span>    <span class="kt">uint16</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">count</span>    <span class="kt">uint16</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">overflow</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">ptr</span>      <span class="kt">uintptr</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">pgid</span> <span class="kt">uint64</span>
+
+<span class="kd">type</span> <span class="nx">page</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">id</span>       <span class="nx">pgid</span>
+    <span class="nx">flags</span>    <span class="kt">uint16</span>
+    <span class="nx">count</span>    <span class="kt">uint16</span>
+    <span class="nx">overflow</span> <span class="kt">uint32</span>
+    <span class="nx">ptr</span>      <span class="kt">uintptr</span>
+<span class="p">}</span>
+</code></pre></div><p>其中：</p>
 <ul>
 <li>id：页面ID。</li>
 <li>flags：标志位，不同类型的页面用不同的标志位来区分。分为：metaPageFlag、freelistPageFlag、branchPageFlag、leafPageFlag。</li>
@@ -408,18 +408,18 @@
 <p>有了对页面的初步认识，接着下来看具体的几种不同类型页面的格式。</p>
 <h2 id="meta页面">meta页面</h2>
 <p>meta页面用于存储表示整个数据库信息的元数据，其格式如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">meta</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">magic</span>    <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">version</span>  <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">pageSize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">flags</span>    <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">root</span>     <span class="nx">bucket</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">freelist</span> <span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">pgid</span>     <span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">txid</span>     <span class="nx">txid</span>
-</span></span><span class="line"><span class="cl">    <span class="nx">checksum</span> <span class="kt">uint64</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">meta</span> <span class="kd">struct</span> <span class="p">{</span>
+    <span class="nx">magic</span>    <span class="kt">uint32</span>
+    <span class="nx">version</span>  <span class="kt">uint32</span>
+    <span class="nx">pageSize</span> <span class="kt">uint32</span>
+    <span class="nx">flags</span>    <span class="kt">uint32</span>
+    <span class="nx">root</span>     <span class="nx">bucket</span>
+    <span class="nx">freelist</span> <span class="nx">pgid</span>
+    <span class="nx">pgid</span>     <span class="nx">pgid</span>
+    <span class="nx">txid</span>     <span class="nx">txid</span>
+    <span class="nx">checksum</span> <span class="kt">uint64</span>
+<span class="p">}</span>
+</code></pre></div><p>其中：</p>
 <ul>
 <li>magic：boltdb的magic number，值为“0xED0CDAED”。</li>
 <li>version：boltdb的版本号，当前为2。</li>
@@ -432,21 +432,21 @@
 <li>checksum：校验码，用于校验元数据页面是否出错的。</li>
 </ul>
 <p>从上面对<code>page</code>结构体的分析，ptr指向具体的页面数据内容，据此，从<code>page</code>结构体中返回<code>meta</code>指针的函数如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">meta</span><span class="p">()</span> <span class="o">*</span><span class="nx">meta</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="nx">meta</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">))</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>即：将<code>page</code>的ptr指针转换为<code>meta</code>类型返回。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">meta</span><span class="p">()</span> <span class="o">*</span><span class="nx">meta</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="nx">meta</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div><p>即：将<code>page</code>的ptr指针转换为<code>meta</code>类型返回。</p>
 <p>因此，一个<code>meta</code>页面的格式如下：</p>
 <p><img src="/media/imgs/20200625-boltdb-1/meta-page-layout.png" alt="meta-page-layout" title="meta-page-layout"></p>
 <h2 id="freelist页面">freelist页面</h2>
 <p>接下来看freelist页面的构成。由于boltdb磁盘分配的单位是页面，所以当前哪些页面可用、哪些闲置，就需要用一个数据结构来描述，这部分信息就由freelist页面来维护。如果当前磁盘页面已经不够分配了，boltdb就需要扩大磁盘文件的大小，创建出更多可用的闲置页面供分配。</p>
 <p>来看freelist的数据结构定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">freelist</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">ids</span>     <span class="p">[]</span><span class="nx">pgid</span>          <span class="c1">// all free and available free page ids.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">pending</span> <span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">][]</span><span class="nx">pgid</span> <span class="c1">// mapping of soon-to-be free page ids by tx.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">cache</span>   <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span>   <span class="c1">// fast lookup of all free and pending page ids.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">freelist</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">ids</span>     <span class="p">[]</span><span class="nx">pgid</span>          <span class="c1">// all free and available free page ids.
+</span><span class="c1"></span>	<span class="nx">pending</span> <span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">][]</span><span class="nx">pgid</span> <span class="c1">// mapping of soon-to-be free page ids by tx.
+</span><span class="c1"></span>	<span class="nx">cache</span>   <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span>   <span class="c1">// fast lookup of all free and pending page ids.
+</span><span class="c1"></span><span class="p">}</span>
+</code></pre></div><p>其中：</p>
 <ul>
 <li>ids：保存当前闲置页面id的数组。</li>
 <li>pending：保存事务操作对应的页面ID，键为事务ID，值为页面ID数组。这部分的页面ID，在事务操作完成之后即被释放。</li>
@@ -461,35 +461,35 @@
 <p><img src="/media/imgs/20200625-boltdb-1/freelist-page-layout.png" alt="freelist-page-layout" title="freelist-page-layout"></p>
 <p><code>freelist</code>中的一些操作与事务有关，这里暂时不展开这部分的讨论，先来看看基本的页面分配是怎么完成的。</p>
 <p><code>freelist</code>对外提供<code>allocate</code>函数，该函数的参数是一个整数n，表示希望能分配连续的n个页面，返回这些页面中第一个页面的页面ID。实际情况肯定不是每次这样分配就能成功的，在不成功的时候，boltdb就只能再进行<code>mmap</code>操作，扩大数据库磁盘文件的大小了：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// allocate returns a contiguous block of memory starting at a given page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// Use pages from the freelist if they are available.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 分配页面id，传入的count表示需要多少个连续的id
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">freelist</span><span class="p">.</span><span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span><span class="p">);</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// 前面分配页面id失败，说明当前已经不够用了，所以需要重新mmap分配更大的空间出来
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// Resize mmap() if we&#39;re at the end.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 计算需要的最小文件大小
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">var</span> <span class="nx">minsz</span> <span class="p">=</span> <span class="nb">int</span><span class="p">((</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">))</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 如果大于当前文件大小，需要重新分配
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">minsz</span> <span class="o">&gt;=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">datasz</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;mmap allocate error: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Move the page id high water mark.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 保存目前最高的页面id
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span> <span class="o">+=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>  
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>从以上代码可以看到：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// allocate returns a contiguous block of memory starting at a given page.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+  <span class="c1">// ...
+</span><span class="c1"></span>	<span class="c1">// Use pages from the freelist if they are available.
+</span><span class="c1"></span>	<span class="c1">// 分配页面id，传入的count表示需要多少个连续的id
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">freelist</span><span class="p">.</span><span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span><span class="p">);</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="c1">// 前面分配页面id失败，说明当前已经不够用了，所以需要重新mmap分配更大的空间出来
+</span><span class="c1"></span>
+	<span class="c1">// Resize mmap() if we&#39;re at the end.
+</span><span class="c1"></span>	<span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span>
+	<span class="c1">// 计算需要的最小文件大小
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">minsz</span> <span class="p">=</span> <span class="nb">int</span><span class="p">((</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">))</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span>
+	<span class="c1">// 如果大于当前文件大小，需要重新分配
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">minsz</span> <span class="o">&gt;=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">datasz</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;mmap allocate error: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Move the page id high water mark.
+</span><span class="c1"></span>	<span class="c1">// 保存目前最高的页面id
+</span><span class="c1"></span>	<span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span> <span class="o">+=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">)</span>
+
+	<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>  
+<span class="p">}</span>
+</code></pre></div><p>从以上代码可以看到：</p>
 <ul>
 <li>首先调用<code>freelist.allocate</code>分配count个连续页面，返回起始页面ID。</li>
 <li>这个过程一旦失败，意味着当前系统中已经没有了count个连续页面，此时计算满足条件需要的最小文件大小，如果超过了当前数据库文件大小，就调用<code>db.mmap</code>函数对磁盘文件扩容。</li>
@@ -526,41 +526,41 @@ func (db *DB) mmap(minsz int) error {
 <li>真实的数据部分。</li>
 </ul>
 <p>来看看<code>branchPageElement</code>结构体的定义，该结构体定义每个branch中的元素的信息：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// branchPageElement represents a node on a branch page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">branchPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">pos</span>   <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">ksize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">pgid</span>  <span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// branchPageElement represents a node on a branch page.
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">branchPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">pos</span>   <span class="kt">uint32</span>
+	<span class="nx">ksize</span> <span class="kt">uint32</span>
+	<span class="nx">pgid</span>  <span class="nx">pgid</span>
+<span class="p">}</span>
+</code></pre></div><p>其中：</p>
 <ul>
 <li>pos：存储键相对于当前页面数据部分的偏移量。</li>
 <li>ksize：键的大小。</li>
 <li>pgid：子节点的页面ID。</li>
 </ul>
 <p>branch页面的格式布局也可以从<code>page</code>序列化到内存中的<code>node</code>结构体的代码中看出，以下列出核心的几个函数：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// branchPageElement retrieves the branch node by index
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">branchPageElement</span><span class="p">(</span><span class="nx">index</span> <span class="kt">uint16</span><span class="p">)</span> <span class="o">*</span><span class="nx">branchPageElement</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="p">((</span><span class="o">*</span><span class="p">[</span><span class="mh">0x7FFFFFF</span><span class="p">]</span><span class="nx">branchPageElement</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">)))[</span><span class="nx">index</span><span class="p">]</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">branchPageElement</span><span class="p">)</span> <span class="nf">key</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">buf</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span>
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">buf</span><span class="p">[</span><span class="nx">n</span><span class="p">.</span><span class="nx">pos</span><span class="p">]))[:</span><span class="nx">n</span><span class="p">.</span><span class="nx">ksize</span><span class="p">]</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">read</span><span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">count</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">inode</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="nx">elem</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">branchPageElement</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
-</span></span><span class="line"><span class="cl">			<span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">			<span class="nx">inode</span><span class="p">.</span><span class="nx">key</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nf">key</span><span class="p">()</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>以上代码中可以看到：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// branchPageElement retrieves the branch node by index
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">branchPageElement</span><span class="p">(</span><span class="nx">index</span> <span class="kt">uint16</span><span class="p">)</span> <span class="o">*</span><span class="nx">branchPageElement</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="o">&amp;</span><span class="p">((</span><span class="o">*</span><span class="p">[</span><span class="mh">0x7FFFFFF</span><span class="p">]</span><span class="nx">branchPageElement</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">)))[</span><span class="nx">index</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">branchPageElement</span><span class="p">)</span> <span class="nf">key</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
+	<span class="nx">buf</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span>
+	<span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">buf</span><span class="p">[</span><span class="nx">n</span><span class="p">.</span><span class="nx">pos</span><span class="p">]))[:</span><span class="nx">n</span><span class="p">.</span><span class="nx">ksize</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">read</span><span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">count</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="nx">inode</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+		<span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+			<span class="nx">elem</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">branchPageElement</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+			<span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nx">pgid</span>
+			<span class="nx">inode</span><span class="p">.</span><span class="nx">key</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nf">key</span><span class="p">()</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><p>以上代码中可以看到：</p>
 <ul>
 <li>根据<code>page.branchPageElement</code>函数的实现，在branch类型的页面中，<code>page.ptr</code>实际上指向的是一个<code>branchPageElement</code>类型的数组，于是将<code>ptr</code>指针转换成<code>branchPageElement</code>数组类型之后，就可以使用索引值取到对应位置的<code>branchPageElement</code>。</li>
 <li>而根据<code>branchPageElement.key</code>函数的实现，一个<code>branchPageElement</code>的<code>key</code>，位置在这个元素的<code>pos</code>位置开始，长度为<code>key</code>。</li>
@@ -569,14 +569,14 @@ func (db *DB) mmap(minsz int) error {
 <p><img src="/media/imgs/20200625-boltdb-1/branch-page-layout.png" alt="branch-page-layout" title="branch-page-layout"></p>
 <h2 id="leaf页面">leaf页面</h2>
 <p>leaf页面就是B+树中存储数据的叶子节点，其页面元素定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// leafPageElement represents a node on a leaf page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">leafPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">flags</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">pos</span>   <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">ksize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">vsize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>与branch不同的是，leaf页面元素有以下成员：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// leafPageElement represents a node on a leaf page.
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">leafPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">flags</span> <span class="kt">uint32</span>
+	<span class="nx">pos</span>   <span class="kt">uint32</span>
+	<span class="nx">ksize</span> <span class="kt">uint32</span>
+	<span class="nx">vsize</span> <span class="kt">uint32</span>
+<span class="p">}</span>
+</code></pre></div><p>与branch不同的是，leaf页面元素有以下成员：</p>
 <ul>
 <li>flags：标志位，为0的时候表示就是普通的叶子节点，而为1的时候表示是子bucket，子bucket后面再展开说明。</li>
 <li>vsize：存储数据的大小。</li>

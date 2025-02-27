@@ -10,8 +10,8 @@
 <title>周刊（第20期）：Rust并发安全相关的几个概念(下) - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -111,7 +111,7 @@
     },
     "headline": "周刊（第20期）：Rust并发安全相关的几个概念(下) - codedump的网络日志","datePublished": "2022-06-25T10:00:49+08:00",
     "dateModified": "2022-06-25T10:00:49+08:00",
-    "wordCount":  2822 ,
+    "wordCount":  3046 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -364,7 +364,7 @@
   </div>
   <div class="me-6 my-2">
     <i class="fas fa-clock me-1"></i>
-    <span>6分钟阅读时长</span>
+    <span>7分钟阅读时长</span>
   </div>
 
   
@@ -407,34 +407,34 @@
 <p>在<a href="https://www.codedump.info/post/20220619-weekly-19/">上一节</a>中，讲解了<code>Send</code>和<code>Sync</code>这两个线程安全相关的<code>trait</code>，在此基础上展开其它相关类型的讲解。</p>
 <h2 id="rc">Rc</h2>
 <p><code>Rc</code>是<code>Reference Counted（引用计数）</code>的简写，在Rust中，这个数据结构用于实现单线程安全的对指针的引用计数。之所以这个数据结构只是单线程安全，是因为在定义中显式声明了并不实现<code>Send</code>和<code>Sync</code>这两个<code>trait</code>：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="o">&gt;</span><span class="w"> </span><span class="o">!</span><span class="n">marker</span>::<span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Rc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="o">&gt;</span><span class="w"> </span><span class="o">!</span><span class="n">marker</span>::<span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Rc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span></code></pre></div><p>个中原因，是因为<code>Rc</code>内部的实现中，使用了非原子的引用计数（non-atomic reference counting），因此就不能满足线程安全的条件了。如果要在多线程中使用引用计数，就要使用<code>Arc</code>这个类型：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="o">&gt;</span><span class="w"> </span><span class="o">!</span><span class="n">marker</span>::<span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Rc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="o">&gt;</span><span class="w"> </span><span class="o">!</span><span class="n">marker</span>::<span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Rc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span></code></pre></div><p>个中原因，是因为<code>Rc</code>内部的实现中，使用了非原子的引用计数（non-atomic reference counting），因此就不能满足线程安全的条件了。如果要在多线程中使用引用计数，就要使用<code>Arc</code>这个类型：</p>
 <h2 id="arc">Arc</h2>
 <p>与<code>Rc</code>不同的是，<code>Arc</code>内部使用了原子操作来实现其引用计数，因此<code>Arc</code>是<code>Atomically Reference Counted（原子引用计数）</code>的简写，能被使用在多线程环境中，缺陷是原子操作的性能消耗会更大一些。</p>
 <p>虽然<code>Arc</code>能被用在多线程环境中，并不意味着<code>Arc&lt;T&gt;</code>天然就实现了<code>Send</code>和<code>Sync</code>，来看看这两部分的声明：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">unsafe</span><span class="w"> </span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Arc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">unsafe</span><span class="w"> </span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Arc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span></code></pre></div><p>从声明可以看出：一个<code>Arc&lt;T&gt;</code>类型，当且仅当包裹（wrap）的类型<code>T</code>满足<code>Sync</code>和<code>Send</code>时才能被认为是满足<code>Send</code>和<code>Sync</code>的类型。来做一个实验：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#![feature(negative_impls)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="n">sync</span>::<span class="n">Arc</span><span class="p">;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="cp">#[derive(Debug)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{});</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">});</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>在以上的代码中，由于在第8行显示声明了<code>Foo</code>这个类型不满足<code>Sync</code>，所以这段代码编译不过，报错信息如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
+</span><span class="w"></span><span class="k">unsafe</span><span class="w"> </span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Arc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w"></span><span class="cp">#[stable(feature = </span><span class="s">&#34;rust1&#34;</span><span class="cp">, since = </span><span class="s">&#34;1.0.0&#34;</span><span class="cp">)]</span><span class="w">
+</span><span class="w"></span><span class="k">unsafe</span><span class="w"> </span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Arc</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span></code></pre></div><p>从声明可以看出：一个<code>Arc&lt;T&gt;</code>类型，当且仅当包裹（wrap）的类型<code>T</code>满足<code>Sync</code>和<code>Send</code>时才能被认为是满足<code>Send</code>和<code>Sync</code>的类型。来做一个实验：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#![feature(negative_impls)]</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="n">sync</span>::<span class="n">Arc</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="cp">#[derive(Debug)]</span><span class="w">
+</span><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{});</span><span class="w">
+</span><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="p">});</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></div><p>在以上的代码中，由于在第8行显示声明了<code>Foo</code>这个类型不满足<code>Sync</code>，所以这段代码编译不过，报错信息如下：</p>
 <pre tabindex="0"><code>    = help: the trait `Sync` is not implemented for `Foo`
     = note: required because of the requirements on the impl of `Send` for `Arc&lt;Foo&gt;`
 </code></pre><p>反之，如果把第8行去掉，代码就能编译通过了。</p>
@@ -442,36 +442,36 @@
 <p>解开这个问题的答案请使用<code>Mutex</code>类型：</p>
 <h2 id="mutex">Mutex</h2>
 <p>与其它语言不同的是，<code>Rust</code>中类似<code>Mutex</code>、<code>RwLock</code>这样的结构都有一个包裹类型，这带来一个好处：使用这些数据类型保护对一个数据的访问时，是能够明确知道保护的哪个数据的。比如在C语言中，可能只是看到一个简单的mutex定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// 仅看到这个定义，并不知道这个mutex保护哪个数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">mutex_t</span> <span class="n">mutex</span><span class="p">;</span>
-</span></span></code></pre></div><p>但是在Rust中，定义一个<code>Mutex</code>是必须知道保护什么类型的哪个数据的：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Mutex</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{}));</span><span class="w">
-</span></span></span></code></pre></div><p>这无疑给阅读代码带来了便利。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="c1">// 仅看到这个定义，并不知道这个mutex保护哪个数据
+</span><span class="c1"></span><span class="n">mutex_t</span> <span class="n">mutex</span><span class="p">;</span>
+</code></pre></div><p>但是在Rust中，定义一个<code>Mutex</code>是必须知道保护什么类型的哪个数据的：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Mutex</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{}));</span><span class="w">
+</span></code></pre></div><p>这无疑给阅读代码带来了便利。</p>
 <p>回到线程安全这个话题来，<code>Mutex</code>只要求包裹的类型<code>T</code>满足<code>Send</code>就可以将它转成满足<code>Send</code>和<code>Sync</code>的类型<code>Mutex&lt;T&gt;</code>：</p>
-<pre tabindex="0"><code>#[stable(feature = &#34;rust1&#34;, since = &#34;1.0.0&#34;)]
+<pre tabindex="0"><code>#[stable(feature = &quot;rust1&quot;, since = &quot;1.0.0&quot;)]
 unsafe impl&lt;T: ?Sized + Send&gt; Send for Mutex&lt;T&gt; {}
-#[stable(feature = &#34;rust1&#34;, since = &#34;1.0.0&#34;)]
+#[stable(feature = &quot;rust1&quot;, since = &quot;1.0.0&quot;)]
 unsafe impl&lt;T: ?Sized + Send&gt; Sync for Mutex&lt;T&gt; {}
 </code></pre><p>这意味着：即便一个类型只满足了<code>Send</code>，不能直接用于<code>Arc&lt;T&gt;</code>满足多线程安全，但是可以通过包装成<code>Mutex&lt;T&gt;</code>来达到线程安全的目的。来看看上面的代码如何使用<code>Mutex</code>来进行改造：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#![feature(negative_impls)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="n">sync</span>::<span class="p">{</span><span class="n">Arc</span><span class="p">,</span><span class="w"> </span><span class="n">Mutex</span><span class="p">};</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="cp">#[derive(Debug)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Mutex</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{}));</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;</span><span class="si">{:?}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">foo</span><span class="p">));</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>上面这段代码中，<code>Foo</code>类型声明不满足<code>Sync</code>，所以不能直接声明<code>Arc&lt;Foo&gt;</code>用在多线程环境中，这一点上面的实验已经证明。但是，可以在<code>Foo</code>外面再包一层<code>Mutex</code>，变成<code>Arc&lt;Mutex&lt;Foo&gt;&gt;</code>这样就能在多线程中使用了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#![feature(negative_impls)]</span><span class="w">
+</span><span class="w"></span><span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="n">sync</span>::<span class="p">{</span><span class="n">Arc</span><span class="p">,</span><span class="w"> </span><span class="n">Mutex</span><span class="p">};</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="cp">#[derive(Debug)]</span><span class="w">
+</span><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span>::<span class="n">new</span><span class="p">(</span><span class="n">Mutex</span>::<span class="n">new</span><span class="p">(</span><span class="n">Foo</span><span class="w"> </span><span class="p">{}));</span><span class="w">
+</span><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;{:?}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">foo</span><span class="p">));</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></div><p>上面这段代码中，<code>Foo</code>类型声明不满足<code>Sync</code>，所以不能直接声明<code>Arc&lt;Foo&gt;</code>用在多线程环境中，这一点上面的实验已经证明。但是，可以在<code>Foo</code>外面再包一层<code>Mutex</code>，变成<code>Arc&lt;Mutex&lt;Foo&gt;&gt;</code>这样就能在多线程中使用了。</p>
 <p>即：一个只需要满足<code>Send</code>要求的类型<code>T</code>，只要经过<code>Mutex</code>的包裹变成类型<code>Mutex&lt;T&gt;</code>，就变成了一个线程安全的类型。</p>
 <p>个中原因：<code>Mutex</code>只要求类型<code>T</code>满足<code>Send</code>即可，内部的机制会保证这个类型在多线程环境下安全访问。</p>
 <h2 id="rwlock">RwLock</h2>
 <p>讲解了<code>Mutex</code>，来看看<code>RwLock</code>的使用，顾名思义：<code>RwLock</code>提供了读写锁的实现。它的<code>Send</code>和<code>Sync</code>要求如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">RwLock</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">RwLock</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w">
-</span></span></span></code></pre></div><p>对比可以看到：<code>RwLock&lt;T&gt;</code>要满足<code>Sync</code>，要求类型<code>T</code>同时满足<code>Send</code>和<code>Sync</code>，这个条件是比<code>Mutex&lt;T&gt;</code>更强的条件。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">RwLock</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="o">&lt;</span><span class="n">T</span>: <span class="o">?</span><span class="nb">Sized</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Send</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">Sync</span><span class="o">&gt;</span><span class="w"> </span><span class="nb">Sync</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">RwLock</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w">
+</span></code></pre></div><p>对比可以看到：<code>RwLock&lt;T&gt;</code>要满足<code>Sync</code>，要求类型<code>T</code>同时满足<code>Send</code>和<code>Sync</code>，这个条件是比<code>Mutex&lt;T&gt;</code>更强的条件。</p>
 <p>也可以这么来理解<code>RwLock</code>和<code>Mutex</code>的区别：</p>
 <ul>
 <li><code>RwLock</code>：由于要求内部的类型<code>T</code>必须满足<code>Sync</code>，于是在多个线程中通过<code>RwLock&lt;T&gt;</code>同时访问<code>&amp;T</code>是安全的。</li>

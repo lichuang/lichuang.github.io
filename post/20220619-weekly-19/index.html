@@ -10,8 +10,8 @@
 <title>周刊（第19期）：Rust并发安全相关的几个概念(上) - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -111,7 +111,7 @@
     },
     "headline": "周刊（第19期）：Rust并发安全相关的几个概念(上) - codedump的网络日志","datePublished": "2022-06-19T10:42:40+08:00",
     "dateModified": "2022-06-19T10:42:40+08:00",
-    "wordCount":  2331 ,
+    "wordCount":  2393 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -413,14 +413,14 @@
 </ul>
 <p>比如下面这段代码，user在创建线程之后，被移动（move）到两个不同的线程中：</p>
 <pre tabindex="0"><code>fn main() {
-    let user = User { name: &#34;drogus&#34;.to_string() };
+    let user = User { name: &quot;drogus&quot;.to_string() };
 
     let t1 = spawn(move || {
-        println!(&#34;Hello from the first thread {}&#34;, user.name);
+        println!(&quot;Hello from the first thread {}&quot;, user.name);
     });
 
     let t2 = spawn(move || {
-        println!(&#34;Hello from the second thread {}&#34;, user.name);
+        println!(&quot;Hello from the second thread {}&quot;, user.name);
     });
 
     t1.join().unwrap();
@@ -432,12 +432,12 @@
    |
 11 |     let t1 = spawn(move || {
    |                    ------- value moved into closure here
-12 |         println!(&#34;Hello from the first thread {}&#34;, user.name);
+12 |         println!(&quot;Hello from the first thread {}&quot;, user.name);
    |                                                    --------- variable moved due to use in closure
 ...
 15 |     let t2 = spawn(move || {
    |                    ^^^^^^^ value used here after move
-16 |         println!(&#34;Hello from the second thread {}&#34;, user.name);
+16 |         println!(&quot;Hello from the second thread {}&quot;, user.name);
    |                                                    --------- use occurs due to use in closure
    |
    = note: move occurs because `user.name` has type `String`, which does not implement the `Copy` trait
@@ -447,25 +447,25 @@
 <pre tabindex="0"><code>pub fn spawn&lt;F, T&gt;(f: F) -&gt; JoinHandle&lt;T&gt; 
 where
     F: FnOnce() -&gt; T,
-    F: Send + &#39;static,
-    T: Send + &#39;static,
+    F: Send + 'static,
+    T: Send + 'static,
 </code></pre><p>可以看到，对于<code>spawn</code>传入的函数和返回的类型，都要求满足<code>Send</code>这个约束。结合前面<code>Send</code>的定义：</p>
 <ul>
 <li>函数类型F需要满足<code>Send</code>约束：这是因为创建线程之后，需要把函数类型传入新创建的线程里，于是要求所有权能够在线程之间传递。</li>
 <li>返回类型需要满足<code>Send</code>约束：这是因为创建线程之后，返回值也需要转移回去原先的线程。</li>
 </ul>
 <p>有了对类型的约束，编译器就会在调用<code>std::thread::spawn</code>函数时针对类型进行检查，比如下面这段代码：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[derive(Debug)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{};</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">});</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>类型<code>Foo</code>标记自己并不实现<code>Send</code>这个<code>trait</code>，于是在编译的时候报错了：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#[derive(Debug)]</span><span class="w">
+</span><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="o">!</span><span class="nb">Send</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{};</span><span class="w">
+</span><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="p">});</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></div><p>类型<code>Foo</code>标记自己并不实现<code>Send</code>这个<code>trait</code>，于是在编译的时候报错了：</p>
 <pre tabindex="0"><code>error[E0277]: `Foo` cannot be sent between threads safely
    --&gt; src/main.rs:7:5
     |
@@ -483,18 +483,18 @@ note: required by a bound in `spawn`
 </code></pre><p>如果把<code>impl !Send for Foo {}</code>这一行去掉，代码就能编译通过了。</p>
 <p>以上还有一个知识点：所有类型默认都是满足<code>Send</code>、<code>Sync</code>约束的，直到显示声明不满足这个约束，比如上面的<code>impl !Send</code>就是这样一个显示声明。这就带来一个疑问：能不能跟编译器耍一些心思，明明某个类型就不满足这个约束，睁一只眼闭一只眼看看能不能在编译器那里蒙混过关？</p>
 <p>答案是不能，编译器会检查这个类型中所有包含的成员，只有所有成员都满足这个约束，该类型才能算满足约束。可以在上面的基础上继续做实验，给<code>Foo</code>结构体新增一个<code>Rc</code>类型的成员：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="cp">#[derive(Debug)]</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">rc</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">std</span>::<span class="n">rc</span>::<span class="n">Rc</span><span class="o">&lt;</span><span class="kt">i32</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">rc</span>: <span class="nb">None</span> <span class="p">};</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">});</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>由于<code>Rc</code>并不满足<code>Send</code>约束（即显示声明了<code>impl !Send</code>，见：<a href="https://doc.rust-lang.org/std/rc/struct.Rc.html#impl-Send">impl-send</a>），导致类型<code>Foo</code>并不能蒙混过关满足<code>Send</code>约束，编译上面代码时报错信息如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#[derive(Debug)]</span><span class="w">
+</span><span class="w"></span><span class="k">struct</span> <span class="nc">Foo</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="n">rc</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">std</span>::<span class="n">rc</span>::<span class="n">Rc</span><span class="o">&lt;</span><span class="kt">i32</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">foo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Foo</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">rc</span>: <span class="nb">None</span> <span class="p">};</span><span class="w">
+</span><span class="w">    </span><span class="n">std</span>::<span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="fm">dbg!</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="p">});</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></div><p>由于<code>Rc</code>并不满足<code>Send</code>约束（即显示声明了<code>impl !Send</code>，见：<a href="https://doc.rust-lang.org/std/rc/struct.Rc.html#impl-Send">impl-send</a>），导致类型<code>Foo</code>并不能蒙混过关满足<code>Send</code>约束，编译上面代码时报错信息如下：</p>
 <pre tabindex="0"><code>error[E0277]: `Rc&lt;i32&gt;` cannot be sent between threads safely
    --&gt; src/main.rs:8:5
     |

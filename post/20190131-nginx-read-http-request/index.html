@@ -10,8 +10,8 @@
 <title>Nginx源码阅读笔记-接收HTTP请求流程 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -297,45 +297,45 @@
 <p>如果两次请求，分开为几次接收，但是某次接收的数据中，有跨两次请求的数据，这就是所谓的“粘包(sticky-package)”问题。如下图所示：</p>
 <p><img src="/media/imgs/20190131-nginx-read-http-request/sticky-package-problem.png" alt="sticky-package-problem" title="sticky-package-problem"></p>
 <p>结合epoll之类的事件派发器来设计一个TCP协议的服务器时，因为并不能确保每一次接收数据，都能完整的接收到协议所需的所有数据。因此一般而言，写一个高性能服务器的协议解析部分，会以状态机的方式来实现，即定义了协议数据的每个部分，如下伪代码所示：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// 定义协议头数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="kt">header_t</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// 协议版本号
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">version</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// 定义body部分大小
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="kt">header_t</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// 定义协议数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="kt">protocol_t</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">header_t</span> <span class="n">header</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">char</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">protocol</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// 定义接收数据的状态机类型
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">enum</span> <span class="kt">state_t</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">RECV_HEADER</span><span class="p">,</span>        <span class="c1">// 接收包头
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">RECV_BODY</span><span class="p">,</span>          <span class="c1">// 接收包体
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">PROCESS_PROTOCOL</span><span class="p">,</span>   <span class="c1">// 处理协议
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">SEND_RESPONSE</span>       <span class="c1">// 发送回复
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">};</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// 处理请求的状态机
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">statemachine</span><span class="p">()</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="k">switch</span> <span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="k">case</span> <span class="nl">RECV_HEADER</span><span class="p">:</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 接收协议包头数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到RECV_BODY
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">RECV_BODY</span><span class="p">:</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 接收协议包体数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到PROCESS_PROTOCOL
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">PROCESS_PROTOCOL</span><span class="p">:</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 处理协议
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 处理完毕之后，切换state到SEND_RESPONSE
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">case</span> <span class="nl">SEND_RESPONSE</span><span class="p">:</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 发送应答
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>如上面的伪代码所示，接收一个请求之后，会初始化一个变量state用于保存当前协议处理的状态类型，假如第一次接收数据时还不能接收完毕协议的数据，就将接收fd重新放入到事件派发器中，下一次被唤醒之后再根据当前的状态继续接收数据进行处理。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// 定义协议头数据
+</span><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">header_t</span> <span class="p">{</span>
+  <span class="c1">// 协议版本号
+</span><span class="c1"></span>  <span class="kt">int</span> <span class="n">version</span><span class="p">;</span>
+  <span class="c1">// 定义body部分大小
+</span><span class="c1"></span>  <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
+<span class="p">}</span> <span class="n">header_t</span><span class="p">;</span>
+
+<span class="c1">// 定义协议数据
+</span><span class="c1"></span><span class="k">typedef</span> <span class="k">struct</span> <span class="n">protocol_t</span> <span class="p">{</span>
+  <span class="n">header_t</span> <span class="n">header</span><span class="p">;</span>
+  <span class="kt">char</span> <span class="n">body</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+<span class="p">}</span> <span class="n">protocol</span><span class="p">;</span>
+
+<span class="c1">// 定义接收数据的状态机类型
+</span><span class="c1"></span><span class="k">enum</span> <span class="n">state_t</span> <span class="p">{</span>
+  <span class="n">RECV_HEADER</span><span class="p">,</span>        <span class="c1">// 接收包头
+</span><span class="c1"></span>  <span class="n">RECV_BODY</span><span class="p">,</span>          <span class="c1">// 接收包体
+</span><span class="c1"></span>  <span class="n">PROCESS_PROTOCOL</span><span class="p">,</span>   <span class="c1">// 处理协议
+</span><span class="c1"></span>  <span class="n">SEND_RESPONSE</span>       <span class="c1">// 发送回复
+</span><span class="c1"></span><span class="p">};</span>
+
+<span class="c1">// 处理请求的状态机
+</span><span class="c1"></span><span class="kt">void</span> <span class="nf">statemachine</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">switch</span> <span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">case</span> <span class="nl">RECV_HEADER</span><span class="p">:</span>
+    <span class="c1">// 接收协议包头数据
+</span><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到RECV_BODY
+</span><span class="c1"></span>  <span class="k">case</span> <span class="nl">RECV_BODY</span><span class="p">:</span>
+    <span class="c1">// 接收协议包体数据
+</span><span class="c1"></span>    <span class="c1">// 接收完毕之后，切换state到PROCESS_PROTOCOL
+</span><span class="c1"></span>  <span class="k">case</span> <span class="nl">PROCESS_PROTOCOL</span><span class="p">:</span>
+    <span class="c1">// 处理协议
+</span><span class="c1"></span>    <span class="c1">// 处理完毕之后，切换state到SEND_RESPONSE
+</span><span class="c1"></span>  <span class="k">case</span> <span class="nl">SEND_RESPONSE</span><span class="p">:</span>
+    <span class="c1">// 发送应答
+</span><span class="c1"></span>  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div><p>如上面的伪代码所示，接收一个请求之后，会初始化一个变量state用于保存当前协议处理的状态类型，假如第一次接收数据时还不能接收完毕协议的数据，就将接收fd重新放入到事件派发器中，下一次被唤醒之后再根据当前的状态继续接收数据进行处理。</p>
 <p>协议的包头部分，一般有两个特点：</p>
 <ul>
 <li>包头大小固定，这个原因还是因为不能确定每次都能接收完整的数据，而总是需要一个长度或者确定的结束符（如HTTP协议最后的两个\r\n）来告诉你是否接收完了数据。如果后面还需要对包头数据有扩展，会根据不同的版本进行区别，所以一般而言包头部分还会有个版本号，以便以后包头数据发生了变化，可以根据包头来进行区分。</li>

@@ -10,8 +10,8 @@
 <title>Systemtap中内核trace事件的实现 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -293,10 +293,10 @@
 
   <h1 id="概述">概述</h1>
 <p>内核中定义了一系列的trace point，这些trace point在特定的内核函数中被触发调用时被记录，而对应到systemtap中就是<code>kernel.trace</code>类型的probe事件，可以使用命令来查看系统所有的trace point：</p>
-<pre tabindex="0"><code>$ sudo stap -L &#39;kernel.trace(&#34;*&#34;)&#39; | more
-kernel.trace(&#34;9p:9p_client_req&#34;) $clnt:struct p9_client* $type:int8_t $tag:int
-kernel.trace(&#34;9p:9p_client_res&#34;) $clnt:struct p9_client* $type:int8_t $tag:int $err:int
-kernel.trace(&#34;9p:9p_protocol_dump&#34;) $clnt:struct p9_client* $pdu:struct p9_fcall*
+<pre tabindex="0"><code>$ sudo stap -L 'kernel.trace(&quot;*&quot;)' | more
+kernel.trace(&quot;9p:9p_client_req&quot;) $clnt:struct p9_client* $type:int8_t $tag:int
+kernel.trace(&quot;9p:9p_client_res&quot;) $clnt:struct p9_client* $type:int8_t $tag:int $err:int
+kernel.trace(&quot;9p:9p_protocol_dump&quot;) $clnt:struct p9_client* $pdu:struct p9_fcall*
 </code></pre><p>换言之，通过systemtap能够对这些已经静态注册的内核调用记录点进行监控、跟踪。</p>
 <p>以下来解释trace point在内核的实现以及与systemtap相关的内容。</p>
 <h1 id="数据结构">数据结构</h1>
@@ -311,93 +311,93 @@ kernel.trace(&#34;9p:9p_protocol_dump&#34;) $clnt:struct p9_client* $pdu:struct 
 <li>TP_ARGS(firstarg, p)：定义了参数名称，其类型与TP_PROTO中的类型一一对应。</li>
 </ul>
 <p>这个宏的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// include/linux/tracepoint.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define DECLARE_TRACE(name, proto, args)				\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			cpu_online(raw_smp_processor_id()),		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			PARAMS(void *__data, proto),			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			PARAMS(__data, args))
-</span></span></span></code></pre></div><p>其中的宏<code>__DECLARE_TRACE</code>定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define __DECLARE_TRACE(name, proto, args, cond, data_proto, data_args) \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	extern struct tracepoint __tracepoint_##name;			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline void trace_##name(proto)				\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		if (static_key_false(&amp;__tracepoint_##name.key))		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			__DO_TRACE(&amp;__tracepoint_##name,		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">				TP_PROTO(data_proto),			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">				TP_ARGS(data_args),			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">				TP_CONDITION(cond), 0);			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		if (IS_ENABLED(CONFIG_LOCKDEP) &amp;&amp; (cond)) {		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			rcu_read_lock_sched_notrace();			\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			rcu_dereference_sched(__tracepoint_##name.funcs);\
-</span></span></span><span class="line"><span class="cl"><span class="cp">			rcu_read_unlock_sched_notrace();		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		}							\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__DECLARE_TRACE_RCU(name, PARAMS(proto), PARAMS(args),		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		PARAMS(cond), PARAMS(data_proto), PARAMS(data_args))	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline int						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	register_trace_##name(void (*probe)(data_proto), void *data)	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		return tracepoint_probe_register(&amp;__tracepoint_##name,	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">						(void *)probe, data);	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline int						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
-</span></span></span><span class="line"><span class="cl"><span class="cp">				   int prio)				\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		return tracepoint_probe_register_prio(&amp;__tracepoint_##name, \
-</span></span></span><span class="line"><span class="cl"><span class="cp">					      (void *)probe, data, prio); \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline int						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	unregister_trace_##name(void (*probe)(data_proto), void *data)	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		return tracepoint_probe_unregister(&amp;__tracepoint_##name,\
-</span></span></span><span class="line"><span class="cl"><span class="cp">						(void *)probe, data);	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline void						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	check_trace_callback_type_##name(void (*cb)(data_proto))	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static inline bool						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	trace_##name##_enabled(void)					\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	{								\
-</span></span></span><span class="line"><span class="cl"><span class="cp">		return static_key_false(&amp;__tracepoint_##name.key);	\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	}
-</span></span></span></code></pre></div><p>可以看到，这个宏做了如下的事情：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// include/linux/tracepoint.h
+</span><span class="c1"></span><span class="cp">#define DECLARE_TRACE(name, proto, args)				\
+</span><span class="cp">	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
+</span><span class="cp">			cpu_online(raw_smp_processor_id()),		\
+</span><span class="cp">			PARAMS(void *__data, proto),			\
+</span><span class="cp">			PARAMS(__data, args))
+</span></code></pre></div><p>其中的宏<code>__DECLARE_TRACE</code>定义如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#define __DECLARE_TRACE(name, proto, args, cond, data_proto, data_args) \
+</span><span class="cp">	extern struct tracepoint __tracepoint_##name;			\
+</span><span class="cp">	static inline void trace_##name(proto)				\
+</span><span class="cp">	{								\
+</span><span class="cp">		if (static_key_false(&amp;__tracepoint_##name.key))		\
+</span><span class="cp">			__DO_TRACE(&amp;__tracepoint_##name,		\
+</span><span class="cp">				TP_PROTO(data_proto),			\
+</span><span class="cp">				TP_ARGS(data_args),			\
+</span><span class="cp">				TP_CONDITION(cond), 0);			\
+</span><span class="cp">		if (IS_ENABLED(CONFIG_LOCKDEP) &amp;&amp; (cond)) {		\
+</span><span class="cp">			rcu_read_lock_sched_notrace();			\
+</span><span class="cp">			rcu_dereference_sched(__tracepoint_##name.funcs);\
+</span><span class="cp">			rcu_read_unlock_sched_notrace();		\
+</span><span class="cp">		}							\
+</span><span class="cp">	}								\
+</span><span class="cp">	__DECLARE_TRACE_RCU(name, PARAMS(proto), PARAMS(args),		\
+</span><span class="cp">		PARAMS(cond), PARAMS(data_proto), PARAMS(data_args))	\
+</span><span class="cp">	static inline int						\
+</span><span class="cp">	register_trace_##name(void (*probe)(data_proto), void *data)	\
+</span><span class="cp">	{								\
+</span><span class="cp">		return tracepoint_probe_register(&amp;__tracepoint_##name,	\
+</span><span class="cp">						(void *)probe, data);	\
+</span><span class="cp">	}								\
+</span><span class="cp">	static inline int						\
+</span><span class="cp">	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
+</span><span class="cp">				   int prio)				\
+</span><span class="cp">	{								\
+</span><span class="cp">		return tracepoint_probe_register_prio(&amp;__tracepoint_##name, \
+</span><span class="cp">					      (void *)probe, data, prio); \
+</span><span class="cp">	}								\
+</span><span class="cp">	static inline int						\
+</span><span class="cp">	unregister_trace_##name(void (*probe)(data_proto), void *data)	\
+</span><span class="cp">	{								\
+</span><span class="cp">		return tracepoint_probe_unregister(&amp;__tracepoint_##name,\
+</span><span class="cp">						(void *)probe, data);	\
+</span><span class="cp">	}								\
+</span><span class="cp">	static inline void						\
+</span><span class="cp">	check_trace_callback_type_##name(void (*cb)(data_proto))	\
+</span><span class="cp">	{								\
+</span><span class="cp">	}								\
+</span><span class="cp">	static inline bool						\
+</span><span class="cp">	trace_##name##_enabled(void)					\
+</span><span class="cp">	{								\
+</span><span class="cp">		return static_key_false(&amp;__tracepoint_##name.key);	\
+</span><span class="cp">	}
+</span></code></pre></div><p>可以看到，这个宏做了如下的事情：</p>
 <ul>
 <li>声明了一个类型为<code>tracepoint</code>的结构体变量<code>__tracepoint_##name</code>。</li>
 <li>定义了几个相关的函数，分别用于处理trace event、注册、注销等。其中需要重点关注的是宏<code>trace_##name</code>，这里定义了对对应的traceevent进行跟踪的函数。</li>
 </ul>
 <p>其中，宏里面一个字符串跟着<code>##name</code>表示这个字符串与name的连接形成的字符串。</p>
 <p>这里的结构体<code>tracepoint</code>定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// include/linux/tracepoint-defs.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">struct</span> <span class="n">tracepoint</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">name</span><span class="p">;</span>		<span class="cm">/* Tracepoint name */</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">static_key</span> <span class="n">key</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">regfunc</span><span class="p">)(</span><span class="kt">void</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">	<span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">unregfunc</span><span class="p">)(</span><span class="kt">void</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">tracepoint_func</span> <span class="n">__rcu</span> <span class="o">*</span><span class="n">funcs</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">};</span>
-</span></span></code></pre></div><p>该结构体中分别定义了：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// include/linux/tracepoint-defs.h
+</span><span class="c1"></span><span class="k">struct</span> <span class="n">tracepoint</span> <span class="p">{</span>
+	<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">name</span><span class="p">;</span>		<span class="cm">/* Tracepoint name */</span>
+	<span class="k">struct</span> <span class="n">static_key</span> <span class="n">key</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">regfunc</span><span class="p">)(</span><span class="kt">void</span><span class="p">);</span>
+	<span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">unregfunc</span><span class="p">)(</span><span class="kt">void</span><span class="p">);</span>
+	<span class="k">struct</span> <span class="n">tracepoint_func</span> <span class="n">__rcu</span> <span class="o">*</span><span class="n">funcs</span><span class="p">;</span>
+<span class="p">};</span>
+</code></pre></div><p>该结构体中分别定义了：</p>
 <ul>
 <li>traceevent名称。</li>
 <li>注册、注销、被触发时的处理函数。</li>
 </ul>
 <p>以上只是声明了<code>tracepoint</code>结构体变量，而具体定义变量的宏是<code>DEFINE_TRACE</code>：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// include/linux/tracepoint.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define DEFINE_TRACE(name)						\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	DEFINE_TRACE_FN(name, NULL, NULL);
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="cp">#define DEFINE_TRACE_FN(name, reg, unreg)				 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static const char __tpstrtab_##name[]				 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(&#34;__tracepoints_strings&#34;))) = #name;	 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	struct tracepoint __tracepoint_##name				 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(&#34;__tracepoints&#34;))) =			 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">		{ __tpstrtab_##name, STATIC_KEY_INIT_FALSE, reg, unreg, NULL };\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	static struct tracepoint * const __tracepoint_ptr_##name __used	 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(&#34;__tracepoints_ptrs&#34;))) =		 \
-</span></span></span><span class="line"><span class="cl"><span class="cp">		&amp;__tracepoint_##name;
-</span></span></span></code></pre></div><p>因此，<code>DEFINE_TRACE</code>的作用就是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// include/linux/tracepoint.h
+</span><span class="c1"></span><span class="cp">#define DEFINE_TRACE(name)						\
+</span><span class="cp">	DEFINE_TRACE_FN(name, NULL, NULL);
+</span><span class="cp"></span>
+<span class="cp">#define DEFINE_TRACE_FN(name, reg, unreg)				 \
+</span><span class="cp">	static const char __tpstrtab_##name[]				 \
+</span><span class="cp">	__attribute__((section(&#34;__tracepoints_strings&#34;))) = #name;	 \
+</span><span class="cp">	struct tracepoint __tracepoint_##name				 \
+</span><span class="cp">	__attribute__((section(&#34;__tracepoints&#34;))) =			 \
+</span><span class="cp">		{ __tpstrtab_##name, STATIC_KEY_INIT_FALSE, reg, unreg, NULL };\
+</span><span class="cp">	static struct tracepoint * const __tracepoint_ptr_##name __used	 \
+</span><span class="cp">	__attribute__((section(&#34;__tracepoints_ptrs&#34;))) =		 \
+</span><span class="cp">		&amp;__tracepoint_##name;
+</span></code></pre></div><p>因此，<code>DEFINE_TRACE</code>的作用就是：</p>
 <ul>
 <li>在<code>__tracepoints_strings</code>section中定义了字符串数组变量<code>__tpstrtab_##name</code>，其值为name。</li>
 <li>在<code>__tracepoints</code>section中定义了结构体tracepoint变量<code>__tracepoint_##name</code>。</li>
@@ -412,25 +412,25 @@ kernel.trace(&#34;9p:9p_protocol_dump&#34;) $clnt:struct p9_client* $pdu:struct 
 	TP_ARGS(vec_nr)
 );
 </code></pre><p>这里的宏<code>DEFINE_EVENT</code>不过是前面<code>DECLARE_TRACE</code>宏的一个包装：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define DEFINE_EVENT(template, name, proto, args)		\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	DECLARE_TRACE(name, PARAMS(proto), PARAMS(args))
-</span></span></span></code></pre></div><p>从上面的讨论可以知道，这里声明了一个名为<code>__tracepoint_softirq_entry</code>的<code>tracepoint</code>类型结构体。而根据我们前面对宏的展开分析，<code>trace_##name</code>也就是这里展开的<code>trace_softirq_entry</code>是对这个trace event进行调用的入口，果然在<code>__do_softirq</code>函数中看到了它的身影：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// kernel/softirq.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">asmlinkage</span> <span class="n">__visible</span> <span class="kt">void</span> <span class="n">__softirq_entry</span> <span class="nf">__do_softirq</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">trace_softirq_entry</span><span class="p">(</span><span class="n">vec_nr</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><h1 id="systemtap相关">systemtap相关</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#define DEFINE_EVENT(template, name, proto, args)		\
+</span><span class="cp">	DECLARE_TRACE(name, PARAMS(proto), PARAMS(args))
+</span></code></pre></div><p>从上面的讨论可以知道，这里声明了一个名为<code>__tracepoint_softirq_entry</code>的<code>tracepoint</code>类型结构体。而根据我们前面对宏的展开分析，<code>trace_##name</code>也就是这里展开的<code>trace_softirq_entry</code>是对这个trace event进行调用的入口，果然在<code>__do_softirq</code>函数中看到了它的身影：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// kernel/softirq.c
+</span><span class="c1"></span><span class="n">asmlinkage</span> <span class="n">__visible</span> <span class="kt">void</span> <span class="n">__softirq_entry</span> <span class="nf">__do_softirq</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="c1">// ...
+</span><span class="c1"></span>  <span class="n">trace_softirq_entry</span><span class="p">(</span><span class="n">vec_nr</span><span class="p">);</span>
+  <span class="c1">// ...
+</span><span class="c1"></span><span class="p">}</span>
+</code></pre></div><h1 id="systemtap相关">systemtap相关</h1>
 <p>这里需要注意的另一个问题是，每个systemtap中的kernel.trace当时可以知道的参数，除了trace event本身的参数之外，还有当时所在嵌入函数内部的变量，比如这里的<code>softirq_entry</code>这个probe，在systemtap对应的tapset中是这样的：</p>
-<pre tabindex="0"><code>probe softirq.entry = kernel.trace(&#34;irq_softirq_entry&#34;) !,
-     		      kernel.trace(&#34;softirq_entry&#34;) ?
+<pre tabindex="0"><code>probe softirq.entry = kernel.trace(&quot;irq_softirq_entry&quot;) !,
+     		      kernel.trace(&quot;softirq_entry&quot;) ?
 {
 	# kernels &lt; 2.6.37
 	h = @choose_defined($h, 0)
 	vec = @choose_defined($vec, 0)
-	action = (@defined($h) ? @cast($h,&#34;softirq_action&#34;,&#34;kernel&lt;linux/interrupt.h&gt;&#34;)-&gt;action : 0)
+	action = (@defined($h) ? @cast($h,&quot;softirq_action&quot;,&quot;kernel&lt;linux/interrupt.h&gt;&quot;)-&gt;action : 0)
 	# kernels &gt;= 2.6.37
 	vec_nr = @choose_defined($vec_nr, 0)
 }
@@ -446,8 +446,8 @@ asmlinkage __visible void __softirq_entry __do_softirq(void)
   // ...
 }
 </code></pre><p>所以，要看一个systemtap的kernel.trace能引用哪些变量，除了看其自身，还包括看其所嵌入函数的上下文中的变量，最好直接到对应的tapset的说明，因为-L只能打印出这个kernel.trace自身定义的变量：</p>
-<pre tabindex="0"><code>$ sudo stap -L &#39;kernel.trace(&#34;softirq_entry&#34;)&#39;
-kernel.trace(&#34;irq:softirq_entry&#34;) $vec_nr:unsigned int
+<pre tabindex="0"><code>$ sudo stap -L 'kernel.trace(&quot;softirq_entry&quot;)'
+kernel.trace(&quot;irq:softirq_entry&quot;) $vec_nr:unsigned int
 </code></pre><h1 id="总结">总结：</h1>
 <ul>
 <li>内核中的trace事件以<code>trace_*</code>来命名。</li>

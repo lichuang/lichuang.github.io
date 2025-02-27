@@ -10,8 +10,8 @@
 <title>Memcached的存储原理解析 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -388,17 +388,17 @@
 <li>COLD_LRU：存储冷数据的LRU链表。</li>
 </ul>
 <p>需要说明的是：热（参数<code>settings.hot_lru_pct</code>）和暖（参数<code>settings.warm_lru_pct</code>）数据的占总体内存的比例有限制，而冷数据则无限。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define HOT_LRU 0
-</span></span></span><span class="line"><span class="cl"><span class="cp">#define WARM_LRU 64
-</span></span></span><span class="line"><span class="cl"><span class="cp">#define COLD_LRU 128
-</span></span></span></code></pre></div><p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="cp">#define POWER_LARGEST  256 </span><span class="cm">/* actual cap is 255 */</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="cp">#define LARGEST_ID POWER_LARGEST
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">heads</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
-</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">tails</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
-</span></span></code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#define HOT_LRU 0
+</span><span class="cp">#define WARM_LRU 64
+</span><span class="cp">#define COLD_LRU 128
+</span></code></pre></div><p>同时，使用了<code>heads</code>和<code>tails</code>两个数组用来保存LRU链表：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#define POWER_LARGEST  256 </span><span class="cm">/* actual cap is 255 */</span><span class="cp">
+</span><span class="cp"></span>
+<span class="cp">#define LARGEST_ID POWER_LARGEST
+</span><span class="cp"></span>
+<span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">heads</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+<span class="k">static</span> <span class="n">item</span> <span class="o">*</span><span class="n">tails</span><span class="p">[</span><span class="n">LARGEST_ID</span><span class="p">];</span>
+</code></pre></div><p>上面分析<code>slabclass</code>的时候提到过，首先会根据被分配内存大小计算出来一个<code>slabclass</code>数组的索引。在需要从LRU链表中淘汰数据时，由于LRU链表分为了上面三类，那么就还需要再进行一次<code>slabid | lru id</code>计算（其实就是<code>slabid + lru id</code>），到对应的LRU链表中查找元素：</p>
 <p><img src="/media/imgs/20210701-memcached/slabclass-lru.png" alt="将slabclass数组索引映射到LRU队列数组" title="将slabclass数组索引映射到LRU队列数组"></p>
 <p>有了这三种LRU队列的初步印象，可以接下来解释这个分段LRU算法了。</p>
 <p>前面提到，原有LRU算法最大的问题是：只要元素被访问过一次，就马上会被移动到LRU链表的前面，影响了后面对这个元素的淘汰。</p>

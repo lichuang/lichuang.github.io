@@ -10,8 +10,8 @@
 <title>sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -386,9 +386,9 @@ CREATE TABLE COMPANY(
 CREATE INDEX id_index ON COMPANY (id);
 
 // 插入2条数据
-INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, &#39;Paul&#39;, 32, &#39;California&#39;, 20000.00 );
+INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) VALUES (1, 'Paul', 32, 'California', 20000.00 );
 INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY)
-VALUES (2, &#39;Allen&#39;, 25, &#39;Texas&#39;, 15000.00 );
+VALUES (2, 'Allen', 25, 'Texas', 15000.00 );
 
 // 查询数据
 sqlite&gt; select * from COMPANY;
@@ -442,15 +442,15 @@ sqlite&gt; select rowid,* from COMPANY;
 </li>
 </ul>
 <p>为了表示这些页面，有如下几种页面标志位：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
-</span></span></span><span class="line"><span class="cl"><span class="cm">** Page type flags.  An ORed combination of these flags appear as the
-</span></span></span><span class="line"><span class="cl"><span class="cm">** first byte of on-disk image of every BTree page.
-</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
-</span></span><span class="line"><span class="cl"><span class="cp">#define PTF_INTKEY    0x01
-</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_ZERODATA  0x02
-</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_LEAFDATA  0x04
-</span></span></span><span class="line"><span class="cl"><span class="cp">#define PTF_LEAF      0x08
-</span></span></span></code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cm">/*
+</span><span class="cm">** Page type flags.  An ORed combination of these flags appear as the
+</span><span class="cm">** first byte of on-disk image of every BTree page.
+</span><span class="cm">*/</span>
+<span class="cp">#define PTF_INTKEY    0x01
+</span><span class="cp">#define PTF_ZERODATA  0x02
+</span><span class="cp">#define PTF_LEAFDATA  0x04
+</span><span class="cp">#define PTF_LEAF      0x08
+</span></code></pre></div><ul>
 <li>PTF_INTKEY（1）：表示key为int类型数据，一般是rowid，即前面的<code>全量数据表</code>。</li>
 <li>PTF_ZERODATA（2）：表示这是索引表的页面。</li>
 <li>PTF_LEAFDATA（4）：数据存储在叶子节点，这个标志位要和PTF_INTKEY一起作用。即：key为int类型数据的时候，有两种页面：一种只存储int类型的key，一种只存储数据。</li>
@@ -470,26 +470,26 @@ sqlite&gt; select rowid,* from COMPANY;
 </ul>
 <h2 id="物理页面的大体划分">物理页面的大体划分</h2>
 <p>来看看sqlite代码中<code>btreeInt.h</code>文件里对btree一个物理页面内数据组织的注释：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="o">**</span> <span class="n">Each</span> <span class="n">btree</span> <span class="n">pages</span> <span class="n">is</span> <span class="n">divided</span> <span class="n">into</span> <span class="n">three</span> <span class="nl">sections</span><span class="p">:</span>  <span class="n">The</span> <span class="n">header</span><span class="p">,</span> <span class="n">the</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span> <span class="n">cell</span> <span class="n">pointer</span> <span class="n">array</span><span class="p">,</span> <span class="n">and</span> <span class="n">the</span> <span class="n">cell</span> <span class="n">content</span> <span class="n">area</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">also</span> <span class="n">has</span> <span class="n">a</span> <span class="mi">100</span><span class="o">-</span><span class="n">byte</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span> <span class="n">file</span> <span class="n">header</span> <span class="n">that</span> <span class="n">occurs</span> <span class="n">before</span> <span class="n">the</span> <span class="n">page</span> <span class="n">header</span><span class="p">.</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">file</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">100</span> <span class="n">bytes</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">only</span><span class="p">.</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">page</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">8</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">leaves</span><span class="p">.</span>  <span class="mi">12</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">interior</span> <span class="n">nodes</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">pointer</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="mi">2</span> <span class="n">bytes</span> <span class="n">per</span> <span class="n">cell</span><span class="p">.</span>  <span class="n">Sorted</span> <span class="n">order</span><span class="p">.</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">array</span>          <span class="o">|</span>   <span class="o">|</span>  <span class="n">Grows</span> <span class="n">downward</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span>                <span class="o">|</span>   <span class="n">v</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">unallocated</span>    <span class="o">|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">space</span>          <span class="o">|</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>   <span class="o">^</span>  <span class="n">Grows</span> <span class="n">upwards</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">content</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="n">Arbitrary</span> <span class="n">order</span> <span class="n">interspersed</span> <span class="n">with</span> <span class="n">freeblocks</span><span class="p">.</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|</span> <span class="n">area</span>           <span class="o">|</span>   <span class="o">|</span>  <span class="n">and</span> <span class="n">free</span> <span class="n">space</span> <span class="n">fragments</span><span class="p">.</span>
-</span></span><span class="line"><span class="cl"><span class="o">**</span>      <span class="o">|----------------|</span>
-</span></span></code></pre></div><p><img src="/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="o">**</span> <span class="n">Each</span> <span class="n">btree</span> <span class="n">pages</span> <span class="n">is</span> <span class="n">divided</span> <span class="n">into</span> <span class="n">three</span> <span class="nl">sections</span><span class="p">:</span>  <span class="n">The</span> <span class="n">header</span><span class="p">,</span> <span class="n">the</span>
+<span class="o">**</span> <span class="n">cell</span> <span class="n">pointer</span> <span class="n">array</span><span class="p">,</span> <span class="n">and</span> <span class="n">the</span> <span class="n">cell</span> <span class="n">content</span> <span class="n">area</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">also</span> <span class="n">has</span> <span class="n">a</span> <span class="mi">100</span><span class="o">-</span><span class="n">byte</span>
+<span class="o">**</span> <span class="n">file</span> <span class="n">header</span> <span class="n">that</span> <span class="n">occurs</span> <span class="n">before</span> <span class="n">the</span> <span class="n">page</span> <span class="n">header</span><span class="p">.</span>
+<span class="o">**</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">file</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">100</span> <span class="n">bytes</span><span class="p">.</span>  <span class="n">Page</span> <span class="mi">1</span> <span class="n">only</span><span class="p">.</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">page</span> <span class="n">header</span>    <span class="o">|</span>   <span class="mi">8</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">leaves</span><span class="p">.</span>  <span class="mi">12</span> <span class="n">bytes</span> <span class="k">for</span> <span class="n">interior</span> <span class="n">nodes</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">pointer</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="mi">2</span> <span class="n">bytes</span> <span class="n">per</span> <span class="n">cell</span><span class="p">.</span>  <span class="n">Sorted</span> <span class="n">order</span><span class="p">.</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">array</span>          <span class="o">|</span>   <span class="o">|</span>  <span class="n">Grows</span> <span class="n">downward</span>
+<span class="o">**</span>      <span class="o">|</span>                <span class="o">|</span>   <span class="n">v</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">unallocated</span>    <span class="o">|</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">space</span>          <span class="o">|</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>   <span class="o">^</span>  <span class="n">Grows</span> <span class="n">upwards</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">cell</span> <span class="n">content</span>   <span class="o">|</span>   <span class="o">|</span>  <span class="n">Arbitrary</span> <span class="n">order</span> <span class="n">interspersed</span> <span class="n">with</span> <span class="n">freeblocks</span><span class="p">.</span>
+<span class="o">**</span>      <span class="o">|</span> <span class="n">area</span>           <span class="o">|</span>   <span class="o">|</span>  <span class="n">and</span> <span class="n">free</span> <span class="n">space</span> <span class="n">fragments</span><span class="p">.</span>
+<span class="o">**</span>      <span class="o">|----------------|</span>
+</code></pre></div><p><img src="/media/imgs/20220201-sqlite-btree-5-btree/page-format.png" alt="页面内数组的组织" title="页面内数组的组织"></p>
 <p>按照这里的说法，一个物理页面在btree中划分为以下几部分：</p>
 <ul>
 <li>文件头（file header）：100字节，但是只有第一个页面才会存在文件头。</li>
@@ -503,7 +503,7 @@ sqlite&gt; select rowid,* from COMPANY;
 <p>其中，file header部分只有第一页才有，固定长度100字节，存储整个数据库文件的元信息。</p>
 <p>页面1是一个特殊的页面，其前100个字节是整个数据库的header部分，内容如下：</p>
 <pre tabindex="0"><code>**   OFFSET   SIZE    DESCRIPTION
-**      0      16     Header string: &#34;SQLite format 3\000&#34;
+**      0      16     Header string: &quot;SQLite format 3\000&quot;
 **     16       2     Page size in bytes.  
 **     18       1     File format write version
 **     19       1     File format read version

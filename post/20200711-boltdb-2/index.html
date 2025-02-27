@@ -10,8 +10,8 @@
 <title>boltdb 1.3.0实现分析（二） - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -339,31 +339,31 @@
 <h1 id="bucket">Bucket</h1>
 <h2 id="概述">概述</h2>
 <p>在上一节中，Bucket类比于mysql中的table，在boltdb中，<code>meta</code>页面中有一个成员<code>bucket</code>，其存储了整个数据库根bucket的信息，而一个数据库中存储的其他table的信息，则作为子bucket存储到Bucket中。这几个数据结构的关系如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">DB</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">meta0</span>    <span class="o">*</span><span class="nx">meta</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">meta1</span>    <span class="o">*</span><span class="nx">meta</span>  
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">meta</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">root</span>     <span class="nx">bucket</span>	<span class="c1">// 根bucket的信息
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Bucket</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="o">*</span><span class="nx">bucket</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nx">buckets</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Bucket</span> <span class="c1">// 存储子bucket的对应关系
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">bucket</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 根节点的page id
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">root</span> <span class="nx">pgid</span> <span class="c1">// page id of the bucket&#39;s root-level page
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 单调递增的序列号
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">sequence</span> <span class="kt">uint64</span> <span class="c1">// monotonically incrementing, used by NextSequence()
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p>在<code>bucket</code>数据结构中，两个成员的作用是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">DB</span> <span class="kd">struct</span> <span class="p">{</span>
+  <span class="c1">// ...
+</span><span class="c1"></span>	<span class="nx">meta0</span>    <span class="o">*</span><span class="nx">meta</span>
+	<span class="nx">meta1</span>    <span class="o">*</span><span class="nx">meta</span>  
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">meta</span> <span class="kd">struct</span> <span class="p">{</span>
+  <span class="c1">// ...
+</span><span class="c1"></span>	<span class="nx">root</span>     <span class="nx">bucket</span>	<span class="c1">// 根bucket的信息
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">Bucket</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="o">*</span><span class="nx">bucket</span>
+
+  <span class="c1">// ...
+</span><span class="c1"></span>  <span class="nx">buckets</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Bucket</span> <span class="c1">// 存储子bucket的对应关系
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">bucket</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// 根节点的page id
+</span><span class="c1"></span>	<span class="nx">root</span> <span class="nx">pgid</span> <span class="c1">// page id of the bucket&#39;s root-level page
+</span><span class="c1"></span>	<span class="c1">// 单调递增的序列号
+</span><span class="c1"></span>	<span class="nx">sequence</span> <span class="kt">uint64</span> <span class="c1">// monotonically incrementing, used by NextSequence()
+</span><span class="c1"></span><span class="p">}</span>
+</code></pre></div><p>在<code>bucket</code>数据结构中，两个成员的作用是：</p>
 <ul>
 <li>root：该bucket的根节点的page id。</li>
 <li>sequence：该bucket当前的序列号，单调递增，在函数<code>NextSequence</code>中使用。</li>
@@ -379,22 +379,22 @@
 </ul>
 <h2 id="bucket结构体定义">Bucket结构体定义</h2>
 <p>接下来介绍<code>Bucket</code>结构体成员，其定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Bucket</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="o">*</span><span class="nx">bucket</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">tx</span>       <span class="o">*</span><span class="nx">Tx</span>                <span class="c1">// the associated transaction
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">buckets</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Bucket</span> <span class="c1">// subbucket cache
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">page</span>     <span class="o">*</span><span class="nx">page</span>              <span class="c1">// inline page reference
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">rootNode</span> <span class="o">*</span><span class="nx">node</span>              <span class="c1">// materialized node for the root page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">nodes</span>    <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="o">*</span><span class="nx">node</span>     <span class="c1">// node cache
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// Sets the threshold for filling nodes when they split. By default,
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// the bucket will fill to 50% but it can be useful to increase this
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// amount if you know that your write workloads are mostly append-only.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">//
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// This is non-persisted across transactions so it must be set in every Tx.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">FillPercent</span> <span class="kt">float64</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">Bucket</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="o">*</span><span class="nx">bucket</span>
+	<span class="nx">tx</span>       <span class="o">*</span><span class="nx">Tx</span>                <span class="c1">// the associated transaction
+</span><span class="c1"></span>	<span class="nx">buckets</span>  <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">Bucket</span> <span class="c1">// subbucket cache
+</span><span class="c1"></span>	<span class="nx">page</span>     <span class="o">*</span><span class="nx">page</span>              <span class="c1">// inline page reference
+</span><span class="c1"></span>	<span class="nx">rootNode</span> <span class="o">*</span><span class="nx">node</span>              <span class="c1">// materialized node for the root page.
+</span><span class="c1"></span>	<span class="nx">nodes</span>    <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="o">*</span><span class="nx">node</span>     <span class="c1">// node cache
+</span><span class="c1"></span>
+	<span class="c1">// Sets the threshold for filling nodes when they split. By default,
+</span><span class="c1"></span>	<span class="c1">// the bucket will fill to 50% but it can be useful to increase this
+</span><span class="c1"></span>	<span class="c1">// amount if you know that your write workloads are mostly append-only.
+</span><span class="c1"></span>	<span class="c1">//
+</span><span class="c1"></span>	<span class="c1">// This is non-persisted across transactions so it must be set in every Tx.
+</span><span class="c1"></span>	<span class="nx">FillPercent</span> <span class="kt">float64</span>
+<span class="p">}</span>
+</code></pre></div><p>其中：</p>
 <ul>
 <li>bucket：存储该<code>Bucket</code>所在页面ID，以及当前序列号。</li>
 <li>tx：当前Bucket关联的事务。</li>
@@ -407,73 +407,73 @@
 <h2 id="子bucket">子Bucket</h2>
 <p>按照上面的分析，一个bolt的DB存在一个唯一的根Bucket，而DB中不同的table就是该根Bucket的子Bucket，其对应关系存储在<code>Bucket.buckets</code>成员中。那么，子Bucket信息保存在哪里呢？</p>
 <p>答案是保存在叶子节点，也就是<code>leafPageElement</code>中，回顾一下这个数据结构的定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// leafPageElement represents a node on a leaf page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">leafPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">flags</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">pos</span>   <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">ksize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">vsize</span> <span class="kt">uint32</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>其中的<code>flags</code>成员，含义如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// leafPageElement represents a node on a leaf page.
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">leafPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">flags</span> <span class="kt">uint32</span>
+	<span class="nx">pos</span>   <span class="kt">uint32</span>
+	<span class="nx">ksize</span> <span class="kt">uint32</span>
+	<span class="nx">vsize</span> <span class="kt">uint32</span>
+<span class="p">}</span>
+</code></pre></div><p>其中的<code>flags</code>成员，含义如下：</p>
 <ul>
 <li>0：表示就是普通的叶子节点。</li>
 <li>1：表示是子bucket。</li>
 </ul>
 <p>即在boltdb中，子Bucket的信息，是做为一种特殊的叶子节点信息存储下来的。boltdb使用了常量来表示这种类型的叶子节点标志位：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">const</span> <span class="p">(</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">bucketLeafFlag</span> <span class="p">=</span> <span class="mh">0x01</span>
-</span></span><span class="line"><span class="cl"><span class="p">)</span>
-</span></span></code></pre></div><p>即：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">const</span> <span class="p">(</span>
+	<span class="nx">bucketLeafFlag</span> <span class="p">=</span> <span class="mh">0x01</span>
+<span class="p">)</span>
+</code></pre></div><p>即：</p>
 <ul>
 <li>对于一个标志位为0的叶子页面：其内容就是B+树叶子页面的内容，存储的是数据的键值，boltdb中叶子页面的格式示意图在<a href="https://www.codedump.info/post/20200625-boltdb-1/#leaf%E9%A1%B5%E9%9D%A2">上一节中</a>已经给出。</li>
 <li>对于一个标志位为1的叶子页面：其内存存储的是Bucket结构体的信息。</li>
 </ul>
 <p>有了以上的介绍，理解起来返回一个子Bucket的相关代码就不难了：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">Bucket</span><span class="p">(</span><span class="nx">name</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="o">*</span><span class="nx">Bucket</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// Move cursor to key.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 否则创建一个Cursor查询
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">Cursor</span><span class="p">()</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">k</span><span class="p">,</span> <span class="nx">v</span><span class="p">,</span> <span class="nx">flags</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">seek</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Return nil if the key doesn&#39;t exist or it is not a bucket.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 查询不到，或者不是子bucket节点，都返回nil
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">!</span><span class="nx">bytes</span><span class="p">.</span><span class="nf">Equal</span><span class="p">(</span><span class="nx">name</span><span class="p">,</span> <span class="nx">k</span><span class="p">)</span> <span class="o">||</span> <span class="p">(</span><span class="nx">flags</span><span class="o">&amp;</span><span class="nx">bucketLeafFlag</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">nil</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Otherwise create a bucket and cache it.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 打开这个bucket并且cache到buckets map中
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">var</span> <span class="nx">child</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">openBucket</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">buckets</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">b</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nb">string</span><span class="p">(</span><span class="nx">name</span><span class="p">)]</span> <span class="p">=</span> <span class="nx">child</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">child</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">openBucket</span><span class="p">(</span><span class="nx">value</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="o">*</span><span class="nx">Bucket</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 创建一个bucket
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">var</span> <span class="nx">child</span> <span class="p">=</span> <span class="nf">newBucket</span><span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// If this is a writable transaction then we need to copy the bucket entry.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// Read-only transactions can point directly at the mmap entry.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">writable</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">bucket</span><span class="p">{}</span>
-</span></span><span class="line"><span class="cl">		<span class="o">*</span><span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="nx">bucket</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="nx">bucket</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Save a reference to the inline page if the bucket is inline.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// inline bucket
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">child</span><span class="p">.</span><span class="nx">root</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// bucket的page
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">child</span><span class="p">.</span><span class="nx">page</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="nx">bucketHeaderSize</span><span class="p">]))</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">child</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p><code>Bucket.Bucket</code>用于根据名字返回一个子Bucket的指针，其流程如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">Bucket</span><span class="p">(</span><span class="nx">name</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="o">*</span><span class="nx">Bucket</span> <span class="p">{</span>
+	<span class="c1">// Move cursor to key.
+</span><span class="c1"></span>	<span class="c1">// 否则创建一个Cursor查询
+</span><span class="c1"></span>	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">Cursor</span><span class="p">()</span>
+	<span class="nx">k</span><span class="p">,</span> <span class="nx">v</span><span class="p">,</span> <span class="nx">flags</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">seek</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span>
+
+	<span class="c1">// Return nil if the key doesn&#39;t exist or it is not a bucket.
+</span><span class="c1"></span>	<span class="c1">// 查询不到，或者不是子bucket节点，都返回nil
+</span><span class="c1"></span>	<span class="k">if</span> <span class="p">!</span><span class="nx">bytes</span><span class="p">.</span><span class="nf">Equal</span><span class="p">(</span><span class="nx">name</span><span class="p">,</span> <span class="nx">k</span><span class="p">)</span> <span class="o">||</span> <span class="p">(</span><span class="nx">flags</span><span class="o">&amp;</span><span class="nx">bucketLeafFlag</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Otherwise create a bucket and cache it.
+</span><span class="c1"></span>	<span class="c1">// 打开这个bucket并且cache到buckets map中
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">child</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">openBucket</span><span class="p">(</span><span class="nx">v</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">buckets</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">b</span><span class="p">.</span><span class="nx">buckets</span><span class="p">[</span><span class="nb">string</span><span class="p">(</span><span class="nx">name</span><span class="p">)]</span> <span class="p">=</span> <span class="nx">child</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">child</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">openBucket</span><span class="p">(</span><span class="nx">value</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="o">*</span><span class="nx">Bucket</span> <span class="p">{</span>
+	<span class="c1">// 创建一个bucket
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">child</span> <span class="p">=</span> <span class="nf">newBucket</span><span class="p">(</span><span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">)</span>
+
+	<span class="c1">// If this is a writable transaction then we need to copy the bucket entry.
+</span><span class="c1"></span>	<span class="c1">// Read-only transactions can point directly at the mmap entry.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">writable</span> <span class="p">{</span>
+		<span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">bucket</span><span class="p">{}</span>
+		<span class="o">*</span><span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="nx">bucket</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nx">child</span><span class="p">.</span><span class="nx">bucket</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="nx">bucket</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Save a reference to the inline page if the bucket is inline.
+</span><span class="c1"></span>	<span class="c1">// inline bucket
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">child</span><span class="p">.</span><span class="nx">root</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="c1">// bucket的page
+</span><span class="c1"></span>		<span class="nx">child</span><span class="p">.</span><span class="nx">page</span> <span class="p">=</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">value</span><span class="p">[</span><span class="nx">bucketHeaderSize</span><span class="p">]))</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">child</span>
+<span class="p">}</span>
+</code></pre></div><p><code>Bucket.Bucket</code>用于根据名字返回一个子Bucket的指针，其流程如下：</p>
 <ul>
 <li>首先根据子Bucket名字查找到叶子页面的数据、标志位，如果查找失败，说明不存在该子Bucket；或者其标志位不是<code>bucketLeafFlag</code>，说明这个名字已经被普通数据占用，即：boltdb中不允许子Bucket与其父Bucket中写入的键同名。</li>
 <li>以上查找成功，就以该叶子页面的数据为参数，调用<code>Bucket.openBucket</code>函数，根据<code>Bucket</code>结构体格式，反序列化出来<code>Bucket</code>结构体信息返回。</li>
@@ -486,54 +486,54 @@
 <li>整个子Bucket的大小不能超过page size/4。</li>
 </ul>
 <p><code>Bucket.inlineable</code>函数就是用来做<code>inline</code>操作的判断的：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// inlineable returns true if a bucket is small enough to be written inline
-</span></span></span><span class="line"><span class="cl"><span class="c1">// and if it contains no subbuckets. Otherwise returns false.
-</span></span></span><span class="line"><span class="cl"><span class="c1">// 返回这个bucket是否能够inline操作
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">inlineable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="kd">var</span> <span class="nx">n</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">rootNode</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Bucket must only contain a single leaf node.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 如果没有根节点，或者根节点不是叶子节点的不能进行inline操作
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="p">!</span><span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="kc">false</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// Bucket is not inlineable if it contains subbuckets or if it goes beyond
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// our threshold for inline bucket size.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 有子bucket，或者大小超过maxInlineBucketSize阈值的，都不能进行inline操作
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="kd">var</span> <span class="nx">size</span> <span class="p">=</span> <span class="nx">pageHeaderSize</span>
-</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">inode</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">size</span> <span class="o">+=</span> <span class="nx">leafPageElementSize</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">inode</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">inode</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">inode</span><span class="p">.</span><span class="nx">flags</span><span class="o">&amp;</span><span class="nx">bucketLeafFlag</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">false</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">size</span> <span class="p">&gt;</span> <span class="nx">b</span><span class="p">.</span><span class="nf">maxInlineBucketSize</span><span class="p">()</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="k">return</span> <span class="kc">false</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="kc">true</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// Returns the maximum total size of a bucket to make it a candidate for inlining.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">maxInlineBucketSize</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="o">/</span> <span class="mi">4</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><h1 id="cursor">Cursor</h1>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// inlineable returns true if a bucket is small enough to be written inline
+</span><span class="c1">// and if it contains no subbuckets. Otherwise returns false.
+</span><span class="c1">// 返回这个bucket是否能够inline操作
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">inlineable</span><span class="p">()</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">n</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">rootNode</span>
+
+	<span class="c1">// Bucket must only contain a single leaf node.
+</span><span class="c1"></span>	<span class="c1">// 如果没有根节点，或者根节点不是叶子节点的不能进行inline操作
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">n</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="p">!</span><span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">false</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Bucket is not inlineable if it contains subbuckets or if it goes beyond
+</span><span class="c1"></span>	<span class="c1">// our threshold for inline bucket size.
+</span><span class="c1"></span>	<span class="c1">// 有子bucket，或者大小超过maxInlineBucketSize阈值的，都不能进行inline操作
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">size</span> <span class="p">=</span> <span class="nx">pageHeaderSize</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">inode</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span> <span class="p">{</span>
+		<span class="nx">size</span> <span class="o">+=</span> <span class="nx">leafPageElementSize</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">inode</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">inode</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+
+		<span class="k">if</span> <span class="nx">inode</span><span class="p">.</span><span class="nx">flags</span><span class="o">&amp;</span><span class="nx">bucketLeafFlag</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">false</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">size</span> <span class="p">&gt;</span> <span class="nx">b</span><span class="p">.</span><span class="nf">maxInlineBucketSize</span><span class="p">()</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">false</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+
+<span class="c1">// Returns the maximum total size of a bucket to make it a candidate for inlining.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">Bucket</span><span class="p">)</span> <span class="nf">maxInlineBucketSize</span><span class="p">()</span> <span class="kt">int</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="nx">b</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span> <span class="o">/</span> <span class="mi">4</span>
+<span class="p">}</span>
+</code></pre></div><h1 id="cursor">Cursor</h1>
 <p>以上已经大体了解<code>Bucket</code>的结构，在boltdb查找数据流程中，还是使用了<code>Cursor</code>结构体来做为游标（iterator），保存查找流程中的中间数据，下面也来简单了解一下。</p>
 <p><code>Cursor</code>结构体的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">Cursor</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">bucket</span> <span class="o">*</span><span class="nx">Bucket</span>		<span class="c1">// 对应的bucket
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">stack</span>  <span class="p">[]</span><span class="nx">elemRef</span>	<span class="c1">// 存储递归遍历时中间过程的栈，由于栈是先进后出结构，所以遍历的过程中层次高的在栈的低端。
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// 光标移动过程中，中间过程的信息
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">elemRef</span> <span class="kd">struct</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nx">page</span>  <span class="o">*</span><span class="nx">page</span>	<span class="c1">// 页面
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">node</span>  <span class="o">*</span><span class="nx">node</span>	<span class="c1">// 内存中的页面信息
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">index</span> <span class="kt">int</span>		<span class="c1">// 保存在当前page、node遍历到了哪个节点
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p><code>Cursor</code>有以下成员：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">Cursor</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">bucket</span> <span class="o">*</span><span class="nx">Bucket</span>		<span class="c1">// 对应的bucket
+</span><span class="c1"></span>	<span class="nx">stack</span>  <span class="p">[]</span><span class="nx">elemRef</span>	<span class="c1">// 存储递归遍历时中间过程的栈，由于栈是先进后出结构，所以遍历的过程中层次高的在栈的低端。
+</span><span class="c1"></span><span class="p">}</span>
+
+<span class="c1">// 光标移动过程中，中间过程的信息
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">elemRef</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">page</span>  <span class="o">*</span><span class="nx">page</span>	<span class="c1">// 页面
+</span><span class="c1"></span>	<span class="nx">node</span>  <span class="o">*</span><span class="nx">node</span>	<span class="c1">// 内存中的页面信息
+</span><span class="c1"></span>	<span class="nx">index</span> <span class="kt">int</span>		<span class="c1">// 保存在当前page、node遍历到了哪个节点
+</span><span class="c1"></span><span class="p">}</span>
+</code></pre></div><p><code>Cursor</code>有以下成员：</p>
 <ul>
 <li>bucket：游标操作所对应的<code>Bucket</code>指针。</li>
 <li>stack：存储递归遍历过程中的栈，由于栈是先进后出结构，所以遍历的过程中层次高的节点在栈的低端。</li>
@@ -557,64 +557,64 @@
 </ul>
 <p>在这里，不打算讨论其中的所有实现，如果读者对B+树的实现并不了解，可以看最开始介绍B+树原理的连接。</p>
 <p>这里以<code>First</code>函数为例简单的讲解其实现，由于B+树是中序遍历的树结构，因此<code>First</code>元素一定是最左边叶子节点的左边第一个元素。带注释的代码实现如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="line"><span class="cl"><span class="c1">// 移动到bucket的第一个元素上，返回其key value数据
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cursor</span><span class="p">)</span> <span class="nf">First</span><span class="p">()</span> <span class="p">(</span><span class="nx">key</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">value</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="nf">_assert</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">,</span> <span class="s">&#34;tx closed&#34;</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 修改stack只保存第一个stack，及栈底部
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 返回root节点的page、node
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">p</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nf">pageNode</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">root</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 将root节点所在的page、node信息放到栈顶，index为0，表示从第一个子节点开始遍历
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">,</span> <span class="nx">elemRef</span><span class="p">{</span><span class="nx">page</span><span class="p">:</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">node</span><span class="p">:</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">index</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 移动到当前的第一个元素
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// first函数做的事情：从树顶端开始，从最左边一直往下遍历到叶子节点为止
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 因为B树是中序遍历的，所以最左边的节点数据最小
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nf">first</span><span class="p">()</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// If we land on an empty page then move to the next value.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// https://github.com/boltdb/bolt/issues/450
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// 如果没有元素，就移动到下一个元素
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">].</span><span class="nf">count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="nx">c</span><span class="p">.</span><span class="nf">next</span><span class="p">()</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">	<span class="c1">// 拿到k、v、flags
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">k</span><span class="p">,</span> <span class="nx">v</span><span class="p">,</span> <span class="nx">flags</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">keyValue</span><span class="p">()</span>
-</span></span><span class="line"><span class="cl">	<span class="c1">// 如果是子bucket，就返回k以及nil
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="nx">flags</span> <span class="o">&amp;</span> <span class="nb">uint32</span><span class="p">(</span><span class="nx">bucketLeafFlag</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="nx">k</span><span class="p">,</span> <span class="kc">nil</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">v</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="c1">// first moves the cursor to the first leaf element under the last page in the stack.
-</span></span></span><span class="line"><span class="cl"><span class="c1">// 找到stack最后一个页面中的第一个叶子节点
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cursor</span><span class="p">)</span> <span class="nf">first</span><span class="p">()</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">{</span>	<span class="c1">// 找到最左边第一个叶子节点
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// Exit when we hit a leaf page.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// 每次循环取出最后一个元素
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="kd">var</span> <span class="nx">ref</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">ref</span><span class="p">.</span><span class="nf">isLeaf</span><span class="p">()</span> <span class="p">{</span>	<span class="c1">// 如果是叶子节点就退出循环，即这个循环终止的条件是向下一直找到叶子节点为止
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>			<span class="k">break</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">		<span class="c1">// Keep adding pages pointing to the first element to the stack.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// 根据ref.index拿到pgid
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="kd">var</span> <span class="nx">pgid</span> <span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">		<span class="k">if</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">node</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="nx">pgid</span> <span class="p">=</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">node</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="nx">ref</span><span class="p">.</span><span class="nx">index</span><span class="p">].</span><span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">			<span class="nx">pgid</span> <span class="p">=</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">page</span><span class="p">.</span><span class="nf">branchPageElement</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nx">ref</span><span class="p">.</span><span class="nx">index</span><span class="p">)).</span><span class="nx">pgid</span>
-</span></span><span class="line"><span class="cl">		<span class="p">}</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 拿到对应的page、node
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">p</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nf">pageNode</span><span class="p">(</span><span class="nx">pgid</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">		<span class="c1">// 放到栈顶，注意这里的index是0
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="c1">// 即向下查找的时候取的都是最左边的节点
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">,</span> <span class="nx">elemRef</span><span class="p">{</span><span class="nx">page</span><span class="p">:</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">node</span><span class="p">:</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">index</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// 移动到bucket的第一个元素上，返回其key value数据
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cursor</span><span class="p">)</span> <span class="nf">First</span><span class="p">()</span> <span class="p">(</span><span class="nx">key</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">,</span> <span class="nx">value</span> <span class="p">[]</span><span class="kt">byte</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nf">_assert</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">tx</span><span class="p">.</span><span class="nx">db</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">,</span> <span class="s">&#34;tx closed&#34;</span><span class="p">)</span>
+	<span class="c1">// 修改stack只保存第一个stack，及栈底部
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span>
+	<span class="c1">// 返回root节点的page、node
+</span><span class="c1"></span>	<span class="nx">p</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nf">pageNode</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nx">root</span><span class="p">)</span>
+	<span class="c1">// 将root节点所在的page、node信息放到栈顶，index为0，表示从第一个子节点开始遍历
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">,</span> <span class="nx">elemRef</span><span class="p">{</span><span class="nx">page</span><span class="p">:</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">node</span><span class="p">:</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">index</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+	<span class="c1">// 移动到当前的第一个元素
+</span><span class="c1"></span>	<span class="c1">// first函数做的事情：从树顶端开始，从最左边一直往下遍历到叶子节点为止
+</span><span class="c1"></span>	<span class="c1">// 因为B树是中序遍历的，所以最左边的节点数据最小
+</span><span class="c1"></span>	<span class="nx">c</span><span class="p">.</span><span class="nf">first</span><span class="p">()</span>
+
+	<span class="c1">// If we land on an empty page then move to the next value.
+</span><span class="c1"></span>	<span class="c1">// https://github.com/boltdb/bolt/issues/450
+</span><span class="c1"></span>	<span class="c1">// 如果没有元素，就移动到下一个元素
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">].</span><span class="nf">count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nf">next</span><span class="p">()</span>
+	<span class="p">}</span>
+
+	<span class="c1">// 拿到k、v、flags
+</span><span class="c1"></span>	<span class="nx">k</span><span class="p">,</span> <span class="nx">v</span><span class="p">,</span> <span class="nx">flags</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">keyValue</span><span class="p">()</span>
+	<span class="c1">// 如果是子bucket，就返回k以及nil
+</span><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="nx">flags</span> <span class="o">&amp;</span> <span class="nb">uint32</span><span class="p">(</span><span class="nx">bucketLeafFlag</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">k</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">v</span>
+
+<span class="p">}</span>
+
+<span class="c1">// first moves the cursor to the first leaf element under the last page in the stack.
+</span><span class="c1">// 找到stack最后一个页面中的第一个叶子节点
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cursor</span><span class="p">)</span> <span class="nf">first</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="p">{</span>	<span class="c1">// 找到最左边第一个叶子节点
+</span><span class="c1"></span>		<span class="c1">// Exit when we hit a leaf page.
+</span><span class="c1"></span>		<span class="c1">// 每次循环取出最后一个元素
+</span><span class="c1"></span>		<span class="kd">var</span> <span class="nx">ref</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+		<span class="k">if</span> <span class="nx">ref</span><span class="p">.</span><span class="nf">isLeaf</span><span class="p">()</span> <span class="p">{</span>	<span class="c1">// 如果是叶子节点就退出循环，即这个循环终止的条件是向下一直找到叶子节点为止
+</span><span class="c1"></span>			<span class="k">break</span>
+		<span class="p">}</span>
+
+		<span class="c1">// Keep adding pages pointing to the first element to the stack.
+</span><span class="c1"></span>		<span class="c1">// 根据ref.index拿到pgid
+</span><span class="c1"></span>		<span class="kd">var</span> <span class="nx">pgid</span> <span class="nx">pgid</span>
+		<span class="k">if</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">node</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">pgid</span> <span class="p">=</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">node</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="nx">ref</span><span class="p">.</span><span class="nx">index</span><span class="p">].</span><span class="nx">pgid</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+			<span class="nx">pgid</span> <span class="p">=</span> <span class="nx">ref</span><span class="p">.</span><span class="nx">page</span><span class="p">.</span><span class="nf">branchPageElement</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nx">ref</span><span class="p">.</span><span class="nx">index</span><span class="p">)).</span><span class="nx">pgid</span>
+		<span class="p">}</span>
+		<span class="c1">// 拿到对应的page、node
+</span><span class="c1"></span>		<span class="nx">p</span><span class="p">,</span> <span class="nx">n</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">bucket</span><span class="p">.</span><span class="nf">pageNode</span><span class="p">(</span><span class="nx">pgid</span><span class="p">)</span>
+		<span class="c1">// 放到栈顶，注意这里的index是0
+</span><span class="c1"></span>		<span class="c1">// 即向下查找的时候取的都是最左边的节点
+</span><span class="c1"></span>		<span class="nx">c</span><span class="p">.</span><span class="nx">stack</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">stack</span><span class="p">,</span> <span class="nx">elemRef</span><span class="p">{</span><span class="nx">page</span><span class="p">:</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">node</span><span class="p">:</span> <span class="nx">n</span><span class="p">,</span> <span class="nx">index</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 </article>
 
 

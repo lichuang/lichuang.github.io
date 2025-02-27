@@ -10,8 +10,8 @@
 <title>Nginx源码阅读笔记-Master Woker进程模型 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -371,24 +371,24 @@
 <li>ngx_accept_mutex_held：表示是否抢到了accept锁，只有抢到的才能接收新连接。</li>
 </ul>
 <p>具体来看看ngx_process_events_and_timers函数中与接收连接相关的逻辑，伪代码如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="err">如果开启了</span><span class="n">accept_mutex</span><span class="err">配置：</span>
-</span></span><span class="line"><span class="cl">  <span class="err">如果当前</span><span class="n">ngx_accept_disabled</span><span class="err">大于</span><span class="mi">0</span><span class="err">，表示不能接收新的连接，直接返回。</span>
-</span></span><span class="line"><span class="cl">  <span class="err">否则尝试获取</span><span class="n">accept</span> <span class="n">mutex</span><span class="err">。</span>
-</span></span><span class="line"><span class="cl">  <span class="err">如果获取</span><span class="n">accept</span> <span class="n">mutex</span><span class="err">锁成功：</span>
-</span></span><span class="line"><span class="cl">    <span class="err">将调用事件轮询函数的标志位加上</span><span class="n">NGX_POST_EVENTS</span><span class="err">标志</span>
-</span></span><span class="line"><span class="cl">  <span class="err">如果获取失败：</span>
-</span></span><span class="line"><span class="cl">    <span class="err">调用事件轮询函数的事件参数不得超过</span><span class="n">ngx_accept_mutex_delay</span><span class="err">值。</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="err">调用</span><span class="n">ngx_process_events</span><span class="err">函数处理轮询事件</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="err">调用</span><span class="n">ngx_event_process_posted</span><span class="p">(</span><span class="n">cycle</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_posted_accept_events</span><span class="p">)</span><span class="err">函数处理</span><span class="n">accept</span><span class="err">事件</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="err">如果前面拿到了</span><span class="n">accept</span> <span class="n">mutex</span><span class="err">锁，则释放这个锁，好让其他</span><span class="n">worker</span><span class="err">也有机会接收新的连接</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="err">调用</span><span class="n">ngx_event_expire_timers</span><span class="err">处理定时器事件</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="err">调用</span><span class="n">ngx_event_process_posted</span><span class="p">(</span><span class="n">cycle</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_posted_events</span><span class="p">);</span><span class="err">函数处理除了</span><span class="n">accept</span><span class="err">事件以外的其他</span><span class="n">post</span><span class="err">事件</span>
-</span></span></code></pre></div><p>在ngx_process_events处理函数中，当传入的flags有NGX_POST_EVENTS标志时，意味着并不马上在这个函数中调用事件的回调函数进行处理，而是放在一个队列中，回头在后面的ngx_event_process_posted函数中再进行处理。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">如果开启了</span><span class="n">accept_mutex配置</span><span class="err">：</span>
+  <span class="err">如果当前</span><span class="n">ngx_accept_disabled大于0</span><span class="err">，表示不能接收新的连接，直接返回。</span>
+  <span class="err">否则尝试获取</span><span class="n">accept</span> <span class="n">mutex</span><span class="err">。</span>
+  <span class="err">如果获取</span><span class="n">accept</span> <span class="n">mutex锁成功</span><span class="err">：</span>
+    <span class="err">将调用事件轮询函数的标志位加上</span><span class="n">NGX_POST_EVENTS标志</span>
+  <span class="err">如果获取失败：</span>
+    <span class="err">调用事件轮询函数的事件参数不得超过</span><span class="n">ngx_accept_mutex_delay值</span><span class="err">。</span>
+
+  <span class="err">调用</span><span class="n">ngx_process_events函数处理轮询事件</span>
+
+  <span class="err">调用</span><span class="n">ngx_event_process_posted</span><span class="p">(</span><span class="n">cycle</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_posted_accept_events</span><span class="p">)</span><span class="err">函数处理</span><span class="n">accept事件</span>
+
+  <span class="err">如果前面拿到了</span><span class="n">accept</span> <span class="n">mutex锁</span><span class="err">，则释放这个锁，好让其他</span><span class="n">worker也有机会接收新的连接</span>
+
+  <span class="err">调用</span><span class="n">ngx_event_expire_timers处理定时器事件</span>
+
+  <span class="err">调用</span><span class="n">ngx_event_process_posted</span><span class="p">(</span><span class="n">cycle</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ngx_posted_events</span><span class="p">);</span><span class="err">函数处理除了</span><span class="n">accept事件以外的其他post事件</span>
+</code></pre></div><p>在ngx_process_events处理函数中，当传入的flags有NGX_POST_EVENTS标志时，意味着并不马上在这个函数中调用事件的回调函数进行处理，而是放在一个队列中，回头在后面的ngx_event_process_posted函数中再进行处理。</p>
 <p>而这里的队列分为两类：</p>
 <ul>
 <li>ngx_posted_accept_events用于存放接收新连接事件。</li>

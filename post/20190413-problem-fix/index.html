@@ -10,8 +10,8 @@
 <title>线上存储服务崩溃问题分析记录 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -351,8 +351,8 @@
 <p>clang和gcc 4.8有对应的编译参数，可以用来检测内存错误的写操作，即Address Sanitizer工具。为了兼容线上比较老的系统，之前我们的服务都是在gcc 4.1的环境下进行编译的，为了使用这个工具，首先需要折腾到满足gcc版本号大于4.8的系统上进行编译。</p>
 <p>然而，在折腾编译并且运行后，同样使用mcperf的情况下，并不能看到有内存错误覆盖写的提示，我尝试了多次都没有看到。难道是工具没有起作用？</p>
 <p>为了验证该工具的作用，我简单在出错代码的前面加入了一段肯定有问题的代码，比如：</p>
-<pre tabindex="0"><code>char a[100] = {&#39;0&#39;};
-a[100] = &#39;1&#39;;
+<pre tabindex="0"><code>char a[100] = {'0'};
+a[100] = '1';
 </code></pre><p>而在加入这段有问题的代码之后再次运行，就能看到编译器对这段代码的提示。可见，Address Sanitizer工具是起作用的。那么，前面的过程中没有看到问题，只能说明一个问题：并没有内存错误写的情况发生。</p>
 <p>此时想到另一个可能，就是有没有可能是多线程在没有保护的情况下访问了某段数据导致的问题？</p>
 <p>gcc同样也有类似的工具来检查这类错误，即Thread Sanitizer工具。然而，在给项目Makefile加入该编译参数后，程序一运行就退出了，根本看不出什么有用的信息来。</p>

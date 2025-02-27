@@ -10,8 +10,8 @@
 <title>《面向应用开发者的系统指南》CPU篇之系统调用 - codedump的网络日志</title>
 
 <meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.285ffbef699dc9f3cf8dcb0803da149f8b646794b7f78a37380928daea2d746cd084512d0a3b592c47d0c71a18a88c7d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.e8043b71b627e3cfd9b2a5de56adf007f5af83dee672ca0c186aa2e29a10d6f648632064d0c00b2fa4d1b11e0f196af3.js"></script>
+<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
+<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
 
 
@@ -43,7 +43,7 @@
 <link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
 
 
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.7443e0638896ac19c25e62ba694a1eb054ee62daa25bdc01bcefe83770b9623fbe92a32210158ddf89a64ed73f95de08.js"></script>
+<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
 
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
@@ -111,7 +111,7 @@
     },
     "headline": "《面向应用开发者的系统指南》CPU篇之系统调用 - codedump的网络日志","datePublished": "2020-05-16T16:31:03+08:00",
     "dateModified": "2020-05-16T16:31:03+08:00",
-    "wordCount":  4038 ,
+    "wordCount":  4037 ,
     "publisher": {
         "@type": "Person",
         "name": "lichuang",
@@ -313,49 +313,49 @@
 <li>用户态怎么传递参数给系统调用？</li>
 </ul>
 <p>内核预留了一个特殊的软中断号 128 (0x80)，用户空间程序使用它可以进入内核执行系统调用，在内核中定义了宏<code>IA32_SYSCALL_VECTOR</code>与之对应：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// arch/x86/include/asm/irq_vectors.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define IA32_SYSCALL_VECTOR		0x80
-</span></span></span></code></pre></div><p>触发给软中断时会调用到汇编编写的函数<code>	entry_INT80_32</code>中：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// arch/x86/kernel/idt.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">SYSG</span><span class="p">(</span><span class="n">IA32_SYSCALL_VECTOR</span><span class="p">,</span>	<span class="n">entry_INT80_32</span><span class="p">),</span>
-</span></span></code></pre></div><p><code>entry_INT80_32</code>函数在<code>arch/x86/entry/entry_32.S</code>中实现，其最终会走到<code>do_int80_syscall_32</code>函数中调用系统调用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// arch/x86/include/asm/irq_vectors.h
+</span><span class="c1"></span><span class="cp">#define IA32_SYSCALL_VECTOR		0x80
+</span></code></pre></div><p>触发给软中断时会调用到汇编编写的函数<code>	entry_INT80_32</code>中：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// arch/x86/kernel/idt.h
+</span><span class="c1"></span><span class="n">SYSG</span><span class="p">(</span><span class="n">IA32_SYSCALL_VECTOR</span><span class="p">,</span>	<span class="n">entry_INT80_32</span><span class="p">),</span>
+</code></pre></div><p><code>entry_INT80_32</code>函数在<code>arch/x86/entry/entry_32.S</code>中实现，其最终会走到<code>do_int80_syscall_32</code>函数中调用系统调用。</p>
 <p>以上解决了第一个问题，即用户态通过触发软中断<code>int 0x80</code>来调用系统调用的，接下来的问题是，内核如何知道调用的是哪个系统调用，以及怎么解决给系统调用传递参数的问题。</p>
 <p>在函数<code>entry_INT80_32</code>的注释中，看到有如下的描述：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// arch/x86/entry/entry_32.S
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cm">/*
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * Arguments:
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * eax  system call number
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * ebx  arg1
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * ecx  arg2
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * edx  arg3
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * esi  arg4
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * edi  arg5
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * ebp  arg6
-</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
-</span></span></code></pre></div><p>可见，寄存器<code>eax</code>中存放的是系统调用编号，接下来的几个寄存器分别存放传递进来的参数。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// arch/x86/entry/entry_32.S
+</span><span class="c1"></span><span class="cm">/*
+</span><span class="cm"> * Arguments:
+</span><span class="cm"> * eax  system call number
+</span><span class="cm"> * ebx  arg1
+</span><span class="cm"> * ecx  arg2
+</span><span class="cm"> * edx  arg3
+</span><span class="cm"> * esi  arg4
+</span><span class="cm"> * edi  arg5
+</span><span class="cm"> * ebp  arg6
+</span><span class="cm"> */</span>
+</code></pre></div><p>可见，寄存器<code>eax</code>中存放的是系统调用编号，接下来的几个寄存器分别存放传递进来的参数。</p>
 <p>于是上面的两个疑问也解决了。</p>
 <p>内核中使用一个数组，来具体保存具体系统调用编号与其实现函数的对应关系，该数组名称为<code>ia32_sys_call_table</code>，因此在最后一步调用系统调用时，代码是这样的：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// arch/x86/entry/common.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="n">__always_inline</span> <span class="kt">void</span> <span class="nf">do_syscall_32_irqs_on</span><span class="p">(</span><span class="k">struct</span> <span class="n">pt_regs</span> <span class="o">*</span><span class="n">regs</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// ...
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>		<span class="n">regs</span><span class="o">-&gt;</span><span class="n">ax</span> <span class="o">=</span> <span class="n">ia32_sys_call_table</span><span class="p">[</span><span class="n">nr</span><span class="p">](</span>
-</span></span><span class="line"><span class="cl">			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">bx</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">cx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">dx</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">si</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">di</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">bp</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">	<span class="p">}</span>  
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>而数组<code>ia32_sys_call_table</code>的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">// arch/x86/syscall_32.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">__visible</span> <span class="k">const</span> <span class="kt">sys_call_ptr_t</span> <span class="n">ia32_sys_call_table</span><span class="p">[</span><span class="n">__NR_syscall_compat_max</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="cm">/*
-</span></span></span><span class="line"><span class="cl"><span class="cm">	 * Smells like a compiler bug -- it doesn&#39;t work
-</span></span></span><span class="line"><span class="cl"><span class="cm">	 * when the &amp; below is removed.
-</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
-</span></span><span class="line"><span class="cl">	<span class="p">[</span><span class="mi">0</span> <span class="p">...</span> <span class="n">__NR_syscall_compat_max</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">sys_ni_syscall</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;asm/syscalls_32.h&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">};</span>
-</span></span></code></pre></div><p>可见，会以<code>sys_ni_syscall</code>的值来初始化数组<code>ia32_sys_call_table</code>，<code>sys_ni_syscall</code>是由汇编定义的一个大数组，内部就是各种系统调用对应的处理函数，在此不再列出。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// arch/x86/entry/common.c
+</span><span class="c1"></span><span class="k">static</span> <span class="n">__always_inline</span> <span class="kt">void</span> <span class="nf">do_syscall_32_irqs_on</span><span class="p">(</span><span class="k">struct</span> <span class="n">pt_regs</span> <span class="o">*</span><span class="n">regs</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">// ...
+</span><span class="c1"></span>		<span class="n">regs</span><span class="o">-&gt;</span><span class="n">ax</span> <span class="o">=</span> <span class="n">ia32_sys_call_table</span><span class="p">[</span><span class="n">nr</span><span class="p">](</span>
+			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">bx</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">cx</span><span class="p">,</span>
+			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">dx</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">si</span><span class="p">,</span>
+			<span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">di</span><span class="p">,</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">int</span><span class="p">)</span><span class="n">regs</span><span class="o">-&gt;</span><span class="n">bp</span><span class="p">);</span>
+	<span class="p">}</span>  
+<span class="p">}</span>
+</code></pre></div><p>而数组<code>ia32_sys_call_table</code>的定义如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// arch/x86/syscall_32.c
+</span><span class="c1"></span><span class="n">__visible</span> <span class="k">const</span> <span class="n">sys_call_ptr_t</span> <span class="n">ia32_sys_call_table</span><span class="p">[</span><span class="n">__NR_syscall_compat_max</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+	<span class="cm">/*
+</span><span class="cm">	 * Smells like a compiler bug -- it doesn&#39;t work
+</span><span class="cm">	 * when the &amp; below is removed.
+</span><span class="cm">	 */</span>
+	<span class="p">[</span><span class="mi">0</span> <span class="p">...</span> <span class="n">__NR_syscall_compat_max</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">sys_ni_syscall</span><span class="p">,</span>
+<span class="cp">#include</span> <span class="cpf">&lt;asm/syscalls_32.h&gt;</span><span class="cp">
+</span><span class="cp"></span><span class="p">};</span>
+</code></pre></div><p>可见，会以<code>sys_ni_syscall</code>的值来初始化数组<code>ia32_sys_call_table</code>，<code>sys_ni_syscall</code>是由汇编定义的一个大数组，内部就是各种系统调用对应的处理函数，在此不再列出。</p>
 <p>把以上流程大体总结如下图：</p>
 <p><img src="/media/imgs/20200503-sgfap-syscall/legacy-syscalls.png" alt="legacy-syscalls" title="legacy-syscalls"></p>
 <p>即：</p>
@@ -365,20 +365,20 @@
 <li>内核使用一个大的系统调用数组来存储系统调用编号与其处理函数的对应关系。</li>
 </ul>
 <p>写一个简单的程序来演示一下上面这个调用系统调用的流程：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">int</span>
-</span></span><span class="line"><span class="cl"><span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">syscall_nr</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">int</span> <span class="n">exit_status</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="k">asm</span> <span class="p">(</span><span class="s">&#34;movl %0, %%eax</span><span class="se">\n</span><span class="s">&#34;</span>           <span class="c1">// 编号为0的系统调用是exit
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>             <span class="s">&#34;movl %1, %%ebx</span><span class="se">\n</span><span class="s">&#34;</span>     <span class="c1">// 传入ebx寄存器的参数输入的参数1
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>       <span class="s">&#34;int $0x80&#34;</span>                  <span class="c1">// 触发软中断0x80
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">syscall_nr</span><span class="p">),</span> <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">exit_status</span><span class="p">)</span> <span class="c1">// 输出参数，其中$0即syscall_nr表示输入参数的数量，$1表示传入系统调用的参数
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="o">:</span> <span class="cm">/* registers that we are &#34;clobbering&#34;, unneeded since we are calling exit */</span>
-</span></span><span class="line"><span class="cl">      <span class="s">&#34;eax&#34;</span><span class="p">,</span> <span class="s">&#34;ebx&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>在这里，编号为0的系统调用是<code>exit</code>，传入给它的参数是<code>42</code>，因此执行之后的结果如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">int</span>
+<span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+  <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">syscall_nr</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="kt">int</span> <span class="n">exit_status</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span>
+
+  <span class="k">asm</span> <span class="p">(</span><span class="s">&#34;movl %0, %%eax</span><span class="se">\n</span><span class="s">&#34;</span>           <span class="c1">// 编号为0的系统调用是exit
+</span><span class="c1"></span>             <span class="s">&#34;movl %1, %%ebx</span><span class="se">\n</span><span class="s">&#34;</span>     <span class="c1">// 传入ebx寄存器的参数输入的参数1
+</span><span class="c1"></span>       <span class="s">&#34;int $0x80&#34;</span>                  <span class="c1">// 触发软中断0x80
+</span><span class="c1"></span>      <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">syscall_nr</span><span class="p">),</span> <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">exit_status</span><span class="p">)</span> <span class="c1">// 输出参数，其中$0即syscall_nr表示输入参数的数量，$1表示传入系统调用的参数
+</span><span class="c1"></span>    <span class="o">:</span> <span class="cm">/* registers that we are &#34;clobbering&#34;, unneeded since we are calling exit */</span>
+      <span class="s">&#34;eax&#34;</span><span class="p">,</span> <span class="s">&#34;ebx&#34;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div><p>在这里，编号为0的系统调用是<code>exit</code>，传入给它的参数是<code>42</code>，因此执行之后的结果如下：</p>
 <pre tabindex="0"><code>$ gcc -o test test.c
 $ ./test
 $ echo $?
@@ -395,23 +395,23 @@ $ echo $?
 <li>%rdi、%rsi、%rdx、%r10、%r8、%r9：依次存储传入系统调用的参数。</li>
 </ul>
 <p>因此，前面的演示代码如果换用了快速系统调用指令可以修改如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="kt">int</span>
-</span></span><span class="line"><span class="cl"><span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">syscall_nr</span> <span class="o">=</span> <span class="mi">60</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">  <span class="kt">long</span> <span class="n">exit_status</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">  <span class="k">asm</span> <span class="p">(</span><span class="s">&#34;movq %0, %%rax</span><span class="se">\n</span><span class="s">&#34;</span>
-</span></span><span class="line"><span class="cl">       <span class="s">&#34;movq %1, %%rdi</span><span class="se">\n</span><span class="s">&#34;</span>
-</span></span><span class="line"><span class="cl">       <span class="s">&#34;syscall&#34;</span>
-</span></span><span class="line"><span class="cl">    <span class="o">:</span> <span class="cm">/* output parameters, we aren&#39;t outputting anything, no none */</span>
-</span></span><span class="line"><span class="cl">      <span class="cm">/* (none) */</span>
-</span></span><span class="line"><span class="cl">    <span class="o">:</span> <span class="cm">/* input parameters mapped to %0 and %1, repsectively */</span>
-</span></span><span class="line"><span class="cl">      <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">syscall_nr</span><span class="p">),</span> <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl">    <span class="o">:</span> <span class="cm">/* registers that we are &#34;clobbering&#34;, unneeded since we are calling exit */</span>
-</span></span><span class="line"><span class="cl">      <span class="s">&#34;rax&#34;</span><span class="p">,</span> <span class="s">&#34;rdi&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><p>输出结果同上面一样。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">int</span>
+<span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+  <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">syscall_nr</span> <span class="o">=</span> <span class="mi">60</span><span class="p">;</span>
+  <span class="kt">long</span> <span class="n">exit_status</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span>
+
+  <span class="k">asm</span> <span class="p">(</span><span class="s">&#34;movq %0, %%rax</span><span class="se">\n</span><span class="s">&#34;</span>
+       <span class="s">&#34;movq %1, %%rdi</span><span class="se">\n</span><span class="s">&#34;</span>
+       <span class="s">&#34;syscall&#34;</span>
+    <span class="o">:</span> <span class="cm">/* output parameters, we aren&#39;t outputting anything, no none */</span>
+      <span class="cm">/* (none) */</span>
+    <span class="o">:</span> <span class="cm">/* input parameters mapped to %0 and %1, repsectively */</span>
+      <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">syscall_nr</span><span class="p">),</span> <span class="s">&#34;m&#34;</span> <span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
+    <span class="o">:</span> <span class="cm">/* registers that we are &#34;clobbering&#34;, unneeded since we are calling exit */</span>
+      <span class="s">&#34;rax&#34;</span><span class="p">,</span> <span class="s">&#34;rdi&#34;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div><p>输出结果同上面一样。</p>
 <h2 id="现实中的系统调用">现实中的系统调用</h2>
 <p>以上简述了系统调用的实现原理，然后现实代码中，绝大部分时候，是通过<code>glibc</code>这样的C库来封装系统调用的。</p>
 <p>C语言标准中定义了一系列标准函数，只要支持C语言标准的编译器都应该实现这些函数，而<code>glibc</code>这样的库负责封装C标准库函数，转换为对应的系统调用。</p>
@@ -426,14 +426,14 @@ $ echo $?
 <h1 id="追踪系统调用">追踪系统调用</h1>
 <p>由于系统调用会进入内核态，其中会涉及到用户态数据参数的传入、用户态切换到内核态等操作，所以系统调用是常见的系统杀手之一。常见的跟踪一个进程都调用了哪些系统调用的方式，可以使用<code>strace</code>命令来完成，比如：</p>
 <pre tabindex="0"><code>$ strace cat /dev/null
-execve(&#34;/bin/cat&#34;, [&#34;cat&#34;, &#34;/dev/null&#34;], [/* 37 vars */]) = 0
+execve(&quot;/bin/cat&quot;, [&quot;cat&quot;, &quot;/dev/null&quot;], [/* 37 vars */]) = 0
 brk(NULL)                               = 0x1c55000
-access(&#34;/etc/ld.so.nohwcap&#34;, F_OK)      = -1 ENOENT (No such file or directory)
-access(&#34;/etc/ld.so.preload&#34;, R_OK)      = -1 ENOENT (No such file or directory)
+access(&quot;/etc/ld.so.nohwcap&quot;, F_OK)      = -1 ENOENT (No such file or directory)
+access(&quot;/etc/ld.so.preload&quot;, R_OK)      = -1 ENOENT (No such file or directory)
 </code></pre><p>然而，<code>strace</code>只有系统调用的名称，没有耗时、统计等功能，在这里接下来会演示一些与系统调用相关的<code>systemtap</code>脚本的使用。</p>
 <h2 id="查询系统调用">查询系统调用</h2>
 <p>系统调用都以<code>syscall</code>为前缀，因此可以这样查询系统调用，需要过滤则搭配<code>grep</code>命令即可，比如想查询系统调用<code>open</code>：</p>
-<pre tabindex="0"><code>$ sudo stap -L &#39;syscall.*&#39; | grep open
+<pre tabindex="0"><code>$ sudo stap -L 'syscall.*' | grep open
 syscall.mq_open name:string name_uaddr:long filename:string u_attr_uaddr:long oflag:long oflag_str:string mode:long argstr:string $u_name:long int $oflag:long int $mode:long int $u_attr:long int
 syscall.open filename:string mode:long __nr:long name:string flags:long flags_str:string argstr:string $filename:long int $flags:long int $mode:long int
 syscall.open_by_handle_at name:string mount_dfd:long mount_dfd_str:string handle_uaddr:long flags:long flags_str:string argstr:string $mountdirfd:long int $handle:long int $flags:long int
@@ -447,7 +447,7 @@ probe syscall.$1.return {
   if (target() != 0 &amp;&amp; target() != pid()) next
 
   time = gettimeofday_us()-@entry(gettimeofday_us())
-  printf(&#34;[%s:%d] syscall.%s time: %d\n&#34;, execname(), pid(), @1, time)
+  printf(&quot;[%s:%d] syscall.%s time: %d\n&quot;, execname(), pid(), @1, time)
 }
 </code></pre><p>使用：</p>
 <pre tabindex="0"><code>sudo stap syscall-time.stp open -x 15055
@@ -461,7 +461,7 @@ probe syscall.$1.return {
 </code></pre><p>该脚本中，传入要追踪的系统调用名称（本例中是<code>open</code>），以及要监控的进程pid，输出该进程中每次调用这个系统调用耗费的时间。</p>
 <p>另外，其实<code>systemtap</code>的<code>tapset</code>中已经封装了对任何系统调用的<code>probe</code>事件：</p>
 <pre tabindex="0"><code>// tapset/linux/syscall_any.stp
-probe syscall_any = kernel.trace(&#34;sys_enter&#34;)
+probe syscall_any = kernel.trace(&quot;sys_enter&quot;)
 {
 	__set_syscall_pt_regs($regs)
 	syscall_nr = $id
@@ -491,8 +491,8 @@ global syscalls_nonreturn[2]
 probe begin
 {
 	/* list those syscalls that never .return */
-	syscalls_nonreturn[&#34;exit&#34;]=1
-	syscalls_nonreturn[&#34;exit_group&#34;]=1
+	syscalls_nonreturn[&quot;exit&quot;]=1
+	syscalls_nonreturn[&quot;exit_group&quot;]=1
 }
 
 function filter_p()
@@ -525,9 +525,9 @@ probe nd_syscall.*.return
 }
 
 probe timer.s(1) {
-  printf(&#34;[exe:pid]syscall time:count\n\n&#34;)
+  printf(&quot;[exe:pid]syscall time:count\n\n&quot;)
   foreach ([exe,pid,name] in time_count- limit 10)
-    printf(&#34;[%s:%d]%s %d:%d\n&#34;, exe,pid,name, @sum(time_count[exe, pid,name]), @count(time_count[exe, pid,name]))
+    printf(&quot;[%s:%d]%s %d:%d\n&quot;, exe,pid,name, @sum(time_count[exe, pid,name]), @count(time_count[exe, pid,name]))
   delete time_count
 }
 </code></pre><p>输出举例：</p>
@@ -559,7 +559,7 @@ probe syscall.$1.call {
 
 probe timer.s(1) {
   foreach ([exe,pid,ubt] in backtrace- limit 10) {
-    printf(&#34;[%s:%d]%s %d\n&#34;, exe,pid,name, @count(backtrace[exe, pid,ubt]))
+    printf(&quot;[%s:%d]%s %d\n&quot;, exe,pid,name, @count(backtrace[exe, pid,ubt]))
     print_usyms(ubt);
   }
   delete backtrace
