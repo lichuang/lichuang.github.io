@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    《数据库系统概念》之事务 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20210815-db-transaction/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20210815-db-transaction/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《数据库系统概念》之事务">
+  <meta property="og:description" content="概论 # 一个数据库是一组命名的数据对象（A, B, C, …）。一个事务是一连串的读和写操作（R(A), W(B)）。
+一个事务操作的结果只有两种可能：提交（commit）或者中断（abort）。
+提交：事务所有修改都被保存到数据库中。 中断：事务所有修改都被取消，就像这个事务从来没有执行过一样。 事务有如下的特性（ACID）：
+Atomicity（原子性）：所有的操作在数据库中要么全部正确反映出来，要么完全不反映。 Consistency（一致性）：以隔离方式执行事务（即，没有其他事务的并发执行）以保证数据库的一致性。 Isolation（隔离性）：每个事务的执行过程中都感觉不到系统中其他在并发执行的事务。 Durability（持久性）：一个事务成功提交之后，对数据库的修改是永久的，即便在系统出现故障的时候。 可以把上面ACID四个特性再精简如下：
+Atomicity（原子性）：要么全做，要么全不做。 Consistency（一致性）：在我（事务）看起来是正确的。 Isolation（隔离性）：看起来只有我一个事务在同时执行。 Durability（持久性）：不应受到任何系统故障的影响。 acid 下面依次展开来看如何实现这四个特性。
+Atomicity（原子性） # 如上所述，原子性保证一个事务中的操作要么全部完成，要么全部都没有执行过，前者好办，后者需要在事务中断的时候回滚前面的操作。通常有以下两种办法来回滚操作：
+Logging（日志） # DBMS将所有修改操作都记录在日志上，这样当需要进行回滚操作时，只要按照记录下来的日志依次进行撤销操作即可。
+几乎所有DBMS都支持日志类型的回滚操作。
+Shadow Paging（影子页面） # 这种方式下，DBMS拷贝待修改的页面，事务的修改操作都在拷贝上，只有事务成功提交的时候，才将拷贝写入并且其他事务可见。
+使用这种方式实现原子性的数据库很少，仅有CouchDB和LMDB。
+Consistency（一致性） # Isolation（隔离性） # 隔离性是DBMS提供给事务操作的一种“错觉”，即事务都认为当前系统中只有自己一个事务同时间在执行，看不到其他并发事务的影响。这相当于事务以串行的顺序在执行，但是为了获得更好的性能，DBMS必须对并发的事务操作进行控制。
+Concurrency Control（并发控制） # 并发控制在后面的小节会展开讨论，这里先简单介绍一下。
+并发控制协议（concurrency control protocol）是DBMS如何决定多个并发事务的操作的适当交错。有如下两类并发控制协议：
+悲观的（Pessimistic）：DBMS假设事务会发生冲突，所以它不会让问题在一开始就出现。 乐观的（Optimistic）：DBMS假设事务之间的冲突是罕见的，所以它选择在冲突发生时处理冲突。 并发执行事务的例子 # 以下以一个例子来说明事务并发交错执行时的问题。
+假设有A、B两个银行账号，都各自有1000，事务T1将A账号的100转移至B账号；事务T2将6%的利息计入A、B两个账号中，即：
+事务T1T2 事务T1和T2的执行顺序未知，可能有不同的执行结果，但是无论如何执行，最后当着两个事务执行完毕之后，都应该满足：账号A和B的总和为 2000*1.06 = 2120。
+下图中，左边表示事务T1执行完毕之后，再执行T2；左边反之，事务T2执行完毕之后，再执行T1：
+事务T1T2串行执行 可以看到：
+左边执行完毕之后，A=954，B=1166； 右边执行完毕之后，A=960，B=1160； 虽然T1、T2执行顺序对最后结果中A、B账户中的数量有影响，但是两者总和都是2120，这就是这两个事务并发交错执行时需要保持的数。 以上是事务T1、T2串行执行的示例（即一个事务执行完毕之后才执行另一个事务），但是考虑到并发性，DBMS需要允许系统中同时并发执行多个事务，且保证正确性。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-08-15T15:04:21+08:00">
+    <meta property="article:modified_time" content="2021-08-15T15:04:21+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20210815-db-transaction/">《数据库系统概念》之事务</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《数据库系统概念》之事务</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-08-15T15:04:21&#43;08:00">2021年8月15日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概论">
+  概论
+  <a class="anchor" href="#%e6%a6%82%e8%ae%ba">#</a>
+</h1>
+<p>一个数据库是一组命名的数据对象（A, B, C, &hellip;）。一个事务是一连串的读和写操作（R(A), W(B)）。</p>
+<p>一个事务操作的结果只有两种可能：提交（commit）或者中断（abort）。</p>
+<ul>
+<li>提交：事务所有修改都被保存到数据库中。</li>
+<li>中断：事务所有修改都被取消，就像这个事务从来没有执行过一样。</li>
+</ul>
+<p>事务有如下的特性（ACID）：</p>
+<ul>
+<li>Atomicity（原子性）：所有的操作在数据库中要么全部正确反映出来，要么完全不反映。</li>
+<li>Consistency（一致性）：以隔离方式执行事务（即，没有其他事务的并发执行）以保证数据库的一致性。</li>
+<li>Isolation（隔离性）：每个事务的执行过程中都感觉不到系统中其他在并发执行的事务。</li>
+<li>Durability（持久性）：一个事务成功提交之后，对数据库的修改是永久的，即便在系统出现故障的时候。</li>
+</ul>
+<p>可以把上面ACID四个特性再精简如下：</p>
+<ul>
+<li>Atomicity（原子性）：要么全做，要么全不做。</li>
+<li>Consistency（一致性）：在我（事务）看起来是正确的。</li>
+<li>Isolation（隔离性）：看起来只有我一个事务在同时执行。</li>
+<li>Durability（持久性）：不应受到任何系统故障的影响。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="acid" src="/media/imgs/20210815-db-transaction/acid.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> acid </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>下面依次展开来看如何实现这四个特性。</p>
+<h1 class="heading" id="atomicity原子性">
+  Atomicity（原子性）
+  <a class="anchor" href="#atomicity%e5%8e%9f%e5%ad%90%e6%80%a7">#</a>
+</h1>
+<p>如上所述，原子性保证一个事务中的操作要么全部完成，要么全部都没有执行过，前者好办，后者需要在事务中断的时候回滚前面的操作。通常有以下两种办法来回滚操作：</p>
+<h2 class="heading" id="logging日志">
+  Logging（日志）
+  <a class="anchor" href="#logging%e6%97%a5%e5%bf%97">#</a>
+</h2>
+<p>DBMS将所有修改操作都记录在日志上，这样当需要进行回滚操作时，只要按照记录下来的日志依次进行撤销操作即可。</p>
+<p>几乎所有DBMS都支持日志类型的回滚操作。</p>
+<h2 class="heading" id="shadow-paging影子页面">
+  Shadow Paging（影子页面）
+  <a class="anchor" href="#shadow-paging%e5%bd%b1%e5%ad%90%e9%a1%b5%e9%9d%a2">#</a>
+</h2>
+<p>这种方式下，DBMS拷贝待修改的页面，事务的修改操作都在拷贝上，只有事务成功提交的时候，才将拷贝写入并且其他事务可见。</p>
+<p>使用这种方式实现原子性的数据库很少，仅有CouchDB和LMDB。</p>
+<h1 class="heading" id="consistency一致性">
+  Consistency（一致性）
+  <a class="anchor" href="#consistency%e4%b8%80%e8%87%b4%e6%80%a7">#</a>
+</h1>
+<h1 class="heading" id="isolation隔离性">
+  Isolation（隔离性）
+  <a class="anchor" href="#isolation%e9%9a%94%e7%a6%bb%e6%80%a7">#</a>
+</h1>
+<p>隔离性是DBMS提供给事务操作的一种“错觉”，即事务都认为当前系统中只有自己一个事务同时间在执行，看不到其他并发事务的影响。这相当于事务以串行的顺序在执行，但是为了获得更好的性能，DBMS必须对并发的事务操作进行控制。</p>
+<h2 class="heading" id="concurrency-control并发控制">
+  Concurrency Control（并发控制）
+  <a class="anchor" href="#concurrency-control%e5%b9%b6%e5%8f%91%e6%8e%a7%e5%88%b6">#</a>
+</h2>
+<p>并发控制在后面的小节会展开讨论，这里先简单介绍一下。</p>
+<p>并发控制协议（concurrency control protocol）是DBMS如何决定多个并发事务的操作的适当交错。有如下两类并发控制协议：</p>
+<ul>
+<li>悲观的（Pessimistic）：DBMS假设事务会发生冲突，所以它不会让问题在一开始就出现。</li>
+<li>乐观的（Optimistic）：DBMS假设事务之间的冲突是罕见的，所以它选择在冲突发生时处理冲突。</li>
+</ul>
+<h2 class="heading" id="并发执行事务的例子">
+  并发执行事务的例子
+  <a class="anchor" href="#%e5%b9%b6%e5%8f%91%e6%89%a7%e8%a1%8c%e4%ba%8b%e5%8a%a1%e7%9a%84%e4%be%8b%e5%ad%90">#</a>
+</h2>
+<p>以下以一个例子来说明事务并发交错执行时的问题。</p>
+<p>假设有A、B两个银行账号，都各自有1000，事务T1将A账号的100转移至B账号；事务T2将6%的利息计入A、B两个账号中，即：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="事务T1T2" src="/media/imgs/20210815-db-transaction/t1t2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 事务T1T2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>事务T1和T2的执行顺序未知，可能有不同的执行结果，但是无论如何执行，最后当着两个事务执行完毕之后，都应该满足：账号A和B的总和为 2000*1.06 = 2120。</p>
+<p>下图中，左边表示事务T1执行完毕之后，再执行T2；左边反之，事务T2执行完毕之后，再执行T1：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="事务T1T2串行执行" src="/media/imgs/20210815-db-transaction/t1t2-1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 事务T1T2串行执行 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可以看到：</p>
+<ul>
+<li>左边执行完毕之后，A=954，B=1166；</li>
+<li>右边执行完毕之后，A=960，B=1160；</li>
+<li>虽然T1、T2执行顺序对最后结果中A、B账户中的数量有影响，但是两者总和都是2120，这就是这两个事务并发交错执行时需要保持的数。</li>
+</ul>
+<p>以上是事务T1、T2串行执行的示例（即一个事务执行完毕之后才执行另一个事务），但是考虑到并发性，DBMS需要允许系统中同时并发执行多个事务，且保证正确性。</p>
+<p>DBMS控制并发事务中操作执行顺序，被称为执行调度（execution schedule）。并发控制协议（concurrency control protocol）的核心工作，就是生成一个合理的执行调度：</p>
+<ul>
+<li>既能保证并发事务交错执行之后结果正确。（即不同事务之间，可以在一个事务没有完成之前就开始执行别的事务）</li>
+<li>单个事务看起来又是串行执行的。（即不能打乱一个事务内操作执行的顺序）</li>
+</ul>
+<p>以下继续结合前面的T1、T2事务来解释两种交错执行但是结果不相同的执行调度。</p>
+<p>先来看正确的执行调度示例：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="事务T1T2正确的交错执行" src="/media/imgs/20210815-db-transaction/t1t2-good.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 事务T1T2正确的交错执行 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，左边将T1、T2事务并发交错执行，其执行结果等效于右边先执行完事务T1之后再执行事务T2，因为左边执行之后保持了数据的正确：即A、B账户的总和为2120。</p>
+<p>再来看错误的执行调度示例：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="事务T1T2错误的交错执行" src="/media/imgs/20210815-db-transaction/t1t2-bad.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 事务T1T2错误的交错执行 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，错误的事务交错调度执行，导致了执行完毕之后，A、B账户的总和为2014，没有保证数据的正确性。</p>
+<p>接下来的问题就是，如何判断一个调度执行是正确的？答案是：如果一个调度执行，等价于串行执行（serial execution），那么就是正确的。</p>
+<p>要理解上面这句话，还需要理解相关的几个概念：</p>
+<ul>
+<li>Serial Schedule（串行调度）：没有与其他事务交错执行的调度。</li>
+<li>Equivalent Schedules（等价调度）：两个执行调度，如果执行之后的效果是相同的，则称这两个调度是等价的。</li>
+<li>Serializable Schedule（可串行化的调度）：与串行调度等价的调度被称为可串行化的调度。</li>
+</ul>
+<p>并不是所有的调度都是可串行化的调度，如果两个操作是冲突（conflict）的，这意味着：</p>
+<ul>
+<li>这两个操作分属于两个不同的事务。</li>
+<li>这两个操作都在同一个对象上，且至少有一个操作是写操作。</li>
+</ul>
+<p>有如下形式的冲突：</p>
+<ul>
+<li>读写冲突（Read-Write Conflicts，R-W）。</li>
+<li>写读冲突（Write-Read Conflicts，W-R）。</li>
+<li>写写冲突（Write-Write Conflicts，W-W）。</li>
+</ul>
+<p>下面展开看这几种冲突的表现。</p>
+<h3 class="heading" id="读写冲突">
+  读写冲突
+  <a class="anchor" href="#%e8%af%bb%e5%86%99%e5%86%b2%e7%aa%81">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="读写冲突" src="/media/imgs/20210815-db-transaction/r-w.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 读写冲突 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1首先读对象A的值，但是由于交错执行的事务T2修改了A的值，导致了事务T1下一个读对象A的值，与之前的值不相同，这种现象被称为“不可重复读（unrepeatable read）”。</p>
+<h3 class="heading" id="写读冲突">
+  写读冲突
+  <a class="anchor" href="#%e5%86%99%e8%af%bb%e5%86%b2%e7%aa%81">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="写读冲突" src="/media/imgs/20210815-db-transaction/w-r.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 写读冲突 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1修改了对象A的值，但是在事务T1提交之前，事务T2开始执行，并且读取到了事务T1还未提交的修改，如果事务T1在后面的执行中中断，则事务T2读取到的就是脏数据。这种现象被称为“读未提交的数据（read uncommitted data）”。</p>
+<h3 class="heading" id="写写冲突">
+  写写冲突
+  <a class="anchor" href="#%e5%86%99%e5%86%99%e5%86%b2%e7%aa%81">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="写写冲突" src="/media/imgs/20210815-db-transaction/w-w.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 写写冲突 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1首先修改了对象A的值，接着事务T2执行将T1还未提交的修改覆盖了。这种现象被称为“覆盖未提交数据（Overwriting Uncommitted Data）”</p>
+<h2 class="heading" id="依赖图dependency-graphs">
+  依赖图（DEPENDENCY GRAPHS）
+  <a class="anchor" href="#%e4%be%9d%e8%b5%96%e5%9b%bedependency-graphs">#</a>
+</h2>
+<p>为了确定一个调度是否冲突可串行化，提供一个简单有效的办法：依赖图。</p>
+<p>依赖图又称为“优先图（precedence graph）”。依赖图由两部分组成G=(V,E)，其中V是顶点集合，由参与到调度中的事务组成；E为边集，边集由满足以下条件的所有<code>Ti -&gt; Tj</code>的边组成：</p>
+<ul>
+<li>在Tj执行<code>Read(Q)</code>之前，Ti执行<code>Write(Q)</code>；</li>
+<li>在Tj执行<code>Write(Q)</code>之前，Ti执行<code>Read(Q)</code>；</li>
+<li>在Tj执行<code>Write(Q)</code>之前，Ti执行<code>Write(Q)</code>；</li>
+</ul>
+<p>如果在优先图中存在一条<code>Ti -&gt; Tj</code>的边，等价于执行调度S的任何串行调度S&rsquo;中，T必须出现在Tj之前。</p>
+<p>把执行调度画成依赖图之后，如果其中有环，说明这个调度是非冲突可串行化的；如果图中无环，说明是可以冲突可串行化的调度。</p>
+<p>以下面的图示来说明。</p>
+<h3 class="heading" id="依赖图示例一">
+  依赖图示例一
+  <a class="anchor" href="#%e4%be%9d%e8%b5%96%e5%9b%be%e7%a4%ba%e4%be%8b%e4%b8%80">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="有环依赖图" src="/media/imgs/20210815-db-transaction/acyclic.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 有环依赖图 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1对对象A的写操作在事务T2之前，因此依赖图中针对对象A有一条<code>T1-&gt;T2</code>的边；同时，事务T2对对象B的写操作又在事务T1之前，因此针对对象B有一条<code>T2-&gt;T1</code>的边，这样就形成了有环的依赖图，说明这个调度是非冲突可串行化的调度。</p>
+<h3 class="heading" id="依赖图示例二">
+  依赖图示例二
+  <a class="anchor" href="#%e4%be%9d%e8%b5%96%e5%9b%be%e7%a4%ba%e4%be%8b%e4%ba%8c">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="无环依赖图" src="/media/imgs/20210815-db-transaction/non-acyclic.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 无环依赖图 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1、T2、T3所在的调度没有形成有环的依赖图，因此这个调度是可冲突串行化的调度。</p>
+<h1 class="heading" id="durability持久性">
+  Durability（持久性）
+  <a class="anchor" href="#durability%e6%8c%81%e4%b9%85%e6%80%a7">#</a>
+</h1>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

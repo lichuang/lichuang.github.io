@@ -1,299 +1,208 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>Leveldb代码阅读笔记 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="Leveldb代码阅读笔记"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="Leveldb代码阅读笔记">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"Leveldb代码阅读笔记",
-      "item":"https://www.codedump.info/post/20190215-leveldb/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190215-leveldb/"
-    },
-    "headline": "Leveldb代码阅读笔记 - codedump的网络日志","datePublished": "2019-02-15T08:52:47+08:00",
-    "dateModified": "2019-02-15T08:52:47+08:00",
-    "wordCount":  11702 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "Leveldb代码阅读笔记"
-}
-</script><meta property="og:title" content="Leveldb代码阅读笔记 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190215-leveldb/" />
-
-
-
-<meta property="og:description" content="Leveldb代码阅读笔记" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-02-15T08:52:47&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-02-15T08:52:47&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    Leveldb代码阅读笔记 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">Leveldb代码阅读笔记</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190215-leveldb/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-02-15</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>24分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190215-leveldb/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Leveldb代码阅读笔记">
+  <meta property="og:description" content="Leveldb代码阅读笔记">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-02-15T08:52:47+08:00">
+    <meta property="article:modified_time" content="2019-02-15T08:52:47+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190215-leveldb/">Leveldb代码阅读笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Leveldb代码阅读笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-02-15T08:52:47&#43;08:00">2019年2月15日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>本文基于leveldb 1.9.0代码。</p>
-<h1 id="整体架构">整体架构</h1>
-<p><img src="/media/imgs/20190215-leveldb/leveldb.png" alt="leveldb" title="leveldb"></p>
+  
+
+  
+
+  <div class="single-content">
+    <p>本文基于leveldb 1.9.0代码。</p>
+<h1 class="heading" id="整体架构">
+  整体架构
+  <a class="anchor" href="#%e6%95%b4%e4%bd%93%e6%9e%b6%e6%9e%84">#</a>
+</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leveldb" src="/media/imgs/20190215-leveldb/leveldb.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leveldb </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图，leveldb的数据存储在内存以及磁盘上，其中：</p>
 <ul>
 <li>memtable：存储在内存中的数据，使用skiplist实现。</li>
@@ -302,9 +211,12 @@
 </ul>
 <p>在上面这个存储层次中，越靠上的数据越新，即同一个键值如果同时存在于memtable和immutable memtable中，则以memtable中的为准。</p>
 <p>另外，图中还使用箭头来表示了合并数据的走向，即：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">memtable</span> <span class="o">-&gt;</span> <span class="n">immutable</span> <span class="n">memtable</span> <span class="o">-&gt;</span> <span class="n">level</span> <span class="mi">0</span> <span class="n">sstable</span> <span class="o">-&gt;</span> <span class="n">level</span> <span class="mi">1</span> <span class="n">sstable</span> <span class="o">-&gt;</span> <span class="p">...</span> <span class="o">-&gt;</span> <span class="n">level</span> <span class="n">N</span> <span class="n">sstable</span><span class="err">。</span>
-</code></pre></div><p>以下将针对这几部分展开讨论。</p>
-<h1 id="log文件">Log文件</h1>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>memtable -&gt; immutable memtable -&gt; level 0 sstable -&gt; level 1 sstable -&gt; ... -&gt; level N sstable<span style="">。</span>
+</span></span></code></pre></div><p>以下将针对这几部分展开讨论。</p>
+<h1 class="heading" id="log文件">
+  Log文件
+  <a class="anchor" href="#log%e6%96%87%e4%bb%b6">#</a>
+</h1>
 <p>写入数据的时候，最开始会写入到log文件中，由于是顺序写入文件，所以写入速度很快，可以马上返回。</p>
 <p>来看Log文件的结构：</p>
 <ul>
@@ -330,11 +242,62 @@
 </ul>
 </li>
 </ul>
-<p><img src="/media/imgs/20190215-leveldb/log-file.png" alt="log-file" title="log-file"></p>
-<h1 id="memtable">memtable</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="log-file" src="/media/imgs/20190215-leveldb/log-file.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> log-file </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="memtable">
+  memtable
+  <a class="anchor" href="#memtable">#</a>
+</h1>
 <p>memtable用于存储在内存中还未落盘到sstable中的数据，这部分使用跳表（skiplist）做为底层的数据结构，这里先简单描述一下跳表的工作原理。</p>
 <p>如果数据存放在一个普通的有序链表中，那么查找数据的时间复杂度就是O(n)。跳表的设计思想在于：链表中的每个元素，都有多个层次，查找某一个元素时，遍历该链表的时候，根据层次来跳过（skip）中间某些明显不满足需求的元素，以达到加快查找速度的目的，如下图所示：</p>
-<p><img src="/media/imgs/20190215-leveldb/skiplist.png" alt="skiplist" title="skiplist"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="skiplist" src="/media/imgs/20190215-leveldb/skiplist.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> skiplist </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在以上这个跳表中，查找元素6的流程，大体如下：</p>
 <ul>
 <li>构建一个每个链表元素最多有5个元素的跳表。</li>
@@ -358,10 +321,40 @@
 <li>链表的每个节点中，垂直方向的数组存储的数据都是一样的，水平方向的指针指向链表的下一个元素。</li>
 <li>最底层的链表包含所有元素，也就是说，在最底层数据结构退化为一个普通的有序链表。</li>
 </ul>
-<h1 id="sstable文件">sstable文件</h1>
-<h2 id="大体结构">大体结构</h2>
+<h1 class="heading" id="sstable文件">
+  sstable文件
+  <a class="anchor" href="#sstable%e6%96%87%e4%bb%b6">#</a>
+</h1>
+<h2 class="heading" id="大体结构">
+  大体结构
+  <a class="anchor" href="#%e5%a4%a7%e4%bd%93%e7%bb%93%e6%9e%84">#</a>
+</h2>
 <p>首先来看sstable文件的整体结构，如下图：</p>
-<p><img src="/media/imgs/20190215-leveldb/sstable.png" alt="sstable" title="sstable"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sstable" src="/media/imgs/20190215-leveldb/sstable.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sstable </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>sstable文件中分为以下几个组成部分：</p>
 <ul>
 <li>data block：存储数据的block，由于一个block大小固定，因此每个sstable文件中有多个data block。</li>
@@ -370,15 +363,90 @@
 <li>footer：脚注数据，每个footer数据信息大小固定，存储一个sstable文件的元信息（meta data）。</li>
 </ul>
 <p>可以看到，上面这几部分数据，从文件的组织来看自上而下，先有了数据再有索引数据，最后才是文件自身的元信息。原因在于：索引数据是针对数据的索引信息，在数据没有写完毕之前，索引信息还会发生改变，所以索引数据要等数据写完；而元信息就是针对索引数据的索引，同样要依赖于索引信息写完毕才可以。</p>
-<h2 id="block">block</h2>
+<h2 class="heading" id="block">
+  block
+  <a class="anchor" href="#block">#</a>
+</h2>
 <p>上面几部分数据中，除去footer之外，内部都是以block的形式来组织数据，接着看block的结构，如下图：</p>
-<p><img src="/media/imgs/20190215-leveldb/block.png" alt="block" title="block"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="block" src="/media/imgs/20190215-leveldb/block.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> block </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>从上面看出，实际上存储数据的block大同小异：最开始的一部分存储数据，然后存储类型，最后一部分存储这个block的校验码以做合法性校验。</p>
 <p>以上只是对block大体结构的分析，在数据部分，每一条数据记录leveldb使用前缀压缩（prefix-compressed）方式来存储。这种算法的原理是：针对一组数据，取出一个公共的前缀，而在该组中的其它字符串只保存非公共的字符串做为key即可，由于sstable保存KV数据是严格按照key的顺序来排序的，所以这样能节省出保存key数据的空间来。</p>
 <p>如下图所示：一个block内部划分了多个记录组（record group），每个记录组内部又由多条记录（record）组成。在同一个记录组内部，以本组的第一条数据的键值做为公共前缀，后续的记录数据键值部分只存放与公共前缀非共享部分的数据即可。</p>
-<p><img src="/media/imgs/20190215-leveldb/block-record.png" alt="block-record" title="block-record"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="block-record" src="/media/imgs/20190215-leveldb/block-record.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> block-record </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以记录的三个数据&lt;a,test&gt;、&lt;ab,test2&gt;、&lt;c,test3&gt;为例，假设这三个数据在同一个record group内，那么对应的record记录如下所示：</p>
-<p><img src="/media/imgs/20190215-leveldb/record-example.png" alt="record-example" title="record-example"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="record-example" src="/media/imgs/20190215-leveldb/record-example.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> record-example </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>说明如下：</p>
 <ul>
 <li>&lt;a,test&gt;：由于这对数据是这一组记录组的第一组数据，因此共享的前缀部分长度为0，因为每一组都以第一条数据的key为共享前缀，因此针对第一条数据本身，其共享前缀长度就是0了。</li>
@@ -387,26 +455,50 @@
 </ul>
 <p>因为一个block内部有多个记录组，因此还需要另外的数据来记录不同记录组的位置，这部分数据被称为“重启点（restart point）”，重启点首先会以数组的形式保存下来，直到该block数据需要落盘的情况下才会写到block结尾处。</p>
 <p>有了以上的准备，就可以来具体看添加数据的代码了，向一个block中添加数据的伪代码如下。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">（对应</span><span class="n">BlockBuilder</span><span class="o">::</span><span class="n">Add函数</span><span class="err">）</span>
-<span class="err">如果当前记录组的数据数量少于</span><span class="n">Options</span><span class="o">-&gt;</span><span class="n">block_restart_interval</span><span class="err">：</span>
-  <span class="err">说明一个记录组还没有填充完毕</span>
-  <span class="err">计算与本组共享前缀的长度</span>
-<span class="err">否则：</span>
-  <span class="err">说明一个记录组填充完毕</span>
-  <span class="err">向重启点数组写入本记录组长度</span>
-  <span class="err">重置记录组数据计数器</span>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">（对应</span>BlockBuilder::Add函数<span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="">如果当前记录组的数据数量少于</span>Options-&gt;block_restart_interval<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">说明一个记录组还没有填充完毕</span>
+</span></span><span style="display:flex;"><span>  <span style="">计算与本组共享前缀的长度</span>
+</span></span><span style="display:flex;"><span><span style="">否则：</span>
+</span></span><span style="display:flex;"><span>  <span style="">说明一个记录组填充完毕</span>
+</span></span><span style="display:flex;"><span>  <span style="">向重启点数组写入本记录组长度</span>
+</span></span><span style="display:flex;"><span>  <span style="">重置记录组数据计数器</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">计算非共享前缀长度</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">写入共享前缀长度（</span>varint32类型<span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="">写入非共享前缀长度（</span>varint32类型<span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="">写入数据长度（</span>varint32类型 <span style="">）</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">写入</span>key的非共享前缀+<span style="">数据</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">递增记录组数据计数器</span>
+</span></span></code></pre></div><p>有了前面的这些准备，再在前面block格式的基础上展开，得到更加详细的格式如下：</p>
+<p>
 
-<span class="err">计算非共享前缀长度</span>
 
-<span class="err">写入共享前缀长度（</span><span class="n">varint32类型</span><span class="err">）</span>
-<span class="err">写入非共享前缀长度（</span><span class="n">varint32类型</span><span class="err">）</span>
-<span class="err">写入数据长度（</span><span class="n">varint32类型</span> <span class="err">）</span>
 
-<span class="err">写入</span><span class="n">key的非共享前缀</span><span class="o">+</span><span class="err">数据</span>
 
-<span class="err">递增记录组数据计数器</span>
-</code></pre></div><p>有了前面的这些准备，再在前面block格式的基础上展开，得到更加详细的格式如下：</p>
-<p><img src="/media/imgs/20190215-leveldb/block-detail.png" alt="block-detail" title="block-detail"></p>
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="block-detail" src="/media/imgs/20190215-leveldb/block-detail.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> block-detail </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>block详细格式还是划分为三大部分，其中：</p>
 <ul>
 <li>数据部分
@@ -418,9 +510,15 @@
 <li>压缩类型，大小为1 Byte。</li>
 <li>CRC32校验数据，大小为4 Byte。</li>
 </ul>
-<h2 id="footer">footer</h2>
+<h2 class="heading" id="footer">
+  footer
+  <a class="anchor" href="#footer">#</a>
+</h2>
 <p>footer做为存储sstable文件原信息部分的数据，格式相对简单，如下图：</p>
-<h1 id="iterator的设计">iterator的设计</h1>
+<h1 class="heading" id="iterator的设计">
+  iterator的设计
+  <a class="anchor" href="#iterator%e7%9a%84%e8%ae%be%e8%ae%a1">#</a>
+</h1>
 <p>迭代器的设计是leveldb中的一大亮点，leveldb设计了一个虚拟基类Iterator，其中定义了诸如遍历、查询之类的接口，而该基类有多种实现。原因在于：leveldb中存在多种数据结构和多种使用场景，如：</p>
 <ul>
 <li>保存内存中数据的memtable。</li>
@@ -433,28 +531,61 @@
 <li>底层迭代器：处于最底层，直接访问底层数据结构，而不依赖于其他迭代器的迭代器。</li>
 <li>组合迭代器：组合各种迭代器（包括底层和组合迭代器）完成工作的迭代器。</li>
 </ul>
-<h2 id="底层迭代器">底层迭代器</h2>
+<h2 class="heading" id="底层迭代器">
+  底层迭代器
+  <a class="anchor" href="#%e5%ba%95%e5%b1%82%e8%bf%ad%e4%bb%a3%e5%99%a8">#</a>
+</h2>
 <p>底层迭代器有以下三种：</p>
 <ul>
 <li>MemTableIterator：用于实现对memtable的迭代遍历，由于memtable由skiplist实现，因此内部封装了对skiplist的迭代访问。</li>
 <li>Block::Iter：前面分析sstable的时候，讲到一个sstable内部其实有多个block组成，这个迭代器就是按照block的结构进行迭代访问的迭代器。</li>
 <li>Version::LevelFileNumIterator：每个level都由多个sstable文件组成，说白了就是一个sstable类型的数组。除了level 0之外，其余level的sstable的键值之间没有重叠关系，而LevelFileNumIterator就是用于迭代一组有序sstable文件的迭代器。</li>
 </ul>
-<p><img src="/media/imgs/20190215-leveldb/internal-iterator.png" alt="internal-iterator" title="internal-iterator"></p>
-<h2 id="组合迭代器">组合迭代器</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="internal-iterator" src="/media/imgs/20190215-leveldb/internal-iterator.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> internal-iterator </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="组合迭代器">
+  组合迭代器
+  <a class="anchor" href="#%e7%bb%84%e5%90%88%e8%bf%ad%e4%bb%a3%e5%99%a8">#</a>
+</h2>
 <p>组合迭代器内部都包含至少一个迭代器，组合起来完成迭代工作，有如下几类。</p>
-<h3 id="twoleveliterator">TwoLevelIterator</h3>
+<h3 class="heading" id="twoleveliterator">
+  TwoLevelIterator
+  <a class="anchor" href="#twoleveliterator">#</a>
+</h3>
 <p>顾名思义，TwoLevelIterator表示两层迭代器，创建TwoLevelIterator的函数原型为：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">typedef</span> <span class="n">Iterator</span><span class="o">*</span> <span class="p">(</span><span class="o">*</span><span class="n">BlockFunction</span><span class="p">)(</span><span class="kt">void</span><span class="o">*</span><span class="p">,</span> <span class="k">const</span> <span class="n">ReadOptions</span><span class="o">&amp;</span><span class="p">,</span> <span class="k">const</span> <span class="n">Slice</span><span class="o">&amp;</span><span class="p">);</span>
-<span class="k">extern</span> <span class="n">Iterator</span><span class="o">*</span> <span class="nf">NewTwoLevelIterator</span><span class="p">(</span>
-  <span class="n">Iterator</span><span class="o">*</span> <span class="n">index_iter</span><span class="p">,</span>
-  <span class="n">Iterator</span><span class="o">*</span> <span class="p">(</span><span class="o">*</span><span class="n">block_function</span><span class="p">)(</span>
-    <span class="kt">void</span><span class="o">*</span> <span class="n">arg</span><span class="p">,</span>
-    <span class="k">const</span> <span class="n">ReadOptions</span><span class="o">&amp;</span> <span class="n">options</span><span class="p">,</span>
-    <span class="k">const</span> <span class="n">Slice</span><span class="o">&amp;</span> <span class="n">index_value</span><span class="p">),</span>
-  <span class="kt">void</span><span class="o">*</span> <span class="n">arg</span><span class="p">,</span>
-  <span class="k">const</span> <span class="n">ReadOptions</span><span class="o">&amp;</span> <span class="n">options</span><span class="p">);</span>
-</code></pre></div><p>参数说明如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">typedef</span> Iterator* (*BlockFunction)(<span style="font-weight:bold;text-decoration:underline">void</span>*, <span style="font-weight:bold;text-decoration:underline">const</span> ReadOptions&amp;, <span style="font-weight:bold;text-decoration:underline">const</span> Slice&amp;);
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">extern</span> Iterator* <span style="color:#666;font-weight:bold;font-style:italic">NewTwoLevelIterator</span>(
+</span></span><span style="display:flex;"><span>  Iterator* index_iter,
+</span></span><span style="display:flex;"><span>  Iterator* (*block_function)(
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">void</span>* arg,
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">const</span> ReadOptions&amp; options,
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">const</span> Slice&amp; index_value),
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span>* arg,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">const</span> ReadOptions&amp; options);
+</span></span></code></pre></div><p>参数说明如下：</p>
 <ul>
 <li>Iterator* index_iter：索引迭代器，可以理解为第一层的迭代器。</li>
 <li>BlockFunction *block_function：这是一个函数指针，根据index_iter迭代器的返回结果来再创建一个迭代器，即针对查询索引返回数据的迭代器。其函数参数有三个，其中前面两个由下面的arg以及options参数指定，而第三个参数slice就是index_iterator返回的索引数据。</li>
@@ -462,14 +593,65 @@
 <li>const ReadOptions&amp; options：传入BlockFunction函数的第二个参数。</li>
 </ul>
 <p>综合以上，TwoLevelIterator的工作流程如下：</p>
-<p><img src="/media/imgs/20190215-leveldb/TwoLevelIterator.png" alt="TwoLevelIterator" title="TwoLevelIterator"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="TwoLevelIterator" src="/media/imgs/20190215-leveldb/TwoLevelIterator.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> TwoLevelIterator </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>TwoLevelIterator有如下两类：</p>
 <ul>
 <li>Table::Iterator：实现对于单个sstable文件的迭代。由于一个sstable文件中有多个block，而又划分为index block和data block，查询数据时，先根据键值到index block中查询到对应的data block，再进入data block中进行查询，这个查询过程实际就是一个两层的查找过程：先查索引数据，再查数据。因此Table::Iterator类型的TwoLevelIterator，组合了index block的Block::Iter，以及data block的Block::Iter。</li>
 <li>ConcatenatingIterator：组合了LevelFileNumIterator以及Table::Iterator，用于在某一层内的sstable文件中查询数据。因此它的第一层迭代器就是前面的LevelFileNumIterator，用于根据一个键值在一组有序的sstable文件中定位到所在的文件，而第二层的迭代器是Table::Iterator，用于在第一层迭代器LevelFileNumIterator中查询到的sstable文件中查询键值。另外，既然ConcatenatingIterator处理的是有序sstable文件，那么level 0的sstable文件就不会使用这种迭代器进行访问，因为level 0文件之间有重叠键值。</li>
 </ul>
-<p><img src="/media/imgs/20190215-leveldb/TwoLevelIterator-design.png" alt="TwoLevelIterator-design" title="TwoLevelIterator-design"></p>
-<h3 id="mergingiterator">MergingIterator</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="TwoLevelIterator-design" src="/media/imgs/20190215-leveldb/TwoLevelIterator-design.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> TwoLevelIterator-design </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h3 class="heading" id="mergingiterator">
+  MergingIterator
+  <a class="anchor" href="#mergingiterator">#</a>
+</h3>
 <p>用于合并流程的迭代器。在合并过程中，需要操作memtable、immutable memtable、level 0 sstable以及非level 0的sstable，该迭代器将这些存储数据结构体的迭代器，统一进行归并排序：</p>
 <ul>
 <li>memtable以及immutable memtable：使用前面提过的MemtableIterator迭代器。</li>
@@ -491,15 +673,39 @@
 <li>如果键值相等，那么从键值中decode出来sequence值，对比sequence值，对sequence值进行降序比较。由于这个值是单调递增的，因此越新的数据sequence值越大。换言之，在存储层次中（依次为memtable-&gt;immutable memtable-&gt;level 0 sstable-&gt;level n sstable）越靠上面的数据，在键值相同的情况下越小。</li>
 </ul>
 <p>Seek(target)函数的伪代码：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">遍历所有</span><span class="n">children_成员</span><span class="err">：</span>
-  <span class="err">调用每个成员的</span><span class="n">Seek</span><span class="p">(</span><span class="n">target</span><span class="p">)</span><span class="err">函数，这样每个</span><span class="n">iterator都移动到了target响应的位置</span><span class="err">。</span>
-<span class="err">调用</span><span class="n">FindSmallest函数</span><span class="err">，查询到</span><span class="n">children_成员中当前位置最小的iterator</span><span class="err">，保存到</span><span class="n">current_指针中</span><span class="err">。</span>  
-<span class="err">修改查找方向为向前查找。</span>
-</code></pre></div><p>而FindSmallest函数的实现，是遍历children_找到最小的child保存到current_指针中。前面分析InternalKeyComparator提到过，相同键值的数据，根据sequence值进行降序排列，即数据越新的数据其sequence值越大，在这个排序中查找的结果就越在上面。因此，FindSmallest函数如果在memtable、level 0中都找到了相同键值，将优先选择memtable中的数据。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">遍历所有</span>children_成员<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">调用每个成员的</span>Seek(target)<span style="">函数，这样每个</span>iterator都移动到了target响应的位置<span style="">。</span>
+</span></span><span style="display:flex;"><span><span style="">调用</span>FindSmallest函数<span style="">，查询到</span>children_成员中当前位置最小的iterator<span style="">，保存到</span>current_指针中<span style="">。</span>  
+</span></span><span style="display:flex;"><span><span style="">修改查找方向为向前查找。</span>
+</span></span></code></pre></div><p>而FindSmallest函数的实现，是遍历children_找到最小的child保存到current_指针中。前面分析InternalKeyComparator提到过，相同键值的数据，根据sequence值进行降序排列，即数据越新的数据其sequence值越大，在这个排序中查找的结果就越在上面。因此，FindSmallest函数如果在memtable、level 0中都找到了相同键值，将优先选择memtable中的数据。</p>
 <p>MergingIterator迭代器的其它实现不再做解释，简单理解：针对一组iterator的查询结果进行归并排序。对于同样一个键值，只取位置在存储位置上最靠上面的数据。</p>
 <p>这么做的原因在于：一个键值的数据可能被写入多次，而需要以最后一次写入的数据为准，合并时将丢弃掉不在存储最上面的数据。</p>
 <p>以下面的例子来说明MergingIterator迭代器的合并结果。</p>
-<p><img src="/media/imgs/20190215-leveldb/MergingIterator-sample.png" alt="MergingIterator-sample" title="MergingIterator-sample"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="MergingIterator-sample" src="/media/imgs/20190215-leveldb/MergingIterator-sample.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> MergingIterator-sample </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图的左半边，是合并前的数据分布情况，依次为：</p>
 <ul>
 <li>memtable：键值1的删除记录，以及键值&lt;2,test&gt;。</li>
@@ -513,9 +719,15 @@
 <li>键2：最靠上面的关于键2的存储记录是&lt;2,test&gt;，这条记录保存在合并结果中，而immutable memtable的记录&lt;2,test2&gt;将被丢弃，因为这条记录不是最新的。</li>
 <li>键3：使用了immutable memtable中的记录&lt;3,test&gt;，丢弃了level 1 sstable中的&lt;3,a&gt;这条记录。</li>
 </ul>
-<h1 id="核心流程">核心流程</h1>
+<h1 class="heading" id="核心流程">
+  核心流程
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>有了前面几种核心数据结构的了解，下面谈leveldb中的几个核心流程。</p>
-<h2 id="修改流程">修改流程</h2>
+<h2 class="heading" id="修改流程">
+  修改流程
+  <a class="anchor" href="#%e4%bf%ae%e6%94%b9%e6%b5%81%e7%a8%8b">#</a>
+</h2>
 <p>修改数据，分为两类：正常的写入数据操作以及删除数据操作。</p>
 <p>先看正常的写入数据操作：</p>
 <ul>
@@ -524,14 +736,41 @@
 </ul>
 <p>完成以上两步之后，就可以认为完成了更新数据的操作。实际上只有一次文件末尾的顺序写操作，以及一次写内存操作，如果不考虑会被合并操作阻塞的情况，实际上还是很快的。</p>
 <p>再来看删除数据操作。leveldb中，删除一个数据，其实也是添加一条新的记录，只不过记录类型是删除类型，代码中通过枚举变量定义了这两种操作类型：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">enum</span> <span class="n">ValueType</span> <span class="p">{</span>
-  <span class="n">kTypeDeletion</span> <span class="o">=</span> <span class="mh">0x0</span><span class="p">,</span>
-  <span class="n">kTypeValue</span> <span class="o">=</span> <span class="mh">0x1</span>
-<span class="p">}</span>
-</code></pre></div><p>这样看起来，leveldb删除数据时，并不会真的去删除一条数据，而是打上了一个标记，那么问题就来了：如果写入数据操作与删除数据操作，只是类型不同，在查询数据的时候又如何知道数据是否存在？看下面的读数据流程。</p>
-<h2 id="读流程">读流程</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">enum</span> ValueType {
+</span></span><span style="display:flex;"><span>  kTypeDeletion = 0x0,
+</span></span><span style="display:flex;"><span>  kTypeValue = 0x1
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这样看起来，leveldb删除数据时，并不会真的去删除一条数据，而是打上了一个标记，那么问题就来了：如果写入数据操作与删除数据操作，只是类型不同，在查询数据的时候又如何知道数据是否存在？看下面的读数据流程。</p>
+<h2 class="heading" id="读流程">
+  读流程
+  <a class="anchor" href="#%e8%af%bb%e6%b5%81%e7%a8%8b">#</a>
+</h2>
 <p>向leveldb中查询一个数据，也是从上而下，先查内存然后到磁盘上的sstable文件查询，如下图所示：</p>
-<p><img src="/media/imgs/20190215-leveldb/read-operation.png" alt="read-operation" title="read-operation"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="read-operation" src="/media/imgs/20190215-leveldb/read-operation.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> read-operation </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>先在内存中的memtable中查询数据，查到则返回；</li>
 <li>否则在磁盘中的sstable文件中查询数据，从0级开始往下查询，查到则返回；</li>
@@ -539,8 +778,14 @@
 <p>这样自上而下的原因就在于leveldb的设计：越是在上层的数据越新，距离当前时间越短。</p>
 <p>举例而言，对于键值key而言，首先写入kv对&lt;key,data&gt;，然后再删除键值key数据。第一次写入的数据，可能因为合并的原因以及到了sstable文件上，而再次删除键值key的数据时，根据上面的解释，其实也是写入数据，只不过标记为删除。于是，越后写入的数据，越在上面这个层次的上面，这样从上往下查询时就能先查找到后写入的数据，此时看到了数据已经被标记为删除，就可以认为数据不存在了。</p>
 <p>那么，前面写入的数据实际上已经没有用了，但是又占用了空间，这部分数据就等待着后面的合并流程来合并数据最后删除掉。</p>
-<h2 id="合并流程">合并流程</h2>
-<h3 id="核心数据结构">核心数据结构</h3>
+<h2 class="heading" id="合并流程">
+  合并流程
+  <a class="anchor" href="#%e5%90%88%e5%b9%b6%e6%b5%81%e7%a8%8b">#</a>
+</h2>
+<h3 class="heading" id="核心数据结构">
+  核心数据结构
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h3>
 <p>首先来看与合并相关的核心数据结构。</p>
 <p>每一次合并过程以及将memtable中的数据落盘到sstable的过程，都涉及到sstable文件的增删，而这每一次操作，都对应到一个版本。</p>
 <p>在leveldb中，使用Version类来存储一个版本的元信息，主要包括：</p>
@@ -551,7 +796,31 @@
 </ul>
 <p>可以看到，Version保存的主要是两类数据：当前sstable文件的信息，以及下一次合并时的信息。</p>
 <p>所有的级别，也就是Version类，使用双向链表串联起来，保存到VersionSet中，而VersionSet中有一个current指针，用于指向当前的Version。</p>
-<p><img src="/media/imgs/20190215-leveldb/versionset.png" alt="versionset" title="versionset"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="versionset" src="/media/imgs/20190215-leveldb/versionset.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> versionset </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>当进行合并时，首先需要挑选出需要进行合并的文件，这个操作的入口函数是VersionSet::PickCompaction，该函数的返回值是一个Compaction结构体，该结构体内部保存合并相关的信息，Compaction结构体中最重要的成员是VersionEdit类成员，这个成员用于保存合并过程中有删减的sstable文件：</p>
 <ul>
 <li>DeletedFileSet deleted_files_：合并后待删除的sstable文件。</li>
@@ -559,8 +828,35 @@
 </ul>
 <p>可以认为：version N + version N edit = version N + 1，即：第N版本的sstable信息，在经过该版本合并的VersionEdit之后，形成了Version N+1版本。</p>
 <p>另外还有一个VersionSet::Builder，用于保存合并中间过程的数据，其本质是将所有VersoinEdit内容存储到VersionSet::Builder中，最后一次产生新版本的Version。</p>
-<p><img src="/media/imgs/20190215-leveldb/versionedit.png" alt="versionedit" title="versionedit"></p>
-<h3 id="合并条件及原理">合并条件及原理</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="versionedit" src="/media/imgs/20190215-leveldb/versionedit.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> versionedit </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h3 class="heading" id="合并条件及原理">
+  合并条件及原理
+  <a class="anchor" href="#%e5%90%88%e5%b9%b6%e6%9d%a1%e4%bb%b6%e5%8f%8a%e5%8e%9f%e7%90%86">#</a>
+</h3>
 <p>leveldb会不断产生新的sstable文件，这时候需要对这些文件进行合并，否则磁盘会一直增大，查询速度也会下降。</p>
 <p>这部分讲解合并触发的条件以及进行合并的原理。</p>
 <p>leveldb大致在以下两种条件下会触发合并操作：</p>
@@ -579,7 +875,10 @@
 <li>minor compaction：将内存的数据落地到磁盘上的迁移过程，对应于leveldb就是将immutable memtable数据落盘为sstable文件的流程。</li>
 <li>major compaction：sstable之间的文件进行合并的流程。</li>
 </ul>
-<h3 id="选择进行合并的文件">选择进行合并的文件</h3>
+<h3 class="heading" id="选择进行合并的文件">
+  选择进行合并的文件
+  <a class="anchor" href="#%e9%80%89%e6%8b%a9%e8%bf%9b%e8%a1%8c%e5%90%88%e5%b9%b6%e7%9a%84%e6%96%87%e4%bb%b6">#</a>
+</h3>
 <p>函数VersionSet::PickCompaction用于构建出一次合并对应的Compaction结构体。来看这个函数主要的流程。</p>
 <p>在挑选哪些文件需要合并时，依赖于两个原则：</p>
 <ul>
@@ -592,270 +891,230 @@
 <li>如果上面的计算中，compaction_score_为0，那么就需要具体针对一个文件来进行合并。leveldb中，在FileMetaData结构体里有一个成员allowed_seeks，表示在该文件中查询某个键值时最多允许的定位次数，当这个值为0时，意味这个文件多次查询都没有查询到数据，因此这个文件就需要进行合并了。</li>
 </ul>
 <p>文件的allowed_seeks在VersionSet::Builder::Apply函数中进行计算：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C">        <span class="c1">// We arrange to automatically compact this file after
-</span><span class="c1"></span>        <span class="c1">// a certain number of seeks.  Let&#39;s assume:
-</span><span class="c1"></span>        <span class="c1">//   (1) One seek costs 10ms
-</span><span class="c1"></span>        <span class="c1">//   (2) Writing or reading 1MB costs 10ms (100MB/s)
-</span><span class="c1"></span>        <span class="c1">//   (3) A compaction of 1MB does 25MB of IO:
-</span><span class="c1"></span>        <span class="c1">//         1MB read from this level
-</span><span class="c1"></span>        <span class="c1">//         10-12MB read from next level (boundaries may be misaligned)
-</span><span class="c1"></span>        <span class="c1">//         10-12MB written to next level
-</span><span class="c1"></span>        <span class="c1">// This implies that 25 seeks cost the same as the compaction
-</span><span class="c1"></span>        <span class="c1">// of 1MB of data.  I.e., one seek costs approximately the
-</span><span class="c1"></span>        <span class="c1">// same as the compaction of 40KB of data.  We are a little
-</span><span class="c1"></span>        <span class="c1">// conservative and allow approximately one seek for every 16KB
-</span><span class="c1"></span>        <span class="c1">// of data before triggering a compaction.
-</span><span class="c1"></span>
-        <span class="c1">// 对上面这段注释的翻译：
-</span><span class="c1"></span>        <span class="c1">// 这里将在特定数量的seek之后自动进行compact操作，假设：
-</span><span class="c1"></span>        <span class="c1">// (1) 一次seek需要10ms
-</span><span class="c1"></span>        <span class="c1">// (2) 读、写1MB文件消耗10ms(100MB/s)
-</span><span class="c1"></span>        <span class="c1">// (3) 对1MB文件的compact操作时合计一共做了25MB的IO操作，包括：
-</span><span class="c1"></span>        <span class="c1">//    从这个级别读1MB
-</span><span class="c1"></span>        <span class="c1">//    从下一个级别读10-12MB
-</span><span class="c1"></span>        <span class="c1">//    向下一个级别写10-12MB
-</span><span class="c1"></span>        <span class="c1">//  这意味着25次seek的消耗与1MB数据的compact相当。也就是，
-</span><span class="c1"></span>        <span class="c1">//  一次seek的消耗与40KB数据的compact消耗近似。这里做一个
-</span><span class="c1"></span>        <span class="c1">//  保守的估计，在一次compact之前每16KB的数据大约进行1次seek。
-</span><span class="c1"></span>        <span class="c1">// allowed_seeks数目和文件数量有关
-</span><span class="c1"></span>        <span class="n">f</span><span class="o">-&gt;</span><span class="n">allowed_seeks</span> <span class="o">=</span> <span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">file_size</span> <span class="o">/</span> <span class="mi">16384</span><span class="p">);</span>
-        <span class="c1">// 不足100就补齐到100
-</span><span class="c1"></span>        <span class="k">if</span> <span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">allowed_seeks</span> <span class="o">&lt;</span> <span class="mi">100</span><span class="p">)</span> <span class="n">f</span><span class="o">-&gt;</span><span class="n">allowed_seeks</span> <span class="o">=</span> <span class="mi">100</span><span class="p">;</span>
-</code></pre></div><p>如果是第一种情况，即compaction_score_ &gt;= 1的情况来选择合并文件，还涉及到一个合并点的问题（compact point），即leveldb会保存上一次进行合并的键值，这一次会从这个键值以后开始寻找需要进行合并的文件。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#888;font-style:italic">// We arrange to automatically compact this file after
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// a certain number of seeks.  Let&#39;s assume:
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//   (1) One seek costs 10ms
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//   (2) Writing or reading 1MB costs 10ms (100MB/s)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//   (3) A compaction of 1MB does 25MB of IO:
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//         1MB read from this level
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//         10-12MB read from next level (boundaries may be misaligned)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//         10-12MB written to next level
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// This implies that 25 seeks cost the same as the compaction
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// of 1MB of data.  I.e., one seek costs approximately the
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// same as the compaction of 40KB of data.  We are a little
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// conservative and allow approximately one seek for every 16KB
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// of data before triggering a compaction.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>        <span style="color:#888;font-style:italic">// 对上面这段注释的翻译：
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// 这里将在特定数量的seek之后自动进行compact操作，假设：
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// (1) 一次seek需要10ms
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// (2) 读、写1MB文件消耗10ms(100MB/s)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// (3) 对1MB文件的compact操作时合计一共做了25MB的IO操作，包括：
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//    从这个级别读1MB
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//    从下一个级别读10-12MB
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//    向下一个级别写10-12MB
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//  这意味着25次seek的消耗与1MB数据的compact相当。也就是，
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//  一次seek的消耗与40KB数据的compact消耗近似。这里做一个
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">//  保守的估计，在一次compact之前每16KB的数据大约进行1次seek。
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="color:#888;font-style:italic">// allowed_seeks数目和文件数量有关
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        f-&gt;allowed_seeks = (f-&gt;file_size / 16384);
+</span></span><span style="display:flex;"><span>        <span style="color:#888;font-style:italic">// 不足100就补齐到100
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        <span style="font-weight:bold;text-decoration:underline">if</span> (f-&gt;allowed_seeks &lt; 100) f-&gt;allowed_seeks = 100;
+</span></span></code></pre></div><p>如果是第一种情况，即compaction_score_ &gt;= 1的情况来选择合并文件，还涉及到一个合并点的问题（compact point），即leveldb会保存上一次进行合并的键值，这一次会从这个键值以后开始寻找需要进行合并的文件。</p>
 <p>而如果合并层次是0级，因为0级文件中的键值有重叠的情况，因此还需要遍历0级文件中键值范围与这次合并文件由重叠的一起加入进来。</p>
 <p>在这之后，调用VersionSet::SetupOtherInputs函数，用于获取同级别以及更上一层也就是level + 1级别中满足合并范围条件的文件，这就构成了待合并的文件集合。</p>
-<p><img src="/media/imgs/20190215-leveldb/SetupOtherInputs.png" alt="SetupOtherInputs" title="SetupOtherInputs"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="SetupOtherInputs" src="/media/imgs/20190215-leveldb/SetupOtherInputs.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> SetupOtherInputs </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示：</p>
 <ul>
 <li>此时选择进行合并的文件，其键值是[1,2,4,5]。</li>
 <li>由于该文件在level 0级别，sstable文件的键值有重叠，同时还在在其上面一层选择同样键值范围有重叠的sstable文件，选择的结果就是绿色的sstable文件，这些将做为这次合并进行归并排序的文件。</li>
 </ul>
-<h3 id="合并流程-1">合并流程</h3>
+<h3 class="heading" id="合并流程-1">
+  合并流程
+  <a class="anchor" href="#%e5%90%88%e5%b9%b6%e6%b5%81%e7%a8%8b-1">#</a>
+</h3>
 <p>以上调用VersionSet::PickCompaction函数选择完毕了待合并的文件及层次之后，就来到DBImpl::DoCompactionWork函数中进行实际的合并工作。</p>
 <p>该函数的原理不算复杂，就是遍历文件集合进行合并：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">创建一个针对合并集合的</span><span class="n">iterator迭代器</span>
-<span class="err">循环：</span>
-  <span class="err">如果当前存在</span><span class="n">immutable</span> <span class="n">memtable</span><span class="err">：</span>
-    <span class="err">将</span><span class="n">immutable</span> <span class="n">memtable落盘生成sstable</span>
-    <span class="err">唤醒等待在</span><span class="n">MakeRoomForWrite的线程</span>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">创建一个针对合并集合的</span>iterator迭代器
+</span></span><span style="display:flex;"><span><span style="">循环：</span>
+</span></span><span style="display:flex;"><span>  <span style="">如果当前存在</span>immutable memtable<span style="">：</span>
+</span></span><span style="display:flex;"><span>    <span style="">将</span>immutable memtable落盘生成sstable
+</span></span><span style="display:flex;"><span>    <span style="">唤醒等待在</span>MakeRoomForWrite的线程
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">从迭代器中取出一个键值</span>key
+</span></span><span style="display:flex;"><span>  <span style="">如果</span>Compaction::<span style="color:#666;font-weight:bold;font-style:italic">ShouldStopBefore</span>(key)<span style="">返回</span><span style="font-weight:bold;font-style:italic">true</span><span style="">：</span>
+</span></span><span style="display:flex;"><span>    <span style="">如果该键值在</span>level+2<span style="">层次的重叠太多，落盘生成</span>sstable
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">如果该键值比快照的数据键值还小：</span>
+</span></span><span style="display:flex;"><span>    <span style="">不需要保存</span>
+</span></span><span style="display:flex;"><span>  <span style="">如果该键值的类型为删除类型同时这个层次是该键值的最低层次：</span>
+</span></span><span style="display:flex;"><span>    <span style="">不需要保存</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="">只有在上面检测通过可以进行保存的情况下：</span>
+</span></span><span style="display:flex;"><span>    <span style="">写入</span>Compaction::builder中<span style="">，当写入大小满足</span>sstable文件大小时<span style="">，落盘生成新的</span>sstable文件
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">出了循环之后，如果还有数据没有保存落盘到</span>sstable<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">落盘写入</span>sstable文件
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="">调用</span>LogAndApply函数存储合并结果<span style="">，即将</span>VersionEdit数据应用到生成新的Version<span style="">。</span>
+</span></span></code></pre></div><p>
 
-  <span class="err">从迭代器中取出一个键值</span><span class="n">key</span>
-  <span class="err">如果</span><span class="n">Compaction</span><span class="o">::</span><span class="n">ShouldStopBefore</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="err">返回</span><span class="nb">true</span><span class="err">：</span>
-    <span class="err">如果该键值在</span><span class="n">level</span><span class="o">+</span><span class="mi">2</span><span class="err">层次的重叠太多，落盘生成</span><span class="n">sstable</span>
 
-  <span class="err">如果该键值比快照的数据键值还小：</span>
-    <span class="err">不需要保存</span>
-  <span class="err">如果该键值的类型为删除类型同时这个层次是该键值的最低层次：</span>
-    <span class="err">不需要保存</span>
 
-  <span class="err">只有在上面检测通过可以进行保存的情况下：</span>
-    <span class="err">写入</span><span class="n">Compaction</span><span class="o">::</span><span class="n">builder中</span><span class="err">，当写入大小满足</span><span class="n">sstable文件大小时</span><span class="err">，落盘生成新的</span><span class="n">sstable文件</span>
 
-<span class="err">出了循环之后，如果还有数据没有保存落盘到</span><span class="n">sstable</span><span class="err">：</span>
-  <span class="err">落盘写入</span><span class="n">sstable文件</span>
 
-<span class="err">调用</span><span class="n">LogAndApply函数存储合并结果</span><span class="err">，即将</span><span class="n">VersionEdit数据应用到生成新的Version</span><span class="err">。</span>
-</code></pre></div><p><img src="/media/imgs/20190215-leveldb/compaction-work.png" alt="compaction-work" title="compaction-work"></p>
-<h3 id="合并操作对读写流程的影响">合并操作对读写流程的影响</h3>
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="compaction-work" src="/media/imgs/20190215-leveldb/compaction-work.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> compaction-work </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h3 class="heading" id="合并操作对读写流程的影响">
+  合并操作对读写流程的影响
+  <a class="anchor" href="#%e5%90%88%e5%b9%b6%e6%93%8d%e4%bd%9c%e5%af%b9%e8%af%bb%e5%86%99%e6%b5%81%e7%a8%8b%e7%9a%84%e5%bd%b1%e5%93%8d">#</a>
+</h3>
 <p>leveldb将用户的读写操作，与合并工作放在不同的线程中处理。当用户需要写入数据进行分配空间时，会首先调用DBImpl::MakeRoomForWrite函数进行空间的分配，该函数有可能因为合并流程被阻塞，有以下几种可能性：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">如果当前</span><span class="mi">0</span><span class="err">级文件数量大于等于</span><span class="n">kL0_SlowdownWritesTrigger</span><span class="err">：</span>
-  <span class="err">休眠</span><span class="mi">1000</span><span class="n">ms</span>
-<span class="err">如果当前</span><span class="n">memtable的大小小于等于options</span><span class="err">\</span><span class="n">_</span><span class="p">.</span><span class="n">write_buffer_size</span><span class="err">：</span>
-  <span class="err">说明还有空间供写入数据，退出循环</span>
-<span class="err">如果当前</span><span class="mi">0</span><span class="err">级文件数量大于等于</span><span class="n">kL0_StopWritesTrigger</span><span class="err">：</span>
-  <span class="err">说明</span><span class="mi">0</span><span class="err">级文件太多，需要暂停写入，直到被唤醒。</span>
-  <span class="err">在前面的分析过的</span><span class="n">DBImpl</span><span class="o">::</span><span class="n">DoCompactionWork函数中</span><span class="err">，将</span><span class="n">immutable</span> <span class="n">memtable落盘生成sstable就会唤醒等待在这里的线程</span>
-<span class="err">其余的情况：</span>
-  <span class="err">说明需要将</span><span class="n">memtable切换到immutable</span> <span class="n">memtable</span><span class="err">，重新生成一个</span><span class="n">memtable</span><span class="err">，同时调用</span><span class="n">MaybeScheduleCompaction函数尝试进行合并操作</span><span class="err">。</span>
-</code></pre></div><h1 id="参考资料">参考资料</h1>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">如果当前</span>0<span style="">级文件数量大于等于</span>kL0_SlowdownWritesTrigger<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">休眠</span>1000ms
+</span></span><span style="display:flex;"><span><span style="">如果当前</span>memtable的大小小于等于options<span style="">\</span>_.write_buffer_size<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">说明还有空间供写入数据，退出循环</span>
+</span></span><span style="display:flex;"><span><span style="">如果当前</span>0<span style="">级文件数量大于等于</span>kL0_StopWritesTrigger<span style="">：</span>
+</span></span><span style="display:flex;"><span>  <span style="">说明</span>0<span style="">级文件太多，需要暂停写入，直到被唤醒。</span>
+</span></span><span style="display:flex;"><span>  <span style="">在前面的分析过的</span>DBImpl::DoCompactionWork函数中<span style="">，将</span>immutable memtable落盘生成sstable就会唤醒等待在这里的线程
+</span></span><span style="display:flex;"><span><span style="">其余的情况：</span>
+</span></span><span style="display:flex;"><span>  <span style="">说明需要将</span>memtable切换到immutable memtable<span style="">，重新生成一个</span>memtable<span style="">，同时调用</span>MaybeScheduleCompaction函数尝试进行合并操作<span style="">。</span>
+</span></span></code></pre></div><h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="https://www.cnblogs.com/haippy/archive/2011/12/04/2276064.html">数据分析与处理之二（Leveldb 实现原理）</a></li>
 <li><a href="http://kernelmaker.github.io/Leveldb_Iterator">Leveldb之Iterator总结</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190227-tcp/" class="block">TCP协议笔记</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190214-nginx-memory-pool/" class="block">Nginx源码阅读笔记-内存池的设计</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#整体架构">整体架构</a></li>
-    <li><a href="#log文件">Log文件</a></li>
-    <li><a href="#memtable">memtable</a></li>
-    <li><a href="#sstable文件">sstable文件</a>
-      <ul>
-        <li><a href="#大体结构">大体结构</a></li>
-        <li><a href="#block">block</a></li>
-        <li><a href="#footer">footer</a></li>
-      </ul>
-    </li>
-    <li><a href="#iterator的设计">iterator的设计</a>
-      <ul>
-        <li><a href="#底层迭代器">底层迭代器</a></li>
-        <li><a href="#组合迭代器">组合迭代器</a>
-          <ul>
-            <li><a href="#twoleveliterator">TwoLevelIterator</a></li>
-            <li><a href="#mergingiterator">MergingIterator</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#核心流程">核心流程</a>
-      <ul>
-        <li><a href="#修改流程">修改流程</a></li>
-        <li><a href="#读流程">读流程</a></li>
-        <li><a href="#合并流程">合并流程</a>
-          <ul>
-            <li><a href="#核心数据结构">核心数据结构</a></li>
-            <li><a href="#合并条件及原理">合并条件及原理</a></li>
-            <li><a href="#选择进行合并的文件">选择进行合并的文件</a></li>
-            <li><a href="#合并流程-1">合并流程</a></li>
-            <li><a href="#合并操作对读写流程的影响">合并操作对读写流程的影响</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

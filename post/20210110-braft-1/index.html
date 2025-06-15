@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    braft代码分析（一）：数据的存储 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20210110-braft-1/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20210110-braft-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="braft代码分析（一）：数据的存储">
+  <meta property="og:description" content="braft是百度开源的基于brpc之上的Raft实现，是目前落地的C&#43;&#43; Raft库中较常见的。本文是braft代码分析系列文章中的一篇，文中不会对Raft算法原理过多阐述，如果尚不熟悉Raft算法的原理，可以参见博客之前的文章：
+Raft算法原理 etcd Raft库解析 Etcd存储的实现 本系列文章基于braft v1.0.0版本写作。
+概述 # Raft算法中，需要将以下几种数据落盘存储：
+日志数据。日志数据又分为几类：集群成员变更类的日志，以及普通的写入集群中的数据。 配置数据：存储当前集群的成员信息，服务器重启之后将根据这些信息重新找到并且加入到集群中。 快照数据：前面的日志数据中，每条日志数据对应一次日志的写入，然而如果不对这些数据进行精简，恢复起来时间就很长。比如某个键值A，某个过程中被修改了10次，对应就有10条日志数据，而实际启动恢复的时候只需要按照最后一条记录恢复即可。快照数据做的就是这个工作。 下文将针对这几部分展开进行说明braft是如何实现数据存储的，包括数据的格式以及线程模型。
+日志存储 # 日志条目 # 内存中的日志条目，使用LogEntry来表示，其成员内容如下：
+LogEntry 其中，LogEntry有如下成员：
+EntryType type：表示日志的类型，有以下类型： 空操作（ENTRY_TYPE_NO_OP） 数据日志（ENTRY_TYPE_DATA） 配置变更（ENTRY_TYPE_CONFIGURATION） LogId id：存储日志的ID，关于LogId类型下面再展开说。 std::vector* peers：存储新的集群节点数组。 std::vector* old_peers：存储旧的集群节点数组。 butil::IOBuf data：存储日志数据。 上面的成员中是日志条目数据的全集，根据不同的类型会有一些成员为空：
+如果数据类型不是集群变更类型，那么peers和old_peers成员为空。 如果不是数据日志类的日志，那么data成员为空。 LogId由日志索引index和日志任期号term组成，对比两个日志ID的先后顺序时，是按照以下顺序来进行的：
+先对比任期号term，任期号更大的日志更新。 如果任期号一致，再对比索引号index，索引更大的日志更新。 日志文件 # braft中，Segment类与一个存储日志的磁盘文件一一对应，文件的命名规则为：
+如果是打开还在更新的文件，文件名格式是log_inprogress_文件第一条日志索引。 如果是已经不再更新的文件，文件名格式是log_文件第一条日志索引。 日志文件则是由一条一条的日志记录组合成的，每条记录条目的meta元信息由结构体EntryHeader来表示，它包括以下成员：
+int64_t term：64bit的任期号。 int type：8bit的日志类型。 int checksum_type：8bit的校验码类型。 uint32_t data_len：32bit的数据长度。 uint32_t data_checksum：32bit的数据校验码。 在元信息之后，紧跟着日志条目的内容。所以每个日志的构成如下：
+log 除此以外，Segment类还维护着以下信息：
+const int64_t _first_index：保存该日志文件的第一条日志索引。 butil::atomic&lt;int64_t&gt; _last_index：保存该日志文件的最后一条日志索引，如果日志文件还在打开写入状态，最后一条日志索引是一直在变更的，所以这个成员并不像_first_index是个常量。 std::vector&lt;std::pair&lt;int64_t/offset/, int64_t/term/&gt; &gt; _offset_and_term：根据在本文件中的日志索引偏移量，存储的是一条日志在文件中的&lt;偏移量,任期号&gt;二元组。有了这个数据，可以快速根据日志的索引得到这个日志在文件中的偏移量，以及日志对应的任期号。 日志文件管理 # Segment类用来维护日志文件的信息，而braft对外暴露LogStorage做为日志存储的虚拟基类，任何存储braft中的日志文件只要实现该基类接口即可。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-01-10T11:08:26+08:00">
+    <meta property="article:modified_time" content="2021-01-10T11:08:26+08:00">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20210110-braft-1/">braft代码分析（一）：数据的存储</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">braft代码分析（一）：数据的存储</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-01-10T11:08:26&#43;08:00">2021年1月10日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <p><code>braft</code>是百度开源的基于<code>brpc</code>之上的<code>Raft</code>实现，是目前落地的C++ Raft库中较常见的。本文是<code>braft代码分析系列</code>文章中的一篇，文中不会对<code>Raft</code>算法原理过多阐述，如果尚不熟悉<code>Raft</code>算法的原理，可以参见博客之前的文章：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
+<li><a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a></li>
+<li><a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a></li>
+</ul>
+<p>本系列文章基于<code>braft v1.0.0</code>版本写作。</p>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p><code>Raft</code>算法中，需要将以下几种数据落盘存储：</p>
+<ul>
+<li>日志数据。日志数据又分为几类：集群成员变更类的日志，以及普通的写入集群中的数据。</li>
+<li>配置数据：存储当前集群的成员信息，服务器重启之后将根据这些信息重新找到并且加入到集群中。</li>
+<li>快照数据：前面的日志数据中，每条日志数据对应一次日志的写入，然而如果不对这些数据进行精简，恢复起来时间就很长。比如某个键值A，某个过程中被修改了10次，对应就有10条日志数据，而实际启动恢复的时候只需要按照最后一条记录恢复即可。快照数据做的就是这个工作。</li>
+</ul>
+<p>下文将针对这几部分展开进行说明<code>braft</code>是如何实现数据存储的，包括数据的格式以及线程模型。</p>
+<h1 class="heading" id="日志存储">
+  日志存储
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e5%ad%98%e5%82%a8">#</a>
+</h1>
+<h2 class="heading" id="日志条目">
+  日志条目
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e6%9d%a1%e7%9b%ae">#</a>
+</h2>
+<p>内存中的日志条目，使用<code>LogEntry</code>来表示，其成员内容如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="LogEntry" src="/media/imgs/20210110-braft-1/LogEntry.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> LogEntry </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>其中，LogEntry有如下成员：</p>
+<ul>
+<li>EntryType type：表示日志的类型，有以下类型：
+<ul>
+<li>空操作（ENTRY_TYPE_NO_OP）</li>
+<li>数据日志（ENTRY_TYPE_DATA）</li>
+<li>配置变更（ENTRY_TYPE_CONFIGURATION）</li>
+</ul>
+</li>
+<li>LogId id：存储日志的ID，关于LogId类型下面再展开说。</li>
+<li>std::vector<PeerId>* peers：存储新的集群节点数组。</li>
+<li>std::vector<PeerId>* old_peers：存储旧的集群节点数组。</li>
+<li>butil::IOBuf data：存储日志数据。</li>
+</ul>
+<p>上面的成员中是日志条目数据的全集，根据不同的类型会有一些成员为空：</p>
+<ul>
+<li>如果数据类型不是集群变更类型，那么<code>peers</code>和<code>old_peers</code>成员为空。</li>
+<li>如果不是数据日志类的日志，那么<code>data</code>成员为空。</li>
+</ul>
+<p><code>LogId</code>由日志索引<code>index</code>和日志任期号<code>term</code>组成，对比两个日志ID的先后顺序时，是按照以下顺序来进行的：</p>
+<ul>
+<li>先对比任期号<code>term</code>，任期号更大的日志更新。</li>
+<li>如果任期号一致，再对比索引号<code>index</code>，索引更大的日志更新。</li>
+</ul>
+<h2 class="heading" id="日志文件">
+  日志文件
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e6%96%87%e4%bb%b6">#</a>
+</h2>
+<p>braft中，<code>Segment</code>类与一个存储日志的磁盘文件一一对应，文件的命名规则为：</p>
+<ul>
+<li>如果是打开还在更新的文件，文件名格式是<code>log_inprogress_文件第一条日志索引</code>。</li>
+<li>如果是已经不再更新的文件，文件名格式是<code>log_文件第一条日志索引</code>。</li>
+</ul>
+<p>日志文件则是由一条一条的日志记录组合成的，每条记录条目的<code>meta</code>元信息由结构体<code>EntryHeader</code>来表示，它包括以下成员：</p>
+<ul>
+<li>int64_t term：64bit的任期号。</li>
+<li>int type：8bit的日志类型。</li>
+<li>int checksum_type：8bit的校验码类型。</li>
+<li>uint32_t data_len：32bit的数据长度。</li>
+<li>uint32_t data_checksum：32bit的数据校验码。</li>
+</ul>
+<p>在元信息之后，紧跟着日志条目的内容。所以每个日志的构成如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="log" src="/media/imgs/20210110-braft-1/log.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> log </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>除此以外，<code>Segment</code>类还维护着以下信息：</p>
+<ul>
+<li>const int64_t _first_index：保存该日志文件的第一条日志索引。</li>
+<li>butil::atomic&lt;int64_t&gt; _last_index：保存该日志文件的最后一条日志索引，如果日志文件还在打开写入状态，最后一条日志索引是一直在变更的，所以这个成员并不像<code>_first_index</code>是个常量。</li>
+<li>std::vector&lt;std::pair&lt;int64_t/<em>offset</em>/, int64_t/<em>term</em>/&gt; &gt; _offset_and_term：根据在本文件中的日志索引偏移量，存储的是一条日志在文件中的<code>&lt;偏移量,任期号&gt;</code>二元组。有了这个数据，可以快速根据日志的索引得到这个日志在文件中的偏移量，以及日志对应的任期号。</li>
+</ul>
+<h2 class="heading" id="日志文件管理">
+  日志文件管理
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e6%96%87%e4%bb%b6%e7%ae%a1%e7%90%86">#</a>
+</h2>
+<p><code>Segment</code>类用来维护日志文件的信息，而braft对外暴露<code>LogStorage</code>做为日志存储的虚拟基类，任何存储braft中的日志文件只要实现该基类接口即可。</p>
+<p>在braft的实现中，使用<code>SegmentLogStorage</code>来做为日志存储的实现类，其实除了这个类之外，还有另一个<code>MemoryLogStorage</code>也实现了<code>LogStorage</code>接口，只不过数据是存储在内存中的，这里就不展开这个类的解释了。</p>
+<p>每一个具体的文件，使用<code>Segment</code>类与之对应，在<code>SegmentLogStorage</code>类中，维护了一个<code>_segments</code>成员，该成员存储的是每个磁盘文件中第一条日志索引与<code>Segment</code>类的映射关系：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="segments" src="/media/imgs/20210110-braft-1/segments.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> segments </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>即：</p>
+<ul>
+<li><code>Segment</code>类保存的是单个日志文件的信息，其中名为“log_首日志索引”的是已经关闭的文件，名为“log_inprogress_首日志索引”的是当前打开还可以继续写入数据的文件。</li>
+<li><code>SegmentLogStorage</code>类负责管理当前所有日志文件，即内部存储了日志索引与<code>Segment</code>类对象的一一映射关系。</li>
+<li><code>SegmentLogStorage</code>类实现<code>LogStorage</code>接口，外部看不到<code>Segment</code>即单个日志文件的具体实现。</li>
+</ul>
+<h1 class="heading" id="日志管理器">
+  日志管理器
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e7%ae%a1%e7%90%86%e5%99%a8">#</a>
+</h1>
+<p>以上讲解到的<code>SegmentLogStorage</code>类和<code>Segment</code>类都是负责日志文件的存储及管理的，基于它们之上，braft的<code>LogManager</code>则是整个日志查询、写入的总入口。它包括以下成员：</p>
+<ul>
+<li>LogStorage* _log_storage：日志文件存储，该虚拟基类由<code>SegmentLogStorage</code>类实现，上面已经具体分析过了。</li>
+<li>std::deque&lt;LogEntry*&gt; _logs_in_memory：存储当前在内存中还未落盘的日志。</li>
+</ul>
+<p>即：<code>LogManager</code>中通过<code>LogStorage</code>来管理磁盘上的日志文件，另外还存储着还未落盘的日志。</p>
+<p><code>LogManager</code>中会启动一个<code>disk_thread</code>线程来负责将日志写入文件，两者之间通过消息队列进行通信。</p>
+<h2 class="heading" id="日志存储-1">
+  日志存储
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e5%ad%98%e5%82%a8-1">#</a>
+</h2>
+<p><code>LogManager::append_entries</code>是<code>LogManager</code>对外暴露的写入日志的接口，其流程如下：</p>
+<ul>
+<li>将日志写入内存中的<code>_logs_in_memory</code>成员。</li>
+<li>然后再通过向<code>disk_thread</code>写消息的形式，将日志发往写存储的线程。</li>
+<li>线程最终会创建一个<code>AppendBatcher</code>类，用于批量一次性通过<code>LogStorage::append_entries</code>接口写入数据。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="append_entries" src="/media/imgs/20210110-braft-1/append_entries.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> append_entries </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>由上面可以知道，因为<code>_logs_in_memory</code>缓存了一部分最近写入的日志，所以查询日志时流程也是先查询内存中的<code>_logs_in_memory</code>成员，再查询<code>_log_storage</code>，具体流程就不再这里阐述了。</p>
+<p>除此之外，<code>LogManager</code>还提供了<code>truncate_prefix</code>接口，用于清除某个日志之前的所有日志；还有<code>unsafe_truncate_suffix</code>接口，用于清除某个日志以后的所有日志，流程大体都是：</p>
+<ul>
+<li>先到<code>_logs_in_memory</code>成员中清除满足条件的内存中的日志。</li>
+<li>再向<code>disk_thread</code>线程发送消息，等待线程完成对应的操作再返回。</li>
+<li>而线程收到消息之后到<code>_log_storage</code>中处理满足条件的日志</li>
+</ul>
+<p>流程与上面示意图是大体一致的，这里就不再展开阐述。</p>
+<h2 class="heading" id="配置存储">
+  配置存储
+  <a class="anchor" href="#%e9%85%8d%e7%bd%ae%e5%ad%98%e5%82%a8">#</a>
+</h2>
+<p>LogStorage用来持久化存储日志数据，而日志数据中有一种类型是配置变更数据，这里也需要有一个专门的类来维持配置变更在内存中的内容，这就是<code>ConfigurationManager</code>类。</p>
+<p>每一条配置变更数据，其在内存中使用<code>ConfigurationEntry</code>结构体来表示，该结构体中有三个成员：</p>
+<ul>
+<li>LogId id：配置变更时对应的日志ID。</li>
+<li>Configuration conf：这一次配置变更的新数据。</li>
+<li>Configuration old_conf：这一次配置变更时的旧数据。</li>
+</ul>
+<p>而类<code>Configuration</code>用于存储配置数据，其内部只有一个成员：<code>std::set&lt;PeerId&gt; _peers;</code>，用来保存一个配置的节点信息，对外提供了针对这些节点信息的增删改查接口，这里不再展开阐述。</p>
+<p>回到<code>ConfigurationManager</code>类中，其内部有两个成员：</p>
+<ul>
+<li>std::deque<ConfigurationEntry> _configurations：维护配置数据的队列，每次有新的配置数据来到，就放入该队列中。</li>
+<li>ConfigurationEntry _snapshot：保存快照中的配置数据。</li>
+</ul>
+<p>有了<code>_configurations</code>这个队列之后，<code>ConfigurationManager</code>对外提供的增删接口如下：</p>
+<ul>
+<li>int add(const ConfigurationEntry&amp; entry)：向队列尾中添加一条配置数据。</li>
+<li>void truncate_prefix(int64_t first_index_kept)：删除日志ID在[1, first_index_kept)之间的配置数据。其做法就是从头开始遍历队列，将日志ID小于first_index_kept的数据删除。</li>
+<li>void truncate_suffix(int64_t last_index_kept)：删除日志ID大于last_index_kept的数据。</li>
+<li>void get(int64_t last_included_index, ConfigurationEntry* entry)：获取最后一条日志ID大于last_included_index的配置数据返回。分为以下几种情况：
+<ul>
+<li>_configurations队列为空：返回快照数据。</li>
+<li>否则遍历_configurations队列，找到第一条日志ID大于last_included_index的数据：
+<ul>
+<li>如果队列的第一个元素就已经大于last_included_index了，那么仍然返回快照数据；</li>
+<li>否则取前面找到数据的上一条返回。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>const ConfigurationEntry&amp; last_configuration() const：返回最后一条数据配置，如果_configurations队列为空，同样也是返回快照数据。</li>
+</ul>
+<h2 class="heading" id="快照存储">
+  快照存储
+  <a class="anchor" href="#%e5%bf%ab%e7%85%a7%e5%ad%98%e5%82%a8">#</a>
+</h2>
+<h2 class="heading" id="todo">
+  TODO：
+  <a class="anchor" href="#todo">#</a>
+</h2>
+<ul>
+<li>补充快照内容</li>
+</ul>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

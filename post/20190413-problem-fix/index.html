@@ -1,309 +1,184 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>线上存储服务崩溃问题分析记录 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="线上存储服务崩溃问题分析记录"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="线上存储服务崩溃问题分析记录">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"线上存储服务崩溃问题分析记录",
-      "item":"https://www.codedump.info/post/20190413-problem-fix/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190413-problem-fix/"
-    },
-    "headline": "线上存储服务崩溃问题分析记录 - codedump的网络日志","datePublished": "2019-04-13T12:04:59+08:00",
-    "dateModified": "2019-04-13T12:04:59+08:00",
-    "wordCount":  4233 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "线上存储服务崩溃问题分析记录"
-}
-</script><meta property="og:title" content="线上存储服务崩溃问题分析记录 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190413-problem-fix/" />
-
-
-
-<meta property="og:description" content="线上存储服务崩溃问题分析记录" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-04-13T12:04:59&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-04-13T12:04:59&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="网络编程" />
-
-<meta property="article:tag" content="work" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190227-tcp/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    线上存储服务崩溃问题分析记录 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">线上存储服务崩溃问题分析记录</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190413-problem-fix/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-04-13</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190413-problem-fix/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="线上存储服务崩溃问题分析记录">
+  <meta property="og:description" content="线上存储服务崩溃问题分析记录">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-04-13T12:04:59+08:00">
+    <meta property="article:modified_time" content="2019-04-13T12:04:59+08:00">
+    <meta property="article:tag" content="网络编程">
+    <meta property="article:tag" content="Work">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >网络编程</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/work/" class="hover:text-eureka"
-          >work</a
-        >
-      
-    </div>
-  
 
-  
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190413-problem-fix/">线上存储服务崩溃问题分析记录</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">线上存储服务崩溃问题分析记录</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-04-13T12:04:59&#43;08:00">2019年4月13日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>注：本文为重新发布2017-06-17所写博客，以下为正文部分。</p>
+  
+
+  
+
+  <div class="single-content">
+    <p>注：本文为重新发布2017-06-17所写博客，以下为正文部分。</p>
 <p>上周我们的存储服务在某个线上项目频繁出现崩溃，花了几天的时间来查找解决该问题。在这里，将这个过程做一下记录。</p>
-<h1 id="加入调试信息">加入调试信息</h1>
+<h1 class="heading" id="加入调试信息">
+  加入调试信息
+  <a class="anchor" href="#%e5%8a%a0%e5%85%a5%e8%b0%83%e8%af%95%e4%bf%a1%e6%81%af">#</a>
+</h1>
 <p>由于问题在线上发生，较难重现，首先想到的是能不能加上更多的信息，在问题出现时提供更多的解决思路。</p>
 <p>首先，我们的代码里，在捕获到进程退出的信号比如SIGABRT、SIGSEGV、SIGILL等信号时，会打印出主线程的堆栈，用于帮助我们发现问题。</p>
 <p>但是在崩溃的几次情况中，打印出来的信息并不足以帮助我们解决问题，因为打印的崩溃堆栈只有主线程，猜测是不是在辅助线程中发生的异常，于是采取了两个策略：</p>
@@ -312,7 +187,10 @@
 <li>加入了一些代码，用于在崩溃的时候同时也打印出所有辅助线程的堆栈信息。</li>
 </ul>
 <p>在做这两部分工作之后，再次发生崩溃的情况下，辅助线程的堆栈并无异常，core文件由于数据错乱也看不出来啥有用的信息来。</p>
-<h1 id="复现问题">复现问题</h1>
+<h1 class="heading" id="复现问题">
+  复现问题
+  <a class="anchor" href="#%e5%a4%8d%e7%8e%b0%e9%97%ae%e9%a2%98">#</a>
+</h1>
 <p>由于第一步工作受挫，接下来我的思路就在考虑怎么能在开发环境下复现这个问题。</p>
 <p>我们的存储服务在其他项目上已经上线了有一段时间了，但是并没有出现类似的问题。那么，出现问题的项目，与其他已经上线的服务有啥不同，这里也许是一个突破口。</p>
 <p>经过咨询业务方，该业务的特点是：</p>
@@ -325,7 +203,10 @@
 <p>有了这个工具，首先尝试了往存储中写入大量数据量分布在4KB~10KB的数据，此时没有发现服务有core的情况出现。
 然后，尝试构造大量的读请求，果然出现了core情况，重试了几次，都能稳定的重现问题了。</p>
 <p>有了能稳定重现问题的办法，总算给问题的解决打开了一个口子。</p>
-<h1 id="首次尝试">首次尝试</h1>
+<h1 class="heading" id="首次尝试">
+  首次尝试
+  <a class="anchor" href="#%e9%a6%96%e6%ac%a1%e5%b0%9d%e8%af%95">#</a>
+</h1>
 <p>此时，可以正式的在代码中查找问题的原因了。</p>
 <p>来大概说明一下该存储服务的架构：</p>
 <ul>
@@ -334,7 +215,31 @@
 <li>存储引擎库负责存储落地到磁盘的数据，类似leveldb，只不过这部分是我们自己写的存储引擎。</li>
 <li>在读线程从存储引擎中查询数据返回后，将把数据返回给主线程，由主线程负责应答客户端。</li>
 </ul>
-<p><img src="/media/imgs/20190413-problem-fix/server.png" alt="server" title="server"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="server" src="/media/imgs/20190413-problem-fix/server.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> server </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在这几步中，第1和第4步是在主线程中进行的，第2和第3步是在读存储引擎线程中进行的。在这个过程中，如果同一个客户端有多个读请求，那么只有按照这四步在处理完毕一个读请求之后，才会继续从该客户端中取出下一个请求进行处理。</p>
 <p>在几次重现问题的过程中，发现出错的都是在第2步和第4步中，该请求客户端的数据结构某些成员出现了错乱，即要访问的指针地址已经无效了，导致的错误。</p>
 <p>指针无效，一般来说有两种可能性：</p>
@@ -346,23 +251,53 @@
 <p>此时，猜测问题的原因在于：当读存储引擎线程去访问存储引擎时，某些错误导致从存储引擎读出来的数据，将客户端请求数据写乱，从而导致了崩溃。</p>
 <p>由于同时有两个读存储引擎的线程，猜测这里是不是因为多线程访问出了问题，导致的错误呢？</p>
 <p>为了验证这个问题，最简单的办法就是将线程数量改成1，重新用mcperf试了几次，确实没有再次出现问题。此时已经是周五，我们缓了一口气，打算以此修改暂时上测试环境利用周末的时间观察一下情况。</p>
-<h1 id="柳暗花明">柳暗花明</h1>
+<h1 class="heading" id="柳暗花明">
+  柳暗花明
+  <a class="anchor" href="#%e6%9f%b3%e6%9a%97%e8%8a%b1%e6%98%8e">#</a>
+</h1>
 <p>前面提到过，猜测问题出现的原因，是多线程访问存储引擎时将某个数据写错乱了，导致其中的指针无效。</p>
 <p>clang和gcc 4.8有对应的编译参数，可以用来检测内存错误的写操作，即Address Sanitizer工具。为了兼容线上比较老的系统，之前我们的服务都是在gcc 4.1的环境下进行编译的，为了使用这个工具，首先需要折腾到满足gcc版本号大于4.8的系统上进行编译。</p>
 <p>然而，在折腾编译并且运行后，同样使用mcperf的情况下，并不能看到有内存错误覆盖写的提示，我尝试了多次都没有看到。难道是工具没有起作用？</p>
 <p>为了验证该工具的作用，我简单在出错代码的前面加入了一段肯定有问题的代码，比如：</p>
-<pre tabindex="0"><code>char a[100] = {'0'};
-a[100] = '1';
+<pre tabindex="0"><code>char a[100] = {&#39;0&#39;};
+a[100] = &#39;1&#39;;
 </code></pre><p>而在加入这段有问题的代码之后再次运行，就能看到编译器对这段代码的提示。可见，Address Sanitizer工具是起作用的。那么，前面的过程中没有看到问题，只能说明一个问题：并没有内存错误写的情况发生。</p>
 <p>此时想到另一个可能，就是有没有可能是多线程在没有保护的情况下访问了某段数据导致的问题？</p>
 <p>gcc同样也有类似的工具来检查这类错误，即Thread Sanitizer工具。然而，在给项目Makefile加入该编译参数后，程序一运行就退出了，根本看不出什么有用的信息来。</p>
 <p>此时想到的另一个工具是valgrind。大多数时候，valgrind只是用来做内存泄露检测的，其实它也可以用来做线程数据竞争的检查，使用参数 &ndash;tool=helgrind 即可。使用valgrind之后，打印出来疑似有问题的代码如下：</p>
-<p><img src="/media/imgs/20190413-problem-fix/valgrind.png" alt="valgrind" title="valgrind"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="valgrind" src="/media/imgs/20190413-problem-fix/valgrind.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> valgrind </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>到了这里，猜测问题的原因就是由于多线程访问数据导致的错误。</p>
 <p>因为有多个处理读请求数据的线程，首先猜测的是不是某些错误的处理，导致了可以在同一时间多个线程都操作该请求客户端的数据。但是通过review代码，发现这部分处理是没有问题的，另外在访问存储引擎查询数据时，入口处也确实进行了加锁的操作。</p>
 <p>为了验证我的观点，我在每个请求客户端结构体中，新增了一个数据用于保存线程id，这个线程id在进入读线程中设置，而从读线程处理完毕转发给主线程之前重置为0。有了这个数据，在每次请求从主线程进入读线程中，都会判断一下这个值是不是非0，如果有非0的值那么说明此时有另外的读线程在进行处理。然而也并没有看到有异常的情况出现。</p>
 <p>所以，这一步的猜测，即猜测是由于多线程操作客户端数据导致的问题，看起来方向是错误的了。而之前在测试环境上修改了读线程数为1的版本，也出现了崩溃。所以，问题的原因并不是由多个读线程导致的。</p>
-<h1 id="终见曙光">终见曙光</h1>
+<h1 class="heading" id="终见曙光">
+  终见曙光
+  <a class="anchor" href="#%e7%bb%88%e8%a7%81%e6%9b%99%e5%85%89">#</a>
+</h1>
 <p>前面提到过，目前能确定的是，与客户端连接相关的指针无效了，而一个指针无效，一般来说是两种可能：</p>
 <ul>
 <li>被无效地址覆盖了这个指针。</li>
@@ -389,184 +324,102 @@ a[100] = '1';
 <li>此时从辅助线程处理的B请求已经处理完毕了，辅助线程将处理结果告知主线程，主线程准备做下一步的处理时，第二步中已经关闭了连接，于是出错了。</li>
 </ul>
 <p>这个问题出现的临界条件是：请求并发量大，同时应用采用了使用pipeline方式的客户端，而在某些极端的情况下，比如同一个客户端已经堆积了很多请求在服务器的pipeline队列中，此时服务器处理应答也慢，导致客户度超时关闭了连接，而服务器主线程如果在这种情况下继续处理堆积的请求，就可能访问已经释放的连接对象导致出错。</p>
-<h1 id="总结">总结</h1>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
 <ul>
 <li>找到能稳定重现问题的办法很重要。一般来说，首先应该思考，同一个服务在别的业务下面没有出现问题，在另一个业务上出现了问题，那么以存储类服务来看，首先应该考虑环境以及数据有什么区别，从这里找突破口来重现问题。</li>
 <li>需要熟悉使用各种工具。以C系列的服务器来说，出现问题大部分就是指针无效、内存泄露等，针对这些常用的工具就是Address Sanitizer、 valgrind等。</li>
 <li>大胆假设、小心求证。跟进这种复杂的bug时，最好不要在一旁呆着空想，因为经常疑难的问题是在某些临界条件下出现的，就是同一段代码正常情况下是没有问题的，这些临界条件才触发的问题。因此，有很多看上去觉得没问题的地方，在临界条件下就成了问题。此时空想是解决不了问题的，需要动手来做一些实验、加一些调试代码和日志等，来验证你的猜测对不对。常见的临界条件有：线程调度导致的错误，由于操作系统内核调度线程对应用程序而言不可知，即同样的代码，先调度线程A执行再调度线程B执行，和反之的情况有截然不同的效果；另外数据也有可能导致不同的临界条件，这个需要具体看不同的业务数据都有哪些特点来具体分析。</li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
-    
-    <a href="https://www.codedump.info/tags/work/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#work</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/" class="block">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" class="block">《数据密集型应用系统设计》第七章《事务》笔记</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#加入调试信息">加入调试信息</a></li>
-    <li><a href="#复现问题">复现问题</a></li>
-    <li><a href="#首次尝试">首次尝试</a></li>
-    <li><a href="#柳暗花明">柳暗花明</a></li>
-    <li><a href="#终见曙光">终见曙光</a></li>
-    <li><a href="#总结">总结</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190227-tcp/" class="no-underline">TCP协议笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" class="no-underline">zeromq所谓的“无锁消息队列”</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

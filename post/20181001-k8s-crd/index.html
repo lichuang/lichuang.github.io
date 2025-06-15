@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    K8S源码分析-通过CRD看资源的实现 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20181001-k8s-crd/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20181001-k8s-crd/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="K8S源码分析-通过CRD看资源的实现">
+  <meta property="og:description" content="概述 # 自定义资源（CustomResourceDefinitions，简称CRD）是K8S的一个重要功能。K8S中有一些资源属于K8S内部自定义的资源类型，如Pod、ConfigMap等，但是即使有了这些核心的资源类型，还是不能满足所有用户的需求的，因为考虑到不同用户的需求不一样，K8S需要另一种可扩展的方式提供给用户。所以K8S就提供了这种叫做CRD的资源类型，允许用户定义自己的资源类型，同时还享受着K8S平台一系列便利：用户可以使用K8S的API，实现对自定义资源的CRUDW操作。有了这个扩展之后，更多的功能就可以在K8S上展开了，比如istio、knative等都是通过CRD来实现与K8S平台的互通，同时K8S自身的一些核心组件比如controller manager、kubelet、ingress等，本质上也是K8S资源的监听者。
+所以在K8S看来，其实一个自定义的资源类型，和用户通过CRD来定义的资源类型，处理起来并没有太多不一样的地方，在本文中通过对定义CRD之后生成的一些文件，来分析在K8S中实现一个资源类型，都需要哪些操作。
+如果还不熟悉CRD的创建流程，可以先看看这篇文章：https://www.cn18k.com/2018/04/04/Kubernetes-Deep-Dive-Code-Generation-for-CustomResources/ ，本文中将不讲述如何创建CRD生成代码的流程。
+核心数据结构 # 要实现一个K8S资源类型，熟悉K8S的人不难想到会涉及到如下操作。
+资源的注册：该资源如何注册到K8S系统中。 不同版本资源的转换：一个资源，如果有多个不同的版本，那么必然涉及到这些版本之间如何进行转换的。 资源数据的序列化：资源的数据最终是存储在etcd中的，但是在应答给客户端时，又有不同的格式输出，如yaml、json等。 在这里，K8S提供了一个核心的scheme数据结构进行这些操作的封装，这个数据结构定义在K8S目录的vendor/k8s.io/apimachinery/pkg/runtime/scheme.go中，它有如下成员。
+gvkToType map[schema.GroupVersionKind]reflect.Type：根据组类型映射得到该资源的反射类型的map。
+typeToGVK map[reflect.Type][]schema.GroupVersionKind：根据反射类型得到组类型的map，注意到这里的值是一个数组，也就意味着一个反射类型可能对应多个组类型。
+unversionedKinds map[string]reflect.Type：
+fieldLabelConversionFuncs map[string]map[string]FieldLabelConversionFunc：
+defaulterFuncs map[reflect.Type]func(interface{})：
+converter *conversion.Converter：转换器，负责同个类型不同版本之间的转换。
+可以看到，Scheme结构体中，存储了关于组版本类型与对应资源类型的信息，因此它可以同时很方便的用于以下用途。
+根据资源类型得到其组版本信息，这是ObjectTyper接口需要的操作。 进行一个资源在不同组版本之间的转化操作，这是ObjectConvertor接口需要的操作。 根据传入的组版本信息，创建一个对应的资源数据返回，这是ObjectCreater接口需要的操作。 给资源赋予默认值，这是ObjectDefaulter接口需要的操作。 在CRD的生成代码中，首先会生成如下几个全局变量，一般在clientset/versioned/scheme/register.go中：
+var Scheme = runtime.NewScheme() var Codecs = serializer.NewCodecFactory(Scheme) var ParameterCodec = runtime.NewParameterCodec(Scheme) 其中：
+Scheme：就是我们前面提到的Scheme结构体，它是最先生成的，因为它是后面其它全局变量的基础。 Codecs：进行序列化和反序列化操作的结构体，之所以需要Scheme是因为它实现了前面分析过的几种与类型相关的接口。 ParameterCodec:进行不同类型之间转换的操作结构体，用到Scheme也是因为它实现了前面分析过的几种与类型相关的接口。 流程 # 有了前面的核心数据准备，可以继续展开CRD核心流程的分析了。
+在clientset/versioned/scheme/register.go中，init函数里会进行如下操作。
+AddToGroupVersion添加该CRD组版本类型到scheme中，在这个函数中，会将一系列的资源与这个组版本挂钩： // AddToGroupVersion registers common meta types into schemas. func AddToGroupVersion(scheme *runtime.Scheme, groupVersion schema.GroupVersion) { scheme.AddKnownTypeWithName(groupVersion.WithKind(WatchEventKind), &amp;WatchEvent{}) scheme.AddKnownTypeWithName( schema.GroupVersion{Group: groupVersion.Group, Version: runtime.APIVersionInternal}.WithKind(WatchEventKind), &amp;InternalEvent{}, ) // Supports legacy code paths, most callers should use metav1.ParameterCodec for now scheme.AddKnownTypes(groupVersion, &amp;ListOptions{}, &amp;ExportOptions{}, &amp;GetOptions{}, &amp;DeleteOptions{}, ) scheme.AddConversionFuncs( Convert_versioned_Event_to_watch_Event, Convert_versioned_InternalEvent_to_versioned_Event, Convert_watch_Event_to_versioned_Event, Convert_versioned_Event_to_versioned_InternalEvent, ) // Register Unversioned types under their own special group scheme.AddUnversionedTypes(Unversioned, &amp;Status{}, &amp;APIVersions{}, &amp;APIGroupList{}, &amp;APIGroup{}, &amp;APIResourceList{}, ) // register manually. This usually goes through the SchemeBuilder, which we cannot use here. AddConversionFuncs(scheme) RegisterDefaults(scheme) } 从上面代码可以看出，任何一个CRD，都进行了以下的注册：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2018-10-01T14:10:51+08:00">
+    <meta property="article:modified_time" content="2018-10-01T14:10:51+08:00">
+    <meta property="article:tag" content="K8s">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20181001-k8s-crd/">K8S源码分析-通过CRD看资源的实现</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">K8S源码分析-通过CRD看资源的实现</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2018-10-01T14:10:51&#43;08:00">2018年10月1日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>自定义资源（CustomResourceDefinitions，简称CRD）是K8S的一个重要功能。K8S中有一些资源属于K8S内部自定义的资源类型，如Pod、ConfigMap等，但是即使有了这些核心的资源类型，还是不能满足所有用户的需求的，因为考虑到不同用户的需求不一样，K8S需要另一种可扩展的方式提供给用户。所以K8S就提供了这种叫做CRD的资源类型，允许用户定义自己的资源类型，同时还享受着K8S平台一系列便利：用户可以使用K8S的API，实现对自定义资源的CRUDW操作。有了这个扩展之后，更多的功能就可以在K8S上展开了，比如istio、knative等都是通过CRD来实现与K8S平台的互通，同时K8S自身的一些核心组件比如controller manager、kubelet、ingress等，本质上也是K8S资源的监听者。</p>
+<p>所以在K8S看来，其实一个自定义的资源类型，和用户通过CRD来定义的资源类型，处理起来并没有太多不一样的地方，在本文中通过对定义CRD之后生成的一些文件，来分析在K8S中实现一个资源类型，都需要哪些操作。</p>
+<p>如果还不熟悉CRD的创建流程，可以先看看这篇文章：https://www.cn18k.com/2018/04/04/Kubernetes-Deep-Dive-Code-Generation-for-CustomResources/ ，本文中将不讲述如何创建CRD生成代码的流程。</p>
+<h1 class="heading" id="核心数据结构">
+  核心数据结构
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h1>
+<p>要实现一个K8S资源类型，熟悉K8S的人不难想到会涉及到如下操作。</p>
+<ul>
+<li>资源的注册：该资源如何注册到K8S系统中。</li>
+<li>不同版本资源的转换：一个资源，如果有多个不同的版本，那么必然涉及到这些版本之间如何进行转换的。</li>
+<li>资源数据的序列化：资源的数据最终是存储在etcd中的，但是在应答给客户端时，又有不同的格式输出，如yaml、json等。</li>
+</ul>
+<p>在这里，K8S提供了一个核心的scheme数据结构进行这些操作的封装，这个数据结构定义在K8S目录的vendor/k8s.io/apimachinery/pkg/runtime/scheme.go中，它有如下成员。</p>
+<ul>
+<li>
+<p>gvkToType map[schema.GroupVersionKind]reflect.Type：根据组类型映射得到该资源的反射类型的map。</p>
+</li>
+<li>
+<p>typeToGVK map[reflect.Type][]schema.GroupVersionKind：根据反射类型得到组类型的map，注意到这里的值是一个数组，也就意味着一个反射类型可能对应多个组类型。</p>
+</li>
+<li>
+<p>unversionedKinds map[string]reflect.Type：</p>
+</li>
+<li>
+<p>fieldLabelConversionFuncs map[string]map[string]FieldLabelConversionFunc：</p>
+</li>
+<li>
+<p>defaulterFuncs map[reflect.Type]func(interface{})：</p>
+</li>
+<li>
+<p>converter *conversion.Converter：转换器，负责同个类型不同版本之间的转换。</p>
+</li>
+</ul>
+<p>可以看到，Scheme结构体中，存储了关于组版本类型与对应资源类型的信息，因此它可以同时很方便的用于以下用途。</p>
+<ul>
+<li>根据资源类型得到其组版本信息，这是ObjectTyper接口需要的操作。</li>
+<li>进行一个资源在不同组版本之间的转化操作，这是ObjectConvertor接口需要的操作。</li>
+<li>根据传入的组版本信息，创建一个对应的资源数据返回，这是ObjectCreater接口需要的操作。</li>
+<li>给资源赋予默认值，这是ObjectDefaulter接口需要的操作。</li>
+</ul>
+<p>在CRD的生成代码中，首先会生成如下几个全局变量，一般在clientset/versioned/scheme/register.go中：</p>
+<pre tabindex="0"><code>var Scheme = runtime.NewScheme()
+var Codecs = serializer.NewCodecFactory(Scheme)
+var ParameterCodec = runtime.NewParameterCodec(Scheme)
+</code></pre><p>其中：</p>
+<ul>
+<li>Scheme：就是我们前面提到的Scheme结构体，它是最先生成的，因为它是后面其它全局变量的基础。</li>
+<li>Codecs：进行序列化和反序列化操作的结构体，之所以需要Scheme是因为它实现了前面分析过的几种与类型相关的接口。</li>
+<li>ParameterCodec:进行不同类型之间转换的操作结构体，用到Scheme也是因为它实现了前面分析过的几种与类型相关的接口。</li>
+</ul>
+<h1 class="heading" id="流程">
+  流程
+  <a class="anchor" href="#%e6%b5%81%e7%a8%8b">#</a>
+</h1>
+<p>有了前面的核心数据准备，可以继续展开CRD核心流程的分析了。</p>
+<p>在clientset/versioned/scheme/register.go中，init函数里会进行如下操作。</p>
+<ul>
+<li>AddToGroupVersion添加该CRD组版本类型到scheme中，在这个函数中，会将一系列的资源与这个组版本挂钩：</li>
+</ul>
+<pre tabindex="0"><code>// AddToGroupVersion registers common meta types into schemas.
+func AddToGroupVersion(scheme *runtime.Scheme, groupVersion schema.GroupVersion) {
+	scheme.AddKnownTypeWithName(groupVersion.WithKind(WatchEventKind), &amp;WatchEvent{})
+	scheme.AddKnownTypeWithName(
+		schema.GroupVersion{Group: groupVersion.Group, Version: runtime.APIVersionInternal}.WithKind(WatchEventKind),
+		&amp;InternalEvent{},
+	)
+	// Supports legacy code paths, most callers should use metav1.ParameterCodec for now
+	scheme.AddKnownTypes(groupVersion,
+		&amp;ListOptions{},
+		&amp;ExportOptions{},
+		&amp;GetOptions{},
+		&amp;DeleteOptions{},
+	)
+	scheme.AddConversionFuncs(
+		Convert_versioned_Event_to_watch_Event,
+		Convert_versioned_InternalEvent_to_versioned_Event,
+		Convert_watch_Event_to_versioned_Event,
+		Convert_versioned_Event_to_versioned_InternalEvent,
+	)
+
+	// Register Unversioned types under their own special group
+	scheme.AddUnversionedTypes(Unversioned,
+		&amp;Status{},
+		&amp;APIVersions{},
+		&amp;APIGroupList{},
+		&amp;APIGroup{},
+		&amp;APIResourceList{},
+	)
+
+	// register manually. This usually goes through the SchemeBuilder, which we cannot use here.
+	AddConversionFuncs(scheme)
+	RegisterDefaults(scheme)
+}
+</code></pre><p>从上面代码可以看出，任何一个CRD，都进行了以下的注册：</p>
+<ol>
+<li>
+<p>注册了与组版本类型相关的WatchEvent事件，注册了WatchEvent相关的内部事件InternalEvent，同时在后面通过调用AddConversionFuncs注册了与这两个事件相关的转换函数。</p>
+</li>
+<li>
+<p>注册了与组版本类型相关的操作选项：ListOptions、ExportOptions、GetOptions、DeleteOptions、CreateOptions、UpdateOptions。</p>
+</li>
+<li>
+<p>注册了与组版本类型无关的类型：Status、APIVersions、APIGroupList、APIGroup、APIResourceList。</p>
+</li>
+</ol>
+<ul>
+<li>调用AddToScheme函数，将自定义的资源注册到Scheme中，这些类型都是最初使用者在types.go文件中自定义的资源类型，这些类型一定继承自metav1.TypeMeta。</li>
+</ul>
+<h2 class="heading" id="使用codecs">
+  使用Codecs
+  <a class="anchor" href="#%e4%bd%bf%e7%94%a8codecs">#</a>
+</h2>
+<p>接下来先来看看K8S代码中是怎么使用上前面的Codecs全局变量的。</p>
+<p>在生成的CRD相关代码中，会将与客户端REST请求相关参数的参数保存到rest.Config结构体中：</p>
+<pre tabindex="0"><code>func setConfigDefaults(config *rest.Config) error {
+	gv := v1.SchemeGroupVersion
+	config.GroupVersion = &amp;gv
+	config.APIPath = &#34;/apis&#34;
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+
+	if config.UserAgent == &#34;&#34; {
+		config.UserAgent = rest.DefaultKubernetesUserAgent()
+	}
+
+	return nil
+}
+</code></pre><p>在这里可以看到：</p>
+<ol>
+<li>CRD的api路径都是&quot;apis&quot;开头的。</li>
+<li>Codecs最终保存到config.NegotiatedSerializer中了。</li>
+</ol>
+<p>最终，这里保存下来的config.NegotiatedSerializer会存入到Serializers结构体中的Encoder和Decoder成员中，而这两个成员最终在与客户端的REST请求中起作用，比如encoder成员在request.go的Body函数中对用户数据进行编码：</p>
+<pre tabindex="0"><code>	case runtime.Object:
+		// callers may pass typed interface pointers, therefore we must check nil with reflection
+		if reflect.ValueOf(t).IsNil() {
+			return r
+		}
+		data, err := runtime.Encode(r.serializers.Encoder, t)
+		if err != nil {
+			r.err = err
+			return r
+		}
+		glogBody(&#34;Request Body&#34;, data)
+		r.body = bytes.NewReader(data)
+		r.SetHeader(&#34;Content-Type&#34;, r.content.ContentType)
+</code></pre><p>至于Decoder这里就不继续阐述了，可以自行搜索，简而言之都是与用户的REST请求、应答相关的地方派上用场。</p>
+<h2 class="heading" id="使用parametercodec">
+  使用ParameterCodec
+  <a class="anchor" href="#%e4%bd%bf%e7%94%a8parametercodec">#</a>
+</h2>
+<p>ParameterCodec用在用户请求的VersionedParams中。</p>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

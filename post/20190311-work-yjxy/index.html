@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    异界逍遥游戏服务引擎代码笔记 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20190311-work-yjxy/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20190311-work-yjxy/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="异界逍遥游戏服务引擎代码笔记">
+  <meta property="og:description" content="主线程 # gameserver/gameserver.cpp中，负责启动了以下服务器线程：
+MainLogicThread：逻辑主线程。 NotifyThread GameSvr：网络首发线程。 MainLogicThread # 逻辑主线程。
+线程主循环中做每次做如下操作：
+inc_frame：帧数累加。 set_script_frame：保存当前帧数到Lua层。 reload_script：判断需要的话要reload脚本。 process_timer：处理定时器。 receive_all_msg：调用GameSrv的receive_msg函数接收消息。 process_dbresult：处理数据库的查询结果回调。 swap_aoi_task_list：处理AOI消息队列切换。 swap_lua_sendcache：处理lua使用的sendcache的切换。 process_aoi_thread_task：处理来自AOI线程的任务。 try_lua_gc：尝试进行Lua GC回收。 receive_all_msg # 内部会调用NetMng::receive_msg来处理消息。网络线程已经把消息的buffer收到recv_list_中了，该函数的内部会把recv_list_添加到proc_list_之后，然后清空recv_list_。注意这上面链表的操作是需要加锁的，因为网络线程也在操作recv_list_。在这之后就不需要加锁了，遍历proc_list_，取出其中的Buffer对象，进入msg_handle进行处理。 msg_handle函数根据packet_type查询处理函数，看使用C代码处理还是走Lua处理。
+GameSvr # 继承自NetMng，负责网络收发，即网络线程。NetMng基类中唯一需要子类实现的就是消息处理函数msg_handle，在这里每个子类添加自己的消息处理逻辑。
+NetMng基类主逻辑 # 管理socket # socket由CommonSocket类来表示，每个socket有一个对应的dpid唯一标识一个连接socket。dpid由单调递增的序列号和fd组合生成：
+dpid_ = ((serial_no_&#43;&#43;) &lt;&lt; 16) | (Handle() &amp; 0x0000FFFF); ClientSocket对应一个客户端连接，在收到客户端buffer之后，调用NetMng的add_recv_msg函数将这个buffer添加到NetMng的recv_list_中，而逻辑线程会取出来进行处理。
+NetMng内部逻辑 # 内部会有一个SelectThread，其实就是封装了poll操作，然后就是类似一样服务器那样来处理请求了。
+以下是引擎的主体流程图：
+yjxy-engine 其实核心在于两个队列：接收队列和发送队列，逻辑层与网络层通过这两个队列来处理收发消息。 逻辑层从网络层的接收队列中取出客户端发送过来的数据进行处理，处理完毕之后再将需要发送的数据放到发送队列中，网络线程取出发送队列的数据发送回去给客户端。
+NotifyThread # Lua与C&#43;&#43;层交互 # Lunar # 使用类Lunar来完成一个C&#43;&#43;中的类注册到Lua脚本中，其核心思想为：
+静态函数Lunar::Register用来注册一个C&#43;&#43;类的元方法，其中会将lua引擎层中元方法的new函数设置为new_T，在这个函数中创建类型T的对象。同时类型T中，暴露出来methods数组，用于注册到lua的metable中。 Lunar::push函数用于向引擎层push一个类型T的指针，此时会将之前注册的元方法跟该指针关联起来。 在LuaServer中提前注册几个C&#43;&#43;类 # void LuaServer::register_class() { Lunar&lt;GameSvr&gt;::Register( L_ ); Lunar&lt;PaySvr&gt;::Register( L_ ); Lunar&lt;LAr&gt;::Register( L_ ); Lunar&lt;SendCache&gt;::Register( L_ ); Lunar&lt;SendCacheMng&gt;::Register( L_ ); Lunar&lt;GameClient&gt;::Register( L_ ); } 以下来逐个分析注册进去的这些C&#43;&#43;类都有什么作用。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-03-11T10:42:27+08:00">
+    <meta property="article:modified_time" content="2019-03-11T10:42:27+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190311-work-yjxy/">异界逍遥游戏服务引擎代码笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">异界逍遥游戏服务引擎代码笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-03-11T10:42:27&#43;08:00">2019年3月11日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="主线程">
+  主线程
+  <a class="anchor" href="#%e4%b8%bb%e7%ba%bf%e7%a8%8b">#</a>
+</h1>
+<p>gameserver/gameserver.cpp中，负责启动了以下服务器线程：</p>
+<ul>
+<li>MainLogicThread：逻辑主线程。</li>
+<li>NotifyThread</li>
+<li>GameSvr：网络首发线程。</li>
+</ul>
+<h1 class="heading" id="mainlogicthread">
+  MainLogicThread
+  <a class="anchor" href="#mainlogicthread">#</a>
+</h1>
+<p>逻辑主线程。</p>
+<p>线程主循环中做每次做如下操作：</p>
+<ul>
+<li>inc_frame：帧数累加。</li>
+<li>set_script_frame：保存当前帧数到Lua层。</li>
+<li>reload_script：判断需要的话要reload脚本。</li>
+<li>process_timer：处理定时器。</li>
+<li>receive_all_msg：调用GameSrv的receive_msg函数接收消息。</li>
+<li>process_dbresult：处理数据库的查询结果回调。</li>
+<li>swap_aoi_task_list：处理AOI消息队列切换。</li>
+<li>swap_lua_sendcache：处理lua使用的sendcache的切换。</li>
+<li>process_aoi_thread_task：处理来自AOI线程的任务。</li>
+<li>try_lua_gc：尝试进行Lua GC回收。</li>
+</ul>
+<h2 class="heading" id="receive_all_msg">
+  receive_all_msg
+  <a class="anchor" href="#receive_all_msg">#</a>
+</h2>
+<p>内部会调用NetMng::receive_msg来处理消息。网络线程已经把消息的buffer收到recv_list_中了，该函数的内部会把recv_list_添加到proc_list_之后，然后清空recv_list_。注意这上面链表的操作是需要加锁的，因为网络线程也在操作recv_list_。在这之后就不需要加锁了，遍历proc_list_，取出其中的Buffer对象，进入msg_handle进行处理。
+msg_handle函数根据packet_type查询处理函数，看使用C代码处理还是走Lua处理。</p>
+<h1 class="heading" id="gamesvr">
+  GameSvr
+  <a class="anchor" href="#gamesvr">#</a>
+</h1>
+<p>继承自NetMng，负责网络收发，即网络线程。NetMng基类中唯一需要子类实现的就是消息处理函数msg_handle，在这里每个子类添加自己的消息处理逻辑。</p>
+<h2 class="heading" id="netmng基类主逻辑">
+  NetMng基类主逻辑
+  <a class="anchor" href="#netmng%e5%9f%ba%e7%b1%bb%e4%b8%bb%e9%80%bb%e8%be%91">#</a>
+</h2>
+<h3 class="heading" id="管理socket">
+  管理socket
+  <a class="anchor" href="#%e7%ae%a1%e7%90%86socket">#</a>
+</h3>
+<p>socket由CommonSocket类来表示，每个socket有一个对应的dpid唯一标识一个连接socket。dpid由单调递增的序列号和fd组合生成：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>  dpid_ = ((serial_no_++) &lt;&lt; 16) | (<span style="color:#666;font-weight:bold;font-style:italic">Handle</span>() &amp; 0x0000FFFF);
+</span></span></code></pre></div><p>ClientSocket对应一个客户端连接，在收到客户端buffer之后，调用NetMng的add_recv_msg函数将这个buffer添加到NetMng的recv_list_中，而逻辑线程会取出来进行处理。</p>
+<h3 class="heading" id="netmng内部逻辑">
+  NetMng内部逻辑
+  <a class="anchor" href="#netmng%e5%86%85%e9%83%a8%e9%80%bb%e8%be%91">#</a>
+</h3>
+<p>内部会有一个SelectThread，其实就是封装了poll操作，然后就是类似一样服务器那样来处理请求了。</p>
+<p>以下是引擎的主体流程图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="yjxy-engine" src="/media/imgs/20190311-work-yjxy/yjxy-engine.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> yjxy-engine </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>其实核心在于两个队列：接收队列和发送队列，逻辑层与网络层通过这两个队列来处理收发消息。
+逻辑层从网络层的接收队列中取出客户端发送过来的数据进行处理，处理完毕之后再将需要发送的数据放到发送队列中，网络线程取出发送队列的数据发送回去给客户端。</p>
+<h1 class="heading" id="notifythread">
+  NotifyThread
+  <a class="anchor" href="#notifythread">#</a>
+</h1>
+<h1 class="heading" id="lua与c层交互">
+  Lua与C++层交互
+  <a class="anchor" href="#lua%e4%b8%8ec%e5%b1%82%e4%ba%a4%e4%ba%92">#</a>
+</h1>
+<h2 class="heading" id="lunar">
+  Lunar
+  <a class="anchor" href="#lunar">#</a>
+</h2>
+<p>使用类Lunar来完成一个C++中的类注册到Lua脚本中，其核心思想为：</p>
+<ul>
+<li>静态函数Lunar::Register用来注册一个C++类的元方法，其中会将lua引擎层中元方法的new函数设置为new_T，在这个函数中创建类型T的对象。同时类型T中，暴露出来methods数组，用于注册到lua的metable中。</li>
+<li>Lunar::push函数用于向引擎层push一个类型T的指针，此时会将之前注册的元方法跟该指针关联起来。</li>
+</ul>
+<h2 class="heading" id="在luaserver中提前注册几个c类">
+  在LuaServer中提前注册几个C++类
+  <a class="anchor" href="#%e5%9c%a8luaserver%e4%b8%ad%e6%8f%90%e5%89%8d%e6%b3%a8%e5%86%8c%e5%87%a0%e4%b8%aac%e7%b1%bb">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> LuaServer::<span style="color:#666;font-weight:bold;font-style:italic">register_class</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  Lunar&lt;GameSvr&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>  Lunar&lt;PaySvr&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>  Lunar&lt;LAr&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>  Lunar&lt;SendCache&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>  Lunar&lt;SendCacheMng&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>  Lunar&lt;GameClient&gt;::<span style="color:#666;font-weight:bold;font-style:italic">Register</span>( L_ );
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>以下来逐个分析注册进去的这些C++类都有什么作用。</p>
+<h2 class="heading" id="gamesvr-1">
+  GameSvr
+  <a class="anchor" href="#gamesvr-1">#</a>
+</h2>
+<p>对应前面提到的网络线程，提供给Lua层以下接口：</p>
+<pre tabindex="0"><code>#define LUNAR_GAMESVR_METHODS   \
+  // reload文件
+  method( GameSvr, c_reload_file ), \
+  // 删除socket    
+  method( GameSvr, c_del_sock ), \
+  // 踢掉玩家    
+  method( GameSvr, c_kick_player )
+</code></pre><h2 class="heading" id="sendcache">
+  SendCache
+  <a class="anchor" href="#sendcache">#</a>
+</h2>
+<p>负责处理客户端的发送缓存。</p>
+<p>内部使用一个Ar结构体来缓存写入的数据，然后一次性将Ar里面的buffer放到一个send_buf_的BufferQueue中，这部分会再放到前面的GameSvr的send_buf_queue_中，由网络线程发送出去。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SENDCACHE_METHODS           \
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">    </span><span style="color:#888;font-style:italic">// 设置SendCache对应那个dpid
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#666;font-weight:bold;font-style:italic">method</span>(SendCache, c_set_dpid),              \
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// 向SendCache添加一个raw buffer的数据
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#666;font-weight:bold;font-style:italic">method</span>(SendCache, c_add_block)
+</span></span></code></pre></div><h2 class="heading" id="sendcachemng">
+  SendCacheMng
+  <a class="anchor" href="#sendcachemng">#</a>
+</h2>
+<p>相当于SendCache结构体的free pool，由于SendCache频繁被分配释放，所以用了这个结构体缓存起来。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SENDCACHE_MNG_METHODS         \
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">  </span><span style="color:#888;font-style:italic">// 添加cache
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">method</span>(SendCacheMng, c_add_cache),          \
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 删除cache    
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">method</span>(SendCacheMng, c_del_cache)
+</span></span></code></pre></div><h2 class="heading" id="lar">
+  LAr
+  <a class="anchor" href="#lar">#</a>
+</h2>
+<p>负责通过Lunar封装Ar到脚本层。</p>
+<h2 class="heading" id="luaserver">
+  LuaServer
+  <a class="anchor" href="#luaserver">#</a>
+</h2>
+<p>负责在逻辑线程中初始化一些与Lua相关的逻辑。</p>
+<p>lua脚本的入口函数为main.lua</p>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

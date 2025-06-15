@@ -1,336 +1,273 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>KCP 1.4源码分析 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content=""/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="概述 KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"KCP 1.4源码分析",
-      "item":"https://www.codedump.info/post/20201105-kcp/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20201105-kcp/"
-    },
-    "headline": "KCP 1.4源码分析 - codedump的网络日志","datePublished": "2020-11-05T22:08:40+08:00",
-    "dateModified": "2020-11-05T22:08:40+08:00",
-    "wordCount":  9764 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "概述 KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用"
-}
-</script><meta property="og:title" content="KCP 1.4源码分析 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20201105-kcp/" />
-
-
-
-
-<meta property="og:description" content="概述 KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用" />
-
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2020-11-05T22:08:40&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2020-11-05T22:08:40&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="网络编程" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190729-glog/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190413-problem-fix/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190227-tcp/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    KCP 1.4源码分析 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">KCP 1.4源码分析</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20201105-kcp/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2020-11-05</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>20分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20201105-kcp/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="KCP 1.4源码分析">
+  <meta property="og:description" content="概述 # KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用基于UDP的可靠传输协议。
+在项目的官网上，对KCP是这么介绍的：
+KCP是一个快速可靠协议，能以比 TCP 浪费 10%-20% 的带宽的代价，换取平均延迟降低 30%-40%，且最大延迟降低三倍的传输效果。纯算法实现，并不负责底层协议（如UDP）的收发，需要使用者自己定义下层数据包的发送方式，以 callback的方式提供给 KCP。 连时钟都需要外部传递进来，内部不会有任何一次系统调用。
+UDP并不是一个可靠的传输协议，如果数据没有发送成功并不会自动重传，KCP基于UDP协议之上实现了自己的ARQ协议，所以在继续介绍KCP协议之前，先大体了解一下ARQ协议。
+ARQ的两种模式 # KCP在UDP之上，自己实现了可靠性的算法，即给UDP加上了诸如超时重传、流量控制等机制，这些都是为了保证ARQ协议的运作。
+ARQ协议(Automatic Repeat-reQuest)，即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输。
+ARQ的实现通常有如下两种模式。
+停等ARQ协议（stop-and-wait） # 停等ARQ协议，意味着每个数据在发送出去之后，在没有收到对端的接收回复之前，将一直等待下去，而不会继续发送新的数据包。如果超时还未收到应答，就会自动重传数据包，以保证数据的可靠性。
+下图是两种情况下停等协议的示意图：
+stop-and-wait 上图：正常不出错情况下运行的停等协议，消息2必须在发送方收到了消息1的对端确认回复之后才能发送出去。 下图：出错情况下运行的停等协议，发送方发现消息1超时还未收到应答，就触发了针对消息1的重传机制。在这之前消息2都不会被发出去。 协议栈如何确认这个“超时时间”呢？答案是根据数据往返时间动态估算出来的RTO（Retransmission TimeOut，重传超时时间）时间来确认的。
+连续ARQ协议（Continuous ARQ） # 可以看到，停等协议的机制是“一应一答”式的，对带宽的利用率不高，传输效率不高。
+连续ARQ协议，可以一次性发送多个数据，而不必像停等协议那样需要等待上一个数据包的确认回复才能继续发送数据。
+在使用连续ARQ协议的时候，接收方也并不会针对每一个收到的数据包进行确认应答，而只需应答确认最大的那个数据包，这时就认为在此之前的数据包都收到了。
+这种模式称为“UNA（unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到）”模式，与之对应的是，停等协议是ACK模式。
+然而，即便是可以一次发送多个数据包，也不意味着可以不受控制的发送数据，因为还要受到几种流量窗口的限制，这部分被称为“流量控制”。
+拥塞窗口 # 拥塞窗口更多是对网络上经过的网络设备总体网络情况的一个预估。因为在真正发送数据时，并不清楚这时候的网络情况，因此启动时拥塞窗口会有一个初始值，然后根据以下几种算法进行动态的调整：
+慢启动：在启动时让拥塞窗口缓慢扩张。 退半避让：在发生网络拥堵时让拥塞窗口大小减半。 快重传：在网络恢复时尽快的将数据发送出去。 滑动窗口 # 拥塞窗口是对外部网络情况的一种动态的检测，而滑动窗口则是进程本身接收缓冲区的控制，滑动窗口就是接收方用来通知发送方本方接收缓冲区大小的。由于一个网络进程分为协议层和应用层，如果协议层接收数据很快，但是应用层消费数据很慢，这个滑动窗口就会缩小，通过这种方式来通知对端放缓数据的发送，因为接收方已经忙不过来了。
+KCP作为一个ARQ协议，内部就是要实现对以上这些机制的支持。
+如果对TCP协议的实现有一些了解，可以看到上述的对端确认回复、超时重传、拥塞窗口、滑动窗口等概念，在TCP中就有，KCP自己实现的ARQ机制，与TCP对比起来有如下的不同点：
+在TCP中，超时之后的RTO时间直接翻倍（即RTO2），而在KCP启用了快速模式之后，RTO的超时时间是1.5，避免RTO时间的快速增长。 TCP协议在丢包时会直接重传丢的那个包之后的所有数据包，KCP只会选择性的重传真正丢失的数据包。 TCP为了充分利用带宽，会延迟发送ACK应答对端，这样会导致计算出来的RTT时间过大，KCP的ACK是否延迟发送则可以调节。 KCP 正常模式同 TCP 一样使用公平退让法则，即发送窗口大小由：发送缓存大小、接收端剩余接收缓存大小、丢包退让及慢启动这四要素决定。但传送及时性要求很高的小数据时，可选择通过配置跳过后两步，仅用前两项来控制发送频率。 本文基于KCP 1.4版本对其实现做分析。
+术语概念 # 在展开讨论之前，首先介绍相关的术语概念。
+ARQ：Automatic Repeat-reQuest，自动重传请求协议。KCP就是其中一种ARQ协议的实现。 MTU：Maximum Transmission Unit，最大传输单元，链路层规定的每一帧最大长度，通常为1500字节。 MSS：Maximum Segment Size，最大分段大小。通常为MTU-协议头大小。 RTT：Round-Trip Time，数据往返时间，即发出消息到接收到对端消息应答之间的时间差。 RTO：Retransmission TimeOut，重传超时时间，根据收集到的RTT时间估算。 rwnd：Receive Window，接收窗口大小，接收端通过该数据通知发送端本方接收窗口大小。 cwnd：Congestion Window，拥塞窗口大小，影响发送方发送数据大小。 ack：acknowledge，接收端接收到一个数据包之后，通过应答该数据包序列号来通知发送端接收成功。 una：unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到。 ssthresh：Slow Start threshold，慢启动阈值，用于在发生拥塞的情况下控制窗口的增长速度。 数据结构 # 报文定义 # 每个KCP数据报文，其定义如下，注释中描述了每个字段的含义：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-11-05T22:08:40+08:00">
+    <meta property="article:modified_time" content="2020-11-05T22:08:40+08:00">
+    <meta property="article:tag" content="网络编程">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >网络编程</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20201105-kcp/">KCP 1.4源码分析</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">KCP 1.4源码分析</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-11-05T22:08:40&#43;08:00">2020年11月5日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p><a href="https://github.com/skywind3000/kcp">KCP</a>是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性要求更高的领域（如实时音视频、即时在线游戏等），会更倾向于使用基于UDP的可靠传输协议。</p>
 <p>在项目的官网上，对KCP是这么介绍的：</p>
 <blockquote>
-<p>KCP是一个快速可靠协议，能以比 TCP 浪费 10%-20% 的带宽的代价，换取平均延迟降低 30%-40%，且最大延迟降低三倍的传输效果。纯算法实现，并不负责底层协议（如UDP）的收发，需要使用者自己定义下层数据包的发送方式，以 callback的方式提供给 KCP。 连时钟都需要外部传递进来，内部不会有任何一次系统调用。</p>
-</blockquote>
+<p>KCP是一个快速可靠协议，能以比 TCP 浪费 10%-20% 的带宽的代价，换取平均延迟降低 30%-40%，且最大延迟降低三倍的传输效果。纯算法实现，并不负责底层协议（如UDP）的收发，需要使用者自己定义下层数据包的发送方式，以 callback的方式提供给 KCP。 连时钟都需要外部传递进来，内部不会有任何一次系统调用。</p></blockquote>
 <p>UDP并不是一个可靠的传输协议，如果数据没有发送成功并不会自动重传，KCP基于UDP协议之上实现了自己的ARQ协议，所以在继续介绍KCP协议之前，先大体了解一下ARQ协议。</p>
-<h2 id="arq的两种模式">ARQ的两种模式</h2>
+<h2 class="heading" id="arq的两种模式">
+  ARQ的两种模式
+  <a class="anchor" href="#arq%e7%9a%84%e4%b8%a4%e7%a7%8d%e6%a8%a1%e5%bc%8f">#</a>
+</h2>
 <p>KCP在UDP之上，自己实现了可靠性的算法，即给UDP加上了诸如超时重传、流量控制等机制，这些都是为了保证ARQ协议的运作。</p>
 <p>ARQ协议(Automatic Repeat-reQuest)，即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输。</p>
 <p>ARQ的实现通常有如下两种模式。</p>
-<h3 id="停等arq协议stop-and-wait">停等ARQ协议（stop-and-wait）</h3>
+<h3 class="heading" id="停等arq协议stop-and-wait">
+  停等ARQ协议（stop-and-wait）
+  <a class="anchor" href="#%e5%81%9c%e7%ad%89arq%e5%8d%8f%e8%ae%aestop-and-wait">#</a>
+</h3>
 <p>停等ARQ协议，意味着每个数据在发送出去之后，在没有收到对端的接收回复之前，将一直等待下去，而不会继续发送新的数据包。如果超时还未收到应答，就会自动重传数据包，以保证数据的可靠性。</p>
 <p>下图是两种情况下停等协议的示意图：</p>
-<p><img src="/media/imgs/20201105-kcp/stop-and-wait.png" alt="stop-and-wait" title="stop-and-wait"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="stop-and-wait" src="/media/imgs/20201105-kcp/stop-and-wait.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> stop-and-wait </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>上图：正常不出错情况下运行的停等协议，消息2必须在发送方收到了消息1的对端确认回复之后才能发送出去。</li>
 <li>下图：出错情况下运行的停等协议，发送方发现消息1超时还未收到应答，就触发了针对消息1的重传机制。在这之前消息2都不会被发出去。</li>
 </ul>
 <p>协议栈如何确认这个“超时时间”呢？答案是根据数据往返时间动态估算出来的RTO（Retransmission TimeOut，重传超时时间）时间来确认的。</p>
-<h3 id="连续arq协议continuous-arq">连续ARQ协议（Continuous ARQ）</h3>
+<h3 class="heading" id="连续arq协议continuous-arq">
+  连续ARQ协议（Continuous ARQ）
+  <a class="anchor" href="#%e8%bf%9e%e7%bb%adarq%e5%8d%8f%e8%ae%aecontinuous-arq">#</a>
+</h3>
 <p>可以看到，停等协议的机制是“一应一答”式的，对带宽的利用率不高，传输效率不高。</p>
 <p>连续ARQ协议，可以一次性发送多个数据，而不必像停等协议那样需要等待上一个数据包的确认回复才能继续发送数据。</p>
 <p>在使用连续ARQ协议的时候，接收方也并不会针对每一个收到的数据包进行确认应答，而只需应答确认最大的那个数据包，这时就认为在此之前的数据包都收到了。</p>
 <p>这种模式称为“UNA（unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到）”模式，与之对应的是，停等协议是ACK模式。</p>
 <p>然而，即便是可以一次发送多个数据包，也不意味着可以不受控制的发送数据，因为还要受到几种流量窗口的限制，这部分被称为“流量控制”。</p>
-<h3 id="拥塞窗口">拥塞窗口</h3>
+<h3 class="heading" id="拥塞窗口">
+  拥塞窗口
+  <a class="anchor" href="#%e6%8b%a5%e5%a1%9e%e7%aa%97%e5%8f%a3">#</a>
+</h3>
 <p>拥塞窗口更多是对网络上经过的网络设备总体网络情况的一个预估。因为在真正发送数据时，并不清楚这时候的网络情况，因此启动时拥塞窗口会有一个初始值，然后根据以下几种算法进行动态的调整：</p>
 <ul>
 <li>慢启动：在启动时让拥塞窗口缓慢扩张。</li>
 <li>退半避让：在发生网络拥堵时让拥塞窗口大小减半。</li>
 <li>快重传：在网络恢复时尽快的将数据发送出去。</li>
 </ul>
-<h3 id="滑动窗口">滑动窗口</h3>
+<h3 class="heading" id="滑动窗口">
+  滑动窗口
+  <a class="anchor" href="#%e6%bb%91%e5%8a%a8%e7%aa%97%e5%8f%a3">#</a>
+</h3>
 <p>拥塞窗口是对外部网络情况的一种动态的检测，而滑动窗口则是进程本身接收缓冲区的控制，滑动窗口就是接收方用来通知发送方本方接收缓冲区大小的。由于一个网络进程分为协议层和应用层，如果协议层接收数据很快，但是应用层消费数据很慢，这个滑动窗口就会缩小，通过这种方式来通知对端放缓数据的发送，因为接收方已经忙不过来了。</p>
 <p>KCP作为一个ARQ协议，内部就是要实现对以上这些机制的支持。</p>
 <p>如果对TCP协议的实现有一些了解，可以看到上述的对端确认回复、超时重传、拥塞窗口、滑动窗口等概念，在TCP中就有，KCP自己实现的ARQ机制，与TCP对比起来有如下的不同点：</p>
@@ -341,7 +278,10 @@
 <li>KCP 正常模式同 TCP 一样使用公平退让法则，即发送窗口大小由：发送缓存大小、接收端剩余接收缓存大小、丢包退让及慢启动这四要素决定。但传送及时性要求很高的小数据时，可选择通过配置跳过后两步，仅用前两项来控制发送频率。</li>
 </ul>
 <p>本文基于KCP 1.4版本对其实现做分析。</p>
-<h1 id="术语概念">术语概念</h1>
+<h1 class="heading" id="术语概念">
+  术语概念
+  <a class="anchor" href="#%e6%9c%af%e8%af%ad%e6%a6%82%e5%bf%b5">#</a>
+</h1>
 <p>在展开讨论之前，首先介绍相关的术语概念。</p>
 <ul>
 <li>ARQ：Automatic Repeat-reQuest，自动重传请求协议。KCP就是其中一种ARQ协议的实现。</li>
@@ -355,8 +295,14 @@
 <li>una：unacknowledge，即第一个未应答数据包的序列号，小于该序列号的数据包都已经确认被接收到。</li>
 <li>ssthresh：Slow Start threshold，慢启动阈值，用于在发生拥塞的情况下控制窗口的增长速度。</li>
 </ul>
-<h1 id="数据结构">数据结构</h1>
-<h2 id="报文定义">报文定义</h2>
+<h1 class="heading" id="数据结构">
+  数据结构
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h1>
+<h2 class="heading" id="报文定义">
+  报文定义
+  <a class="anchor" href="#%e6%8a%a5%e6%96%87%e5%ae%9a%e4%b9%89">#</a>
+</h2>
 <p>每个KCP数据报文，其定义如下，注释中描述了每个字段的含义：</p>
 <pre tabindex="0"><code>struct IKCPSEG
 {
@@ -418,53 +364,59 @@
 |		una		   |
 |--------|--------|--------|--------|
 |		len		   |
-</code></pre><h2 id="kcp结构体">KCP结构体</h2>
+</code></pre><h2 class="heading" id="kcp结构体">
+  KCP结构体
+  <a class="anchor" href="#kcp%e7%bb%93%e6%9e%84%e4%bd%93">#</a>
+</h2>
 <p>除了上面定义每个报文的结构体之外，<code>kcp</code>协议栈还有一个负责记录kcp协议栈信息的结构体<code>IKCPCB</code>。</p>
 <p>其定义及成员的注释如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">IKCPCB</span>
-<span class="p">{</span>
-	<span class="c1">// mss：MSS（Maximum Segment Size），最大报文长度
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">conv</span><span class="p">,</span> <span class="n">mtu</span><span class="p">,</span> <span class="n">mss</span><span class="p">,</span> <span class="n">state</span><span class="p">;</span>
-	<span class="c1">// snd_una：最小的未ack序列号，即这个编号前面的所有报都收到了的标志
-</span><span class="c1"></span>	<span class="c1">// snd_nxt：下一个待发送的序列号
-</span><span class="c1"></span>	<span class="c1">// rcv_nxt：下一个待接收的序列号，会通过包头中的una字段通知对端
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_una</span><span class="p">,</span> <span class="n">snd_nxt</span><span class="p">,</span> <span class="n">rcv_nxt</span><span class="p">;</span>
-	<span class="c1">// ssthresh：slow start threshhold，慢启动阈值
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">ts_recent</span><span class="p">,</span> <span class="n">ts_lastack</span><span class="p">,</span> <span class="n">ssthresh</span><span class="p">;</span>
-	<span class="c1">// RTT：Round Trip Time，往返时间
-</span><span class="c1"></span>	<span class="c1">// rx_rttval：RTT的平均偏差
-</span><span class="c1"></span>	<span class="c1">// rx_srtt：RTT的一个加权RTT平均值，平滑值。
-</span><span class="c1"></span>	<span class="n">IINT32</span> <span class="n">rx_rttval</span><span class="p">,</span> <span class="n">rx_srtt</span><span class="p">,</span> <span class="n">rx_rto</span><span class="p">,</span> <span class="n">rx_minrto</span><span class="p">;</span>
-	<span class="c1">// rmt_wnd：对端（rmt=remote）窗口
-</span><span class="c1"></span>	<span class="c1">// probe：存储探测标志位
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">snd_wnd</span><span class="p">,</span> <span class="n">rcv_wnd</span><span class="p">,</span> <span class="n">rmt_wnd</span><span class="p">,</span> <span class="n">cwnd</span><span class="p">,</span> <span class="n">probe</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">current</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">ts_flush</span><span class="p">,</span> <span class="n">xmit</span><span class="p">;</span>
-	<span class="c1">// 接收和发送缓冲区大小
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_buf</span><span class="p">,</span> <span class="n">nsnd_buf</span><span class="p">;</span>
-	<span class="c1">// 接收和发送队列大小
-</span><span class="c1"></span>	<span class="n">IUINT32</span> <span class="n">nrcv_que</span><span class="p">,</span> <span class="n">nsnd_que</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">nodelay</span><span class="p">,</span> <span class="n">updated</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">ts_probe</span><span class="p">,</span> <span class="n">probe_wait</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">dead_link</span><span class="p">,</span> <span class="n">incr</span><span class="p">;</span>
-	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_queue</span><span class="p">;</span>
-	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_queue</span><span class="p">;</span>
-	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">snd_buf</span><span class="p">;</span>
-	<span class="k">struct</span> <span class="n">IQUEUEHEAD</span> <span class="n">rcv_buf</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="o">*</span><span class="n">acklist</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">ackcount</span><span class="p">;</span>
-	<span class="n">IUINT32</span> <span class="n">ackblock</span><span class="p">;</span>
-	<span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">;</span>
-	<span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">;</span>
-	<span class="kt">int</span> <span class="n">fastresend</span><span class="p">;</span>
-	<span class="kt">int</span> <span class="n">fastlimit</span><span class="p">;</span>
-	<span class="c1">// nocwnd：是否关闭流控，0表示不关闭，默认值为0
-</span><span class="c1"></span>	<span class="kt">int</span> <span class="n">nocwnd</span><span class="p">,</span> <span class="n">stream</span><span class="p">;</span>
-	<span class="kt">int</span> <span class="n">logmask</span><span class="p">;</span>
-	<span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">output</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">len</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
-	<span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">writelog</span><span class="p">)(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">log</span><span class="p">,</span> <span class="k">struct</span> <span class="n">IKCPCB</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">user</span><span class="p">);</span>
-<span class="p">};</span>
-</code></pre></div><p>kcp库对外的接口中，首先需要调用<code>ikcp_create</code>函数创建该结构体，才能继续后面的工作。</p>
-<h2 id="几个队列">几个队列</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> IKCPCB
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// mss：MSS（Maximum Segment Size），最大报文长度
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 conv, mtu, mss, state;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// snd_una：最小的未ack序列号，即这个编号前面的所有报都收到了的标志
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#888;font-style:italic">// snd_nxt：下一个待发送的序列号
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#888;font-style:italic">// rcv_nxt：下一个待接收的序列号，会通过包头中的una字段通知对端
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 snd_una, snd_nxt, rcv_nxt;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// ssthresh：slow start threshhold，慢启动阈值
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 ts_recent, ts_lastack, ssthresh;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// RTT：Round Trip Time，往返时间
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#888;font-style:italic">// rx_rttval：RTT的平均偏差
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#888;font-style:italic">// rx_srtt：RTT的一个加权RTT平均值，平滑值。
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IINT32 rx_rttval, rx_srtt, rx_rto, rx_minrto;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// rmt_wnd：对端（rmt=remote）窗口
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#888;font-style:italic">// probe：存储探测标志位
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 snd_wnd, rcv_wnd, rmt_wnd, cwnd, probe;
+</span></span><span style="display:flex;"><span>	IUINT32 current, interval, ts_flush, xmit;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 接收和发送缓冲区大小
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 nrcv_buf, nsnd_buf;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 接收和发送队列大小
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	IUINT32 nrcv_que, nsnd_que;
+</span></span><span style="display:flex;"><span>	IUINT32 nodelay, updated;
+</span></span><span style="display:flex;"><span>	IUINT32 ts_probe, probe_wait;
+</span></span><span style="display:flex;"><span>	IUINT32 dead_link, incr;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> IQUEUEHEAD snd_queue;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> IQUEUEHEAD rcv_queue;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> IQUEUEHEAD snd_buf;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> IQUEUEHEAD rcv_buf;
+</span></span><span style="display:flex;"><span>	IUINT32 *acklist;
+</span></span><span style="display:flex;"><span>	IUINT32 ackcount;
+</span></span><span style="display:flex;"><span>	IUINT32 ackblock;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">void</span> *user;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">char</span> *buffer;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">int</span> fastresend;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">int</span> fastlimit;
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// nocwnd：是否关闭流控，0表示不关闭，默认值为0
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="font-weight:bold;text-decoration:underline">int</span> nocwnd, stream;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">int</span> logmask;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">int</span> (*output)(<span style="font-weight:bold;text-decoration:underline">const</span> <span style="font-weight:bold;text-decoration:underline">char</span> *buf, <span style="font-weight:bold;text-decoration:underline">int</span> len, <span style="font-weight:bold;text-decoration:underline">struct</span> IKCPCB *kcp, <span style="font-weight:bold;text-decoration:underline">void</span> *user);
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">void</span> (*writelog)(<span style="font-weight:bold;text-decoration:underline">const</span> <span style="font-weight:bold;text-decoration:underline">char</span> *log, <span style="font-weight:bold;text-decoration:underline">struct</span> IKCPCB *kcp, <span style="font-weight:bold;text-decoration:underline">void</span> *user);
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>kcp库对外的接口中，首先需要调用<code>ikcp_create</code>函数创建该结构体，才能继续后面的工作。</p>
+<h2 class="heading" id="几个队列">
+  几个队列
+  <a class="anchor" href="#%e5%87%a0%e4%b8%aa%e9%98%9f%e5%88%97">#</a>
+</h2>
 <p>从上面定义的数据结构中，还看到了其中有队列指针，不难想象每个报文数据都是某种队列中的元素，确实也是这样，在KCP中定义了以下几个和报文相关的队列：</p>
 <ul>
 <li>snd_queue、nsnd_que：发送队列以及其大小。</li>
@@ -473,11 +425,41 @@
 <li>rcv_buf、nrcv_buf：接收缓冲区及其大小。</li>
 </ul>
 <p>为什么发送和接收两端，既有缓冲区又有队列？在KCP中，队列是应用层可以直接进行读写的区域，而缓冲区则是KCP协议层接收和发送数据的区域了，如图所示：</p>
-<p><img src="/media/imgs/20201105-kcp/kcp-queue-buf.png" alt="kcp-queue-buf" title="kcp-queue-buf"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="kcp-queue-buf" src="/media/imgs/20201105-kcp/kcp-queue-buf.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> kcp-queue-buf </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在发送报文时，用户层调用<code>ikcp_send</code>函数，该函数最终会分配报文结构体指针，然后添加到发送队列<code>snd_queue</code>的末尾；而在KCP协议栈真正调用系统接口发送数据出去的时候，将从<code>snd_queue</code>队列中将报文取出，放入<code>snd_buf</code>缓冲区中再进行发送。接收报文的流程反之，这里就不再阐述了。</p>
-<h1 id="核心流程">核心流程</h1>
+<h1 class="heading" id="核心流程">
+  核心流程
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>了解了相关的数据结构，这里开始分析核心流程。先来看看整体的框架。</p>
-<h2 id="概述-1">概述</h2>
+<h2 class="heading" id="概述-1">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0-1">#</a>
+</h2>
 <p>KCP的实现中，把两个部分留给应用层来做：</p>
 <ul>
 <li>具体收发数据的流程，通过将<code>ikcp_setoutput</code>函数留给应用层注册来进行数据发送，KCP自己并不负责这一块。</li>
@@ -491,7 +473,31 @@
 <li>ikcp_update：用户层调用该函数，来驱动KCP协议栈进行具体的协议收发、拥塞控制等流程，这些流程实际最终由函数<code>ikcp_flush</code>完成，但是用户层并不会直接调用这个函数。</li>
 </ul>
 <p>整个流程中涉及到的函数及流程如下图：</p>
-<p><img src="/media/imgs/20201105-kcp/ikcp.png" alt="ikcp" title="ikcp"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ikcp" src="/media/imgs/20201105-kcp/ikcp.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ikcp </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>（出自：<a href="https://blog.csdn.net/yongkai0214/article/details/85156452">KCP 协议与源码分析（一）_老雍的博客-CSDN博客_kcp</a>）</p>
 <p>在这里先对上图做简单的解释，下面再展开详细的分析：</p>
 <ul>
@@ -500,9 +506,15 @@
 <li>图的右边是协议栈与网络之间的交互。首先<code>ikcp_flush</code>函数，会将发送队列<code>snd_queue</code>中的报文移动到发送缓冲区中，最终调用用户通过<code>ikcp_output</code>函数注册发送函数发送出去；同时，当收到网络层的数据时，会调用<code>ikcp_input</code>函数将这些数据以kcp协议的形式解析出来，放入到接收缓冲区<code>snd_buf</code>中。</li>
 </ul>
 <p>以下对其中的核心流程做分析。</p>
-<h1 id="ikcp_input函数">ikcp_input函数</h1>
+<h1 class="heading" id="ikcp_input函数">
+  ikcp_input函数
+  <a class="anchor" href="#ikcp_input%e5%87%bd%e6%95%b0">#</a>
+</h1>
 <p><code>ikcp_input</code>函数是用户层接收到数据时调用的第一个函数，其传入的参数是收到数据的缓冲区。因为用户层接收到的数据，都没有经过KCP协议的解析，所以首先调用<code>ikcp_input</code>函数进行协议解析。又由于一个报文中可能存在多个KCP协议包，所以会遍历这个用户层数据缓冲区进行多次的KCP协议解析。KCP协议，按照其包头中带的指令类型，可能有以下几种：</p>
-<h2 id="ikcp_cmd_ack">IKCP_CMD_ACK</h2>
+<h2 class="heading" id="ikcp_cmd_ack">
+  IKCP_CMD_ACK
+  <a class="anchor" href="#ikcp_cmd_ack">#</a>
+</h2>
 <p>对端应答ack报。处理流程如下：</p>
 <ul>
 <li>调用<code>ikcp_update_ack</code>函数更新RTT估算值。</li>
@@ -517,34 +529,37 @@
 <li>rx_minrto：最小RTO，系统启动时配置，在nodelay的情况下值为<code>IKCP_RTO_NDL</code>，否则就是<code>IKCP_RTO_MIN</code>。</li>
 <li>rx_rto：估算出来的rto值，为平滑值+max（interval，平均值），在[rx_minrto,IKCP_RTO_MAX]之间。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">static</span> <span class="kt">void</span> <span class="nf">ikcp_update_ack</span><span class="p">(</span><span class="n">ikcpcb</span> <span class="o">*</span><span class="n">kcp</span><span class="p">,</span> <span class="n">IINT32</span> <span class="n">rtt</span><span class="p">)</span>
-<span class="p">{</span>
-	<span class="n">IINT32</span> <span class="n">rto</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-	<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 当前没有rtt加权平均值
-</span><span class="c1"></span>		<span class="c1">// 以这次RTT值来设置
-</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="n">rtt</span><span class="p">;</span>
-		<span class="c1">// 平均值要除以2
-</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">/</span> <span class="mi">2</span><span class="p">;</span>
-	<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span>
-		<span class="c1">// 计算两者之差
-</span><span class="c1"></span>		<span class="kt">long</span> <span class="n">delta</span> <span class="o">=</span> <span class="n">rtt</span> <span class="o">-</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span><span class="p">;</span>
-		<span class="k">if</span> <span class="p">(</span><span class="n">delta</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="n">delta</span> <span class="o">=</span> <span class="o">-</span><span class="n">delta</span><span class="p">;</span>
-		<span class="c1">// 算平均值，可以看到平均值是最近4次的平均
-</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span> <span class="o">/</span> <span class="mi">4</span><span class="p">;</span>
-		<span class="c1">// 算加权值，加权值是最近8次加权值的平均
-</span><span class="c1"></span>		<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="p">(</span><span class="mi">7</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="n">rtt</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">;</span>
-		<span class="c1">// 不能小于1
-</span><span class="c1"></span>		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
-	<span class="p">}</span>
-	<span class="c1">// 计算RTO值：平滑值+max（interval，平均值）
-</span><span class="c1"></span>	<span class="n">rto</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_srtt</span> <span class="o">+</span> <span class="n">_imax_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">interval</span><span class="p">,</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rttval</span><span class="p">);</span>
-	<span class="c1">// 最终在[rx_minrto,IKCP_RTO_MAX]之间
-</span><span class="c1"></span>	<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_rto</span> <span class="o">=</span> <span class="n">_ibound_</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rx_minrto</span><span class="p">,</span> <span class="n">rto</span><span class="p">,</span> <span class="n">IKCP_RTO_MAX</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div><p>可见，以上流程最终要算出来当前KCP协议栈的<code>rx_rto</code>，这个值最终会影响每个报文的超时发送时间，这在后面的发送流程中再解释。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">ikcp_update_ack</span>(ikcpcb *kcp, IINT32 rtt)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	IINT32 rto = 0;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;rx_srtt == 0) { <span style="color:#888;font-style:italic">// 当前没有rtt加权平均值
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		<span style="color:#888;font-style:italic">// 以这次RTT值来设置
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		kcp-&gt;rx_srtt = rtt;
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 平均值要除以2
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		kcp-&gt;rx_rttval = rtt / 2;
+</span></span><span style="display:flex;"><span>	}	<span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 计算两者之差
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		<span style="font-weight:bold;text-decoration:underline">long</span> delta = rtt - kcp-&gt;rx_srtt;
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> (delta &lt; 0) delta = -delta;
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 算平均值，可以看到平均值是最近4次的平均
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		kcp-&gt;rx_rttval = (3 * kcp-&gt;rx_rttval + delta) / 4;
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 算加权值，加权值是最近8次加权值的平均
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		kcp-&gt;rx_srtt = (7 * kcp-&gt;rx_srtt + rtt) / 8;
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 不能小于1
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>		<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;rx_srtt &lt; 1) kcp-&gt;rx_srtt = 1;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 计算RTO值：平滑值+max（interval，平均值）
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	rto = kcp-&gt;rx_srtt + <span style="color:#666;font-weight:bold;font-style:italic">_imax_</span>(kcp-&gt;interval, 4 * kcp-&gt;rx_rttval);
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 最终在[rx_minrto,IKCP_RTO_MAX]之间
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	kcp-&gt;rx_rto = <span style="color:#666;font-weight:bold;font-style:italic">_ibound_</span>(kcp-&gt;rx_minrto, rto, IKCP_RTO_MAX);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可见，以上流程最终要算出来当前KCP协议栈的<code>rx_rto</code>，这个值最终会影响每个报文的超时发送时间，这在后面的发送流程中再解释。</p>
 <p>另外还需要专门聊一下<code>ikcp_parse_fastack</code>函数，以及快速重传的处理。快速重传的原理是这样的：假设当前有序列号<code>[1,2,3]</code>的报文等待对端应答，当KCP协议栈收到报文2的ack时，知道报文1被跳过1次了；同样的，当收到报文3的ack时，报文1又被跳过1次。</p>
 <p>这里的“跳过次数”就存储在<code>IKCPSEG.fastack</code>成员中，KCP协议栈提供<code>ikcp_nodelay</code>函数可以配置快速重传值<code>resend</code>，当报文的跳过次数超过<code>resend</code>时，就马上重传该报文，不会等待报文超时，一定程度上加速报文的重传降低了延迟。</p>
-<h2 id="ikcp_cmd_push">IKCP_CMD_PUSH</h2>
+<h2 class="heading" id="ikcp_cmd_push">
+  IKCP_CMD_PUSH
+  <a class="anchor" href="#ikcp_cmd_push">#</a>
+</h2>
 <p>传送数据的指令，此时解析最终会进入<code>ikcp_parse_data</code>函数中，该函数流程如下：</p>
 <ul>
 <li>首先会通过报文序列号判断是否在当前接收窗口以内（<code>_itimediff(sn, kcp-&gt;rcv_nxt + kcp-&gt;rcv_wnd) &gt;= 0</code>），或者已经接收过了（<code>_itimediff(sn, kcp-&gt;rcv_nxt) &lt; 0</code>），这两种情况都删除报文返回，不做进一步处理。</li>
@@ -552,12 +567,24 @@
 <li>以上两步都通过了，说明是首次接收该序列号的报文，将把该报文放入接收缓冲区<code>rcv_buf</code>中。</li>
 <li>由于<code>rcv_queue</code>中的报文才是最终面向用户层的，而上面的操作可能让<code>rcv_buf</code>接收缓冲区非空存在新的报文了，所以接下来将<code>rcv_buf</code>中的报文移动到<code>rcv_queue</code>中。</li>
 </ul>
-<h2 id="ikcp_cmd_wask">IKCP_CMD_WASK</h2>
+<h2 class="heading" id="ikcp_cmd_wask">
+  IKCP_CMD_WASK
+  <a class="anchor" href="#ikcp_cmd_wask">#</a>
+</h2>
 <p>对端请求探测窗口大小，此时会把探测标志位加上<code>IKCP_ASK_TELL</code>，下一次发送数据时带上窗口大小通知对端。</p>
-<h2 id="ikcp_cmd_wins">IKCP_CMD_WINS</h2>
+<h2 class="heading" id="ikcp_cmd_wins">
+  IKCP_CMD_WINS
+  <a class="anchor" href="#ikcp_cmd_wins">#</a>
+</h2>
 <p>通知窗口大小。</p>
-<h2 id="快速应答处理">快速应答处理</h2>
-<h2 id="更新参数">更新参数</h2>
+<h2 class="heading" id="快速应答处理">
+  快速应答处理
+  <a class="anchor" href="#%e5%bf%ab%e9%80%9f%e5%ba%94%e7%ad%94%e5%a4%84%e7%90%86">#</a>
+</h2>
+<h2 class="heading" id="更新参数">
+  更新参数
+  <a class="anchor" href="#%e6%9b%b4%e6%96%b0%e5%8f%82%e6%95%b0">#</a>
+</h2>
 <p>前面的处理完毕之后，可能会收到新的ack报文，这时就需要更新KCP协议栈的拥塞窗口大小。</p>
 <p>如果当前拥塞窗口大小小于对端的窗口大小（<code>kcp-&gt;cwnd &lt; kcp-&gt;rmt_wnd</code>），那么需要增加拥塞窗口大小，区分两种情况：</p>
 <ul>
@@ -570,47 +597,62 @@
 </li>
 <li>最后，拥塞窗口不能超过对端窗口大小。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C">	<span class="c1">// 前面处理完毕之后，最新的una更大，说明接收到了新的ack
-</span><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="n">_itimediff</span><span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">snd_una</span><span class="p">,</span> <span class="n">prev_una</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-		<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span>	<span class="c1">// 拥塞窗口小于对端窗口
-</span><span class="c1"></span>			<span class="n">IUINT32</span> <span class="n">mss</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">mss</span><span class="p">;</span>
-			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&lt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">ssthresh</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口小于慢启动阈值
-</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>	<span class="c1">// 递增拥塞窗口
-</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="n">mss</span><span class="p">;</span>	<span class="c1">// 递增mss
-</span><span class="c1"></span>			<span class="p">}</span>	<span class="k">else</span> <span class="p">{</span> <span class="c1">// 拥塞窗口大于等于慢启动阈值
-</span><span class="c1"></span>				<span class="c1">// 不能小于mss了
-</span><span class="c1"></span>				<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">&lt;</span> <span class="n">mss</span><span class="p">)</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">mss</span><span class="p">;</span>
-				<span class="c1">// 增加 mss + 1/16 mss
-</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+=</span> <span class="p">(</span><span class="n">mss</span> <span class="o">*</span> <span class="n">mss</span><span class="p">)</span> <span class="o">/</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">+</span> <span class="p">(</span><span class="n">mss</span> <span class="o">/</span> <span class="mi">16</span><span class="p">);</span>
-				<span class="c1">// 只有在拥塞窗口递增后不超过incr的情况下才允许加一
-</span><span class="c1"></span>				<span class="k">if</span> <span class="p">((</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">mss</span> <span class="o">&lt;=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span><span class="p">)</span> <span class="p">{</span>
-					<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span><span class="o">++</span><span class="p">;</span>
-				<span class="p">}</span>
-			<span class="p">}</span>
-			<span class="k">if</span> <span class="p">(</span><span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">&gt;</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 拥塞窗口不能比对端窗口大
-</span><span class="c1"></span>				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">cwnd</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span><span class="p">;</span>
-				<span class="n">kcp</span><span class="o">-&gt;</span><span class="n">incr</span> <span class="o">=</span> <span class="n">kcp</span><span class="o">-&gt;</span><span class="n">rmt_wnd</span> <span class="o">*</span> <span class="n">mss</span><span class="p">;</span>
-			<span class="p">}</span>
-		<span class="p">}</span>
-	<span class="p">}</span>
-</code></pre></div><h1 id="ikcp_recv函数">ikcp_recv函数</h1>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 前面处理完毕之后，最新的una更大，说明接收到了新的ack
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">_itimediff</span>(kcp-&gt;snd_una, prev_una) &gt; 0) {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;cwnd &lt; kcp-&gt;rmt_wnd) {	<span style="color:#888;font-style:italic">// 拥塞窗口小于对端窗口
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>			IUINT32 mss = kcp-&gt;mss;
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;cwnd &lt; kcp-&gt;ssthresh) { <span style="color:#888;font-style:italic">// 拥塞窗口小于慢启动阈值
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				kcp-&gt;cwnd++;	<span style="color:#888;font-style:italic">// 递增拥塞窗口
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				kcp-&gt;incr += mss;	<span style="color:#888;font-style:italic">// 递增mss
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>			}	<span style="font-weight:bold;text-decoration:underline">else</span> { <span style="color:#888;font-style:italic">// 拥塞窗口大于等于慢启动阈值
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				<span style="color:#888;font-style:italic">// 不能小于mss了
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;incr &lt; mss) kcp-&gt;incr = mss;
+</span></span><span style="display:flex;"><span>				<span style="color:#888;font-style:italic">// 增加 mss + 1/16 mss
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				kcp-&gt;incr += (mss * mss) / kcp-&gt;incr + (mss / 16);
+</span></span><span style="display:flex;"><span>				<span style="color:#888;font-style:italic">// 只有在拥塞窗口递增后不超过incr的情况下才允许加一
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				<span style="font-weight:bold;text-decoration:underline">if</span> ((kcp-&gt;cwnd + 1) * mss &lt;= kcp-&gt;incr) {
+</span></span><span style="display:flex;"><span>					kcp-&gt;cwnd++;
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">if</span> (kcp-&gt;cwnd &gt; kcp-&gt;rmt_wnd) { <span style="color:#888;font-style:italic">// 拥塞窗口不能比对端窗口大
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>				kcp-&gt;cwnd = kcp-&gt;rmt_wnd;
+</span></span><span style="display:flex;"><span>				kcp-&gt;incr = kcp-&gt;rmt_wnd * mss;
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><h1 class="heading" id="ikcp_recv函数">
+  ikcp_recv函数
+  <a class="anchor" href="#ikcp_recv%e5%87%bd%e6%95%b0">#</a>
+</h1>
 <p>前面的<code>ikcp_input</code>解析完毕之后，将用户缓冲区的数据解析到一个一个的报文放到了接收队列<code>rcv_queue</code>中，<code>ikcp_recv</code>函数就负责将这些报文重新组装起来放入用户缓冲区返回给用户层。</p>
 <p>之所以这里还需要“组装”，是因为对端发送的数据由于超过MTU所以被KCP协议栈分成多个报文发送了。所以这里需要兼容多个分片的情况，如果待接收报文的所有分片没有接收完毕，那么不能处理。接收完毕或者不分片的情况下，就遍历这些报文将数据拷贝到缓冲区中。</p>
 <p>上面的步骤完成之后，如果接收缓冲区<code>rcv_buf</code>还有报文，那么依然是把这部分报文移动到接收队列中，等待下一次<code>ikcp_recv</code>调用。</p>
-<h1 id="ikcp_send">ikcp_send</h1>
+<h1 class="heading" id="ikcp_send">
+  ikcp_send
+  <a class="anchor" href="#ikcp_send">#</a>
+</h1>
 <p><code>ikcp_send</code>函数是用户层发送数据的接口，最终会将用户传入的缓冲区数据，组装成KCP报文，放入发送队列<code>snd_queue</code>中。</p>
 <p>这里需要注意两种情况。</p>
 <ul>
 <li>如果是流模式，那么首先KCP会取出发送队列当前的最后报文的结构体，如果当前报文还有空间就将部分数据拷贝过去。</li>
 <li>如果数据超过MSS大小，那么需要对数据分片，即将数据分为多个KCP报文发送。</li>
 </ul>
-<h1 id="ikcp_update和ikcp_flush">ikcp_update和ikcp_flush</h1>
+<h1 class="heading" id="ikcp_update和ikcp_flush">
+  ikcp_update和ikcp_flush
+  <a class="anchor" href="#ikcp_update%e5%92%8cikcp_flush">#</a>
+</h1>
 <p>前面的<code>ikcp_send</code>只是将待发送数据组装成KCP报文放到发送队列中了，具体的发送流程由调用<code>ikcp_update</code>函数来驱动完成的。</p>
 <p>KCP协议栈中，并没有任何的自定义定时器，即自己并不会主动来根据时间驱动来完成工作，这部分都留给了用户层，由用户层主动调用<code>ikcp_update</code>来完成这些工作。<code>ikcp_update</code>函数的处理其实很简单，会判断上一次刷新（flush）时间与这次的间隔，来判断是否调用<code>ikcp_flush</code>函数来完成工作，所以这里真正工作的是<code>ikcp_flush</code>函数，下面就来重点分析这个函数的实现。</p>
 <p><code>ikcp_flush</code>函数本质就是根据当前的情况，封装KCP报文，将这些报文放到发送缓冲区<code>snd_buf</code>中，发送到对端。除此之外，还需要重新计算流控、拥塞窗口等参数。总体来看，需要完成以下的工作：</p>
-<h2 id="处理ack应答">处理ACK应答</h2>
+<h2 class="heading" id="处理ack应答">
+  处理ACK应答
+  <a class="anchor" href="#%e5%a4%84%e7%90%86ack%e5%ba%94%e7%ad%94">#</a>
+</h2>
 <p>首先，<code>ikcp_flush</code>函数将编码<code>IKCP_CMD_ACK</code>类型的指令，应答收到了对端那些报文。</p>
-<h2 id="探测对端窗口">探测对端窗口</h2>
+<h2 class="heading" id="探测对端窗口">
+  探测对端窗口
+  <a class="anchor" href="#%e6%8e%a2%e6%b5%8b%e5%af%b9%e7%ab%af%e7%aa%97%e5%8f%a3">#</a>
+</h2>
 <p>在对端通知窗口为0（即<code>kcp-&gt;rmt_wnd == 0</code>）情况下，需要探测对端当前窗口大小，即需要发送<code>IKCP_ASK_SEND</code>类型的报文。</p>
 <p>在这里，涉及到KCP协议栈<code>ikcpcb</code>结构体的几个参数：</p>
 <ul>
@@ -618,7 +660,10 @@
 <li>ts_probe：存储下一次探测时间，不难知道这个值每次都是根据当前时间加上<code>probe_wait</code>计算出来的。</li>
 </ul>
 <p>在当前时间超过<code>ts_probe</code>（即<code>_itimediff(kcp-&gt;current, kcp-&gt;ts_probe) &gt;= 0</code>）的情况下，<code>probe</code>探测标志位就要加上<code>IKCP_ASK_SEND</code>，表示需要给对端发送探测窗口的报文了。</p>
-<h2 id="流控">流控</h2>
+<h2 class="heading" id="流控">
+  流控
+  <a class="anchor" href="#%e6%b5%81%e6%8e%a7">#</a>
+</h2>
 <p>以上已经处理了<code>IKCP_CMD_ACK</code>、<code>IKCP_ASK_SEND</code>、<code>IKCP_ASK_TELL</code>这三个类型的指令了，接下来就是处理<code>IKCP_CMD_PUSH</code>类型的数据了，这部分数据都已经在前面的<code>ikcp_send</code>由用户层传入的缓冲区解析拼装到发送队列<code>snd_queue</code>中了。</p>
 <p>接下来，就可以遍历发送队列<code>snd_queue</code>中的报文移动到发送队列<code>snd_buf</code>中，进行实际的报文发送了。</p>
 <p>但是，并不是所有当前在发送队列中的报文都能在一次flush过程被发送出去，要考虑三个窗口的大小：</p>
@@ -627,7 +672,10 @@
 <li>在开启流控（kcp-&gt;nocwnd == 0）的情况下，还不能超过当前流控窗口（cwnd）的大小。</li>
 </ul>
 <p>前面的流程算出来发送时的窗口大小，接下来就按照这个窗口大小将<code>snd_queue</code>的报文取下来放入<code>snd_buf</code>中了。</p>
-<h2 id="发送数据">发送数据</h2>
+<h2 class="heading" id="发送数据">
+  发送数据
+  <a class="anchor" href="#%e5%8f%91%e9%80%81%e6%95%b0%e6%8d%ae">#</a>
+</h2>
 <p>以上已经根据流控窗口选出了待发送的报文放在发送缓冲区<code>snd_buf</code>里了，接下来就是具体的发送流程了。</p>
 <p>针对每个报文，在发送之前要计算它的几个参数：</p>
 <ul>
@@ -647,9 +695,15 @@
 <li>快速重传（<code>segment-&gt;fastack &gt;= resent</code>）：前面已经分析过快速重传参数<code>fastack</code>的作用，这里就不再阐述了。</li>
 </ul>
 <p>通过以上分析，可以知道除了第一种情况是正常发送之外，还发生了超时重传以及快速重传，根据这些情况，需要更新一下KCP协议栈的参数。</p>
-<h2 id="更新参数-1">更新参数</h2>
+<h2 class="heading" id="更新参数-1">
+  更新参数
+  <a class="anchor" href="#%e6%9b%b4%e6%96%b0%e5%8f%82%e6%95%b0-1">#</a>
+</h2>
 <p>分以下两种情况处理：</p>
-<h3 id="快速重传">快速重传</h3>
+<h3 class="heading" id="快速重传">
+  快速重传
+  <a class="anchor" href="#%e5%bf%ab%e9%80%9f%e9%87%8d%e4%bc%a0">#</a>
+</h3>
 <p>在发生快速重传的情况下，会挑战ssthresh为当前发送窗口的一半大小，同时拥塞窗口为<code>ssthresh + resent</code>大小：</p>
 <pre tabindex="0"><code>	if (change) { // 发生了快速重传，计算新的ssthresh
 		// 如果发生了快速重传，拥塞窗口阈值降低为当前未确认包数量的一半或最小值  
@@ -663,7 +717,10 @@
 		kcp-&gt;cwnd = kcp-&gt;ssthresh + resent;
 		kcp-&gt;incr = kcp-&gt;cwnd * kcp-&gt;mss;
 	}
-</code></pre><h3 id="超时丢包">超时丢包</h3>
+</code></pre><h3 class="heading" id="超时丢包">
+  超时丢包
+  <a class="anchor" href="#%e8%b6%85%e6%97%b6%e4%b8%a2%e5%8c%85">#</a>
+</h3>
 <p>在发生超时丢包的情况下，慢启动阈值调整为旧的拥塞窗口的一半，但是不能小于<code>IKCP_THRESH_MIN</code>，而新的拥塞窗口值变成1：</p>
 <pre tabindex="0"><code>	if (lost) { // 发生了丢包
 		// 丢失则阈值减半, cwd 窗口保留为 1  
@@ -673,229 +730,100 @@
 		kcp-&gt;cwnd = 1;
 		kcp-&gt;incr = kcp-&gt;mss;
 	}
-</code></pre><h1 id="参考资料">参考资料</h1>
+</code></pre><h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/">KCP: 快速可靠的ARQ协议 - Kaiyuan&rsquo;s Blog | May the force be with me</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20210215-how-to-read-code-en/" class="block">How to Read Code(En Version)</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20200726-boltdb-4/" class="block">boltdb 1.3.0实现分析（四）</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a>
-      <ul>
-        <li><a href="#arq的两种模式">ARQ的两种模式</a>
-          <ul>
-            <li><a href="#停等arq协议stop-and-wait">停等ARQ协议（stop-and-wait）</a></li>
-            <li><a href="#连续arq协议continuous-arq">连续ARQ协议（Continuous ARQ）</a></li>
-            <li><a href="#拥塞窗口">拥塞窗口</a></li>
-            <li><a href="#滑动窗口">滑动窗口</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#术语概念">术语概念</a></li>
-    <li><a href="#数据结构">数据结构</a>
-      <ul>
-        <li><a href="#报文定义">报文定义</a></li>
-        <li><a href="#kcp结构体">KCP结构体</a></li>
-        <li><a href="#几个队列">几个队列</a></li>
-      </ul>
-    </li>
-    <li><a href="#核心流程">核心流程</a>
-      <ul>
-        <li><a href="#概述-1">概述</a></li>
-      </ul>
-    </li>
-    <li><a href="#ikcp_input函数">ikcp_input函数</a>
-      <ul>
-        <li><a href="#ikcp_cmd_ack">IKCP_CMD_ACK</a></li>
-        <li><a href="#ikcp_cmd_push">IKCP_CMD_PUSH</a></li>
-        <li><a href="#ikcp_cmd_wask">IKCP_CMD_WASK</a></li>
-        <li><a href="#ikcp_cmd_wins">IKCP_CMD_WINS</a></li>
-        <li><a href="#快速应答处理">快速应答处理</a></li>
-        <li><a href="#更新参数">更新参数</a></li>
-      </ul>
-    </li>
-    <li><a href="#ikcp_recv函数">ikcp_recv函数</a></li>
-    <li><a href="#ikcp_send">ikcp_send</a></li>
-    <li><a href="#ikcp_update和ikcp_flush">ikcp_update和ikcp_flush</a>
-      <ul>
-        <li><a href="#处理ack应答">处理ACK应答</a></li>
-        <li><a href="#探测对端窗口">探测对端窗口</a></li>
-        <li><a href="#流控">流控</a></li>
-        <li><a href="#发送数据">发送数据</a></li>
-        <li><a href="#更新参数-1">更新参数</a>
-          <ul>
-            <li><a href="#快速重传">快速重传</a></li>
-            <li><a href="#超时丢包">超时丢包</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190729-glog/" class="no-underline">glog C&#43;&#43;版本代码分析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190413-problem-fix/" class="no-underline">线上存储服务崩溃问题分析记录</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190227-tcp/" class="no-underline">TCP协议笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" class="no-underline">zeromq所谓的“无锁消息队列”</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

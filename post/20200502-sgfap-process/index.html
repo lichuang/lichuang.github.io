@@ -1,329 +1,202 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>《面向应用开发者的系统指南》CPU篇之进程 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content=""/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"《面向应用开发者的系统指南》CPU篇之进程",
-      "item":"https://www.codedump.info/post/20200502-sgfap-process/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20200502-sgfap-process/"
-    },
-    "headline": "《面向应用开发者的系统指南》CPU篇之进程 - codedump的网络日志","datePublished": "2020-05-02T14:41:22+08:00",
-    "dateModified": "2020-05-02T14:41:22+08:00",
-    "wordCount":  6133 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体"
-}
-</script><meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20200502-sgfap-process/" />
-
-
-
-
-<meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。 概论 进程即处于执行状态的程序。操作系统执行进程时，大体" />
-
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2020-05-02T14:41:22&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2020-05-02T14:41:22&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="Linux系统" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200620-sgfap-loadavg/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200522-sgfap-softirq/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-systemtap/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200503-sgfap-process-schedule/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    《面向应用开发者的系统指南》CPU篇之进程 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20200502-sgfap-process/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20200502-sgfap-process/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之进程">
+  <meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。
+概论 # 进程即处于执行状态的程序。操作系统执行进程时，大体经历了以下步骤：
+为进程分配空间及其他相关资源。 加载进程可执行程序到内存中。 由调度器选择进程来占用CPU资源执行。 从上面的描述可以看到，进程并不是仅仅只有可执行程序二进制文件就可以运行起来，还需要执行时所需要的资源（内存、CPU等）、进程执行时需要的其他共享库等。
+在现代操作系统中，进程提供了针对两种资源的虚拟机制：
+虚拟处理器。 虚拟内存。 虽然在同一时间有多个进程在执行，即分享处理器资源，但是虚拟处理器提供了一种假象：让这些进程认为自己都在独占处理器执行，这里涉及到进程调度部分的内容，在后面进程调度篇再展开讨论。
+同时，进程使用的内存实际上虚拟内存，虚拟内存机制使进程以为自己拥有整个4G空间（32位处理器下）而不必关心其他进程的内存空间，这部分内容在内存篇中讲解。
+程序本身并不是进程，进程是在执行的程序以及相关资源的总称。
+本篇从进程开始讲起，涉及内核管理进程的数据结构、与进程创建和执行相关的系统调用、进程的状态。
+数据结构 # Linux内核使用task_struct结构体来描述一个进程的所有信息。考虑这个结构体的内容太多，这里并不打算全部列举出来，到讲解需要涉及到的时候才提出其中的某些成员详细说明，这里只列出最关键的几个成员：
+task_struct 其中：
+state：用于表示进程的状态，下面将展开讨论。 pid：每个进程都有一个pid与之对应。 mm：类型为mm_struct，用于表示进程的内存地址信息，后面内存部分将展开讨论。 fs：类型为fs_struct，用于表示文件系统信息，后面IO部分将展开讨论。 files：类型为files_struct，用于表示进程打开文件的信息，后面IO部分将展开讨论。 进程的状态 # task_struct中的state成员，用于表示当前进程的状态，进程的状态必然处于以下五种状态之一：
+TASK_RUNNING：进程是可执行的（Runnable），表示进程要么正在执行，要么正要准备执行（已经就绪），等待cpu时间片的调度。 TASK_INTERRUPTIBLE：进程因为等待一些条件而被挂起（阻塞）而所处的状态。这些条件主要包括：硬中断、资源、一些信号等，一旦等待的条件成立，进程就会从该状态（阻塞）迅速转化成为就绪状态TASK_RUNNING。 TASK_UNINTERRUPTIBLE：此进程状态类似于TASK_INTERRUPTIBLE，只是它不会处理信号。中断处于这种状态的进程是不合适的，因为它可能正在完成某些重要的任务。 当它所等待的事件发生时，进程将被显式的唤醒呼叫唤醒。 TASK_TRACED：正被调试程序等其它进程监控时，进程将进入这种状态。 TASK_STOPPED：进程被停止执行，当进程接收到SIGSTOP、SIGTTIN、SIGTSTP或者SIGTTOU信号之后就会进入该状态。 这几个状态之间，转换关系如下图所示：
+taskstate 上面的状态转换图中，休眠状态（SLEEPING）包括了TASK_INTERRUPTIBLE和TASK_UNINTERRUPTIBLE，并没有做区分；另外，按照前面的讲述，TASK_RUNNING状态区分了就绪以及在运行状态，由于这两者都是TASK_RUNNING状态，所以分到了同一组里，又因为需要细化这两者之间的状态，内部也有状态之间的迁移。
+根据上面的状态转换图，进程状态的转换有这几种情况：
+正在运行的进程，由于需要等待某些事件（比如网络IO、磁盘IO等），进入休眠状态。 正在运行的进程，由于时间片用完或者被其他更高优先级的进程抢占等因素，虽然还是就绪状态，但是被剥夺了执行权，进入就绪队列等待下一次被唤醒执行。 处于休眠状态的进程，由于等待的事件满足被唤醒，进入就绪队列中等待被调度运行。 处于就绪队列中的进程，被调度器分配CPU时间调度执行。 在运行的进程退出。 除了上面几种状态以外，还有僵尸（zombie）状态（内核使用EXIT_ZOMBIE宏表示），用于表示进程已经不再执行，等待被回收的状态。
+在使用ps aux命令时，可以查询到系统中进程所处的状态，与上面描述的内核中进程状态一一对应：
+S：休眠状态（sleeping），对应TASK_INTERRUPTIBLE。 R：等待运行（runable）对应TASK_RUNNING，进程处于运行或就绪状态。 I：空闲状态（idle）。 Z：僵尸状态（zombie），对应EXIT_ZOMBIE。 T：暂停或跟踪状态（Traced），对应TASK_TRACED。 D: 不可中断的睡眠状态，对应TASK_UNINTERRUPTIBLE。 在这里，需要再次强调的是，进程处于Runnable状态时，并不代表就在执行，而是处于就绪可执行状态，由调度器最终决定进程执行。
+进程的创建 # Unix系统将进程的执行放在两个不同的函数中执行：
+fork：fork函数拷贝父进程来创建一个子进程，fork函数调用后会分别在父子进程中各返回一次，区别在于：父进程中的返回值是所创建的子进程的进程pid，而子进程则是返回0表示创建成功。 exec函数组：在fork调用返回后，子进程就创建完成了，如果需要运行一个与父进程不同的可执行文件，就通过exec函数组来完成这个工作。如果不调用exec，那么也就意味着父子进程运行的是同一份可执行文件代码。 其他操作系统，有一些把以上两步合在一个函数中完成，即在同一个函数中既完成子进程的创建，也完成子进程的执行，Unix系统将以上两步分开成两个步骤，为shell执行程序提供了方便，因为shell可以在fork创建进程之后，调用exec来执行程序之前改变子进程的一些行为。比如让shell方便的实现类似重定向（redirect）的功能：
+wc test.txt &gt; stat 在上面的脚本中，希望将wc命令的输出结果重定向到文件stat中。shell在fork创建了子进程之后，在exec执行之前，关闭该子进程的标准输出，然后打开文件stat，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行wc命令的子进程结果就写入到了文件stat中。
+写时复制机制 # 前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-05-02T14:41:22+08:00">
+    <meta property="article:modified_time" content="2020-05-02T14:41:22+08:00">
+    <meta property="article:tag" content="Linux系统">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">《面向应用开发者的系统指南》CPU篇之进程</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2020-05-02</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20200502-sgfap-process/">《面向应用开发者的系统指南》CPU篇之进程</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《面向应用开发者的系统指南》CPU篇之进程</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-05-02T14:41:22&#43;08:00">2020年5月2日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>13分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/linux%E7%B3%BB%E7%BB%9F/" class="hover:text-eureka"
-          >Linux系统</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/%E9%9D%A2%E5%90%91%E5%BA%94%E7%94%A8%E5%BC%80%E5%8F%91%E8%80%85%E7%9A%84%E7%B3%BB%E7%BB%9F%E6%8C%87%E5%8D%97/" class="hover:text-eureka"
-          >面向应用开发者的系统指南</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+
   
 
-  <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
-<h1 id="概论">概论</h1>
+  <div class="single-content">
+    <p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p>
+<h1 class="heading" id="概论">
+  概论
+  <a class="anchor" href="#%e6%a6%82%e8%ae%ba">#</a>
+</h1>
 <p>进程即处于执行状态的程序。操作系统执行进程时，大体经历了以下步骤：</p>
 <ul>
 <li>为进程分配空间及其他相关资源。</li>
@@ -340,9 +213,36 @@
 <p>同时，进程使用的内存实际上虚拟内存，虚拟内存机制使进程以为自己拥有整个4G空间（32位处理器下）而不必关心其他进程的内存空间，这部分内容在内存篇中讲解。</p>
 <p>程序本身并不是进程，进程是在执行的程序以及相关资源的总称。</p>
 <p>本篇从进程开始讲起，涉及内核管理进程的数据结构、与进程创建和执行相关的系统调用、进程的状态。</p>
-<h1 id="数据结构">数据结构</h1>
+<h1 class="heading" id="数据结构">
+  数据结构
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h1>
 <p>Linux内核使用<code>task_struct</code>结构体来描述一个进程的所有信息。考虑这个结构体的内容太多，这里并不打算全部列举出来，到讲解需要涉及到的时候才提出其中的某些成员详细说明，这里只列出最关键的几个成员：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/task_struct.png" alt="task_struct" title="task_struct"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="task_struct" src="/media/imgs/20200502-sgfap-process/task_struct.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> task_struct </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>其中：</p>
 <ul>
 <li>state：用于表示进程的状态，下面将展开讨论。</li>
@@ -351,7 +251,10 @@
 <li>fs：类型为<code>fs_struct</code>，用于表示文件系统信息，后面IO部分将展开讨论。</li>
 <li>files：类型为<code>files_struct</code>，用于表示进程打开文件的信息，后面IO部分将展开讨论。</li>
 </ul>
-<h2 id="进程的状态">进程的状态</h2>
+<h2 class="heading" id="进程的状态">
+  进程的状态
+  <a class="anchor" href="#%e8%bf%9b%e7%a8%8b%e7%9a%84%e7%8a%b6%e6%80%81">#</a>
+</h2>
 <p><code>task_struct</code>中的<code>state</code>成员，用于表示当前进程的状态，进程的状态必然处于以下五种状态之一：</p>
 <ul>
 <li>TASK_RUNNING：进程是可执行的（Runnable），表示进程要么正在执行，要么正要准备执行（已经就绪），等待cpu时间片的调度。</li>
@@ -361,7 +264,31 @@
 <li>TASK_STOPPED：进程被停止执行，当进程接收到SIGSTOP、SIGTTIN、SIGTSTP或者SIGTTOU信号之后就会进入该状态。</li>
 </ul>
 <p>这几个状态之间，转换关系如下图所示：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/taskstate.png" alt="taskstate" title="taskstate"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="taskstate" src="/media/imgs/20200502-sgfap-process/taskstate.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> taskstate </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上面的状态转换图中，休眠状态（SLEEPING）包括了<code>TASK_INTERRUPTIBLE</code>和<code>TASK_UNINTERRUPTIBLE</code>，并没有做区分；另外，按照前面的讲述，<code>TASK_RUNNING</code>状态区分了就绪以及在运行状态，由于这两者都是<code>TASK_RUNNING</code>状态，所以分到了同一组里，又因为需要细化这两者之间的状态，内部也有状态之间的迁移。</p>
 <p>根据上面的状态转换图，进程状态的转换有这几种情况：</p>
 <ol>
@@ -382,7 +309,10 @@
 <li>D: 不可中断的睡眠状态，对应<code>TASK_UNINTERRUPTIBLE</code>。</li>
 </ul>
 <p>在这里，需要再次强调的是，进程处于<code>Runnable</code>状态时，并不代表就在执行，而是处于就绪可执行状态，由调度器最终决定进程执行。</p>
-<h1 id="进程的创建">进程的创建</h1>
+<h1 class="heading" id="进程的创建">
+  进程的创建
+  <a class="anchor" href="#%e8%bf%9b%e7%a8%8b%e7%9a%84%e5%88%9b%e5%bb%ba">#</a>
+</h1>
 <p>Unix系统将进程的执行放在两个不同的函数中执行：</p>
 <ul>
 <li>fork：fork函数拷贝父进程来创建一个子进程，fork函数调用后会分别在父子进程中各返回一次，区别在于：父进程中的返回值是所创建的子进程的进程pid，而子进程则是返回0表示创建成功。</li>
@@ -391,91 +321,244 @@
 <p>其他操作系统，有一些把以上两步合在一个函数中完成，即在同一个函数中既完成子进程的创建，也完成子进程的执行，Unix系统将以上两步分开成两个步骤，为shell执行程序提供了方便，因为shell可以在<code>fork</code>创建进程之后，调用<code>exec</code>来执行程序之前改变子进程的一些行为。比如让shell方便的实现类似重定向（redirect）的功能：</p>
 <pre tabindex="0"><code>wc test.txt &gt; stat
 </code></pre><p>在上面的脚本中，希望将<code>wc</code>命令的输出结果重定向到文件<code>stat</code>中。shell在<code>fork</code>创建了子进程之后，在<code>exec</code>执行之前，关闭该子进程的标准输出，然后打开文件<code>stat</code>，这样打开的文件就获得了刚刚关闭的标准输出的fd，执行<code>wc</code>命令的子进程结果就写入到了文件<code>stat</code>中。</p>
-<h2 id="写时复制机制">写时复制机制</h2>
+<h2 class="heading" id="写时复制机制">
+  写时复制机制
+  <a class="anchor" href="#%e5%86%99%e6%97%b6%e5%a4%8d%e5%88%b6%e6%9c%ba%e5%88%b6">#</a>
+</h2>
 <p>前面提到过，fork函数为子进程创建一个父进程地址空间的副本，复制属于父进程的页面。然而，考虑到许多子进程在创建之后立即调用系统调用exec函数组来执行另外的程序代码，父进程地址空间的复制可能没有必要。</p>
 <p>因此，Linux内核在实现时，使用了写时复制的技术（Copy On Write，简称COW），子进程在刚开始创建时与父进程共享同样的地址空间，仅当子进程要修改父进程地址空间的内容时才创建新的地址空间，从而使父子进程有各自的拷贝。</p>
 <p>Redis在生成RDB快照文件时，就利用了Linux写时复制机制。生成快照文件时，Redis主进程<code>fork</code>创建一个子进程，根据这里的解释，此时子进程的内存地址就是共享的父进程的空间。这样，父进程可以继续服务请求，而子进程跟进进程创建时候的内存信息，生成快照文件，结束了之后自行退出即可。</p>
-<p><img src="/media/imgs/20200502-sgfap-process/redis.png" alt="redis" title="redis"></p>
-<h2 id="fork的实现">fork的实现</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="redis" src="/media/imgs/20200502-sgfap-process/redis.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> redis </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="fork的实现">
+  fork的实现
+  <a class="anchor" href="#fork%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h2>
 <p>除了<code>fork</code>函数之外，还有另外几个提供给用户态用于创建进程相关的函数。</p>
 <ul>
 <li>vfork：与<code>fork</code>的区别在于，vfork保证子进程先运行，在它调用exec或exit之后父进程才可能被调度运行。</li>
 <li>clone：<code>pthread</code>函数族使用clone来创建轻量级进程。</li>
 </ul>
 <p>这三个函数，内部实际上最终都调用<code>_do_fork</code>的内核函数完成创建子进程的工作：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/fork.png" alt="fork" title="fork"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="fork" src="/media/imgs/20200502-sgfap-process/fork.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> fork </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>下面就展开简单分析<code>_do_fork</code>函数的实现。</p>
-<h3 id="_do_fork函数流程">_do_fork函数流程</h3>
+<h3 class="heading" id="_do_fork函数流程">
+  _do_fork函数流程
+  <a class="anchor" href="#_do_fork%e5%87%bd%e6%95%b0%e6%b5%81%e7%a8%8b">#</a>
+</h3>
 <p>创建新进程，调用的是<code>_do_fork</code>函数，其主要流程如下图：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/do_fork.png" alt="do_fork" title="do_fork"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="do_fork" src="/media/imgs/20200502-sgfap-process/do_fork.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> do_fork </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以下就这几个核心流程来做分析。</p>
-<h4 id="copy_process">copy_process</h4>
+<h4 class="heading" id="copy_process">
+  copy_process
+  <a class="anchor" href="#copy_process">#</a>
+</h4>
 <p><code>copy_process</code>函数中完成复制进程数据相关的工作，下面再展开对这个函数的详细分析。</p>
-<h4 id="获取子进程pid">获取子进程pid</h4>
+<h4 class="heading" id="获取子进程pid">
+  获取子进程pid
+  <a class="anchor" href="#%e8%8e%b7%e5%8f%96%e5%ad%90%e8%bf%9b%e7%a8%8bpid">#</a>
+</h4>
 <p>调用<code>get_task_pid</code>函数获得子进程的pid。</p>
-<h4 id="vfork相关的初始化处理">vfork相关的初始化处理</h4>
+<h4 class="heading" id="vfork相关的初始化处理">
+  vfork相关的初始化处理
+  <a class="anchor" href="#vfork%e7%9b%b8%e5%85%b3%e7%9a%84%e5%88%9d%e5%a7%8b%e5%8c%96%e5%a4%84%e7%90%86">#</a>
+</h4>
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，执行相关的初始化，主要是初始化<code>completion</code>结构体。</p>
-<h4 id="wake_up_new_task">wake_up_new_task</h4>
+<h4 class="heading" id="wake_up_new_task">
+  wake_up_new_task
+  <a class="anchor" href="#wake_up_new_task">#</a>
+</h4>
 <p><code>wake_up_new_task</code>函数将初始化一些与进程调度器相关的数据，将新创建的子进程加入到调度器的就绪队列中，让子进程有机会被调度器调度执行，同时切换进程状态为<code>TASK_RUNNING</code>:</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// kernel/sched/core.c
-</span><span class="c1"></span><span class="kt">void</span> <span class="nf">wake_up_new_task</span><span class="p">(</span><span class="k">struct</span> <span class="n">task_struct</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
-<span class="p">{</span>
-	<span class="k">struct</span> <span class="n">rq_flags</span> <span class="n">rf</span><span class="p">;</span>
-	<span class="k">struct</span> <span class="n">rq</span> <span class="o">*</span><span class="n">rq</span><span class="p">;</span>
-
-  <span class="n">raw_spin_lock_irqsave</span><span class="p">(</span><span class="o">&amp;</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pi_lock</span><span class="p">,</span> <span class="n">rf</span><span class="p">.</span><span class="n">flags</span><span class="p">);</span>
-  <span class="c1">// 切换进程状态为TASK_RUNNING
-</span><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">TASK_RUNNING</span><span class="p">;</span>
-
-  <span class="c1">// 对调度器运行队列加锁
-</span><span class="c1"></span>	<span class="n">rq</span> <span class="o">=</span> <span class="n">__task_rq_lock</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rf</span><span class="p">);</span>
-  <span class="c1">// 将进程放入调度器运行队列
-</span><span class="c1"></span>	<span class="n">activate_task</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">ENQUEUE_NOCLOCK</span><span class="p">);</span>
-  <span class="c1">// 进程入队列的trace event
-</span><span class="c1"></span>	<span class="n">trace_sched_wakeup_new</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
-
-	<span class="n">task_rq_unlock</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rf</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div><h4 id="vfork相关的处理">vfork相关的处理</h4>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// kernel/sched/core.c
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">wake_up_new_task</span>(<span style="font-weight:bold;text-decoration:underline">struct</span> task_struct *p)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> rq_flags rf;
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">struct</span> rq *rq;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">raw_spin_lock_irqsave</span>(&amp;p-&gt;pi_lock, rf.flags);
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 切换进程状态为TASK_RUNNING
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	p-&gt;state = TASK_RUNNING;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 对调度器运行队列加锁
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	rq = <span style="color:#666;font-weight:bold;font-style:italic">__task_rq_lock</span>(p, &amp;rf);
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 将进程放入调度器运行队列
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#666;font-weight:bold;font-style:italic">activate_task</span>(rq, p, ENQUEUE_NOCLOCK);
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 进程入队列的trace event
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#666;font-weight:bold;font-style:italic">trace_sched_wakeup_new</span>(p);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">task_rq_unlock</span>(rq, p, &amp;rf);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h4 class="heading" id="vfork相关的处理">
+  vfork相关的处理
+  <a class="anchor" href="#vfork%e7%9b%b8%e5%85%b3%e7%9a%84%e5%a4%84%e7%90%86">#</a>
+</h4>
 <p>如果传入的标志位中有<code>CLONE_VFORK</code>标志位，父进程等待子进程执行exec函数来替换地址空间。在这里，会用到前面初始化的<code>completion</code>结构体，用于父进程等待子进程执行完毕。</p>
-<h3 id="copy_process函数的流程">copy_process函数的流程</h3>
+<h3 class="heading" id="copy_process函数的流程">
+  copy_process函数的流程
+  <a class="anchor" href="#copy_process%e5%87%bd%e6%95%b0%e7%9a%84%e6%b5%81%e7%a8%8b">#</a>
+</h3>
 <p><code>copy_process</code>函数负责在创建子进程时拷贝父进程的相关信息，即创建好子进程的<code>task_struct</code>结构体，其主要流程如下图所示：</p>
-<p><img src="/media/imgs/20200502-sgfap-process/copy_process.png" alt="copy_process" title="copy_process"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="copy_process" src="/media/imgs/20200502-sgfap-process/copy_process.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> copy_process </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>调用函数dup_task_struct，复制父进程的task_struct结构体信息。此时，子进程与父进程的描述符是完全相同的。</li>
 <li>初始化task_struct结构体信息。</li>
 <li>调用sched_fork函数，设置调度器相关信息。</li>
 <li>调用copy_*函数，复制、共享父进程的数据，如mm、fs等。</li>
 </ul>
-<h4 id="sched_fork">sched_fork</h4>
+<h4 class="heading" id="sched_fork">
+  sched_fork
+  <a class="anchor" href="#sched_fork">#</a>
+</h4>
 <p><code>sched_fork</code>函数用于初始化子进程与调度器相关的信息：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// kernel/sched/core.c
-</span><span class="c1"></span><span class="kt">int</span> <span class="nf">sched_fork</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">clone_flags</span><span class="p">,</span> <span class="k">struct</span> <span class="n">task_struct</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
-<span class="p">{</span>
-  <span class="c1">// 分配进程执行的cpu
-</span><span class="c1"></span>	<span class="kt">int</span> <span class="n">cpu</span> <span class="o">=</span> <span class="n">get_cpu</span><span class="p">();</span>
-
-  <span class="c1">// 设置调度器相关的信息
-</span><span class="c1"></span>	<span class="n">__sched_fork</span><span class="p">(</span><span class="n">clone_flags</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>
-
-  <span class="c1">// 刚创建好的进程，其状态为TASK_NEW
-</span><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">TASK_NEW</span><span class="p">;</span>
-
-  <span class="c1">// 设置进程优先级
-</span><span class="c1"></span>	<span class="n">p</span><span class="o">-&gt;</span><span class="n">prio</span> <span class="o">=</span> <span class="n">current</span><span class="o">-&gt;</span><span class="n">normal_prio</span><span class="p">;</span>
-
-  <span class="c1">// 设置进程的cpu信息
-</span><span class="c1"></span>	<span class="n">__set_task_cpu</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">cpu</span><span class="p">);</span>
-
-	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><h4 id="复制共享父进程资源数据">复制/共享父进程资源数据</h4>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// kernel/sched/core.c
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">sched_fork</span>(<span style="font-weight:bold;text-decoration:underline">unsigned</span> <span style="font-weight:bold;text-decoration:underline">long</span> clone_flags, <span style="font-weight:bold;text-decoration:underline">struct</span> task_struct *p)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 分配进程执行的cpu
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="font-weight:bold;text-decoration:underline">int</span> cpu = <span style="color:#666;font-weight:bold;font-style:italic">get_cpu</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 设置调度器相关的信息
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#666;font-weight:bold;font-style:italic">__sched_fork</span>(clone_flags, p);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 刚创建好的进程，其状态为TASK_NEW
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	p-&gt;state = TASK_NEW;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 设置进程优先级
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	p-&gt;prio = current-&gt;normal_prio;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 设置进程的cpu信息
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="color:#666;font-weight:bold;font-style:italic">__set_task_cpu</span>(p, cpu);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h4 class="heading" id="复制共享父进程资源数据">
+  复制/共享父进程资源数据
+  <a class="anchor" href="#%e5%a4%8d%e5%88%b6%e5%85%b1%e4%ba%ab%e7%88%b6%e8%bf%9b%e7%a8%8b%e8%b5%84%e6%ba%90%e6%95%b0%e6%8d%ae">#</a>
+</h4>
 <p>task_struct结构体中包含一些表示进程资源的指针，比如<code>mm</code>，<code>files</code>等，创建进程的标志位中有很多名为<code>CLONE_*</code>的标志，表示是从父进程拷贝一份这部分数据，还是与父进程共享一份数据。</p>
 <ul>
 <li>当这个标志位为0时：说明需要从父进程复制一份该类型资源数据，子进程复制完毕之后，将该资源计数赋值为1，而父进程资源计数维持不变。</li>
 <li>当这个标志位为1时：说明子进程共享父进程的该类型资源数据，此时该资源计数递增1即可。</li>
 </ul>
-<p><img src="/media/imgs/20200502-sgfap-process/clone_res.png" alt="clone_res" title="clone_res"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="clone_res" src="/media/imgs/20200502-sgfap-process/clone_res.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> clone_res </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>这里调用了如下的<code>copy_*</code>函数完成工作：</p>
 <ul>
 <li><code>copy_semundo</code>函数：如果<code>COPY_SYSVSEM</code>置位，则使用父进程的System V信号量。</li>
@@ -486,7 +569,10 @@
 <li><code>copy_mm</code>函数：如果<code>CLONE_VM</code>置位，则父子进程共享同一份地址空间，这种情况下父子进程使用同一份<code>mm_struct</code>实例。如果<code>CLONE_VM</code>没有置位，并不意味着子进程需要复制一份父进程的整个地址空间，内核确实会创建页表的一份数据，但是这里还并不复制页表的内容，这是由<code>COW</code>机制决定的，只有在子进程需要修改地址空间内容时才进行实际的复制操作。</li>
 <li><code>copy_thread</code>函数：复制进程中特定于线程中的数据。</li>
 </ul>
-<h1 id="进程的启动">进程的启动</h1>
+<h1 class="heading" id="进程的启动">
+  进程的启动
+  <a class="anchor" href="#%e8%bf%9b%e7%a8%8b%e7%9a%84%e5%90%af%e5%8a%a8">#</a>
+</h1>
 <p>创建完成新进程之后，将使用新进程的代码替换现有代码，即可启动新进程。这一工作由系统调用<code>execve</code>完成，该系统调用的内核入口函数是<code>sys_execve</code>函数，其最终会调用<code>do_execveat_common</code>函数完成工作。</p>
 <p>其大体工作流程不外乎以下几步：</p>
 <ul>
@@ -495,10 +581,16 @@
 <li>调用对应的可执行文件加载函数解析该二进制文件信息，执行进程。</li>
 </ul>
 <p>（这里不展开这部分讨论了）</p>
-<h1 id="进程的退出">进程的退出</h1>
+<h1 class="heading" id="进程的退出">
+  进程的退出
+  <a class="anchor" href="#%e8%bf%9b%e7%a8%8b%e7%9a%84%e9%80%80%e5%87%ba">#</a>
+</h1>
 <p>如果进程先于其父进程退出，那么它的父进程需要调用<code>wait</code>系统调用等待子进程的退出，进行资源的回收。
 没有调用<code>wait</code>回收的子进程，将成为“僵尸进程”，除此之外，还有另一种进程叫“孤儿进程”，下面展开看看这两种进程。</p>
-<h2 id="孤儿进程和僵尸进程">孤儿进程和僵尸进程</h2>
+<h2 class="heading" id="孤儿进程和僵尸进程">
+  孤儿进程和僵尸进程
+  <a class="anchor" href="#%e5%ad%a4%e5%84%bf%e8%bf%9b%e7%a8%8b%e5%92%8c%e5%83%b5%e5%b0%b8%e8%bf%9b%e7%a8%8b">#</a>
+</h2>
 <p>在Linux系统中，正常情况下，当一个进程完成它的工作终止之后，它的父进程需要调用wait()或者waitpid()系统调用取得子进程的终止状态。</p>
 <p>但是这个过程也有以外的情况：</p>
 <ul>
@@ -509,36 +601,36 @@
 <p>相反，僵尸进程因为一直没有被回收，其占用的进程pid也就一直不会回收，而进程pid属于系统的一个资源，这将导致这个资源的泄露，因此僵尸进程是有害的。如果使用<code>ps aux</code>命令来查看进程状态，那么僵尸进程的状态就是<code>Z</code>。</p>
 <p>下面简单演示两种进程的产生。</p>
 <p>首先是孤儿进程：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;errno.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
-</span><span class="cp"></span>
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
-<span class="p">{</span>
-    <span class="n">pid_t</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">();</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="p">{</span>
-        <span class="n">perror</span><span class="p">(</span><span class="s">&#34;fork error:&#34;</span><span class="p">);</span>
-        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-    <span class="p">}</span>
-
-    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am the child process.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid: %d</span><span class="se">\t</span><span class="s">ppid:%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">getpid</span><span class="p">(),</span><span class="n">getppid</span><span class="p">());</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I will sleep five seconds.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid: %d</span><span class="se">\t</span><span class="s">ppid:%d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span><span class="n">getpid</span><span class="p">(),</span><span class="n">getppid</span><span class="p">());</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;child process is exited.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am father process.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;father process is  exited.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-    <span class="p">}</span>
-    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>上面的代码中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdio.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdlib.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;errno.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;unistd.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">pid_t</span> pid;
+</span></span><span style="display:flex;"><span>    pid = <span style="color:#666;font-weight:bold;font-style:italic">fork</span>();
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (pid &lt; 0)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">perror</span>(<span style="color:#666;font-style:italic">&#34;fork error:&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">exit</span>(1);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (pid == 0) {
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;I am the child process.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;pid: %d</span><span style="color:#666;font-style:italic">\t</span><span style="color:#666;font-style:italic">ppid:%d</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>,<span style="color:#666;font-weight:bold;font-style:italic">getpid</span>(),<span style="color:#666;font-weight:bold;font-style:italic">getppid</span>());
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;I will sleep five seconds.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">sleep</span>(5);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;pid: %d</span><span style="color:#666;font-style:italic">\t</span><span style="color:#666;font-style:italic">ppid:%d</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>,<span style="color:#666;font-weight:bold;font-style:italic">getpid</span>(),<span style="color:#666;font-weight:bold;font-style:italic">getppid</span>());
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;child process is exited.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>    } <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;I am father process.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">sleep</span>(1);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;father process is  exited.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>上面的代码中：</p>
 <ul>
 <li>父进程调用<code>fork</code>函数创建一个子进程，返回之后马上退出。</li>
 <li>子进程在<code>fork</code>调用返回之后打印出自己的父进程pid，此时就是上面的父进程，然后休眠五秒钟等待父进程退出，然后再次打印父进程pid。</li>
@@ -554,32 +646,32 @@ pid: 5938	ppid:1
 child process is exited.
 </code></pre><p>可以看到，子进程的父进程pid在五秒之后变成1，即<code>init</code>进程。</p>
 <p>再来看僵尸进程的产生：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;errno.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
-</span><span class="cp"></span>
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
-<span class="p">{</span>
-    <span class="n">pid_t</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">();</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="p">{</span>
-        <span class="n">perror</span><span class="p">(</span><span class="s">&#34;fork error:&#34;</span><span class="p">);</span>
-        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-    <span class="p">}</span>
-    <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="p">{</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am child process.I am exiting.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-        <span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
-    <span class="p">}</span>
-    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;I am father process.I will sleep two seconds</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-    <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
-    <span class="n">system</span><span class="p">(</span><span class="s">&#34;ps -o pid,ppid,state,tty,command&#34;</span><span class="p">);</span>
-    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;father process is exiting.</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">);</span>
-    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>上面的代码中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdio.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;unistd.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;errno.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdlib.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">pid_t</span> pid;
+</span></span><span style="display:flex;"><span>    pid = <span style="color:#666;font-weight:bold;font-style:italic">fork</span>();
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (pid &lt; 0)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">perror</span>(<span style="color:#666;font-style:italic">&#34;fork error:&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">exit</span>(1);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">else</span> <span style="font-weight:bold;text-decoration:underline">if</span> (pid == 0)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;I am child process.I am exiting.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#666;font-weight:bold;font-style:italic">exit</span>(0);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;I am father process.I will sleep two seconds</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">sleep</span>(2);
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">system</span>(<span style="color:#666;font-style:italic">&#34;ps -o pid,ppid,state,tty,command&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;father process is exiting.</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>上面的代码中：</p>
 <ul>
 <li>子进程在<code>fork</code>调用返回之后马上退出。</li>
 <li>父进程在<code>fork</code>调用返回之后先休眠2秒等待子进程退出，然后调用<code>system</code>函数打印出<code>ps</code>命令的结果。</li>
@@ -595,7 +687,10 @@ I am child process.I am exiting.
  5974  5973 R pts/19   ps -o pid,ppid,state,tty,command
 father process is exiting.
 </code></pre><p>可以看到，子进程的状态变成了<code>Z</code>，也就是僵尸进程。</p>
-<h1 id="小结">小结</h1>
+<h1 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h1>
 <p>总结一下进程这一节涉及到的知识点：</p>
 <ul>
 <li>进程是在执行的程序以及相关资源的总称。</li>
@@ -606,203 +701,92 @@ father process is exiting.
 <li>Unix系统将创建子进程和执行分开，给shell实现一些特殊的操作提供了方便。</li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/linux%E7%B3%BB%E7%BB%9F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#Linux系统</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/" class="block">《面向应用开发者的系统指南》CPU篇之进程调度</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="block">《面向应用开发者的系统指南》导论</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概论">概论</a></li>
-    <li><a href="#数据结构">数据结构</a>
-      <ul>
-        <li><a href="#进程的状态">进程的状态</a></li>
-      </ul>
-    </li>
-    <li><a href="#进程的创建">进程的创建</a>
-      <ul>
-        <li><a href="#写时复制机制">写时复制机制</a></li>
-        <li><a href="#fork的实现">fork的实现</a>
-          <ul>
-            <li><a href="#_do_fork函数流程">_do_fork函数流程</a>
-              <ul>
-                <li><a href="#copy_process">copy_process</a></li>
-                <li><a href="#获取子进程pid">获取子进程pid</a></li>
-                <li><a href="#vfork相关的初始化处理">vfork相关的初始化处理</a></li>
-                <li><a href="#wake_up_new_task">wake_up_new_task</a></li>
-                <li><a href="#vfork相关的处理">vfork相关的处理</a></li>
-              </ul>
-            </li>
-            <li><a href="#copy_process函数的流程">copy_process函数的流程</a>
-              <ul>
-                <li><a href="#sched_fork">sched_fork</a></li>
-                <li><a href="#复制共享父进程资源数据">复制/共享父进程资源数据</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#进程的启动">进程的启动</a></li>
-    <li><a href="#进程的退出">进程的退出</a>
-      <ul>
-        <li><a href="#孤儿进程和僵尸进程">孤儿进程和僵尸进程</a></li>
-      </ul>
-    </li>
-    <li><a href="#小结">小结</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/" class="no-underline">《面向应用开发者的系统指南》导论</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200218-linux-traceevent/" class="no-underline">Systemtap中内核trace事件的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="no-underline">通过实例快速入门Systemtap</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

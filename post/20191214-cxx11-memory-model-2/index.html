@@ -1,338 +1,207 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"C++11中的内存模型下篇 - C++11支持的几种内存模型",
-      "item":"https://www.codedump.info/post/20191214-cxx11-memory-model-2/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20191214-cxx11-memory-model-2/"
-    },
-    "headline": "C\u002b\u002b11中的内存模型下篇 - C\u002b\u002b11支持的几种内存模型 - codedump的网络日志","datePublished": "2019-12-14T22:41:22+08:00",
-    "dateModified": "2019-12-14T22:41:22+08:00",
-    "wordCount":  3298 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "C\u002b\u002b11中的内存模型下篇 - C\u002b\u002b11支持的几种内存模型"
-}
-</script><meta property="og:title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20191214-cxx11-memory-model-2/" />
-
-
-
-<meta property="og:description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-12-14T22:41:22&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-12-14T22:41:22&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="多核" />
-
-<meta property="article:tag" content="系统编程" />
-
-<meta property="article:tag" content="系统设计" />
-
-
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20191214-cxx11-memory-model-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20191214-cxx11-memory-model-2/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20191214-cxx11-memory-model-2/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型">
+  <meta property="og:description" content="C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-12-14T22:41:22+08:00">
+    <meta property="article:modified_time" content="2019-12-14T22:41:22+08:00">
+    <meta property="article:tag" content="多核">
+    <meta property="article:tag" content="系统编程">
+    <meta property="article:tag" content="系统设计">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-12-14</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20191214-cxx11-memory-model-2/">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-12-14T22:41:22&#43;08:00">2019年12月14日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>7分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/%E5%A4%9A%E6%A0%B8/" class="hover:text-eureka"
-          >多核</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >系统编程</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="hover:text-eureka"
-          >系统设计</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/c&#43;&#43;11%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/" class="hover:text-eureka"
-          >C&#43;&#43;11中的内存模型</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+
   
 
-  <p>在本系列的上篇，介绍了内存模型的基本概念，接下来看C++11中支持的几种内存模型。</p>
-<h1 id="几种关系术语">几种关系术语</h1>
+  <div class="single-content">
+    <p>在本系列的上篇，介绍了内存模型的基本概念，接下来看C++11中支持的几种内存模型。</p>
+<h1 class="heading" id="几种关系术语">
+  几种关系术语
+  <a class="anchor" href="#%e5%87%a0%e7%a7%8d%e5%85%b3%e7%b3%bb%e6%9c%af%e8%af%ad">#</a>
+</h1>
 <p>在接着继续解释之前，先了解一下几种关系术语。</p>
-<h2 id="sequenced-before">sequenced-before</h2>
+<h2 class="heading" id="sequenced-before">
+  sequenced-before
+  <a class="anchor" href="#sequenced-before">#</a>
+</h2>
 <p>sequenced-before用于表示<strong>单线程</strong>之间，两个操作上的先后顺序，这个顺序是非对称、可以进行传递的关系。</p>
 <p>它不仅仅表示两个操作之间的先后顺序，还表示了操作结果之间的可见性关系。两个操作A和操作B，如果有A sequenced-before B，除了表示操作A的顺序在B之前，还表示了操作A的结果操作B可见。</p>
-<h2 id="happens-before">happens-before</h2>
+<h2 class="heading" id="happens-before">
+  happens-before
+  <a class="anchor" href="#happens-before">#</a>
+</h2>
 <p>与sequenced-before不同的是，happens-before关系表示的<strong>不同线程</strong>之间的操作先后顺序，同样的也是非对称、可传递的关系。</p>
 <p>如果A happens-before B，则A的内存状态将在B操作执行之前就可见。在上一篇文章中，某些情况下一个写操作只是简单的写入内存就返回了，其他核心上的操作不一定能马上见到操作的结果，这样的关系是不满足happens-before的。</p>
-<h2 id="synchronizes-with">synchronizes-with</h2>
+<h2 class="heading" id="synchronizes-with">
+  synchronizes-with
+  <a class="anchor" href="#synchronizes-with">#</a>
+</h2>
 <p>synchronizes-with关系强调的是变量被修改之后的传播关系（propagate），即如果一个线程修改某变量的之后的结果能被其它线程可见，那么就是满足synchronizes-with关系的。</p>
 <p>显然，满足synchronizes-with关系的操作一定满足happens-before关系了。</p>
-<h1 id="c11中支持的内存模型">C++11中支持的内存模型</h1>
+<h1 class="heading" id="c11中支持的内存模型">
+  C++11中支持的内存模型
+  <a class="anchor" href="#c11%e4%b8%ad%e6%94%af%e6%8c%81%e7%9a%84%e5%86%85%e5%ad%98%e6%a8%a1%e5%9e%8b">#</a>
+</h1>
 <p>从C++11开始，就支持以下几种内存模型：</p>
 <pre tabindex="0"><code>enum memory_order {
     memory_order_relaxed,
@@ -343,8 +212,35 @@
     memory_order_seq_cst
 };
 </code></pre><p>与内存模型相关的枚举类型有以上六种，但是其实分为四类，如下图所示，其中对一致性的要求逐渐减弱，以下来分别讲解。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-2/c++model.png" alt="c++model" title="c++model"></p>
-<h1 id="memory_order_seq_cst">memory_order_seq_cst</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="c&#43;&#43;model" src="/media/imgs/20191214-cxx11-memory-model-2/c&#43;&#43;model.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> c++model </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="memory_order_seq_cst">
+  memory_order_seq_cst
+  <a class="anchor" href="#memory_order_seq_cst">#</a>
+</h1>
 <p>这是默认的内存模型，即上篇文章中分析过的顺序一致性内存模型，由于在上篇中的相关概念已经做过详细的介绍，这里就不再阐述了。仅列出引用自《C++  Concurrency In Action》的示例代码。</p>
 <pre tabindex="0"><code>#include &lt;atomic&gt;
 #include &lt;thread&gt;
@@ -393,7 +289,10 @@ int main()
     assert(z.load()!=0);
 }
 </code></pre><p>由于采用了顺序一致性模型，因此最后的断言不可能发生，即在程序结束时不可能出现z为0的情况。</p>
-<h1 id="memory_order_relaxed">memory_order_relaxed</h1>
+<h1 class="heading" id="memory_order_relaxed">
+  memory_order_relaxed
+  <a class="anchor" href="#memory_order_relaxed">#</a>
+</h1>
 <p>这种类型对应的松散内存模型，这种内存模型的特点是：</p>
 <ul>
 <li>针对一个变量的读写操作是原子操作；</li>
@@ -432,15 +331,66 @@ int main()
     assert(z.load()!=0);
 }
 </code></pre><p>在上面的代码中，对原子变量的访问都使用memory_order_relaxed模型，导致了最后的断言可能失败，即在程序结束时z可能为0。</p>
-<h1 id="acquire-release">Acquire-Release</h1>
+<h1 class="heading" id="acquire-release">
+  Acquire-Release
+  <a class="anchor" href="#acquire-release">#</a>
+</h1>
 <ul>
 <li>memory_order_acquire：用来修饰一个读操作，表示在本线程中，所有后续的关于此变量的内存操作都必须在本条原子操作完成后执行。</li>
 </ul>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-2/read-acquire.png" alt="read-acquire" title="read-acquire"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="read-acquire" src="/media/imgs/20191214-cxx11-memory-model-2/read-acquire.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> read-acquire </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>memory_order_release：用来修饰一个写操作，表示在本线程中，所有之前的针对该变量的内存操作完成后才能执行本条原子操作。</li>
 </ul>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-2/write-release.png" alt="write-release" title="write-release"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="write-release" src="/media/imgs/20191214-cxx11-memory-model-2/write-release.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> write-release </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>memory_order_acq_rel：同时包含memory_order_acquire和memory_order_release标志。</li>
 </ul>
@@ -495,7 +445,31 @@ int main()
 </code></pre><p>上面这个例子中，并不能保证程序最后的断言即z!=0为真，其原因在于：在不同的线程中分别针对x、y两个变量进行了同步操作并不能保证x、y变量的读取操作。</p>
 <p>线程write_x针对变量x使用了write-release模型，这样保证了read_x_then_y函数中，在load变量y之前x为true；同理线程write_y针对变量y使用了write-release模型，这样保证了read_y_then_x函数中，在load变量x之前y为true。</p>
 <p>然而即便是这样，仍然可能出现以下类似的情况：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-2/5.7.png" alt="5.7" title="5.7"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="5.7" src="/media/imgs/20191214-cxx11-memory-model-2/5.7.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 5.7 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示：</p>
 <ul>
 <li>初始条件为x = y = false。</li>
@@ -535,7 +509,31 @@ int main()
     b.join();
     assert(z.load()!=0);
 }
-</code></pre><p><img src="/media/imgs/20191214-cxx11-memory-model-2/5.8.png" alt="5.8" title="5.8"></p>
+</code></pre><p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="5.8" src="/media/imgs/20191214-cxx11-memory-model-2/5.8.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 5.8 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示：</p>
 <ul>
 <li>初始条件为x = y = false。</li>
@@ -544,7 +542,10 @@ int main()
 <li>因此最终的执行顺序如上图所示，此时不可能出现z=0的情况。</li>
 </ul>
 <p>从以上的分析可以看出，针对同一个变量的release-acquire操作，更多时候扮演了一种“线程间使用某一变量的同步”作用，由于有了这个语义的保证，做到了线程间操作的先后顺序保证（inter-thread happens-before）。</p>
-<h1 id="release-consume">Release-Consume</h1>
+<h1 class="heading" id="release-consume">
+  Release-Consume
+  <a class="anchor" href="#release-consume">#</a>
+</h1>
 <p>从上面对Acquire-Release模型的分析可以知道，虽然可以使用这个模型做到两个线程之间某些操作的synchronizes-with关系，然后这个粒度有些过于大了。</p>
 <p>在很多时候，线程间只想针对有依赖关系的操作进行同步，除此之外线程中的其他操作顺序如何无所谓。比如下面的代码中：</p>
 <pre tabindex="0"><code>b = *a;
@@ -569,7 +570,7 @@ void create_x()
 {
     X* x=new X;
     x-&gt;i=42;
-    x-&gt;s=&quot;hello&quot;;
+    x-&gt;s=&#34;hello&#34;;
     a.store(99,std::memory_order_relaxed);
     p.store(x,std::memory_order_release);
 }
@@ -580,7 +581,7 @@ void use_x()
     while(!(x=p.load(std::memory_order_consume)))
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     assert(x-&gt;i==42);
-    assert(x-&gt;s==&quot;hello&quot;);
+    assert(x-&gt;s==&#34;hello&#34;);
     assert(a.load(std::memory_order_relaxed)==99);
 }
 int main()
@@ -590,7 +591,6 @@ int main()
     t1.join();
     t2.join();
 }
-
 </code></pre><p>以上的代码中：</p>
 <ul>
 <li>create_x线程中的store(x)操作使用memory_order_release，而在use_x线程中，有针对x的使用memory_order_consume内存模型的load操作，两者之间由于有carry-a-dependency关系，因此能保证两者的先后执行顺序。所以，x-&gt;i == 42以及x-&gt;s==&ldquo;hello&quot;这两个断言都不会失败。</li>
@@ -601,205 +601,110 @@ int main()
 <li>Acquire-Release能保证不同线程之间的Synchronizes-With关系，这同时也约束到同一个线程中前后语句的执行顺序。</li>
 <li>而Release-Consume只约束有明确的carry-a-dependency关系的语句的执行顺序，同一个线程中的其他语句的执行先后顺序并不受这个内存模型的影响。</li>
 </ul>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li>《C++  Concurrency In Action》</li>
 <li><a href="https://preshing.com/20140709/the-purpose-of-memory_order_consume-in-cpp11/">《The Purpose of memory_order_consume in C++11》</a></li>
 <li><a href="https://preshing.com/20130823/the-synchronizes-with-relation/">《The Synchronizes-With Relation》</a></li>
 </ul>
-<h1 id="修改历史">修改历史</h1>
+<h1 class="heading" id="修改历史">
+  修改历史
+  <a class="anchor" href="#%e4%bf%ae%e6%94%b9%e5%8e%86%e5%8f%b2">#</a>
+</h1>
 <ul>
 <li>2019-12-14：初稿。</li>
 <li>2020-04-11：修改代码显示。</li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%A4%9A%E6%A0%B8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#多核</a>
-    
-    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统编程</a>
-    
-    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统设计</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20200128-systemtap-by-example/" class="block">通过实例快速入门Systemtap</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/" class="block">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#几种关系术语">几种关系术语</a>
-      <ul>
-        <li><a href="#sequenced-before">sequenced-before</a></li>
-        <li><a href="#happens-before">happens-before</a></li>
-        <li><a href="#synchronizes-with">synchronizes-with</a></li>
-      </ul>
-    </li>
-    <li><a href="#c11中支持的内存模型">C++11中支持的内存模型</a></li>
-    <li><a href="#memory_order_seq_cst">memory_order_seq_cst</a></li>
-    <li><a href="#memory_order_relaxed">memory_order_relaxed</a></li>
-    <li><a href="#acquire-release">Acquire-Release</a></li>
-    <li><a href="#release-consume">Release-Consume</a></li>
-    <li><a href="#参考资料">参考资料</a></li>
-    <li><a href="#修改历史">修改历史</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/" class="no-underline">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/" class="no-underline">对比脚本型和编译型游戏服务器的热更新方案</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20191013-im-msg-out-of-order/" class="no-underline">IM服务器设计-如何解决消息的乱序</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190818-im-msg-gate/" class="no-underline">IM服务器设计-网关接入层</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190629-service-history/" class="no-underline">服务调用的演进历史</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190608-im-msg-storage/" class="no-underline">IM服务器设计-消息存储</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    sqlite 2.5版本b-tree实现解析 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20210916-sqlite-2.5/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20210916-sqlite-2.5/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="sqlite 2.5版本b-tree实现解析">
+  <meta property="og:description" content="概述 # 之前大体了解了B、B&#43; tree算法的实现原理：
+B树、B&#43;树索引算法原理（上）
+B树、B&#43;树索引算法原理（下）
+但是对于生产环境里的具体实现还有很多疑问，具体有：
+算法中演示的数据都是简单的、定长的数据，实际环境中数据不定长，甚至超过了一个页面的存储，这种情况下如何存储数据？ 页面中随着数据的删除会有很多空闲空间，页面的分配以及页面内空闲空间是如何利用起来的？ 线上的系统肯定要做容灾、恢复处理，这部分又是怎么实现的？ … 在我查找各种资料之后，发现了madushadhanushka/simple-sqlite: Code reading for sqlite backend这个项目，该项目将sqlite 2.5版本b-tree相关的代码抽取出来，同时也写了对应的demo代码，抽取出来的代码量不过几千行。虽然2.5版本距离现在已经有较长的时间了，但是以这个项目为出发点了解生产级b-tree的实现仍不失为一个好的出发点。
+本文中就这个项目的实现做一些解析，回答上面提出的几个问题在该项目中都是如何实现的，文中不再详细阐述算法的原理，有疑问可以回到上面两篇博文看看。
+项目中只抽取了sqlite中后端存储的部分代码，所以并不涉及到sql的解析等等，只专注在数据如何存储这个层面，具体来说sqlite的后端存储分为了三个层次：
+sqlite后端架构层次 其中：
+b-tree模块：btree模块负责根据算法实现数据的组织，当需要分配新的空间保存数据时，以页面为最小单位调用Pager接口来分配（页面大小默认为1024KB）。 Pager模块：封装页面的分配、缓存、加载、读、写等操作。 OS模块：封装了操作系统层面对文件的读写操作。 对这部分的模块划分有总体了解之后，下面展开解释。
+接口 # 首先还是讲讲这部分暴露出来的接口，这些都可以在项目test目录中自带的各模块用例里看得到具体的使用。
+其他几个模块相对简单，就不再这里阐述，具体看看btree模块的接口。
+sqlite中的数据，都存储在一个单一的数据库文件里，并不像innodb那样一个数据库划分了一个目录。
+因此，要使用它的存储，首先需要调用sqliteBtreeOpen函数打开数据库文件，用于初始化Btree结构体，该结构体代表一个数据库对象，也就是和数据库文件是一一对应的关系。
+有了数据库对象之后，还要创建表，此时需要调用sqliteBtreeCreateTable创建表，如果创建成功则返回int类型的table id。
+有了数据库、表的id之后，需要创建游标对象BtCursor才能对表进行操作，这里需要调用sqliteBtreeCursor函数，传入数据库对象、table id等来完成游标对象的创建。
+有了游标对象，可以针对表进行各种操作，包括：
+插入、查询、删除数据。 遍历表中的所有对象。 等等。
+这里简单总结一下b-tree模块暴露出来的几个核心数据结构：
+Btree：数据库对象，与一个数据库文件一一对应。 table id：int类型，与数据表一一对应。 BtCursor：游标对象，使用数据库对象以及table id创建，使用该对象可以完成针对数据表对象的各种操作。 Pager模块 # 内存中页面的结构和维护 # pager.c中的Pager结构体，负责维护页面缓存、加载、写入页面，具体的工作包括：
+维护了一个当前加载到内存中的页面编号hash表，即需要加载页面时，首先根据页面编号到该hash表中查找，如果没有说明该页面没有读取到页面缓存中，需要到硬盘上加载。 当然不可能无限制的缓存硬盘上的页面，当页面缓存不足时，所以还有页面淘汰机制，将需要被淘汰的页面数据落盘。 维护当前空闲页面的列表。 管理journal和checkpoint文件，这两个文件与错误恢复有关。 可以看到，一个页面可能在这三种数据结构体中：
+页面编号同hash值的页面将串联成一个链表。 所有加载到内存中的页面形成一个链表。 如果这是空闲页面，那么还会串联到空闲页面链表中。 每一个加载进入内存中的页面数据，由以下三部分构成：
+PgHdr结构体定义的页面元数据信息。 硬盘上页面数据读取到内存中的内容，其大小与一个页面的大小相同，页面大小由宏SQLITE_PAGE_SIZE指定，默认值为1024。 页面的额外（extra）数据，这部分空间暂时还不知道有什么用，可以在创建数据库时指定为0。 单页面加载到内存后的数据组织 其中，PgHdr结构体有以下信息：
+上面提到，一个页面在三种链表中（hash桶链表、内存页面链表、空闲页面链表），所以数据结构中就需要这三种链表的指针。 页面编号，这样知道该页面对应硬盘上哪个位置的数据。 是否脏页面，这意味着是否需要把该页面的数据落盘。 引用计数。 是否为journal（inJournal）和checkpoint（inCkpt）页面。 对加载到内存中的数据组织有所了解之后，就不难理解以下三个宏的作用：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-09-16T10:14:24+08:00">
+    <meta property="article:modified_time" content="2021-09-16T10:14:24+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20210916-sqlite-2.5/">sqlite 2.5版本b-tree实现解析</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">sqlite 2.5版本b-tree实现解析</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-09-16T10:14:24&#43;08:00">2021年9月16日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>之前大体了解了B、B+ tree算法的实现原理：</p>
+<p><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上）</a></p>
+<p><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下）</a></p>
+<p>但是对于生产环境里的具体实现还有很多疑问，具体有：</p>
+<ul>
+<li>算法中演示的数据都是简单的、定长的数据，实际环境中数据不定长，甚至超过了一个页面的存储，这种情况下如何存储数据？</li>
+<li>页面中随着数据的删除会有很多空闲空间，页面的分配以及页面内空闲空间是如何利用起来的？</li>
+<li>线上的系统肯定要做容灾、恢复处理，这部分又是怎么实现的？</li>
+<li>&hellip;</li>
+</ul>
+<p>在我查找各种资料之后，发现了<a href="https://github.com/madushadhanushka/simple-sqlite">madushadhanushka/simple-sqlite: Code reading for sqlite backend</a>这个项目，该项目将sqlite 2.5版本b-tree相关的代码抽取出来，同时也写了对应的demo代码，抽取出来的代码量不过几千行。虽然2.5版本距离现在已经有较长的时间了，但是以这个项目为出发点了解生产级b-tree的实现仍不失为一个好的出发点。</p>
+<p>本文中就这个项目的实现做一些解析，回答上面提出的几个问题在该项目中都是如何实现的，文中不再详细阐述算法的原理，有疑问可以回到上面两篇博文看看。</p>
+<p>项目中只抽取了sqlite中后端存储的部分代码，所以并不涉及到sql的解析等等，只专注在数据如何存储这个层面，具体来说sqlite的后端存储分为了三个层次：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sqlite后端架构层次" src="/media/imgs/20210916-sqlite-2.5/sqlite-level.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sqlite后端架构层次 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>其中：</p>
+<ul>
+<li>b-tree模块：btree模块负责根据算法实现数据的组织，当需要分配新的空间保存数据时，以页面为最小单位调用Pager接口来分配（页面大小默认为1024KB）。</li>
+<li>Pager模块：封装页面的分配、缓存、加载、读、写等操作。</li>
+<li>OS模块：封装了操作系统层面对文件的读写操作。</li>
+</ul>
+<p>对这部分的模块划分有总体了解之后，下面展开解释。</p>
+<h1 class="heading" id="接口">
+  接口
+  <a class="anchor" href="#%e6%8e%a5%e5%8f%a3">#</a>
+</h1>
+<p>首先还是讲讲这部分暴露出来的接口，这些都可以在项目test目录中自带的各模块用例里看得到具体的使用。</p>
+<p>其他几个模块相对简单，就不再这里阐述，具体看看btree模块的接口。</p>
+<p>sqlite中的数据，都存储在一个单一的数据库文件里，并不像innodb那样一个数据库划分了一个目录。</p>
+<p>因此，要使用它的存储，首先需要调用<code>sqliteBtreeOpen</code>函数打开数据库文件，用于初始化<code>Btree</code>结构体，该结构体代表一个数据库对象，也就是和数据库文件是一一对应的关系。</p>
+<p>有了数据库对象之后，还要创建表，此时需要调用<code>sqliteBtreeCreateTable</code>创建表，如果创建成功则返回int类型的table id。</p>
+<p>有了数据库、表的id之后，需要创建游标对象<code>BtCursor</code>才能对表进行操作，这里需要调用<code>sqliteBtreeCursor</code>函数，传入数据库对象、table id等来完成游标对象的创建。</p>
+<p>有了游标对象，可以针对表进行各种操作，包括：</p>
+<ul>
+<li>插入、查询、删除数据。</li>
+<li>遍历表中的所有对象。</li>
+</ul>
+<p>等等。</p>
+<p>这里简单总结一下b-tree模块暴露出来的几个核心数据结构：</p>
+<ul>
+<li>Btree：数据库对象，与一个数据库文件一一对应。</li>
+<li>table id：int类型，与数据表一一对应。</li>
+<li>BtCursor：游标对象，使用数据库对象以及table id创建，使用该对象可以完成针对数据表对象的各种操作。</li>
+</ul>
+<h1 class="heading" id="pager模块">
+  Pager模块
+  <a class="anchor" href="#pager%e6%a8%a1%e5%9d%97">#</a>
+</h1>
+<h2 class="heading" id="内存中页面的结构和维护">
+  内存中页面的结构和维护
+  <a class="anchor" href="#%e5%86%85%e5%ad%98%e4%b8%ad%e9%a1%b5%e9%9d%a2%e7%9a%84%e7%bb%93%e6%9e%84%e5%92%8c%e7%bb%b4%e6%8a%a4">#</a>
+</h2>
+<p>pager.c中的<code>Pager</code>结构体，负责维护页面缓存、加载、写入页面，具体的工作包括：</p>
+<ul>
+<li>维护了一个当前加载到内存中的页面编号hash表，即需要加载页面时，首先根据页面编号到该hash表中查找，如果没有说明该页面没有读取到页面缓存中，需要到硬盘上加载。</li>
+<li>当然不可能无限制的缓存硬盘上的页面，当页面缓存不足时，所以还有页面淘汰机制，将需要被淘汰的页面数据落盘。</li>
+<li>维护当前空闲页面的列表。</li>
+<li>管理journal和checkpoint文件，这两个文件与错误恢复有关。</li>
+</ul>
+<p>可以看到，一个页面可能在这三种数据结构体中：</p>
+<ul>
+<li>页面编号同hash值的页面将串联成一个链表。</li>
+<li>所有加载到内存中的页面形成一个链表。</li>
+<li>如果这是空闲页面，那么还会串联到空闲页面链表中。</li>
+</ul>
+<p>每一个加载进入内存中的页面数据，由以下三部分构成：</p>
+<ul>
+<li><code>PgHdr</code>结构体定义的页面元数据信息。</li>
+<li>硬盘上页面数据读取到内存中的内容，其大小与一个页面的大小相同，页面大小由宏<code>SQLITE_PAGE_SIZE</code>指定，默认值为1024。</li>
+<li>页面的额外（extra）数据，这部分空间暂时还不知道有什么用，可以在创建数据库时指定为0。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="单页面加载到内存后的数据组织" src="/media/imgs/20210916-sqlite-2.5/mem-page.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 单页面加载到内存后的数据组织 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>其中，<code>PgHdr</code>结构体有以下信息：</p>
+<ul>
+<li>上面提到，一个页面在三种链表中（hash桶链表、内存页面链表、空闲页面链表），所以数据结构中就需要这三种链表的指针。</li>
+<li>页面编号，这样知道该页面对应硬盘上哪个位置的数据。</li>
+<li>是否脏页面，这意味着是否需要把该页面的数据落盘。</li>
+<li>引用计数。</li>
+<li>是否为journal（inJournal）和checkpoint（inCkpt）页面。</li>
+</ul>
+<p>对加载到内存中的数据组织有所了解之后，就不难理解以下三个宏的作用：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 内存中页面空间的分布是：PgHdr+硬盘页面空间+extra空间
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 根据页面header指针拿到硬盘页面空间的起始位置
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define PGHDR_TO_DATA(P)  ((void*)(&amp;(P)[1]))
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 根据内存中硬盘页面空间的起始位置拿到页面header指针
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define DATA_TO_PGHDR(D)  (&amp;((PgHdr*)(D))[-1])
+</span></span></span></code></pre></div><p>即：</p>
+<ul>
+<li>PGHDR_TO_DATA：这个宏可以根据内存地址得到页面在内存中的首地址。</li>
+<li>DATA_TO_PGHDR：这个宏可以根据页面在内存中的首地址得到<code>PgHdr</code>指针。</li>
+</ul>
+<h2 class="heading" id="journal文件管理">
+  Journal文件管理
+  <a class="anchor" href="#journal%e6%96%87%e4%bb%b6%e7%ae%a1%e7%90%86">#</a>
+</h2>
+<p>Journal文件用于数据恢复、回滚等操作。其原理是：每次写入数据时，将该页面当时的数据写入Journal文件，当需要回滚、恢复时，直接将保存在Journal中的内容覆盖原页面内容即可。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Journal文件备份" src="/media/imgs/20210916-sqlite-2.5/journal.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> Journal文件备份 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>如上图中，每次修改数据时，有如下的顺序：</p>
+<ul>
+<li>判断所修改页面是否已经在这一轮修改中将原始页面内容写入journal文件，如果有则忽略，没有则写入。</li>
+<li>进行页面的修改，此时并不需要将这一修改马上在数据库文件中落盘。</li>
+<li>当所有修改都完成之后，统一将数据库文件中页面的修改落盘，此时journal文件也可以清除了。</li>
+<li>数据库启动后，第一次分配页面时，会判断是否当前存在journal文件内容，需要以此内容首先进行恢复操作。</li>
+</ul>
+<p>这里的几个问题是：</p>
+<p>问题一：每次页面修改都要写入journal文件，会不会太消耗了？我的看法是这个备份是以页面为单位的备份，而且一轮修改中只会备份同一个页面一次，所以还是可以接受的。</p>
+<p>问题二：如果写入的时候进程退出，那岂不是所有的修改都会丢失？是的，所以这里需要类似wal的机制，首先保存这个写入操作。这样一份完整的数据就等于<code>数据库文件+journal文件+wal文件</code>。即恢复的时候，依照以下顺序来做：</p>
+<ul>
+<li>读取数据库文件。</li>
+<li>使用journal文件恢复崩溃时没有落盘页面修改之前的内容。</li>
+<li>重放wal文件，将前面没有做的修改再做一遍。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="全量数据的构成" src="/media/imgs/20210916-sqlite-2.5/all-data.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 全量数据的构成 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>以一个例子来说明问题：</p>
+<ul>
+<li>假设现有的数据为(k,1)，(v,2)，其中二元组第一个数据为key，第二个数据为value。</li>
+<li>此时一个事务需要修改为(k,3)，(v,4)，将按照下面的顺序进行：
+<ul>
+<li>向wal中写入修改(k,3)，(v,4)的操作。</li>
+<li>在journal文件保存k、v所在页面的内容，即保存下来的数据为(k,1)，(v,2)。</li>
+<li>修改页面中(k,3)，(v,4)。</li>
+<li>修改完毕之后，事务提交，这会提交页面的修改，同时journal文件和wal文件的内容也无用了。</li>
+</ul>
+</li>
+</ul>
+<p>假设上面的事务只修改了(k,3)，而(v,4)的修改还未落盘进程就退出了，那么恢复的流程如下：</p>
+<ul>
+<li>首先读取数据库文件，此时因为只修改了一个值，读取出来的数据为(k,3)，(v,2)。</li>
+<li>使用journal文件来恢复未落盘页面修改之前的内容，即恢复之后的数据为(k,1)，(v,2)。</li>
+<li>重放wal中的修改操作，这就又走一遍上面的修改流程。</li>
+</ul>
+<p>了解了以上的流程，可以来看一下Pager中如何实现journal文件备份的。</p>
+<p>Pager中使用位图来保存哪些页面已经被写入journal文件了：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>u8 *aInJournal;             <span style="color:#888;font-style:italic">/* One bit for each page in the database file */</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>pPager-&gt;aInJournal[pPg-&gt;pgno/8] |= 1&lt;&lt;(pPg-&gt;pgno&amp;7);
+</span></span></code></pre></div><p>即：aInJournal是一个数组，其每个元素是个8位的整数，保存时将计算页面编号所在的数组位置保存在这8位整数的哪一位。</p>
+<p>而journal文件的结构也很简单，如下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="journal文件格式" src="/media/imgs/20210916-sqlite-2.5/journal-format.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> journal文件格式 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>内容依次包括：</p>
+<ul>
+<li>aJournalMagic。</li>
+<li>当前数据文件中的页面数量。</li>
+<li>最后一个保存页面内容的数组，数组中每个成员为(页面编号，页面内容)的二元组，代码中用了<code>PageRecord</code>这个结构体来定义这部分结构。由于页面的大小是定长的，所以这里每个成员的大小是定长的。</li>
+</ul>
+<h2 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h2>
+<p>以上，已经大致了解了sqlite 2.5版本如何管理页面的，总结起来：</p>
+<ul>
+<li>页面是数据库管理数据库文件的基本单位。</li>
+<li>加载到内存中的页面数据，由三部分组成：描述页面信息的元数据（结构体<code>PgHdr</code>）、从硬盘上读取的页面数据、额外空间数据（通常为0）。</li>
+<li>一个被加载到内存中的页面可能在以下三种数据结构中：
+<ul>
+<li>缓存页面数据的hash表中，加载页面时会首先到hash表中根据页面编号查找页面是否已经被加载进入内存。如果没有则需要从硬盘上加载页面数据，缓存中的页面数量超过阈值需要进行淘汰。</li>
+<li>空闲页面链表，该链表上的页面都是空闲页面，当需要写入数据到新的页面中时，都首先查看是否有空闲页面可以回收利用。</li>
+<li>加载到内存中的页面链表。</li>
+</ul>
+</li>
+<li>sqlite使用Journal文件来保存一次改动中被修改的页面在修改之前的内容，启动时会查看如果Journal文件有内容会首先使用这些内容进行数据的恢复。</li>
+</ul>
+<p>可以看到，<code>Pager</code>模块所有的操作都是以页面为单位来进行的，并不关心具体一行数据是如何存储的，数据的存储由btree模块实现，接下来就解释btree模块的实现。</p>
+<h1 class="heading" id="btree模块">
+  btree模块
+  <a class="anchor" href="#btree%e6%a8%a1%e5%9d%97">#</a>
+</h1>
+<p><code>Pager</code>模块操作的基本单位是页面，而btree模块操作数据的基本单位是<code>Cell</code>，即一个页面中划分为多个cell，一个cell用来保存一行数据。</p>
+<h2 class="heading" id="数据库页面组织">
+  数据库页面组织
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e5%ba%93%e9%a1%b5%e9%9d%a2%e7%bb%84%e7%bb%87">#</a>
+</h2>
+<p>数据库文件中一个页面的数据被划分为了以下几个部分：</p>
+<ul>
+<li>页面头：由结构体<code>PageHdr</code>定义。</li>
+<li>Cell链表：其中每个数组元素由结构体<code>Cell</code>来定义。</li>
+<li>空闲空间链表：被删除数据的<code>Cell</code>空间，就变成了空闲空间，由结构体<code>FreeBlk</code>来定义。</li>
+</ul>
+<p>把这里的结构划分和前面分析<code>Pager</code>模块时的<code>单页面加载到内存后的数据组织</code>图合并起来一起看看：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="数据库页面组织" src="/media/imgs/20210916-sqlite-2.5/page.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 数据库页面组织 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>代码中把一个页面加载到内存中的数据，统一由结构体<code>MemPage</code>来管理：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> MemPage {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">union</span> {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">char</span> aDisk[SQLITE_PAGE_SIZE];  <span style="color:#888;font-style:italic">/* Page data stored on disk */</span>
+</span></span><span style="display:flex;"><span>    PageHdr hdr;                   <span style="color:#888;font-style:italic">/* Overlay page header */</span>
+</span></span><span style="display:flex;"><span>  } u;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> isInit;                    <span style="color:#888;font-style:italic">/* True if auxiliary data is initialized */</span>
+</span></span><span style="display:flex;"><span>  MemPage *pParent;              <span style="color:#888;font-style:italic">/* The parent of this page.  NULL for root */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> nFree;                     <span style="color:#888;font-style:italic">/* Number of free bytes in u.aDisk[] */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> nCell;                     <span style="color:#888;font-style:italic">/* Number of entries on this page */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> isOverfull;                <span style="color:#888;font-style:italic">/* Some apCell[] points outside u.aDisk[] */</span>
+</span></span><span style="display:flex;"><span>  Cell *apCell[MX_CELL+2];       <span style="color:#888;font-style:italic">/* All data entires in sorted order */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>可以看到，<code>MemPage</code>结构体最开始部分是一个union：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">union</span> {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">char</span> aDisk[SQLITE_PAGE_SIZE];  <span style="color:#888;font-style:italic">/* Page data stored on disk */</span>
+</span></span><span style="display:flex;"><span>    PageHdr hdr;                   <span style="color:#888;font-style:italic">/* Overlay page header */</span>
+</span></span><span style="display:flex;"><span>  } u;
+</span></span></code></pre></div><p>这是因为：定义了一个页面大小的char数组，这样对这个数组的操作就是直接操作页面内容；而每个页面的开始部分又都是<code>PageHdr</code>结构体表示的页面header，因此又可以通过该成员来操作header。除了union部分，<code>MemPage</code>中的其他成员都不是直接与页面内容对应的，属于页面加载进入内存之后计算得到的。</p>
+<p>接着具体展开看这三部分的数据。</p>
+<h3 class="heading" id="页面头信息">
+  页面头信息
+  <a class="anchor" href="#%e9%a1%b5%e9%9d%a2%e5%a4%b4%e4%bf%a1%e6%81%af">#</a>
+</h3>
+<p>页面头信息由结构体<code>PageHdr</code>定义：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> PageHdr {
+</span></span><span style="display:flex;"><span>  Pgno rightChild;  <span style="color:#888;font-style:italic">/* Child page that comes after all cells on this page */</span>
+</span></span><span style="display:flex;"><span>  u16 firstCell;    <span style="color:#888;font-style:italic">/* Index in MemPage.u.aDisk[] of the first cell */</span>
+</span></span><span style="display:flex;"><span>  u16 firstFree;    <span style="color:#888;font-style:italic">/* Index in MemPage.u.aDisk[] of the first free block */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>其中：</p>
+<ul>
+<li>rightChild：页面右子树所在的页面编号。</li>
+<li>firstCell：cell链表的第一个元素。</li>
+<li>firstFree：free block第一个元素。</li>
+</ul>
+<p>注意，后面两个元素的大小都是u16类型，因为这是在页面中的偏移量，所以这个类型是足够大的。</p>
+<h3 class="heading" id="cell">
+  Cell
+  <a class="anchor" href="#cell">#</a>
+</h3>
+<p><code>Cell</code>结构体的定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> Cell {
+</span></span><span style="display:flex;"><span>  CellHdr h;                        <span style="color:#888;font-style:italic">/* The cell header */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">char</span> aPayload[MX_LOCAL_PAYLOAD];  <span style="color:#888;font-style:italic">/* Key and data */</span>
+</span></span><span style="display:flex;"><span>  Pgno ovfl;                        <span style="color:#888;font-style:italic">/* The first overflow page */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>其中：</p>
+<ul>
+<li>CellHdr：定义了cell的元信息。</li>
+<li>aPayload：保存cell数据的空间。</li>
+<li>ovfl：如果一个页面保存不了一行的数据，就称为“溢出（overflow）”，溢出的数据需要保存到溢出页面去，这个成员就是保存第一个溢出页面的页面编号。</li>
+</ul>
+<p>其中<code>CellHdr</code>结构体的定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> CellHdr {
+</span></span><span style="display:flex;"><span>  Pgno leftChild; <span style="color:#888;font-style:italic">/* Child page that comes before this cell */</span>
+</span></span><span style="display:flex;"><span>  u16 nKey;       <span style="color:#888;font-style:italic">/* Number of bytes in the key */</span>
+</span></span><span style="display:flex;"><span>  u16 iNext;      <span style="color:#888;font-style:italic">/* Index in MemPage.u.aDisk[] of next cell in sorted order */</span>
+</span></span><span style="display:flex;"><span>  u8 nKeyHi;      <span style="color:#888;font-style:italic">/* Upper 8 bits of key size for keys larger than 64K bytes */</span>
+</span></span><span style="display:flex;"><span>  u8 nDataHi;     <span style="color:#888;font-style:italic">/* Upper 8 bits of data size when the size is more than 64K */</span>
+</span></span><span style="display:flex;"><span>  u16 nData;      <span style="color:#888;font-style:italic">/* Number of bytes of data */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>结构体成员的解释如下：</p>
+<ul>
+<li>leftChild：左子树节点的页面编号。</li>
+<li>nKey、nKeyHi：用于计算key部分大小。</li>
+<li>nData、nDataHi：用于计算data部分大小。</li>
+<li>iNext：用于存储cell链表上下一个cell数据在页面中的偏移量。</li>
+</ul>
+<p>前面提到，有可能出现一个页面不够存储数据的情况，所以key和data的大小都分为了两部分，比如对于key来说，分为小于64Kb（存储在nKey）和大于64Kb（nKeyHi）两部分内容，这样key的大小就等于：</p>
+<pre tabindex="0"><code>#define NKEY(h)  (h.nKey + h.nKeyHi*65536)
+</code></pre><p>类似的，也有NDATA宏，就不再解释。</p>
+<p>另外需要说明一点，一个cell保存数据的以4字节来对齐，即如果数据小于4字节，则自动补全到4字节。有了这个数字，加上一个页面的大小、header部分的大小，就能计算出来一个页面最多容纳多少cell，以及一个页面最多有多少空间用于存储数据等等，这些都用宏组织了起来：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// cell的最小空间是cell header + 4字节
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define MIN_CELL_SIZE  (sizeof(CellHdr)+4)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 一个页面中最多cell的数量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define MX_CELL ((SQLITE_PAGE_SIZE-sizeof(PageHdr))/MIN_CELL_SIZE)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 可用空间 = 页面空间 - 头部固定空间
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define USABLE_SPACE  (SQLITE_PAGE_SIZE - sizeof(PageHdr))
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 一个数据项最大空间，超过这部分就保存到overflow页面中
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define MX_LOCAL_PAYLOAD ((USABLE_SPACE/4-(sizeof(CellHdr)+sizeof(Pgno)))&amp;~3)
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// overflow页面能存储数据的容量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define OVERFLOW_SIZE (SQLITE_PAGE_SIZE-sizeof(Pgno))
+</span></span></span></code></pre></div><p>把上面关于cell的解释结合起来，一个cell的空间分布如下图：</p>
+<h3 class="heading" id="freeblk">
+  FreeBlk
+  <a class="anchor" href="#freeblk">#</a>
+</h3>
+<p><code>FreeBlk</code>结构体用于表示页面中的空闲块，即：如果一个cell所表示的数据被删除，则转换成了<code>FreeBlk</code>，<code>FreeBlk</code>结构体的定义很简单：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> FreeBlk {
+</span></span><span style="display:flex;"><span>  u16 iSize;      <span style="color:#888;font-style:italic">/* Number of bytes in this block of free space */</span>
+</span></span><span style="display:flex;"><span>  u16 iNext;      <span style="color:#888;font-style:italic">/* Index in MemPage.u.aDisk[] of the next free block */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>成员解释如下：</p>
+<ul>
+<li>iSize：空闲块空间大小。</li>
+<li>iNext：下一个空闲块在页面中的偏移地址。</li>
+</ul>
+<p>上面两个成员类型都是u16，由于只需要表示在一个页面内的大小和偏移量，所以是足够的。</p>
+<h3 class="heading" id="overflowpage">
+  OverflowPage
+  <a class="anchor" href="#overflowpage">#</a>
+</h3>
+<p><code>OverflowPage</code>结构体用于表示溢出页面，其定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> OverflowPage {
+</span></span><span style="display:flex;"><span>  Pgno iNext;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">char</span> aPayload[OVERFLOW_SIZE];
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>成员解释如下：</p>
+<ul>
+<li>iNext：该数据下一个overflow页面的编号（如果存在的话）。</li>
+<li>aPayload：存储payload空间的数组，其中宏<code>OVERFLOW_SIZE</code>见上面的解释。</li>
+</ul>
+<h2 class="heading" id="页面碎片整理">
+  页面碎片整理
+  <a class="anchor" href="#%e9%a1%b5%e9%9d%a2%e7%a2%8e%e7%89%87%e6%95%b4%e7%90%86">#</a>
+</h2>
+<p>随着页面数据的增加、删除，页面中会出现很多碎片空间。当需要往页面新增数据时，将进行如下的检查：</p>
+<ul>
+<li>如果页面空闲空间已经不足够，则分配一个新的页面来保存数据。</li>
+<li>否则说明页面内的空闲空间足够，遍历页面的<code>FreeBlk</code>链表，找到第一块适合大小的空间用来保存数据。如果这个流程没找找到合适的block，说明页面内的空间碎片化很严重，需要进行页面的碎片整理。</li>
+</ul>
+<p>页面碎片整理的入口函数是<code>defragmentPage</code>，其原理是：</p>
+<ul>
+<li>将所有cell的数据移动到紧跟着header之后的空间。</li>
+<li>剩余空闲空间做为一块大的free block，等待下一次分配时切割出来使用。</li>
+</ul>
+<p>即，碎片整理前后的示意图如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="页面碎片整理示意图" src="/media/imgs/20210916-sqlite-2.5/defragmentPage.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 页面碎片整理示意图 </figcaption>
+    </div>
+    
+</figure>
+</p>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

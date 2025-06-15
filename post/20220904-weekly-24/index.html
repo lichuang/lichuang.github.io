@@ -1,417 +1,236 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>周刊（第24期）：sqlite并发读写的演进之路 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="周刊（第24期）：sqlite并发读写的演进之路"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="周刊（第24期）：sqlite并发读写的演进之路">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"周刊（第24期）：sqlite并发读写的演进之路",
-      "item":"https://www.codedump.info/post/20220904-weekly-24/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220904-weekly-24/"
-    },
-    "headline": "周刊（第24期）：sqlite并发读写的演进之路 - codedump的网络日志","datePublished": "2022-09-04T09:10:31+08:00",
-    "dateModified": "2022-09-04T09:10:31+08:00",
-    "wordCount":  3196 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "周刊（第24期）：sqlite并发读写的演进之路"
-}
-</script><meta property="og:title" content="周刊（第24期）：sqlite并发读写的演进之路 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220904-weekly-24/" />
-
-
-
-<meta property="og:description" content="周刊（第24期）：sqlite并发读写的演进之路" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-09-04T09:10:31&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-09-04T09:10:31&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="周刊" />
-
-<meta property="article:tag" content="存储引擎" />
-
-<meta property="article:tag" content="btree" />
-
-<meta property="article:tag" content="sqlite" />
-
-
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220807-weekly-23/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220710-weekly-22/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220703-weekly-21/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    周刊（第24期）：sqlite并发读写的演进之路 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">周刊（第24期）：sqlite并发读写的演进之路</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20220904-weekly-24/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-09-04</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>7分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20220904-weekly-24/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第24期）：sqlite并发读写的演进之路">
+  <meta property="og:description" content="周刊（第24期）：sqlite并发读写的演进之路">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-09-04T09:10:31+08:00">
+    <meta property="article:modified_time" content="2022-09-04T09:10:31+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Btree">
+    <meta property="article:tag" content="Sqlite">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >周刊</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >2022周刊</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220904-weekly-24/">周刊（第24期）：sqlite并发读写的演进之路</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第24期）：sqlite并发读写的演进之路</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-09-04T09:10:31&#43;08:00">2022年9月4日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <hr>
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#概论">概论</a></li>
+    <li><a href="#journal">Journal</a></li>
+    <li><a href="#wal">WAL</a></li>
+    <li><a href="#两个可能的优化方案">两个可能的优化方案</a>
+      <ul>
+        <li><a href="#wal-2">WAL-2</a></li>
+        <li><a href="#begin-concurrent">BEGIN CONCURRENT</a></li>
+      </ul>
+    </li>
+    <li><a href="#其它">其它</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <hr>
 <p>引言：本文梳理sqlite并发读写方案的演进之路。</p>
 <hr>
-<h1 id="sqlite并发读写的演进之路">sqlite并发读写的演进之路</h1>
-<h2 id="概论">概论</h2>
+<h1 class="heading" id="sqlite并发读写的演进之路">
+  sqlite并发读写的演进之路
+  <a class="anchor" href="#sqlite%e5%b9%b6%e5%8f%91%e8%af%bb%e5%86%99%e7%9a%84%e6%bc%94%e8%bf%9b%e4%b9%8b%e8%b7%af">#</a>
+</h1>
+<h2 class="heading" id="概论">
+  概论
+  <a class="anchor" href="#%e6%a6%82%e8%ae%ba">#</a>
+</h2>
 <p>sqlite底层的存储基于B-tree，B-Tree对底层存储的基本读写单位是页面，而每个页面都由全局唯一的页面编号与之对应，一般来说页面编号从1开始递增。</p>
 <p>类B-Tree的存储引擎修改数据的流程如下图所示：</p>
-<p><img src="/media/imgs/20220904-weekly-24/b-tree.png" alt="b-tree" title="b-tree"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="b-tree" src="/media/imgs/20220904-weekly-24/b-tree.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> b-tree </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>从上图中，需要区分B-Tree类的存储引擎几个核心的模块：</p>
 <ul>
 <li>B-Tree算法模块：从页面管理器中读取页面到内存，进行逻辑的修改，修改完毕之后标记该页面为脏页面，这样页面管理器就知道哪些页面被修改，后续需要进行落盘。</li>
@@ -436,9 +255,36 @@
 </li>
 </ul>
 <p>有了这些基础的了解，我们来看看sqlite在并发读写方面的演进之路。</p>
-<h2 id="journal">Journal</h2>
+<h2 class="heading" id="journal">
+  Journal
+  <a class="anchor" href="#journal">#</a>
+</h2>
 <p>最早的页面管理器实现是基于Journal文件的，这个文件存储页面在修改之前的内容：</p>
-<p><img src="/media/imgs/20220904-weekly-24/journal.png" alt="journal" title="journal"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="journal" src="/media/imgs/20220904-weekly-24/journal.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> journal </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以看到的是：</p>
 <ul>
 <li>Journal文件存储了一个事务所要修改的页面在修改之前的内容，这个定义有点拗口，姑且称为“旧页面内容”。</li>
@@ -447,14 +293,41 @@
 <li>当需要事务回滚的功能时，页面管理器就可以从Journal文件中读出来旧页面内容覆盖回去。</li>
 <li>虽然这个算法很简单，但是缺陷也明显：它没有任何的读写并发支持。每次开始一个写事务，从开始写事务，到这个写事务提交完成的过程中间，其他的读写事务都不能开始，可以说是“一写全卡住”。</li>
 </ul>
-<h2 id="wal">WAL</h2>
+<h2 class="heading" id="wal">
+  WAL
+  <a class="anchor" href="#wal">#</a>
+</h2>
 <p>从上面的分析可以看出，以Journal文件的机制，每次写事务：</p>
 <ul>
 <li>需要把内容修改全部落盘到数据库文件才能算完成。</li>
 <li>这个过程中间，不能同时存在其他并发的读、写操作。</li>
 </ul>
 <p>从sqlite3.7.0版本开始（<a href="https://www.sqlite.org/releaselog/3_7_0.html">SQLite Release 3.7.0 On 2010-07-21</a>），sqlite引入了更常见的WAL机制来解决页面的读写并发问题，WAL的原理如下图所示：</p>
-<p><img src="/media/imgs/20220904-weekly-24/wal.png" alt="wal" title="wal"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="wal" src="/media/imgs/20220904-weekly-24/wal.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> wal </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>WAL机制中，事务对页面的修改：</p>
 <ul>
 <li>并没有马上落到数据库文件里，而是首先写入WAL文件中。这样有两个好处：
@@ -471,223 +344,155 @@
 <li>虽然同一时间仍然只能有一个写事务在进行，但是读事务同时存在多个。其核心原因是因为修改并没有马上直接落盘到数据库文件中，这样修改的可见性就可以由wal索引来控制，即：写事务尽管写，读事务尽管读，只要控制这些写事务的修改不在wal索引中可见即可。</li>
 <li>WAL虽然支持“一写多读”，而不是Journal文件那样的“一写全卡住”，但是还有一个问题没有解决：在做checkpoint操作的时候，连写事务也不能进行了。</li>
 </ul>
-<h2 id="两个可能的优化方案">两个可能的优化方案</h2>
+<h2 class="heading" id="两个可能的优化方案">
+  两个可能的优化方案
+  <a class="anchor" href="#%e4%b8%a4%e4%b8%aa%e5%8f%af%e8%83%bd%e7%9a%84%e4%bc%98%e5%8c%96%e6%96%b9%e6%a1%88">#</a>
+</h2>
 <p>以下介绍sqlite目前在讨论的两个优化方案，之所以说是“可能”，因为看这部分代码还并没有合并到主干中，目前暂时还在分支里，参见：https://github.com/sqlite/sqlite/tree/begin-concurrent-pnu-wal2。</p>
-<h3 id="wal-2">WAL-2</h3>
+<h3 class="heading" id="wal-2">
+  WAL-2
+  <a class="anchor" href="#wal-2">#</a>
+</h3>
 <p>为了解决“checkpoint时无法进行写事务”的痛点，sqlite目前在尝试新的WAL-2机制。</p>
-<p><img src="/media/imgs/20220904-weekly-24/wal-2.png" alt="wal-2" title="wal-2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="wal-2" src="/media/imgs/20220904-weekly-24/wal-2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> wal-2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>引入WAL-2之后，同时有两个WAL文件，这样可以：checkpoint其中一个WAL文件时，继续写另一个WAL文件，下一次再进行checkpoint时进行切换，这样checkpoint就不会阻塞住写操作。</p>
-<h3 id="begin-concurrent">BEGIN CONCURRENT</h3>
+<h3 class="heading" id="begin-concurrent">
+  BEGIN CONCURRENT
+  <a class="anchor" href="#begin-concurrent">#</a>
+</h3>
 <p>目前的WAL机制，都只能支持同一时间一个写事务，<code>BEGIN CONCURRENT</code>机制可以实现多个写并发，这篇<a href="https://www.sqlite.org/cgi/src/doc/begin-concurrent/doc/begin_concurrent.md">SQLite: Begin Concurrent</a>文档中，大概描述了一下这个优化的思路：</p>
 <blockquote>
 <p>The key to maximizing concurrency using BEGIN CONCURRENT is to ensure that there are a large number of non-conflicting transactions. In SQLite, each table and each index is stored as a separate b-tree, each of which is distributed over a discrete set of database pages. This means that:</p>
 <ul>
 <li>Two transactions that write to different sets of tables never conflict, and that</li>
 <li>Two transactions that write to the same tables or indexes only conflict if the values of the keys (either primary keys or indexed rows) are fairly close together.</li>
-</ul>
-</blockquote>
+</ul></blockquote>
 <p>简单的理解上面的这段话：</p>
 <ul>
 <li>不同的写事务，如果操作的是不同的表，不同的表数据虽然物理上在同一个数据库文件，但是逻辑上却分属于不同的B-Tree，这样不同的B-Tree管理的页面之间就不会发生冲突，顶多在落盘到数据库文件的时候加锁即可。</li>
 <li>其次，即便多个写事务操作了同样的表，但只要同一张表的键值离得较远，发生冲突的可能性就不大。一旦在事务提交的时候发现有冲突，那么就从头开始再做一次事务，直到可以提交时没有冲突成功提交为止。后面这个冲突解决的思路实际上文档中并没有，是我自己根据其他论文想出来的一个办法：）。</li>
 </ul>
 <p>目前这两个优化，由于还并没有合并到主干，所以我也还没有具体看实现，后续体现在sqlite主干中的存储引擎方面的优化，再梳理出来。</p>
-<h2 id="其它">其它</h2>
+<h2 class="heading" id="其它">
+  其它
+  <a class="anchor" href="#%e5%85%b6%e5%ae%83">#</a>
+</h2>
 <p>本文概述了sqlite B-Tree存储引擎并发读写的演进，如果想了解更多细节，可以参考之前的文章：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/">sqlite3.36版本 btree实现（三）- journal文件备份机制 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-    <a href="https://www.codedump.info/tags/btree/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#btree</a>
-    
-    <a href="https://www.codedump.info/tags/sqlite/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#sqlite</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20250227-cook/" class="block">写代码与做菜</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220807-weekly-23/" class="block">周刊（第23期）：图解Blink-Tree：B&#43;Tree的一种并发优化结构和算法</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#sqlite并发读写的演进之路">sqlite并发读写的演进之路</a>
-      <ul>
-        <li><a href="#概论">概论</a></li>
-        <li><a href="#journal">Journal</a></li>
-        <li><a href="#wal">WAL</a></li>
-        <li><a href="#两个可能的优化方案">两个可能的优化方案</a>
-          <ul>
-            <li><a href="#wal-2">WAL-2</a></li>
-            <li><a href="#begin-concurrent">BEGIN CONCURRENT</a></li>
-          </ul>
-        </li>
-        <li><a href="#其它">其它</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20220807-weekly-23/" class="no-underline">周刊（第23期）：图解Blink-Tree：B&#43;Tree的一种并发优化结构和算法</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" class="no-underline">sqlite3.36版本 btree实现（五）- Btree的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" class="no-underline">sqlite3.36版本 btree实现（四）- WAL的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" class="no-underline">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" class="no-underline">sqlite3.36版本 btree实现（二）- 并发控制框架</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="no-underline">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

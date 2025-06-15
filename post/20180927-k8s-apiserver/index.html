@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    K8S源码分析之Apiserver | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20180927-k8s-apiserver/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20180927-k8s-apiserver/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="K8S源码分析之Apiserver">
+  <meta property="og:description" content="概述 # apiserver是K8S几个核心组件里面最重要的一个，它对内封装了对etcd的访问，对外提供REST接口给其他组件使用。其他的组件，比如属于核心组件的controller manager、kubelet、scheduller等，本质上都是watch在apiserver上的服务，其工作本质上就是通过apiserver监听对应资源的变更情况，然后根据自己的业务来完成相关的操作。从这里可以看到，apiserver的重要性比其他K8S核心组件更高，只要apiserver异常，整个系统都无法正常运行了。
+apiserver要完成的核心工作包括如下几件事情：
+提供REST接口给各种客户端调用，这些接口可以针对不同的K8S资源（pod、service等）进行CRUD操作，外加还可以进行监听其变化的操作。 封装了对etcd的访问操作，K8S的其他组件并不会直接操作etcd，都是通过apiserver。其原因在于，K8S里面的资源定义，都有一个对应的版本号，比如在定义一个StatefulSet的时候，其yaml文件中需要指定apps/v1beta1这个版本号，同样的资源在不同版本的实现中可能会有差异。而对于保存到etcd的数据而言，这些版本号相关的meta信息，是不需要etcd这个只负责存储的组件去关心的，这些都是在apiserver中完成。 既然前面提到了版本号，那么在向etcd进行读写操作的时候，就涉及到不同版本之间数据转换的问题，这个操作也是由apiserver来完成的。 所以，看上去apiserver只是负责调用etcd完成CRUD操作，可是实际上它的设计考量还是很多。
+go-restful框架简述 # 由于apiserver中使用go-restful这个框架来提供REST接口，所以先提前做一些了解。
+核心数据结构 # 来回顾一下前面提到的apiserver要做的事情，以此为出发点来看看apiserver相关的实现。
+当通过kubectl客户端向apiserver发出请求时，可以打开日志级别，看到其中详细的流程，比如执行：
+kubectl get pod -n kube-system -v=8 tengine-ingress-controller-smsnz 能看到流程中相关的日志是：
+I0928 16:58:25.826473 66127 loader.go:357] Config loaded from file /home/nemo/.kube/config I0928 16:58:25.842393 66127 round_trippers.go:414] GET https://apiserver:6443/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz I0928 16:58:25.842424 66127 round_trippers.go:421] Request Headers: I0928 16:58:25.842436 66127 round_trippers.go:424] Accept: application/json I0928 16:58:25.842445 66127 round_trippers.go:424] User-Agent: kubectl/v1.9.3 (linux/amd64) kubernetes/c5cea03 I0928 16:58:25.857103 66127 round_trippers.go:439] Response Status: 200 OK in 14 milliseconds I0928 16:58:25.857116 66127 round_trippers.go:442] Response Headers: I0928 16:58:25.857121 66127 round_trippers.go:445] Audit-Id: 5c973d4f-faba-415f-89fa-f4f3dd3b2bf7 I0928 16:58:25.857126 66127 round_trippers.go:445] Content-Type: application/json I0928 16:58:25.857131 66127 round_trippers.go:445] Date: Fri, 28 Sep 2018 08:58:25 GMT I0928 16:58:25.857433 66127 request.go:873] Response Body: {&#34;kind&#34;:&#34;Pod&#34;,&#34;apiVersion&#34;:&#34;v1&#34;,&#34;metadata&#34;:{&#34;name&#34;:&#34;tengine-ingress-controller-smsnz&#34;,&#34;generateName&#34;:&#34;tengine-ingress-controller-&#34;,&#34;namespace&#34;:&#34;kube-system&#34;,&#34;selfLink&#34;:&#34;/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz&#34;,&#34;uid&#34;:&#34;617f505d-c160-11e8-b8fb-6c92bf6b2d28&#34;,&#34;resourceVersion&#34;:&#34;115930452&#34;,&#34;creationTimestamp&#34;:&#34;2018-09-26T07:47:13Z&#34;,&#34;labels&#34;:{&#34;controller-revision-hash&#34;:&#34;1353751459&#34;,&#34;k8s-app&#34;:&#34;tengine-ingress-controller&#34;,&#34;pod-template-generation&#34;:&#34;11504&#34;},&#34;annotations&#34;:{&#34;prometheus.io/port&#34;:&#34;10254&#34;,&#34;prometheus.io/scrape&#34;:&#34;true&#34;},&#34;ownerReferences&#34;:[{&#34;apiVersion&#34;:&#34;extensions/v1beta1&#34;,&#34;kind&#34;:&#34;DaemonSet&#34;,&#34;name&#34;:&#34;tengine-ingress-controller&#34;,&#34;uid&#34;:&#34;22d6ca2b-f794-11e7-831e-042758486066&#34;,&#34;controller&#34;:true,&#34;blockOwnerDeletion&#34;:true}]},&#34;spec&#34;:{&#34;volumes&#34;:[{&#34;name&#34;:&#34;nginx-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingress/nginx/log&#34;,&#34;type&#34;:&#34;&#34;}},{&#34;name&#34;:&#34;logsender-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingress/logsender/log&#34;,&#34;type&#34;:&#34;&#34;}},{&#34;name&#34;:&#34;logsender-plugin-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingre [truncated 3760 chars] 从这里能看到：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2018-09-27T11:33:33+08:00">
+    <meta property="article:modified_time" content="2018-09-27T11:33:33+08:00">
+    <meta property="article:tag" content="K8s">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20180927-k8s-apiserver/">K8S源码分析之Apiserver</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">K8S源码分析之Apiserver</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2018-09-27T11:33:33&#43;08:00">2018年9月27日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>apiserver是K8S几个核心组件里面最重要的一个，它对内封装了对etcd的访问，对外提供REST接口给其他组件使用。其他的组件，比如属于核心组件的controller manager、kubelet、scheduller等，本质上都是watch在apiserver上的服务，其工作本质上就是通过apiserver监听对应资源的变更情况，然后根据自己的业务来完成相关的操作。从这里可以看到，apiserver的重要性比其他K8S核心组件更高，只要apiserver异常，整个系统都无法正常运行了。</p>
+<p>apiserver要完成的核心工作包括如下几件事情：</p>
+<ul>
+<li>提供REST接口给各种客户端调用，这些接口可以针对不同的K8S资源（pod、service等）进行CRUD操作，外加还可以进行监听其变化的操作。</li>
+<li>封装了对etcd的访问操作，K8S的其他组件并不会直接操作etcd，都是通过apiserver。其原因在于，K8S里面的资源定义，都有一个对应的版本号，比如在定义一个StatefulSet的时候，其yaml文件中需要指定apps/v1beta1这个版本号，同样的资源在不同版本的实现中可能会有差异。而对于保存到etcd的数据而言，这些版本号相关的meta信息，是不需要etcd这个只负责存储的组件去关心的，这些都是在apiserver中完成。</li>
+<li>既然前面提到了版本号，那么在向etcd进行读写操作的时候，就涉及到不同版本之间数据转换的问题，这个操作也是由apiserver来完成的。</li>
+</ul>
+<p>所以，看上去apiserver只是负责调用etcd完成CRUD操作，可是实际上它的设计考量还是很多。</p>
+<h1 class="heading" id="go-restful框架简述">
+  go-restful框架简述
+  <a class="anchor" href="#go-restful%e6%a1%86%e6%9e%b6%e7%ae%80%e8%bf%b0">#</a>
+</h1>
+<p>由于apiserver中使用go-restful这个框架来提供REST接口，所以先提前做一些了解。</p>
+<h1 class="heading" id="核心数据结构">
+  核心数据结构
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h1>
+<p>来回顾一下前面提到的apiserver要做的事情，以此为出发点来看看apiserver相关的实现。</p>
+<p>当通过kubectl客户端向apiserver发出请求时，可以打开日志级别，看到其中详细的流程，比如执行：</p>
+<pre tabindex="0"><code>kubectl get pod -n kube-system -v=8 tengine-ingress-controller-smsnz
+</code></pre><p>能看到流程中相关的日志是：</p>
+<pre tabindex="0"><code>I0928 16:58:25.826473   66127 loader.go:357] Config loaded from file /home/nemo/.kube/config
+I0928 16:58:25.842393   66127 round_trippers.go:414] GET https://apiserver:6443/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz
+I0928 16:58:25.842424   66127 round_trippers.go:421] Request Headers:
+I0928 16:58:25.842436   66127 round_trippers.go:424]     Accept: application/json
+I0928 16:58:25.842445   66127 round_trippers.go:424]     User-Agent: kubectl/v1.9.3 (linux/amd64) kubernetes/c5cea03
+I0928 16:58:25.857103   66127 round_trippers.go:439] Response Status: 200 OK in 14 milliseconds
+I0928 16:58:25.857116   66127 round_trippers.go:442] Response Headers:
+I0928 16:58:25.857121   66127 round_trippers.go:445]     Audit-Id: 5c973d4f-faba-415f-89fa-f4f3dd3b2bf7
+I0928 16:58:25.857126   66127 round_trippers.go:445]     Content-Type: application/json
+I0928 16:58:25.857131   66127 round_trippers.go:445]     Date: Fri, 28 Sep 2018 08:58:25 GMT
+I0928 16:58:25.857433   66127 request.go:873] Response Body: {&#34;kind&#34;:&#34;Pod&#34;,&#34;apiVersion&#34;:&#34;v1&#34;,&#34;metadata&#34;:{&#34;name&#34;:&#34;tengine-ingress-controller-smsnz&#34;,&#34;generateName&#34;:&#34;tengine-ingress-controller-&#34;,&#34;namespace&#34;:&#34;kube-system&#34;,&#34;selfLink&#34;:&#34;/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz&#34;,&#34;uid&#34;:&#34;617f505d-c160-11e8-b8fb-6c92bf6b2d28&#34;,&#34;resourceVersion&#34;:&#34;115930452&#34;,&#34;creationTimestamp&#34;:&#34;2018-09-26T07:47:13Z&#34;,&#34;labels&#34;:{&#34;controller-revision-hash&#34;:&#34;1353751459&#34;,&#34;k8s-app&#34;:&#34;tengine-ingress-controller&#34;,&#34;pod-template-generation&#34;:&#34;11504&#34;},&#34;annotations&#34;:{&#34;prometheus.io/port&#34;:&#34;10254&#34;,&#34;prometheus.io/scrape&#34;:&#34;true&#34;},&#34;ownerReferences&#34;:[{&#34;apiVersion&#34;:&#34;extensions/v1beta1&#34;,&#34;kind&#34;:&#34;DaemonSet&#34;,&#34;name&#34;:&#34;tengine-ingress-controller&#34;,&#34;uid&#34;:&#34;22d6ca2b-f794-11e7-831e-042758486066&#34;,&#34;controller&#34;:true,&#34;blockOwnerDeletion&#34;:true}]},&#34;spec&#34;:{&#34;volumes&#34;:[{&#34;name&#34;:&#34;nginx-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingress/nginx/log&#34;,&#34;type&#34;:&#34;&#34;}},{&#34;name&#34;:&#34;logsender-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingress/logsender/log&#34;,&#34;type&#34;:&#34;&#34;}},{&#34;name&#34;:&#34;logsender-plugin-log&#34;,&#34;hostPath&#34;:{&#34;path&#34;:&#34;/home1/system/ingre [truncated 3760 chars]
+</code></pre><p>从这里能看到：</p>
+<ol>
+<li>向地址为apiserver:6443发起请求（这里为了保护隐私apiserver已经被我替换了相关的域名）：“GET https://apiserver:6443/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz”，其中的路径”/api/v1/namespaces/kube-system/pods/tengine-ingress-controller-smsnz“中有如下层次的划分：</li>
+</ol>
+<ul>
+<li>api：api表，还有另外的/apis路径，则是其它的api注册路径了。</li>
+<li>v1：版本号。</li>
+<li>/namespaces/kube-system/pods/tengine-ingress-controller-smsnz：查询名字空间kube-system下的pods资源tengine-ingress-controller-smsnz信息。</li>
+</ul>
+<p>可以看到，前面的请求路径中，请求的表、版本号、  名字空间、资源名称等都可以变化的，而apiserver提供的REST接口就要根据这些参数来做处理。</p>
+<ol start="2">
+<li>
+<p>其次，apiserver后面的存储后端是etcd，因此在处理一个请求时，要转换为对应的etcd请求，在拿到etcd数据之后再组装返回给客户端。</p>
+</li>
+<li>
+<p>最后，etcd返回的数据需要根据客户端的需求，序列化为json、yaml等格式进行转换给客户端。</p>
+</li>
+</ol>
+<p>综上，apiserver做的事情归纳起来就是：</p>
+<ol>
+<li>如何根据不同的版本、资源来注册对应的REST处理函数？</li>
+<li>如何将对应资源的请求映射为针对某个etcd数据的访问？</li>
+<li>如何将etcd返回的数据根据不同的序列化格式序列化返回给客户端？</li>
+</ol>
+<p>以下按照这几个主线分别展开讨论。</p>
+<h2 class="heading" id="注册rest处理函数">
+  注册REST处理函数
+  <a class="anchor" href="#%e6%b3%a8%e5%86%8crest%e5%a4%84%e7%90%86%e5%87%bd%e6%95%b0">#</a>
+</h2>
+<p>apiserver中将不同的资源，使用一个接口Storage进行抽象：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="">（</span>vendor/k8s.io/apiserver/pkg/registry/rest/rest.<span style="font-weight:bold;text-decoration:underline">go</span><span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> Storage <span style="font-weight:bold;font-style:italic;text-decoration:underline">interface</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// New returns an empty object that can be used with Create and Update after request data has been put into it.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">New</span>() runtime.Object
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以认为每一个k8s资源，都是一个Storage接口的具体实现。除此之外，还有另外一些接口继承了Storage的实现，比如：</p>
+<pre tabindex="0"><code>（vendor/k8s.io/apiserver/pkg/registry/rest/rest.go）
+type Creater interface {
+	// New returns an empty object that can be used with Create after request data has been put into it.
+	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
+	New() runtime.Object
+
+	// Create creates a new version of a resource. If includeUninitialized is set, the object may be returned
+	// without completing initialization.
+	Create(ctx genericapirequest.Context, obj runtime.Object, createValidation ValidateObjectFunc, includeUninitialized bool) (runtime.Object, error)
+}
+</code></pre><p>可以看到，Creater接口除了实现了Storage的New函数之外，还有一个Create接口需要实现。这是因为，不同的资源可以进去的CRUDW操作是不同的，除了Creater接口之外，还有Lister、Watcher接口的，对应的就是相关的操作。</p>
+<p>因此，一个具体的k8s资源，需要实现以下的接口：</p>
+<ol>
+<li>New接口：用于创建相应的资源。</li>
+<li>其他操作接口：用于进行相关的操作。</li>
+</ol>
+<p>以pod资源来看，其对应的Storage就是pkg/registry/core/pod/storage/中的REST结构体：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="">（</span>pkg/registry/core/pod/storage/storage.<span style="font-weight:bold;text-decoration:underline">go</span><span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// REST implements a RESTStorage for pods</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> REST <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	*genericregistry.Store
+</span></span><span style="display:flex;"><span>	proxyTransport http.RoundTripper
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到这个结构体继承自genericregistry.Store，这个Store结构体中提供了以上这些函数的成员，这里就不贴出来了。</p>
+<p>而在具体代码中，又是怎么知道这个Storage接口具体实现了哪些操作呢，很简单通过类型断言：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="">（</span>vendor/k8s.io/apiserver/pkg/endpoints/installer.<span style="font-weight:bold;text-decoration:underline">go</span><span style="">）</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// what verbs are supported by the storage, used to know what verbs we support per path</span>
+</span></span><span style="display:flex;"><span>creater, isCreater := storage.(rest.Creater)
+</span></span><span style="display:flex;"><span>namedCreater, isNamedCreater := storage.(rest.NamedCreater)
+</span></span><span style="display:flex;"><span>lister, isLister := storage.(rest.Lister)
+</span></span></code></pre></div><p>在存储不同版本的API注册信息时，用到的是APIGroupInfo结构体：</p>
+<ul>
+<li>VersionedResourcesStorageMap map[string]map[string]rest.Storage：保存不同版本号的资源注册信息。如&quot;v1&quot; -&gt; &ldquo;pods -&gt; rest.Storage&rdquo;，这里的rest.Storage就是前面分析过的Storage接口。</li>
+</ul>
+<p>APIGroupInfo在NewLegacyRESTStorage中进行初始化，其中有一段就是注册各种资源对应的Storage接口：</p>
+<pre tabindex="0"><code>restStorageMap := map[string]rest.Storage{
+  &#34;pods&#34;:             podStorage.Pod,
+  &#34;pods/attach&#34;:      podStorage.Attach,
+
+// ....  
+  
+apiGroupInfo.VersionedResourcesStorageMap[&#34;v1&#34;] = restStorageMap  
+</code></pre><p>接下来，在函数installAPIResources中，会遍历APIGroupInfo中的所有版本号，创建其对应的APIGroupVersion结构体，再调用InstallREST函数将这些APIGroupVersion依次注册，最终这个注册动作会走到registerResourceHandlers函数中。这个函数的核心功能总结如下：</p>
+<ol>
+<li>根据传入的rest.Storage接口，拿到该接口分别实现了哪些操作，将这些操作注册到一个叫actions的数组中。</li>
+<li>遍历actions数组，将它们转换go-restful的路由相关结构体，最终注册到go-restful的WebService中。</li>
+<li>最后该函数返回的WebService结构体了，在外部再将该WebService结构体注册到Container中，这样就完成了某类资源的REST接口注册。</li>
+</ol>
+<h2 class="heading" id="etcd访问">
+  etcd访问
+  <a class="anchor" href="#etcd%e8%ae%bf%e9%97%ae">#</a>
+</h2>
+<p>前面提到过，任何一个资源的访问，apiserver只是代理，最终会访问到存储在etcd服务中的数据，接下来就看看如何把资源请求与etcd数据访问结合在一起的。</p>
+<h2 class="heading" id="格式的转换">
+  格式的转换
+  <a class="anchor" href="#%e6%a0%bc%e5%bc%8f%e7%9a%84%e8%bd%ac%e6%8d%a2">#</a>
+</h2>
+<h1 class="heading" id="流程分析">
+  流程分析
+  <a class="anchor" href="#%e6%b5%81%e7%a8%8b%e5%88%86%e6%9e%90">#</a>
+</h1>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

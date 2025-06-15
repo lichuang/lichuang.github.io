@@ -1,299 +1,181 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>Nginx源码阅读笔记-查询HTTP配置流程 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="Nginx源码阅读笔记-查询HTTP配置流程"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="Nginx源码阅读笔记-查询HTTP配置流程">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"Nginx源码阅读笔记-查询HTTP配置流程",
-      "item":"https://www.codedump.info/post/20190212-nginx-http-config/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190212-nginx-http-config/"
-    },
-    "headline": "Nginx源码阅读笔记-查询HTTP配置流程 - codedump的网络日志","datePublished": "2019-02-12T09:54:25+08:00",
-    "dateModified": "2019-02-12T09:54:25+08:00",
-    "wordCount":  5208 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "Nginx源码阅读笔记-查询HTTP配置流程"
-}
-</script><meta property="og:title" content="Nginx源码阅读笔记-查询HTTP配置流程 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190212-nginx-http-config/" />
-
-
-
-<meta property="og:description" content="Nginx源码阅读笔记-查询HTTP配置流程" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-02-12T09:54:25&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-02-12T09:54:25&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="nginx" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190131-nginx-read-http-request/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190131-nginx-event/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190131-nginx-master-worker/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    Nginx源码阅读笔记-查询HTTP配置流程 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">Nginx源码阅读笔记-查询HTTP配置流程</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190212-nginx-http-config/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-02-12</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>11分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190212-nginx-http-config/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Nginx源码阅读笔记-查询HTTP配置流程">
+  <meta property="og:description" content="Nginx源码阅读笔记-查询HTTP配置流程">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-02-12T09:54:25+08:00">
+    <meta property="article:modified_time" content="2019-02-12T09:54:25+08:00">
+    <meta property="article:tag" content="Nginx">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/nginx/" class="hover:text-eureka"
-          >nginx</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190212-nginx-http-config/">Nginx源码阅读笔记-查询HTTP配置流程</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Nginx源码阅读笔记-查询HTTP配置流程</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-02-12T09:54:25&#43;08:00">2019年2月12日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>前面已经分析过<a href="https://www.codedump.info/post/20190103-nginx-config-parse/#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">nginx解析配置文件的整体流程</a>，接下来看查询HTTP配置的流程。</p>
 <p>HTTP属于nginx的core顶层模块，下面又包括了三部分：</p>
 <ul>
@@ -301,53 +183,101 @@
 <li>server块：在server块内部的配置。</li>
 <li>location块：在location块内部分配置。</li>
 </ul>
-<p><img src="/media/imgs/20190212-nginx-http-config/http_config.jpg" alt="http_config" title="http_config"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="http_config" src="/media/imgs/20190212-nginx-http-config/http_config.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> http_config </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>解析HTTP模块的入口函数是ngx_http_block，这一点可以从http指令相关的配置看出：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="p">{</span> <span class="n">ngx_string</span><span class="p">(</span><span class="s">&#34;http),</span>
-  <span class="n">NGX_MAIN_CONF</span><span class="o">|</span><span class="n">NGX_CONF_BLOCK</span><span class="o">|</span><span class="n">NGX_CONF_NOARGS</span><span class="p">,</span>
-  <span class="n">ngx_http_block</span><span class="p">,</span>
-  <span class="mi">0</span><span class="p">,</span>
-  <span class="mi">0</span><span class="p">,</span>
-  <span class="nb">NULL</span> <span class="p">}</span>
-</code></pre></div><p>在这个解析函数的开始，就创建了ngx_http_conf_ctx_t结构体，所以看的出来这个结构体是HTTP模块的第一级配置，它的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
-  <span class="kt">void</span>        <span class="o">**</span><span class="n">main_conf</span><span class="p">;</span>
-  <span class="kt">void</span>        <span class="o">**</span><span class="n">srv_conf</span><span class="p">;</span>
-  <span class="kt">void</span>        <span class="o">**</span><span class="n">loc_conf</span><span class="p">;</span>
-<span class="p">}</span> <span class="n">ngx_http_conf_ctx_t</span><span class="p">;</span>
-</code></pre></div><p>下面列举出来这几部分相关的函数以及数据结构：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>{ <span style="color:#666;font-weight:bold;font-style:italic">ngx_string</span>(<span style="color:#666;font-style:italic">&#34;http),</span>
+</span></span><span style="display:flex;"><span>  NGX_MAIN_CONF|NGX_CONF_BLOCK|NGX_CONF_NOARGS,
+</span></span><span style="display:flex;"><span>  ngx_http_block,
+</span></span><span style="display:flex;"><span>  0,
+</span></span><span style="display:flex;"><span>  0,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic">NULL</span> }
+</span></span></code></pre></div><p>在这个解析函数的开始，就创建了ngx_http_conf_ctx_t结构体，所以看的出来这个结构体是HTTP模块的第一级配置，它的定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">typedef</span> <span style="font-weight:bold;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span>        **main_conf;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span>        **srv_conf;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span>        **loc_conf;
+</span></span><span style="display:flex;"><span>} <span style="font-weight:bold;text-decoration:underline">ngx_http_conf_ctx_t</span>;
+</span></span></code></pre></div><p>下面列举出来这几部分相关的函数以及数据结构：</p>
 <table>
-<thead>
-<tr>
-<th>块</th>
-<th>入口函数</th>
-<th>数据结构</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>http</td>
-<td>ngx_http_block</td>
-<td>ngx_http_conf_ctx_t</td>
-</tr>
-<tr>
-<td>main</td>
-<td></td>
-<td>ngx_http_core_main_conf_t</td>
-</tr>
-<tr>
-<td>server</td>
-<td>ngx_http_core_server</td>
-<td>ngx_http_core_srv_conf_t</td>
-</tr>
-<tr>
-<td>location</td>
-<td>ngx_http_core_location</td>
-<td>ngx_http_core_loc_conf_t</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>块</th>
+          <th>入口函数</th>
+          <th>数据结构</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>http</td>
+          <td>ngx_http_block</td>
+          <td>ngx_http_conf_ctx_t</td>
+      </tr>
+      <tr>
+          <td>main</td>
+          <td></td>
+          <td>ngx_http_core_main_conf_t</td>
+      </tr>
+      <tr>
+          <td>server</td>
+          <td>ngx_http_core_server</td>
+          <td>ngx_http_core_srv_conf_t</td>
+      </tr>
+      <tr>
+          <td>location</td>
+          <td>ngx_http_core_location</td>
+          <td>ngx_http_core_loc_conf_t</td>
+      </tr>
+  </tbody>
 </table>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx_http_module.png" alt="ngx_http_module" title="ngx_http_module"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ngx_http_module" src="/media/imgs/20190212-nginx-http-config/ngx_http_module.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ngx_http_module </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>另外，由于HTTP块内的一些配置，作用域可以在多种块中，因此需要涉及到合并配置的流程，即：</p>
 <ul>
 <li>如果子作用域某配置项在解析过程中未被赋值，则将父作用域的 相同的配置项值拷贝至此配置项里；</li>
@@ -355,66 +285,69 @@
 </ul>
 <p>相关的合并配置函数列举如下：</p>
 <table>
-<thead>
-<tr>
-<th>块</th>
-<th>合并函数</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>server</td>
-<td>ngx_http_merge_servers</td>
-</tr>
-<tr>
-<td>location</td>
-<td>ngx_http_merge_locations</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>块</th>
+          <th>合并函数</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>server</td>
+          <td>ngx_http_merge_servers</td>
+      </tr>
+      <tr>
+          <td>location</td>
+          <td>ngx_http_merge_locations</td>
+      </tr>
+  </tbody>
 </table>
 <p>以下具体看看一次HTTP请求如何查找到相关HTTP配置的流程，分为两步：</p>
 <ul>
 <li>根据Host查找server块</li>
 <li>根据URI查找location块</li>
 </ul>
-<h1 id="根据host查找server块流程">根据Host查找server块流程</h1>
+<h1 class="heading" id="根据host查找server块流程">
+  根据Host查找server块流程
+  <a class="anchor" href="#%e6%a0%b9%e6%8d%aehost%e6%9f%a5%e6%89%beserver%e5%9d%97%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>前面分析<a href="https://www.codedump.info/post/20190131-nginx-read-http-request/">nginx接收HTTP请求流程</a>中分析到，nginx在接收HTTP请求流程中，将调用ngx_http_process_request_headers函数来处理请求头。</p>
 <p>nginx使用一个ngx_http_header_t结构体，定义了哪些请求头需要进行特定的函数回调处理，函数ngx_http_process_request_headers会根据这个表来查询接收到的请求头都需要哪些回调函数来处理：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">ngx_http_header_t</span>  <span class="n">ngx_http_headers_in</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
-  <span class="p">{</span> <span class="n">ngx_string</span><span class="p">(</span><span class="s">&#34;Host&#34;</span><span class="p">),</span> <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_http_headers_in_t</span><span class="p">,</span> <span class="n">host</span><span class="p">),</span>
-    <span class="n">ngx_http_process_host</span> <span class="p">},</span>
-
-  <span class="p">{</span> <span class="n">ngx_string</span><span class="p">(</span><span class="s">&#34;Connection&#34;</span><span class="p">),</span> <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_http_headers_in_t</span><span class="p">,</span> <span class="n">connection</span><span class="p">),</span>
-    <span class="n">ngx_http_process_connection</span> <span class="p">},</span>
-  <span class="p">....</span>
-<span class="p">}</span>
-</code></pre></div><p>可以看到，针对Host这个header，会调用ngx_http_process_host函数，这个函数最终会调用ngx_http_set_virtual_server函数来根据Host头确定对应的server块。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">ngx_http_header_t</span>  ngx_http_headers_in[] = {
+</span></span><span style="display:flex;"><span>  { <span style="color:#666;font-weight:bold;font-style:italic">ngx_string</span>(<span style="color:#666;font-style:italic">&#34;Host&#34;</span>), <span style="color:#666;font-weight:bold;font-style:italic">offsetof</span>(<span style="font-weight:bold;text-decoration:underline">ngx_http_headers_in_t</span>, host),
+</span></span><span style="display:flex;"><span>    ngx_http_process_host },
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  { <span style="color:#666;font-weight:bold;font-style:italic">ngx_string</span>(<span style="color:#666;font-style:italic">&#34;Connection&#34;</span>), <span style="color:#666;font-weight:bold;font-style:italic">offsetof</span>(<span style="font-weight:bold;text-decoration:underline">ngx_http_headers_in_t</span>, connection),
+</span></span><span style="display:flex;"><span>    ngx_http_process_connection },
+</span></span><span style="display:flex;"><span>  ....
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到，针对Host这个header，会调用ngx_http_process_host函数，这个函数最终会调用ngx_http_set_virtual_server函数来根据Host头确定对应的server块。</p>
 <p>nginx中，不同的server块可以监听同一个地址端口，只要对应的server_name不一样就可以了。</p>
 <p>而相同的地址端口，在nginx中对应的是ngx_http_addr_conf_t，内部将同样地址端口的多个不同server_name再组织到一起来：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
-  <span class="n">ngx_hash_combined_t</span>        <span class="n">names</span><span class="p">;</span>
-
-  <span class="n">ngx_uint_t</span>                 <span class="n">nregex</span><span class="p">;</span>
-  <span class="n">ngx_http_server_name_t</span>    <span class="o">*</span><span class="n">regex</span><span class="p">;</span>
-<span class="p">}</span> <span class="n">ngx_http_virtual_names_t</span><span class="p">;</span>
-
-<span class="k">struct</span> <span class="n">ngx_http_addr_conf_s</span> <span class="p">{</span>
-  <span class="cm">/* the default server configuration for this address:port */</span>
-  <span class="n">ngx_http_core_srv_conf_t</span>  <span class="o">*</span><span class="n">default_server</span><span class="p">;</span>
-
-  <span class="n">ngx_http_virtual_names_t</span>  <span class="o">*</span><span class="n">virtual_names</span><span class="p">;</span>
-
-  <span class="kt">unsigned</span>                   <span class="nl">ssl</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>
-  <span class="kt">unsigned</span>                   <span class="nl">http2</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>
-  <span class="kt">unsigned</span>                   <span class="nl">proxy_protocol</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>
-<span class="p">};</span>
-</code></pre></div><p>显然，如果相同地址端口的server如果使用链表组织在一起，每一次都是线性时间的查找复杂度，这就太慢了。因此nginx定义了ngx_hash_combined_t这个数据结构，将相同地址端口的server_name组织到一起来：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
-  <span class="n">ngx_hash_t</span>            <span class="n">hash</span><span class="p">;</span>
-  <span class="n">ngx_hash_wildcard_t</span>  <span class="o">*</span><span class="n">wc_head</span><span class="p">;</span>
-  <span class="n">ngx_hash_wildcard_t</span>  <span class="o">*</span><span class="n">wc_tail</span><span class="p">;</span>
-<span class="p">}</span> <span class="n">ngx_hash_combined_t</span><span class="p">;</span>
-</code></pre></div><p>该结构体中有三个成员，区分不同的server_name格式：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">typedef</span> <span style="font-weight:bold;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_hash_combined_t</span>        names;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_uint_t</span>                 nregex;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_server_name_t</span>    *regex;
+</span></span><span style="display:flex;"><span>} <span style="font-weight:bold;text-decoration:underline">ngx_http_virtual_names_t</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> ngx_http_addr_conf_s {
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">/* the default server configuration for this address:port */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_srv_conf_t</span>  *default_server;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_virtual_names_t</span>  *virtual_names;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>                   ssl:1;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>                   http2:1;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>                   proxy_protocol:1;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>显然，如果相同地址端口的server如果使用链表组织在一起，每一次都是线性时间的查找复杂度，这就太慢了。因此nginx定义了ngx_hash_combined_t这个数据结构，将相同地址端口的server_name组织到一起来：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">typedef</span> <span style="font-weight:bold;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_hash_t</span>            hash;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_hash_wildcard_t</span>  *wc_head;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_hash_wildcard_t</span>  *wc_tail;
+</span></span><span style="display:flex;"><span>} <span style="font-weight:bold;text-decoration:underline">ngx_hash_combined_t</span>;
+</span></span></code></pre></div><p>该结构体中有三个成员，区分不同的server_name格式：</p>
 <ul>
 <li>ngx_hash_t hash：精确匹配的哈希表，用于存储没有使用通配符的虚拟主机名，如”www.example.com“。</li>
 <li>ngx_hash_wildcard_t  <em>wc_head：前置通配符哈希表，用于存储如”</em>.example.org“和”.example.org“这样的前置通配符虚拟主机名。</li>
@@ -427,30 +360,32 @@
 <li>最后查找后置通配符hash表，查找到则返回；</li>
 <li>如果以上都没有查找到，落到default_server的server块进行处理。</li>
 </ul>
-<h1 id="根据uri查找location块流程">根据URI查找location块流程</h1>
+<h1 class="heading" id="根据uri查找location块流程">
+  根据URI查找location块流程
+  <a class="anchor" href="#%e6%a0%b9%e6%8d%aeuri%e6%9f%a5%e6%89%belocation%e5%9d%97%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>根据Host查找到了server块，紧跟着就是根据URI来查找location块了。</p>
 <p>location区分几种格式：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">location</span> <span class="o">=</span> <span class="o">/</span> <span class="p">{</span>
-    <span class="p">[</span> <span class="n">configuration</span> <span class="n">A</span> <span class="p">]</span>
-<span class="p">}</span>
-
-<span class="n">location</span> <span class="o">/</span> <span class="p">{</span>
-    <span class="p">[</span> <span class="n">configuration</span> <span class="n">B</span> <span class="p">]</span>
-<span class="p">}</span>
-
-<span class="n">location</span> <span class="o">/</span><span class="n">documents</span><span class="o">/</span> <span class="p">{</span>
-    <span class="p">[</span> <span class="n">configuration</span> <span class="n">C</span> <span class="p">]</span>
-<span class="p">}</span>
-
-<span class="n">location</span> <span class="o">^~</span> <span class="o">/</span><span class="n">images</span><span class="o">/</span> <span class="p">{</span>
-    <span class="p">[</span> <span class="n">configuration</span> <span class="n">D</span> <span class="p">]</span>
-<span class="p">}</span>
-
-<span class="n">location</span> <span class="o">~*</span> <span class="err">\</span><span class="p">.(</span><span class="n">gif</span><span class="o">|</span><span class="n">jpg</span><span class="o">|</span><span class="n">jpeg</span><span class="p">)</span><span class="err">$</span> <span class="p">{</span>
-    <span class="p">[</span> <span class="n">configuration</span> <span class="n">E</span> <span class="p">]</span>
-<span class="p">}</span>
-
-</code></pre></div><p>在上面的配置例子中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>location = / {
+</span></span><span style="display:flex;"><span>    [ configuration A ]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>location / {
+</span></span><span style="display:flex;"><span>    [ configuration B ]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>location /documents/ {
+</span></span><span style="display:flex;"><span>    [ configuration C ]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>location ^~ /images/ {
+</span></span><span style="display:flex;"><span>    [ configuration D ]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>location ~* <span style="">\</span>.(gif|jpg|jpeg)<span style="">$</span> {
+</span></span><span style="display:flex;"><span>    [ configuration E ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>在上面的配置例子中：</p>
 <ul>
 <li>配置A：精确匹配&quot;/&quot; URI，主机名后面不能带任何字符串。</li>
 <li>配置B：因为所有的地址都以 / 开头，所以这条规则将匹配到所有请求，但是正则和最长字符串会优先匹配。</li>
@@ -472,56 +407,71 @@
 <li>在其它只包含普通字符的 location 中，找到和请求 URI 最长的匹配。如果此 server {} 没有包含正则的 location 或者该 location 启用了 ^~ 的话，这个最 长匹配的 location 会被使用。如果此 server {} 中包含正则的 location，则先在 这些正则 location 中进行匹配，如果找到匹配，则使用匹配的正则 location，如果 没找到匹配，依然使用最大匹配的 location。</li>
 </ul>
 <p>有了以上的准备，开始看具体的代码实现。</p>
-<h2 id="ngx_http_core_loc_conf_s结构体">ngx_http_core_loc_conf_s结构体</h2>
+<h2 class="heading" id="ngx_http_core_loc_conf_s结构体">
+  ngx_http_core_loc_conf_s结构体
+  <a class="anchor" href="#ngx_http_core_loc_conf_s%e7%bb%93%e6%9e%84%e4%bd%93">#</a>
+</h2>
 <p>ngx_http_core_loc_conf_s结构体对应一个location块的配置，相关的成员如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">ngx_http_core_loc_conf_s</span> <span class="p">{</span>
-  <span class="n">ngx_str_t</span>           <span class="n">name</span><span class="p">;</span>   <span class="cm">/* URI 部分字符串 */</span>
-  <span class="n">ngx_http_regex_t</span>    <span class="o">*</span><span class="n">regex</span><span class="p">;</span> <span class="cm">/* 正则引擎编译过的 正则表达式对象 */</span>
-  <span class="p">...</span>
-  <span class="kt">unsigned</span>            <span class="nl">named</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>        <span class="cm">/* @ 修饰符 */</span>
-  <span class="kt">unsigned</span>            <span class="nl">noname</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>       <span class="cm">/* if () {} */</span>
-  <span class="kt">unsigned</span>            <span class="nl">exact_match</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>  <span class="cm">/* = 修饰符 */</span>
-  <span class="kt">unsigned</span>            <span class="nl">noregex</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span>      <span class="cm">/* ^= 修饰符 */</span>
-
-  <span class="p">...</span>
-  <span class="n">ngx_http_location_tree_node_t</span>   <span class="o">*</span><span class="n">static_location</span><span class="p">;</span>
-  <span class="n">ngx_http_core_loc_conf_t</span>        <span class="o">**</span><span class="n">regex_location</span><span class="p">;</span>
-  <span class="kt">void</span>                <span class="o">**</span><span class="n">loc_conf</span><span class="p">;</span>
-  <span class="p">...</span>
-  <span class="n">ngx_queue_t</span>         <span class="o">*</span><span class="n">locations</span><span class="p">;</span> <span class="cm">/* 连接 `location` 作用域，由
-</span><span class="cm">                                     ngx_http_location_queue_t 强制转
-</span><span class="cm">                                     换而来 */</span>
-<span class="p">};</span>
-</code></pre></div><p>可以看到，在ngx_http_core_loc_conf_s中使用了几个成员named、noname、exact_match、noregex区分了以上的情况。</p>
-<h2 id="ngx_http_location_queue_t">ngx_http_location_queue_t</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> ngx_http_core_loc_conf_s {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_str_t</span>           name;   <span style="color:#888;font-style:italic">/* URI 部分字符串 */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_regex_t</span>    *regex; <span style="color:#888;font-style:italic">/* 正则引擎编译过的 正则表达式对象 */</span>
+</span></span><span style="display:flex;"><span>  ...
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>            named:1;        <span style="color:#888;font-style:italic">/* @ 修饰符 */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>            noname:1;       <span style="color:#888;font-style:italic">/* if () {} */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>            exact_match:1;  <span style="color:#888;font-style:italic">/* = 修饰符 */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">unsigned</span>            noregex:1;      <span style="color:#888;font-style:italic">/* ^= 修饰符 */</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  ...
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>   *static_location;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_loc_conf_t</span>        **regex_location;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span>                **loc_conf;
+</span></span><span style="display:flex;"><span>  ...
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span>         *locations; <span style="color:#888;font-style:italic">/* 连接 `location` 作用域，由
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">                                     ngx_http_location_queue_t 强制转
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">                                     换而来 */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>可以看到，在ngx_http_core_loc_conf_s中使用了几个成员named、noname、exact_match、noregex区分了以上的情况。</p>
+<h2 class="heading" id="ngx_http_location_queue_t">
+  ngx_http_location_queue_t
+  <a class="anchor" href="#ngx_http_location_queue_t">#</a>
+</h2>
 <p>结构体ngx_http_location_queue_t用于临时保存location的队列：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
-  <span class="n">ngx_queue_t</span>                 <span class="n">queue</span><span class="p">;</span>
-  <span class="n">ngx_http_core_loc_conf_t</span>    <span class="o">*</span><span class="n">exact</span><span class="p">;</span> <span class="cm">/* exact_match, regex, named, noname */</span>
-  <span class="n">ngx_http_core_loc_conf_t</span>    <span class="o">*</span><span class="n">inclusive</span><span class="p">;</span> <span class="cm">/* 非 exact 的 location */</span>
-  <span class="n">ngx_str_t</span>                   <span class="o">*</span><span class="n">name</span><span class="p">;</span>
-<span class="p">}</span> <span class="n">ngx_http_location_queue_t</span><span class="p">;</span>
-</code></pre></div><h2 id="ngx_http_location_tree_node_t">ngx_http_location_tree_node_t</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">typedef</span> <span style="font-weight:bold;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span>                 queue;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_loc_conf_t</span>    *exact; <span style="color:#888;font-style:italic">/* exact_match, regex, named, noname */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_loc_conf_t</span>    *inclusive; <span style="color:#888;font-style:italic">/* 非 exact 的 location */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_str_t</span>                   *name;
+</span></span><span style="display:flex;"><span>} <span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span>;
+</span></span></code></pre></div><h2 class="heading" id="ngx_http_location_tree_node_t">
+  ngx_http_location_tree_node_t
+  <a class="anchor" href="#ngx_http_location_tree_node_t">#</a>
+</h2>
 <p>ngx_http_location_tree_node_t结构体是最终存储location的结构体，将location以树状组织在一起，实现location的快速查找：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">ngx_http_location_tree_node_s</span> <span class="p">{</span>
-  <span class="n">ngx_http_location_tree_node_t</span>   <span class="o">*</span><span class="n">left</span><span class="p">;</span>
-  <span class="n">ngx_http_location_tree_node_t</span>   <span class="o">*</span><span class="n">right</span><span class="p">;</span>
-  <span class="n">ngx_http_location_tree_node_t</span>   <span class="o">*</span><span class="n">tree</span><span class="p">;</span>
-
-  <span class="n">ngx_http_core_loc_conf_t</span>        <span class="o">*</span><span class="n">exact</span><span class="p">;</span>     <span class="c1">// 精确匹配的location配置
-</span><span class="c1"></span>  <span class="n">ngx_http_core_loc_conf_t</span>        <span class="o">*</span><span class="n">inclusive</span><span class="p">;</span> <span class="c1">// inclusive匹配的location配置
-</span><span class="c1"></span>
-  <span class="n">u_char</span>                          <span class="n">auto_redirect</span><span class="p">;</span>
-  <span class="n">u_char</span>                          <span class="n">len</span><span class="p">;</span>
-  <span class="n">u_char</span>                          <span class="n">name</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span>
-<span class="p">};</span>
-</code></pre></div><h2 id="构建location查找树的流程">构建location查找树的流程</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> ngx_http_location_tree_node_s {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>   *left;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>   *right;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>   *tree;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_loc_conf_t</span>        *exact;     <span style="color:#888;font-style:italic">// 精确匹配的location配置
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_core_loc_conf_t</span>        *inclusive; <span style="color:#888;font-style:italic">// inclusive匹配的location配置
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>  u_char                          auto_redirect;
+</span></span><span style="display:flex;"><span>  u_char                          len;
+</span></span><span style="display:flex;"><span>  u_char                          name[1];
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><h2 class="heading" id="构建location查找树的流程">
+  构建location查找树的流程
+  <a class="anchor" href="#%e6%9e%84%e5%bb%balocation%e6%9f%a5%e6%89%be%e6%a0%91%e7%9a%84%e6%b5%81%e7%a8%8b">#</a>
+</h2>
 <p>在函数ngx_http_block中（该函数即HTTP块的入口函数），将调用两个函数进行location的初始化：</p>
 <ul>
 <li>ngx_http_init_locations：用于完成location的排序以及分类存放。</li>
 <li>ngx_http_init_static_location_trees：用于将exact以及inclusive类型的location进一步处理，构造出可以快速访问的树状结构。</li>
 </ul>
-<h3 id="ngx_http_init_locations">ngx_http_init_locations</h3>
+<h3 class="heading" id="ngx_http_init_locations">
+  ngx_http_init_locations
+  <a class="anchor" href="#ngx_http_init_locations">#</a>
+</h3>
 <ul>
 <li>首先调用ngx_queue_sort(locations, ngx_http_cmp_locations)函数对location队列进行排序，排序的结果为：exact(sorted) -&gt; inclusive(sorted) -&gt; regex -&gt; named -&gt; noname，这里说明一下inclusive，它表示URI之间的包含关系，即”/abc/a“这个URI是包含”/abc“的。</li>
 <li>遍历排序过后的location队列，将其中的noname类型的location分离出队列。</li>
@@ -529,86 +479,92 @@
 <li>将含有正则的location分离出来，放到配置的regex_locations中。</li>
 </ul>
 <p>可以看到，以上流程完成之后，原先的location队列就只剩下exact以及inclusive类型的location了。接着调用ngx_http_init_static_location_trees函数做进一步的处理。</p>
-<h3 id="ngx_http_init_static_location_trees">ngx_http_init_static_location_trees</h3>
+<h3 class="heading" id="ngx_http_init_static_location_trees">
+  ngx_http_init_static_location_trees
+  <a class="anchor" href="#ngx_http_init_static_location_trees">#</a>
+</h3>
 <p>有以下几个流程：</p>
 <ul>
 <li>ngx_http_join_exact_locations：将当前虚拟主机中 uri 字符串完全一致的 exact 和 inclusive 类型的 location 进行合并。</li>
 <li>ngx_http_create_locations_list：将前缀一致的location放到list链表中。</li>
 <li>ngx_http_create_locations_tree：构造location的树结构。</li>
 </ul>
-<h4 id="ngx_http_create_locations_list">ngx_http_create_locations_list</h4>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">static</span> <span class="kt">void</span>
-<span class="nf">ngx_http_create_locations_list</span><span class="p">(</span><span class="n">ngx_queue_t</span> <span class="o">*</span><span class="n">locations</span><span class="p">,</span> <span class="n">ngx_queue_t</span> <span class="o">*</span><span class="n">q</span><span class="p">)</span>
-<span class="p">{</span>
-  <span class="n">u_char</span>                     <span class="o">*</span><span class="n">name</span><span class="p">;</span>
-  <span class="n">size_t</span>                      <span class="n">len</span><span class="p">;</span>
-  <span class="n">ngx_queue_t</span>                <span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">tail</span><span class="p">;</span>
-  <span class="n">ngx_http_location_queue_t</span>  <span class="o">*</span><span class="n">lq</span><span class="p">,</span> <span class="o">*</span><span class="n">lx</span><span class="p">;</span>
-
-  <span class="c1">// 由于本函数存在递归调用，所以这个判断是递归的终止条件
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">q</span> <span class="o">==</span> <span class="n">ngx_queue_last</span><span class="p">(</span><span class="n">locations</span><span class="p">))</span> <span class="p">{</span>
-    <span class="k">return</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="n">lq</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_http_location_queue_t</span> <span class="o">*</span><span class="p">)</span> <span class="n">q</span><span class="p">;</span>
-
-  <span class="k">if</span> <span class="p">(</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">inclusive</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
-    <span class="c1">// 如果不是inclusive类型的location，直接跳过，继续队列中下一个location的处理
-</span><span class="c1"></span>    <span class="n">ngx_http_create_locations_list</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">ngx_queue_next</span><span class="p">(</span><span class="n">q</span><span class="p">));</span>
-    <span class="k">return</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="n">len</span> <span class="o">=</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">len</span><span class="p">;</span>
-  <span class="n">name</span> <span class="o">=</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">;</span>
-
-  <span class="c1">// 从该location的下一个元素开始遍历队列
-</span><span class="c1"></span>  <span class="k">for</span> <span class="p">(</span><span class="n">x</span> <span class="o">=</span> <span class="n">ngx_queue_next</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
-    <span class="n">x</span> <span class="o">!=</span> <span class="n">ngx_queue_sentinel</span><span class="p">(</span><span class="n">locations</span><span class="p">);</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">ngx_queue_next</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
-  <span class="p">{</span>
-    <span class="n">lx</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_http_location_queue_t</span> <span class="o">*</span><span class="p">)</span> <span class="n">x</span><span class="p">;</span>
-
-    <span class="c1">// 找到第一个不以q的location做为前缀的location就退出循环
-</span><span class="c1"></span>    <span class="c1">// 比如当前队列location为：/a /ab /abc /b
-</span><span class="c1"></span>    <span class="c1">// 这里的q就是/a，x就是/b，中间的/ab和/abc都是以/a为前缀的，不会终止循环
-</span><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">len</span> <span class="o">&gt;</span> <span class="n">lx</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">len</span>
-      <span class="o">||</span> <span class="n">ngx_filename_cmp</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">lx</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">,</span> <span class="n">len</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="p">{</span>
-      <span class="k">break</span><span class="p">;</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-
-  <span class="n">q</span> <span class="o">=</span> <span class="n">ngx_queue_next</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
-
-  <span class="k">if</span> <span class="p">(</span><span class="n">q</span> <span class="o">==</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// 如果x就是q的下一个元素，说明没有找到前缀匹配的，那么直接进入x进行下次递归调用
-</span><span class="c1"></span>    <span class="n">ngx_http_create_locations_list</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">x</span><span class="p">);</span>
-    <span class="k">return</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="c1">// 到了这里说明前面找到有前缀匹配的location了
-</span><span class="c1"></span>
-  <span class="c1">// 这里将与q相同前缀的节点，分离出队列
-</span><span class="c1"></span>  <span class="n">ngx_queue_split</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">);</span>
-  <span class="c1">// 然后加入到q的list链表中
-</span><span class="c1"></span>  <span class="n">ngx_queue_add</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">);</span>
-
-  <span class="k">if</span> <span class="p">(</span><span class="n">x</span> <span class="o">==</span> <span class="n">ngx_queue_sentinel</span><span class="p">(</span><span class="n">locations</span><span class="p">))</span> <span class="p">{</span>
-    <span class="n">ngx_http_create_locations_list</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">ngx_queue_head</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">));</span>
-    <span class="k">return</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="c1">// 将x从队列中分离出来
-</span><span class="c1"></span>  <span class="n">ngx_queue_split</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">);</span>
-  <span class="c1">// 放回到location队列中
-</span><span class="c1"></span>  <span class="n">ngx_queue_add</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">);</span>
-
-  <span class="c1">// 对lq-&gt;list做相同的操作
-</span><span class="c1"></span>  <span class="n">ngx_http_create_locations_list</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">ngx_queue_head</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">));</span>
-
-  <span class="c1">// 对从x开始的剩余节点做相同的操作
-</span><span class="c1"></span>  <span class="n">ngx_http_create_locations_list</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">x</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div><p>对该函数的几个说明：</p>
+<h4 class="heading" id="ngx_http_create_locations_list">
+  ngx_http_create_locations_list
+  <a class="anchor" href="#ngx_http_create_locations_list">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span>
+</span></span><span style="display:flex;"><span><span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(<span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span> *locations, <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span> *q)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  u_char                     *name;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">size_t</span>                      len;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span>                *x, tail;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span>  *lq, *lx;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 由于本函数存在递归调用，所以这个判断是递归的终止条件
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (q == <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_last</span>(locations)) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  lq = (<span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span> *) q;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (lq-&gt;inclusive == <span style="font-weight:bold;font-style:italic">NULL</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// 如果不是inclusive类型的location，直接跳过，继续队列中下一个location的处理
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(locations, <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_next</span>(q));
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  len = lq-&gt;name-&gt;len;
+</span></span><span style="display:flex;"><span>  name = lq-&gt;name-&gt;data;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 从该location的下一个元素开始遍历队列
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">for</span> (x = <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_next</span>(q);
+</span></span><span style="display:flex;"><span>    x != <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_sentinel</span>(locations);
+</span></span><span style="display:flex;"><span>    x = <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_next</span>(x))
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    lx = (<span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span> *) x;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// 找到第一个不以q的location做为前缀的location就退出循环
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">// 比如当前队列location为：/a /ab /abc /b
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">// 这里的q就是/a，x就是/b，中间的/ab和/abc都是以/a为前缀的，不会终止循环
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="font-weight:bold;text-decoration:underline">if</span> (len &gt; lx-&gt;name-&gt;len
+</span></span><span style="display:flex;"><span>      || <span style="color:#666;font-weight:bold;font-style:italic">ngx_filename_cmp</span>(name, lx-&gt;name-&gt;data, len) != 0)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="font-weight:bold;text-decoration:underline">break</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  q = <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_next</span>(q);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (q == x) { <span style="color:#888;font-style:italic">// 如果x就是q的下一个元素，说明没有找到前缀匹配的，那么直接进入x进行下次递归调用
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(locations, x);
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 到了这里说明前面找到有前缀匹配的location了
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 这里将与q相同前缀的节点，分离出队列
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_split</span>(locations, q, &amp;tail);
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 然后加入到q的list链表中
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_add</span>(&amp;lq-&gt;list, &amp;tail);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (x == <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_sentinel</span>(locations)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(&amp;lq-&gt;list, <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_head</span>(&amp;lq-&gt;list));
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 将x从队列中分离出来
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_split</span>(&amp;lq-&gt;list, x, &amp;tail);
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 放回到location队列中
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_add</span>(locations, &amp;tail);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 对lq-&gt;list做相同的操作
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(&amp;lq-&gt;list, <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_head</span>(&amp;lq-&gt;list));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 对从x开始的剩余节点做相同的操作
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_list</span>(locations, x);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>对该函数的几个说明：</p>
 <ul>
 <li>由于存在递归调用，所以函数开始要做q == ngx_queue_last(locations)的判断，做为递归的终止条件。</li>
 <li>对于非 inclusive 类型 (此时 locations 队列中也只包含 exact 和 inclusive 类型的 location 节点) 的 location 节点，直接跳过，不做任何整理。</li>
@@ -617,90 +573,117 @@
 <li>继续针对x开始的剩余队列节点递归调用ngx_http_create_locations_list函数。</li>
 </ul>
 <p>如下图所示就是ngx_http_create_locations_list调用前后的效果：</p>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-list.png" alt="ngx-location-create-locations-list" title="ngx-location-create-locations-list"></p>
-<h4 id="ngx_http_create_location_trees">ngx_http_create_location_trees</h4>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ngx-location-create-locations-list" src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-list.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ngx-location-create-locations-list </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h4 class="heading" id="ngx_http_create_location_trees">
+  ngx_http_create_location_trees
+  <a class="anchor" href="#ngx_http_create_location_trees">#</a>
+</h4>
 <p>ngx_http_create_location_trees在上面的基础上构造location查找树</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">static</span> <span class="n">ngx_http_location_tree_node_t</span> <span class="o">*</span>
-  <span class="nf">ngx_http_create_locations_tree</span><span class="p">(</span><span class="n">ngx_conf_t</span> <span class="o">*</span><span class="n">cf</span><span class="p">,</span> <span class="n">ngx_queue_t</span> <span class="o">*</span><span class="n">locations</span><span class="p">,</span>
-  <span class="n">size_t</span> <span class="n">prefix</span><span class="p">)</span>
-<span class="p">{</span>
-  <span class="n">size_t</span>                          <span class="n">len</span><span class="p">;</span>
-  <span class="n">ngx_queue_t</span>                    <span class="o">*</span><span class="n">q</span><span class="p">,</span> <span class="n">tail</span><span class="p">;</span>
-  <span class="n">ngx_http_location_queue_t</span>      <span class="o">*</span><span class="n">lq</span><span class="p">;</span>
-  <span class="n">ngx_http_location_tree_node_t</span>  <span class="o">*</span><span class="n">node</span><span class="p">;</span>
-
-  <span class="c1">// 快速确定中间节点的位置，保存到q中
-</span><span class="c1"></span>  <span class="n">q</span> <span class="o">=</span> <span class="n">ngx_queue_middle</span><span class="p">(</span><span class="n">locations</span><span class="p">);</span>
-
-  <span class="n">lq</span> <span class="o">=</span> <span class="p">(</span><span class="n">ngx_http_location_queue_t</span> <span class="o">*</span><span class="p">)</span> <span class="n">q</span><span class="p">;</span>
-  <span class="c1">// 左边元素的数量
-</span><span class="c1"></span>  <span class="n">len</span> <span class="o">=</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">len</span> <span class="o">-</span> <span class="n">prefix</span><span class="p">;</span>
-
-  <span class="n">node</span> <span class="o">=</span> <span class="n">ngx_palloc</span><span class="p">(</span><span class="n">cf</span><span class="o">-&gt;</span><span class="n">pool</span><span class="p">,</span>
-    <span class="n">offsetof</span><span class="p">(</span><span class="n">ngx_http_location_tree_node_t</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="n">len</span><span class="p">);</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">left</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">right</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">tree</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">exact</span> <span class="o">=</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">exact</span><span class="p">;</span>
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">inclusive</span> <span class="o">=</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">inclusive</span><span class="p">;</span>
-
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">auto_redirect</span> <span class="o">=</span> <span class="p">(</span><span class="n">u_char</span><span class="p">)</span> <span class="p">((</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">exact</span> <span class="o">&amp;&amp;</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">exact</span><span class="o">-&gt;</span><span class="n">auto_redirect</span><span class="p">)</span>
-    <span class="o">||</span> <span class="p">(</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">inclusive</span> <span class="o">&amp;&amp;</span> <span class="n">lq</span><span class="o">-&gt;</span><span class="n">inclusive</span><span class="o">-&gt;</span><span class="n">auto_redirect</span><span class="p">));</span>
-
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">len</span> <span class="o">=</span> <span class="p">(</span><span class="n">u_char</span><span class="p">)</span> <span class="n">len</span><span class="p">;</span>
-  <span class="n">ngx_memcpy</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">name</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">name</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">[</span><span class="n">prefix</span><span class="p">],</span> <span class="n">len</span><span class="p">);</span>
-
-  <span class="c1">// 从中间节点将location分为两部分
-</span><span class="c1"></span>  <span class="n">ngx_queue_split</span><span class="p">(</span><span class="n">locations</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">);</span>
-
-  <span class="c1">// 如果分离完毕location队列为空
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">ngx_queue_empty</span><span class="p">(</span><span class="n">locations</span><span class="p">))</span> <span class="p">{</span>
-    <span class="cm">/*
-</span><span class="cm">     * ngx_queue_split() insures that if left part is empty,
-</span><span class="cm">     * then right one is empty too
-</span><span class="cm">     */</span>
-    <span class="c1">// 直接跳到构造inclusive类型的子树
-</span><span class="c1"></span>    <span class="k">goto</span> <span class="n">inclusive</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="c1">// 构造左子树
-</span><span class="c1"></span>  <span class="n">node</span><span class="o">-&gt;</span><span class="n">left</span> <span class="o">=</span> <span class="n">ngx_http_create_locations_tree</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="n">locations</span><span class="p">,</span> <span class="n">prefix</span><span class="p">);</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">left</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="n">ngx_queue_remove</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
-
-  <span class="k">if</span> <span class="p">(</span><span class="n">ngx_queue_empty</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tail</span><span class="p">))</span> <span class="p">{</span>
-    <span class="k">goto</span> <span class="n">inclusive</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="c1">// 构造右子树
-</span><span class="c1"></span>  <span class="n">node</span><span class="o">-&gt;</span><span class="n">right</span> <span class="o">=</span> <span class="n">ngx_http_create_locations_tree</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">tail</span><span class="p">,</span> <span class="n">prefix</span><span class="p">);</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">right</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="p">}</span>
-
-<span class="nl">inclusive</span><span class="p">:</span>
-  <span class="c1">// 到这里构造inclusive类型的树保存到tree成员中
-</span><span class="c1"></span>
-  <span class="c1">// list为空说明没有inclusive类型的location了
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">ngx_queue_empty</span><span class="p">(</span><span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">))</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="n">node</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="n">node</span><span class="o">-&gt;</span><span class="n">tree</span> <span class="o">=</span> <span class="n">ngx_http_create_locations_tree</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">lq</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">prefix</span> <span class="o">+</span> <span class="n">len</span><span class="p">);</span>
-  <span class="k">if</span> <span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">tree</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="k">return</span> <span class="n">node</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>说明：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span> *
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_tree</span>(<span style="font-weight:bold;text-decoration:underline">ngx_conf_t</span> *cf, <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span> *locations,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">size_t</span> prefix)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">size_t</span>                          len;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_queue_t</span>                    *q, tail;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span>      *lq;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>  *node;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 快速确定中间节点的位置，保存到q中
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  q = <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_middle</span>(locations);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  lq = (<span style="font-weight:bold;text-decoration:underline">ngx_http_location_queue_t</span> *) q;
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 左边元素的数量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  len = lq-&gt;name-&gt;len - prefix;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  node = <span style="color:#666;font-weight:bold;font-style:italic">ngx_palloc</span>(cf-&gt;pool,
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">offsetof</span>(<span style="font-weight:bold;text-decoration:underline">ngx_http_location_tree_node_t</span>, name) + len);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (node == <span style="font-weight:bold;font-style:italic">NULL</span>) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  node-&gt;left = <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  node-&gt;right = <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  node-&gt;tree = <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  node-&gt;exact = lq-&gt;exact;
+</span></span><span style="display:flex;"><span>  node-&gt;inclusive = lq-&gt;inclusive;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  node-&gt;auto_redirect = (u_char) ((lq-&gt;exact &amp;&amp; lq-&gt;exact-&gt;auto_redirect)
+</span></span><span style="display:flex;"><span>    || (lq-&gt;inclusive &amp;&amp; lq-&gt;inclusive-&gt;auto_redirect));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  node-&gt;len = (u_char) len;
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_memcpy</span>(node-&gt;name, &amp;lq-&gt;name-&gt;data[prefix], len);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 从中间节点将location分为两部分
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_split</span>(locations, q, &amp;tail);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 如果分离完毕location队列为空
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_empty</span>(locations)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">     * ngx_queue_split() insures that if left part is empty,
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">     * then right one is empty too
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">     */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// 直接跳到构造inclusive类型的子树
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="font-weight:bold;text-decoration:underline">goto</span> inclusive;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 构造左子树
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  node-&gt;left = <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_tree</span>(cf, locations, prefix);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (node-&gt;left == <span style="font-weight:bold;font-style:italic">NULL</span>) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_remove</span>(q);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_empty</span>(&amp;tail)) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">goto</span> inclusive;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 构造右子树
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  node-&gt;right = <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_tree</span>(cf, &amp;tail, prefix);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (node-&gt;right == <span style="font-weight:bold;font-style:italic">NULL</span>) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>inclusive:
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 到这里构造inclusive类型的树保存到tree成员中
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// list为空说明没有inclusive类型的location了
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">ngx_queue_empty</span>(&amp;lq-&gt;list)) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> node;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  node-&gt;tree = <span style="color:#666;font-weight:bold;font-style:italic">ngx_http_create_locations_tree</span>(cf, &amp;lq-&gt;list, prefix + len);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">if</span> (node-&gt;tree == <span style="font-weight:bold;font-style:italic">NULL</span>) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> node;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>说明：</p>
 <ul>
 <li>调用ngx_queue_middle快速确定locaiton队列的中间节点。</li>
 <li>从中间节点将location分为两部分。</li>
@@ -708,202 +691,133 @@
 <li>将inclusive类型的location放入到成员tree中。</li>
 </ul>
 <p>如下图所示就是ngx-location-create-locations-tree调用前后的效果：</p>
-<p><img src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-tree.png" alt="ngx-location-create-locations-tree" title="ngx-location-create-locations-tree"></p>
-<h2 id="查找location流程">查找location流程</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ngx-location-create-locations-tree" src="/media/imgs/20190212-nginx-http-config/ngx-location-create-locations-tree.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ngx-location-create-locations-tree </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="查找location流程">
+  查找location流程
+  <a class="anchor" href="#%e6%9f%a5%e6%89%belocation%e6%b5%81%e7%a8%8b">#</a>
+</h2>
 <p>请求的 location 匹配，在请求处理的 FIND_CONFIG 阶段相对应的 checker ngx_http_core_find_config_phase 函数中完成。ngx_http_core_find_config_phase 函数调用 ngx_http_core_find_location 函数完成实际的匹配工作。</p>
 <p>本质上就是根据前面构建好的树结构，进行二分查找，不再阐述。</p>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="https://ialloc.org/blog/ngx-notes-conf-parsing/">Nginx 源代码笔记 - 配置文件解析</a></li>
 <li><a href="https://ialloc.org/blog/ngx-notes-http-location/">Nginx 源代码笔记 - URI 匹配</a></li>
 <li><a href="https://ialloc.org/blog/ngx-notes-hashtable-2/">Nginx 源代码笔记 - 哈希表 [2]</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/nginx/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#nginx</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190213-nginx-process-http-request/" class="block">Nginx源码阅读笔记-处理HTTP请求</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" class="block">zeromq所谓的“无锁消息队列”</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#根据host查找server块流程">根据Host查找server块流程</a></li>
-    <li><a href="#根据uri查找location块流程">根据URI查找location块流程</a>
-      <ul>
-        <li><a href="#ngx_http_core_loc_conf_s结构体">ngx_http_core_loc_conf_s结构体</a></li>
-        <li><a href="#ngx_http_location_queue_t">ngx_http_location_queue_t</a></li>
-        <li><a href="#ngx_http_location_tree_node_t">ngx_http_location_tree_node_t</a></li>
-        <li><a href="#构建location查找树的流程">构建location查找树的流程</a>
-          <ul>
-            <li><a href="#ngx_http_init_locations">ngx_http_init_locations</a></li>
-            <li><a href="#ngx_http_init_static_location_trees">ngx_http_init_static_location_trees</a>
-              <ul>
-                <li><a href="#ngx_http_create_locations_list">ngx_http_create_locations_list</a></li>
-                <li><a href="#ngx_http_create_location_trees">ngx_http_create_location_trees</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><a href="#查找location流程">查找location流程</a></li>
-      </ul>
-    </li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/" class="no-underline">Nginx源码阅读笔记-接收HTTP请求流程</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190131-nginx-event/" class="no-underline">Nginx源码阅读笔记-事件处理模块</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190131-nginx-master-worker/" class="no-underline">Nginx源码阅读笔记-Master Woker进程模型</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

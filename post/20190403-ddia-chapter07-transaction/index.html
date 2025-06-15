@@ -1,350 +1,352 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>《数据密集型应用系统设计》第七章《事务》笔记 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="《数据密集型应用系统设计》第七章《事务》笔记"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="《数据密集型应用系统设计》第七章《事务》笔记">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"《数据密集型应用系统设计》第七章《事务》笔记",
-      "item":"https://www.codedump.info/post/20190403-ddia-chapter07-transaction/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190403-ddia-chapter07-transaction/"
-    },
-    "headline": "《数据密集型应用系统设计》第七章《事务》笔记 - codedump的网络日志","datePublished": "2019-04-03T22:33:58+08:00",
-    "dateModified": "2019-04-03T22:33:58+08:00",
-    "wordCount":  4261 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "《数据密集型应用系统设计》第七章《事务》笔记"
-}
-</script><meta property="og:title" content="《数据密集型应用系统设计》第七章《事务》笔记 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" />
-
-
-
-<meta property="og:description" content="《数据密集型应用系统设计》第七章《事务》笔记" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-04-03T22:33:58&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-04-03T22:33:58&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="读书笔记" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181125-etcd-server/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180922-etcd-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181118-ddia-chapter05-replication/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    《数据密集型应用系统设计》第七章《事务》笔记 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">《数据密集型应用系统设计》第七章《事务》笔记</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-04-03</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《数据密集型应用系统设计》第七章《事务》笔记">
+  <meta property="og:description" content="《数据密集型应用系统设计》第七章《事务》笔记">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-04-03T22:33:58+08:00">
+    <meta property="article:modified_time" content="2019-04-03T22:33:58+08:00">
+    <meta property="article:tag" content="读书笔记">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="hover:text-eureka"
-          >读书笔记</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
-      
-    </div>
-  
 
-  
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190403-ddia-chapter07-transaction/">《数据密集型应用系统设计》第七章《事务》笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《数据密集型应用系统设计》第七章《事务》笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-04-03T22:33:58&#43;08:00">2019年4月3日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>事务提供了一种机制，应用程序可以把一组读和写操作放在一个逻辑单元里，所有在一个事务的读和写操作会被视为一个操作：要么全部失败，要么全部成功，因此应用程序不需要担心部分失败（partial failure）问题，可以安全的重试。</p>
-<h1 id="深入理解事务">深入理解事务</h1>
+  
+
+  
+
+  <div class="single-content">
+    <p>事务提供了一种机制，应用程序可以把一组读和写操作放在一个逻辑单元里，所有在一个事务的读和写操作会被视为一个操作：要么全部失败，要么全部成功，因此应用程序不需要担心部分失败（partial failure）问题，可以安全的重试。</p>
+<h1 class="heading" id="深入理解事务">
+  深入理解事务
+  <a class="anchor" href="#%e6%b7%b1%e5%85%a5%e7%90%86%e8%a7%a3%e4%ba%8b%e5%8a%a1">#</a>
+</h1>
 <p>事务提供的安全性保证即所谓的<code>ACID</code>，它包括以下四个要求：</p>
-<h2 id="acid">ACID</h2>
-<h3 id="原子性atomicity">原子性（Atomicity）</h3>
+<h2 class="heading" id="acid">
+  ACID
+  <a class="anchor" href="#acid">#</a>
+</h2>
+<h3 class="heading" id="原子性atomicity">
+  原子性（Atomicity）
+  <a class="anchor" href="#%e5%8e%9f%e5%ad%90%e6%80%a7atomicity">#</a>
+</h3>
 <p>A（Atomicity，原子性）：在一个事务中的所有操作，要么全部成功，要么全部失败，不存在部分成功或者部分失败的情况。在出错时中断事务，前面成功的操作都会被丢弃。</p>
-<h3 id="一致性consistency">一致性（consistency）</h3>
+<h3 class="heading" id="一致性consistency">
+  一致性（consistency）
+  <a class="anchor" href="#%e4%b8%80%e8%87%b4%e6%80%a7consistency">#</a>
+</h3>
 <p>C（Consistency，一致性）：对数据有特定的预期状态，任何数据修改必须满足这些状态约束，比如针对一个账号，账号上的款项必须保持平衡。</p>
-<h3 id="隔离性isolation">隔离性（isolation）</h3>
+<h3 class="heading" id="隔离性isolation">
+  隔离性（isolation）
+  <a class="anchor" href="#%e9%9a%94%e7%a6%bb%e6%80%a7isolation">#</a>
+</h3>
 <p>I（Isolation，隔离性）：并发执行的多个事务，不会相互影响。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-1.jpg" alt="7-1" title="7-1">
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-1" src="/media/imgs/20190403-ddia-chapter07-transaction/7-1.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-1 </figcaption>
+    </div>
+    
+</figure>
+
 如上图中所示，两个客户端同时增加数据库的计时器，由于没有做好隔离，导致最终的结果是43而不是正确的44。</p>
 <p>ACID语义中的隔离性意味着并发执行的多个事务相互隔离，不能交叉运行。经典的数据库教材将隔离性定义为可串行化（serializability），这就意味着可以假装它是数据库上运行的唯一事务。</p>
 <p>然而实践中，由于性能问题很少使用串行化隔离。</p>
-<h3 id="持久性durability">持久性（Durability）</h3>
+<h3 class="heading" id="持久性durability">
+  持久性（Durability）
+  <a class="anchor" href="#%e6%8c%81%e4%b9%85%e6%80%a7durability">#</a>
+</h3>
 <p>D（Durability，持久性）：一旦事务提交，数据将被持久化存储起来。</p>
-<h1 id="弱隔离级别">弱隔离级别</h1>
+<h1 class="heading" id="弱隔离级别">
+  弱隔离级别
+  <a class="anchor" href="#%e5%bc%b1%e9%9a%94%e7%a6%bb%e7%ba%a7%e5%88%ab">#</a>
+</h1>
 <p>可串行化的隔离会影响性能，而很多业务不愿意牺牲性能，因而倾向于使用更弱的隔离级别。</p>
 <p>以下介绍几个常见的弱隔离级别（非串行化）。</p>
-<h2 id="读提交read-committed">读提交（read committed）</h2>
+<h2 class="heading" id="读提交read-committed">
+  读提交（read committed）
+  <a class="anchor" href="#%e8%af%bb%e6%8f%90%e4%ba%a4read-committed">#</a>
+</h2>
 <p>读提交是最基本的事务级别，提供两个保证：</p>
 <ol>
 <li>读数据库时，只能读到被提交成功的数据（不会读到脏数据）。</li>
 <li>写数据库时，只会覆盖已被提交成功的数据（不会脏写）。</li>
 </ol>
-<h3 id="防止脏读">防止脏读</h3>
+<h3 class="heading" id="防止脏读">
+  防止脏读
+  <a class="anchor" href="#%e9%98%b2%e6%ad%a2%e8%84%8f%e8%af%bb">#</a>
+</h3>
 <p>如果一个事务被中断或者没有提交成功，而另一个事务能读取到这部分没有提交成功的数据，这就是“脏读”。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-4.jpg" alt="7-4" title="7-4"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-4" src="/media/imgs/20190403-ddia-chapter07-transaction/7-4.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-4 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图，用户2仅在用户1的事务提交成功之后，才能读取到这次事务修改的新值x=3。</p>
-<h3 id="防止脏写">防止脏写</h3>
+<h3 class="heading" id="防止脏写">
+  防止脏写
+  <a class="anchor" href="#%e9%98%b2%e6%ad%a2%e8%84%8f%e5%86%99">#</a>
+</h3>
 <p>如果先前写入的数据是尚未提交事务的一部分，而被另一个事务的写操作覆盖了，这就是脏写。通常防止脏写的办法是推迟第二个写请求，等到前面的事务操作提交。</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-5.jpg" alt="7-5" title="7-5"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-5" src="/media/imgs/20190403-ddia-chapter07-transaction/7-5.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-5 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图，alice和bob两人试图购买同一辆车。购买时需要两次数据库写入：网站需要更新买主为新买家，而同时发票也需要随之更新。
 但是在上图中，车主被改成了bob，但是发票上面写的却是alice。</p>
-<h3 id="实现读提交">实现读提交</h3>
+<h3 class="heading" id="实现读提交">
+  实现读提交
+  <a class="anchor" href="#%e5%ae%9e%e7%8e%b0%e8%af%bb%e6%8f%90%e4%ba%a4">#</a>
+</h3>
 <p>实现防脏写：数据库通常使用行级锁来防止脏写，事务想修改某个对象，必须首先获得该对象的锁，直到事务结束。</p>
 <p>实现防脏读：也可以使用前面的防脏写来实现防脏读，但是这样代价太大了。一般的方式是保存这个值的两个版本，事务没有提交之前返回旧的值，提交之后才返回新的值。</p>
 <p>然而，读锁在实际中并不可行，原因在于运行时间较长的事务导致了许多只读事务等待太长的时间。</p>
 <p>因此，大部分数据库使用7-4中的方式来防止脏读：对于每个待更新的对象，数据库都会维护其旧值和当前持有锁事务将要设置的新值两个版本。在事务提交之前返回的是旧值；仅当事务提交之后，才会切换到新的值。</p>
-<h3 id="快照隔离级别snapshot-isolation和重复读">快照隔离级别（Snapshot isolation）和重复读</h3>
+<h3 class="heading" id="快照隔离级别snapshot-isolation和重复读">
+  快照隔离级别（Snapshot isolation）和重复读
+  <a class="anchor" href="#%e5%bf%ab%e7%85%a7%e9%9a%94%e7%a6%bb%e7%ba%a7%e5%88%absnapshot-isolation%e5%92%8c%e9%87%8d%e5%a4%8d%e8%af%bb">#</a>
+</h3>
 <p>尽管上面的读提交已经能解决一部分问题，但是还是有一些问题不能解决的，如下图：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-6.jpg" alt="7-6" title="7-6"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-6" src="/media/imgs/20190403-ddia-chapter07-transaction/7-6.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-6 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，alice有两个账号，但是如果alice在转账过程中去查看账户，会发现少了100美元。</p>
 <p>原因在于：alice对两个账户的两次读操作是同一个事务，而在这两次读操作之间，还有两次写操作，在这两次写操作完成之后才进行的第二次读操作，这样读出来的数据就不一致了。</p>
 <p>这种异常现象称为”不可重复读取（nonrepeatable read）“或者”读倾斜（read skew）“问题。</p>
@@ -355,13 +357,43 @@
 </ul>
 <p>快照隔离级别是解决以上问题的常见手段。每个事物都从数据库的一致性快照中读取，事务一开始看到的是最近所提交的数据，即使数据随后可能被另一个事务修改，但保证事务都只能看到该特定时间点的旧数据。</p>
 <p>快照隔离级别对于长时间运行的只读查询（如备份和分析）非常有用。如果数据在查询的同时还在发生变化，那么查询结果对应的物理含义就难以理清。而如果查询的是数据库在某时刻点所冻结的一致性快照，则查询结果非常明确。</p>
-<h3 id="实现快照隔离级别">实现快照隔离级别</h3>
+<h3 class="heading" id="实现快照隔离级别">
+  实现快照隔离级别
+  <a class="anchor" href="#%e5%ae%9e%e7%8e%b0%e5%bf%ab%e7%85%a7%e9%9a%94%e7%a6%bb%e7%ba%a7%e5%88%ab">#</a>
+</h3>
 <p>快照级隔离的实现通常采用写锁来防止脏写，这意味着正在进行写操作的事务会阻止同一对象上其他事务。而读锁则不需要加锁了。从性能角度，快照级别隔离的关键点就是读操作不会阻止写操作，反之亦然。这使得数据库可以在处理正常写入的同时，在一致性快照上执行长时间的只读查询，且两者之间没有锁的竞争。</p>
 <p>考虑到多个正在进行的事务可能会在不同的时间点查看数据库状态，所以数据库保留了对象的多个不同的提交版本，称为MVCC（Multi Version Concurrency Control）。如下图所示：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-7.jpg" alt="7-7" title="7-7"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-7" src="/media/imgs/20190403-ddia-chapter07-transaction/7-7.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-7 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>给每个事务一个唯一的、单调递增的事务ID（txid），每当事务写入新数据的时候，所写的数据都会带上写入者的事务ID。表中的每一行的created_by字段，用于保存创建该行的事务ID；deleted_by初始为空，用于保存请求删除该行的事务ID，仅用于标记为删除。事后，仅当确认没有其他事务引用该删除行的时候，才执行真正的删除操作。</p>
 <p>上图中，账号1的最后一次写操作由事务ID 3完成，账号2的最后一次写操作由事务ID 5完成。事务ID 13的操作修改两个账号数据的时候，会同时设置上这一行的旧数据被事务13删除，同时新的数据由事务13创建。这样，事务12的针对账号2的读操作，返回的就是两个版本的数据：由事务5创建而由事务13删除的数据500，和由事务13创建的数据400，这样修改和未完成的读事务两者就被隔离而不会互相影响。</p>
-<h3 id="一致性快照的可见性原则">一致性快照的可见性原则</h3>
+<h3 class="heading" id="一致性快照的可见性原则">
+  一致性快照的可见性原则
+  <a class="anchor" href="#%e4%b8%80%e8%87%b4%e6%80%a7%e5%bf%ab%e7%85%a7%e7%9a%84%e5%8f%af%e8%a7%81%e6%80%a7%e5%8e%9f%e5%88%99">#</a>
+</h3>
 <p>当事务读数据库时，通过事务ID可以决定哪些对象可见和不可见。要想对上层应用维护良好的快照一致性，需要静心考虑数据的可见性规则。如：</p>
 <ul>
 <li>每笔事务开始时，数据库列出所有当时尚在进行中的其他事务，然后忽略这些事务完成的部分写入，即不可见。</li>
@@ -374,7 +406,10 @@
 <li>事务开始的时刻，创建该对象的事务已经完成了提交。</li>
 <li>对象还没有被标记为删除，或者即使标记了，但是删除事务在当前事务开始时还没有完成提交。</li>
 </ul>
-<h2 id="防止更新丢失">防止更新丢失</h2>
+<h2 class="heading" id="防止更新丢失">
+  防止更新丢失
+  <a class="anchor" href="#%e9%98%b2%e6%ad%a2%e6%9b%b4%e6%96%b0%e4%b8%a2%e5%a4%b1">#</a>
+</h2>
 <p>更新丢失的典型场景：应用从数据库读取某些值，根据逻辑进行修改，然后写入新值（read-modify-write）。当有两个事务在同样的数据对象上执行类似操作时，由于隔离性，第二个写操作并不包括第一个事务修改后的值，最终会导致第一个事务修改后写入的值丢失。</p>
 <p>比如：</p>
 <ul>
@@ -383,27 +418,75 @@
 <li>两个用户同时编辑一个文档。</li>
 </ul>
 <p>有以下几种解决方案：</p>
-<h3 id="原子写操作">原子写操作</h3>
+<h3 class="heading" id="原子写操作">
+  原子写操作
+  <a class="anchor" href="#%e5%8e%9f%e5%ad%90%e5%86%99%e6%93%8d%e4%bd%9c">#</a>
+</h3>
 <p>使用数据库提供的原子操作，比如：</p>
-<pre tabindex="0"><code>  UPDATE counters SET value = value + 1 WHERE key = 'foo';
-</code></pre><h3 id="显示加锁">显示加锁</h3>
-<h3 id="自动检测更新丢失">自动检测更新丢失</h3>
+<pre tabindex="0"><code>  UPDATE counters SET value = value + 1 WHERE key = &#39;foo&#39;;
+</code></pre><h3 class="heading" id="显示加锁">
+  显示加锁
+  <a class="anchor" href="#%e6%98%be%e7%a4%ba%e5%8a%a0%e9%94%81">#</a>
+</h3>
+<h3 class="heading" id="自动检测更新丢失">
+  自动检测更新丢失
+  <a class="anchor" href="#%e8%87%aa%e5%8a%a8%e6%a3%80%e6%b5%8b%e6%9b%b4%e6%96%b0%e4%b8%a2%e5%a4%b1">#</a>
+</h3>
 <p>上面的原子写操作和锁都是通过强制“读-修改-写回”操作序列化串行执行来防止丢失更新，另一种思路是先让它们并发执行，但是如果检测到更新丢失，则会终止当前事务，强制回退到安全的“读-修改-写回”方式。</p>
-<h4 id="原子比较和设置">原子比较和设置</h4>
+<h4 class="heading" id="原子比较和设置">
+  原子比较和设置
+  <a class="anchor" href="#%e5%8e%9f%e5%ad%90%e6%af%94%e8%be%83%e5%92%8c%e8%ae%be%e7%bd%ae">#</a>
+</h4>
 <p>采用类似CAS（Compare-And-Swap）方式，只有在上次读取的数据没有发生变化时才允许更新，如果发生了变化，则回退到“读-修改-写回方式”。</p>
 <p>比如为了避免两人同时编辑文档，采用以下的sql更新语句：</p>
-<pre tabindex="0"><code>  UPDATE wiki_pages SET content = 'new content' where id = 1234 AND content = 'old content';
-</code></pre><h2 id="写倾斜和幻读">写倾斜和幻读</h2>
+<pre tabindex="0"><code>  UPDATE wiki_pages SET content = &#39;new content&#39; where id = 1234 AND content = &#39;old content&#39;;
+</code></pre><h2 class="heading" id="写倾斜和幻读">
+  写倾斜和幻读
+  <a class="anchor" href="#%e5%86%99%e5%80%be%e6%96%9c%e5%92%8c%e5%b9%bb%e8%af%bb">#</a>
+</h2>
 <p>当多个事务同时写入同一对象时引发了两种竞争条件，然而这些并不是并发写所引起的所有问题。</p>
 <p>如下图所示，开发一个医院轮班系统，在保证至少有一个医生在值班的情况下，可以申请休假，但是这还是会出现问题：</p>
-<p><img src="/media/imgs/20190403-ddia-chapter07-transaction/7-8.jpg" alt="7-8" title="7-8"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="7-8" src="/media/imgs/20190403-ddia-chapter07-transaction/7-8.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 7-8 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图中，alice和bob是两位值班医生，两人碰巧都遇到身体不适决定请假，但是几乎同一个时刻点击了调班按钮，于是发生了上图的事情。</p>
 <p>每笔事务总是首先检查是否至少有两名医生在值班。而由于数据库使用的是快照级隔离，因此两个事务的检查都返回了两名医生，这样两个事务都得以继续执行。接着两人都更新自己的值班记录离开，两个事务都成功提交，最后的结果就是没有任何一个医生在岗。</p>
-<h3 id="定义写倾斜">定义写倾斜</h3>
+<h3 class="heading" id="定义写倾斜">
+  定义写倾斜
+  <a class="anchor" href="#%e5%ae%9a%e4%b9%89%e5%86%99%e5%80%be%e6%96%9c">#</a>
+</h3>
 <p>这种情况称为”写倾斜“，既不是脏写，也没有导致数据丢失。两次事务更新的是不同的对象（alice和bob的值班记录），写冲突并不那么直接。</p>
 <p>可以将写倾斜问题视为一种更加广泛的更新丢失问题：即如果两个事务读取相同的一组对象，然后更新其中一部分：不同的事务可能更新不同的对象，则可能发生写倾斜；而如果不同的事务更新的是同一个对象，则可能发生脏写或更新丢失（具体取决于事件窗口）。</p>
-<h3 id="更多写倾斜例子">更多写倾斜例子</h3>
-<h3 id="为何产生写倾斜">为何产生写倾斜</h3>
+<h3 class="heading" id="更多写倾斜例子">
+  更多写倾斜例子
+  <a class="anchor" href="#%e6%9b%b4%e5%a4%9a%e5%86%99%e5%80%be%e6%96%9c%e4%be%8b%e5%ad%90">#</a>
+</h3>
+<h3 class="heading" id="为何产生写倾斜">
+  为何产生写倾斜
+  <a class="anchor" href="#%e4%b8%ba%e4%bd%95%e4%ba%a7%e7%94%9f%e5%86%99%e5%80%be%e6%96%9c">#</a>
+</h3>
 <p>写倾斜都有类似的模式：</p>
 <ol>
 <li>输入一些条件，按照条件查询出满足条件的行。</li>
@@ -411,246 +494,126 @@
 <li>应用程序需要更新一部分数据，而这个更新操作会改变步骤2的做出决定的前提条件，即写入之后再执行步骤1的查询操作将得到不同的结果。</li>
 </ol>
 <p>这种在一个事务中的写入改变了另一个事务查询结果的现象，称为幻读（phantom）。</p>
-<h3 id="实体化冲突">实体化冲突</h3>
-<h2 id="串行化">串行化</h2>
-<h2 id="可串行化的快照隔离serializability-snapshot-isolation简称ssi">可串行化的快照隔离（serializability Snapshot Isolation，简称SSI）</h2>
-<h3 id="悲观与乐观的并发控制">悲观与乐观的并发控制</h3>
+<h3 class="heading" id="实体化冲突">
+  实体化冲突
+  <a class="anchor" href="#%e5%ae%9e%e4%bd%93%e5%8c%96%e5%86%b2%e7%aa%81">#</a>
+</h3>
+<h2 class="heading" id="串行化">
+  串行化
+  <a class="anchor" href="#%e4%b8%b2%e8%a1%8c%e5%8c%96">#</a>
+</h2>
+<h2 class="heading" id="可串行化的快照隔离serializability-snapshot-isolation简称ssi">
+  可串行化的快照隔离（serializability Snapshot Isolation，简称SSI）
+  <a class="anchor" href="#%e5%8f%af%e4%b8%b2%e8%a1%8c%e5%8c%96%e7%9a%84%e5%bf%ab%e7%85%a7%e9%9a%94%e7%a6%bbserializability-snapshot-isolation%e7%ae%80%e7%a7%b0ssi">#</a>
+</h2>
+<h3 class="heading" id="悲观与乐观的并发控制">
+  悲观与乐观的并发控制
+  <a class="anchor" href="#%e6%82%b2%e8%a7%82%e4%b8%8e%e4%b9%90%e8%a7%82%e7%9a%84%e5%b9%b6%e5%8f%91%e6%8e%a7%e5%88%b6">#</a>
+</h3>
 <p>两阶段加锁是典型的悲观并发控制机制。基于这样的设计原则：如果某些操作可能出错，那么直接放弃，采用等待方式直到绝对安全。这与多线程编程中的互斥锁一样。</p>
 <p>某种意义上来说，串行执行是极端悲观的选择：事务执行期间，等价于事务对整个数据库持有互斥锁。</p>
 <p>相比之下，可串行化的快照隔离则是一种乐观并发控制。在这种情况下，如果可能发生潜在冲突，事务会继续执行而不是中止，寄希望于一切相安无事；而当事务提交时，数据库会检查是否确实发生了冲突，如果是的话中止事务再进行重试。</p>
-<h3 id="基于过期的条件做决定">基于过期的条件做决定</h3>
+<h3 class="heading" id="基于过期的条件做决定">
+  基于过期的条件做决定
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e8%bf%87%e6%9c%9f%e7%9a%84%e6%9d%a1%e4%bb%b6%e5%81%9a%e5%86%b3%e5%ae%9a">#</a>
+</h3>
 <p>事务是基于某些前提条件而决定采取行动，在事务开始时条件成立。</p>
 <p>那么数据库如何知道查询结果是否发生了变化？可以分为以下两种情况：</p>
 <ul>
 <li>读取是否作用于一个（即将）过期的MVCC对象。</li>
 <li>检查写入是否影响即将完成的读取。</li>
 </ul>
-<h4 id="检测是否读取了过期的mvcc对象">检测是否读取了过期的MVCC对象</h4>
+<h4 class="heading" id="检测是否读取了过期的mvcc对象">
+  检测是否读取了过期的MVCC对象
+  <a class="anchor" href="#%e6%a3%80%e6%b5%8b%e6%98%af%e5%90%a6%e8%af%bb%e5%8f%96%e4%ba%86%e8%bf%87%e6%9c%9f%e7%9a%84mvcc%e5%af%b9%e8%b1%a1">#</a>
+</h4>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#读书笔记</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190413-problem-fix/" class="block">线上存储服务崩溃问题分析记录</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" class="block">《数据密集型应用系统设计》第六章数据分区笔记</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#深入理解事务">深入理解事务</a>
-      <ul>
-        <li><a href="#acid">ACID</a>
-          <ul>
-            <li><a href="#原子性atomicity">原子性（Atomicity）</a></li>
-            <li><a href="#一致性consistency">一致性（consistency）</a></li>
-            <li><a href="#隔离性isolation">隔离性（isolation）</a></li>
-            <li><a href="#持久性durability">持久性（Durability）</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#弱隔离级别">弱隔离级别</a>
-      <ul>
-        <li><a href="#读提交read-committed">读提交（read committed）</a>
-          <ul>
-            <li><a href="#防止脏读">防止脏读</a></li>
-            <li><a href="#防止脏写">防止脏写</a></li>
-            <li><a href="#实现读提交">实现读提交</a></li>
-            <li><a href="#快照隔离级别snapshot-isolation和重复读">快照隔离级别（Snapshot isolation）和重复读</a></li>
-            <li><a href="#实现快照隔离级别">实现快照隔离级别</a></li>
-            <li><a href="#一致性快照的可见性原则">一致性快照的可见性原则</a></li>
-          </ul>
-        </li>
-        <li><a href="#防止更新丢失">防止更新丢失</a>
-          <ul>
-            <li><a href="#原子写操作">原子写操作</a></li>
-            <li><a href="#显示加锁">显示加锁</a></li>
-            <li><a href="#自动检测更新丢失">自动检测更新丢失</a>
-              <ul>
-                <li><a href="#原子比较和设置">原子比较和设置</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><a href="#写倾斜和幻读">写倾斜和幻读</a>
-          <ul>
-            <li><a href="#定义写倾斜">定义写倾斜</a></li>
-            <li><a href="#更多写倾斜例子">更多写倾斜例子</a></li>
-            <li><a href="#为何产生写倾斜">为何产生写倾斜</a></li>
-            <li><a href="#实体化冲突">实体化冲突</a></li>
-          </ul>
-        </li>
-        <li><a href="#串行化">串行化</a></li>
-        <li><a href="#可串行化的快照隔离serializability-snapshot-isolation简称ssi">可串行化的快照隔离（serializability Snapshot Isolation，简称SSI）</a>
-          <ul>
-            <li><a href="#悲观与乐观的并发控制">悲观与乐观的并发控制</a></li>
-            <li><a href="#基于过期的条件做决定">基于过期的条件做决定</a>
-              <ul>
-                <li><a href="#检测是否读取了过期的mvcc对象">检测是否读取了过期的MVCC对象</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20181125-etcd-server/" class="no-underline">Etcd存储的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="no-underline">etcd Raft库解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" class="no-underline">《数据密集型应用系统设计》第六章数据分区笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181118-ddia-chapter05-replication/" class="no-underline">《数据密集型应用系统设计》第五章数据复制笔记</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

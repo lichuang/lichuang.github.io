@@ -1,291 +1,182 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>Raft算法原理 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="etcd Raft库解析"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="etcd Raft库解析">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"Raft算法原理",
-      "item":"https://www.codedump.info/post/20180921-raft/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20180921-raft/"
-    },
-    "headline": "Raft算法原理 - codedump的网络日志","datePublished": "2018-09-21T20:15:32+08:00",
-    "dateModified": "2018-09-21T20:15:32+08:00",
-    "wordCount":  12114 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "etcd Raft库解析"
-}
-</script><meta property="og:title" content="Raft算法原理 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20180921-raft/" />
-
-
-
-<meta property="og:description" content="etcd Raft库解析" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2018-09-21T20:15:32&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2018-09-21T20:15:32&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="raft" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    Raft算法原理 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">Raft算法原理</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20180921-raft/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2018-09-21</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>25分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20180921-raft/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Raft算法原理">
+  <meta property="og:description" content="etcd Raft库解析">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2018-09-21T20:15:32+08:00">
+    <meta property="article:modified_time" content="2018-09-21T20:15:32+08:00">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20180921-raft/">Raft算法原理</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Raft算法原理</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2018-09-21T20:15:32&#43;08:00">2018年9月21日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>本文是博客解析raft算法及etcd raft库实现的系列三篇文章之一，之所以详细结合etcd实现解析raft算法原理及实现，因为etcd的raft实现是最接近论文本身的，结合论文原理一起阅读十分酸爽。这个系列文章的索引如下：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
@@ -294,11 +185,20 @@
 <li><a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a></li>
 </ul>
 <p>另外，我个人还针对etcd 3.1.10版本的raft相关代码实现做了一些代码的注释笔记，地址在此：<a href="https://github.com/lichuang/etcd-3.1.10-codedump">etcd-3.1.10-codedump</a>。</p>
-<h1 id="简介">简介</h1>
+<h1 class="heading" id="简介">
+  简介
+  <a class="anchor" href="#%e7%ae%80%e4%bb%8b">#</a>
+</h1>
 <p>关于Raft算法，有两篇经典的论文，一篇是《In search of an Understandable Consensus Algorithm》，这是作者最开始讲述Raft算法原理的论文，但是这篇论文太简单了，很多算法的细节没有涉及到。更详细的论文是《Consensus: Bridging Theory and Practice》，除了包括第一篇论文的内容以外，还加上了很多细节的描述。在我阅读完etcd raft算法库的实现之后，发现这个库的代码基本就是按照后一篇论文来写的，甚至有部分测试用例的注释里也写明了是针对这篇论文的某一个小节的情况做验证。</p>
 <p>这篇文章做为我后续分析etcd raft算法的前导文章，将结合后一篇论文加上一些自己的演绎和理解来讲解Raft算法的原理。</p>
-<h1 id="算法的基本流程">算法的基本流程</h1>
-<h2 id="raft算法概述">Raft算法概述</h2>
+<h1 class="heading" id="算法的基本流程">
+  算法的基本流程
+  <a class="anchor" href="#%e7%ae%97%e6%b3%95%e7%9a%84%e5%9f%ba%e6%9c%ac%e6%b5%81%e7%a8%8b">#</a>
+</h1>
+<h2 class="heading" id="raft算法概述">
+  Raft算法概述
+  <a class="anchor" href="#raft%e7%ae%97%e6%b3%95%e6%a6%82%e8%bf%b0">#</a>
+</h2>
 <p>Raft算法由leader节点来处理一致性问题。leader节点接收来自客户端的请求日志数据，然后同步到集群中其它节点进行复制，当日志已经同步到超过半数以上节点的时候，leader节点再通知集群中其它节点哪些日志已经被复制成功，可以提交到raft状态机中执行。</p>
 <p>通过以上方式，Raft算法将要解决的一致性问题分为了以下几个子问题。</p>
 <ul>
@@ -315,8 +215,35 @@
 <li>leader完备性（Leader Completeness）：如果一条日志在某个任期被提交，那么这条日志数据在leader节点上更高任期号的日志数据中都存在。</li>
 <li>状态机安全性（State Machine Safety）：如果某个节点已经将一条提交过的数据输入raft状态机执行了，那么其它节点不可能再将相同索引的另一条日志数据输入到raft状态机中执行。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/raft-propertities.png" alt="raft-propertities" title="raft-propertities"></p>
-<h2 id="raft算法基础">Raft算法基础</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="raft-propertities" src="/media/imgs/20180921-raft/raft-propertities.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> raft-propertities </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="raft算法基础">
+  Raft算法基础
+  <a class="anchor" href="#raft%e7%ae%97%e6%b3%95%e5%9f%ba%e7%a1%80">#</a>
+</h2>
 <p>在Raft算法中，一个集群里面的所有节点有以下三种状态：</p>
 <ul>
 <li>Leader：领导者，一个集群里只能存在一个Leader。</li>
@@ -325,7 +252,31 @@
 </ul>
 <p>每一次开始一次新的选举时，称为一个“任期”。每个任期都有一个对应的整数与之关联，称为“任期号”，任期号用单词“Term”表示，这个值是一个严格递增的整数值。</p>
 <p>节点的状态切换状态机如下图所示。</p>
-<p><img src="/media/imgs/20180921-raft/raft-states.jpg" alt="raft states" title="raft states"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="raft states" src="/media/imgs/20180921-raft/raft-states.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> raft states </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中标记了状态切换的6种路径，下面做一个简单介绍，后续都会展开来详细讨论。</p>
 <ol>
 <li>start up：起始状态，节点刚启动的时候自动进入的是follower状态。</li>
@@ -338,7 +289,10 @@
 <p>如果一个candidate在一次选举中赢得leader，那么这个节点将在这个任期中担任leader的角色。但并不是每个任期号都一定对应有一个leader的，比如上面的情况3中，可能在选举超时到来之前都没有产生一个新的leader，那么此时将递增任期号开始一次新的选举。</p>
 <p>从以上的描述可以看出，任期号在raft算法中更像一个“逻辑时钟（logic clock）”的作用，有了这个值，集群可以发现有哪些节点的状态已经过期了。每一个节点状态中都保存一个当前任期号（current term），节点在进行通信时都会带上本节点的当前任期号。如果一个节点的当前任期号小于其他节点的当前任期号，将更新其当前任期号到最新的任期号。如果一个candidate或者leader状态的节点发现自己的当前任期号已经小于其他节点了，那么将切换到follower状态。反之，如果一个节点收到的消息中带上的发送者的任期号已经过期，将拒绝这个请求。</p>
 <p>raft节点之间通过RPC请求来互相通信，主要有以下两类RPC请求。RequestVote RPC用于candidate状态的节点进行选举之用，而AppendEntries RPC由leader节点向其他节点复制日志数据以及同步心跳数据的。</p>
-<h2 id="leader选举">leader选举</h2>
+<h2 class="heading" id="leader选举">
+  leader选举
+  <a class="anchor" href="#leader%e9%80%89%e4%b8%be">#</a>
+</h2>
 <p>现在来讲解leader选举的流程。</p>
 <p>raft算法是使用心跳机制来触发leader选举的。</p>
 <p>在节点刚开始启动时，初始状态是follower状态。一个follower状态的节点，只要一直收到来自leader或者candidate的正确RPC消息的话，将一直保持在follower状态。leader节点通过周期性的发送心跳请求（一般使用带有空数据的AppendEntries RPC来进行心跳）来维持着leader节点状态。每个follower同时还有一个选举超时（election timeout）定时器，如果在这个定时器超时之前都没有收到来自leader的心跳请求，那么follower将认为当前集群中没有leader了，将发起一次新的选举。</p>
@@ -386,7 +340,10 @@ candidate状态节点主循环：
     
   如果选举超时到期：
     term+1，进行下一次的选举
-</code></pre><h2 id="日志复制">日志复制</h2>
+</code></pre><h2 class="heading" id="日志复制">
+  日志复制
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e5%a4%8d%e5%88%b6">#</a>
+</h2>
 <p>日志复制的流程大体如下：</p>
 <ol>
 <li>每个客户端的请求都会被重定向发送给leader，这些请求最后都会被输入到raft算法状态机中去执行。</li>
@@ -394,7 +351,31 @@ candidate状态节点主循环：
 <li>在本地添加完日志之后，leader将向集群中其他节点发送AppendEntries RPC请求同步这个日志条目，当这个日志条目被成功复制之后（什么是成功复制，下面会谈到），leader节点将会将这条日志输入到raft状态机中，然后应答客户端。</li>
 </ol>
 <p>Raft日志的组织形式如下图所示。</p>
-<p><img src="/media/imgs/20180921-raft/raftlog.jpg" alt="raftlog" title="raft log"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="raftlog" src="/media/imgs/20180921-raft/raftlog.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> raft log </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>每个日志条目包含以下成员。</p>
 <ol>
 <li>index：日志索引号，即图中最上方的数字，是严格递增的。</li>
@@ -403,7 +384,31 @@ candidate状态节点主循环：
 </ol>
 <p>一条日志如果被leader同步到集群中超过半数的节点，那么被称为“成功复制”，leader节点在收到半数以上的节点应答某条日志之后，就会提交该日志，此时日志这个日志条目就是“已被提交（committed）”。如果一条日志已被提交，那么在这条日志之前的所有日志条目也是被提交的，包括之前其他任期内的leader提交的日志。如上图中索引为7的日志条目之前的所有日志都是已被提交的日志。</p>
 <p>以下面的图示来说明日志复制的流程。</p>
-<p><img src="/media/imgs/20180921-raft/log-replication-1.png" alt="log-replication-1" title="log replication 1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="log-replication-1" src="/media/imgs/20180921-raft/log-replication-1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> log replication 1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，一个请求有以下步骤。</p>
 <ul>
 <li>
@@ -422,7 +427,31 @@ candidate状态节点主循环：
 </ol>
 </li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/log-replication-2.png" alt="log-replication-2" title="log replication 2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="log-replication-2" src="/media/imgs/20180921-raft/log-replication-2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> log replication 2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>接下来继续看，上图中经历了以下步骤。</p>
 <ul>
 <li>
@@ -441,7 +470,31 @@ candidate状态节点主循环：
 </ol>
 </li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/log-replication-3.png" alt="log-replication-3" title="log replication 3"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="log-replication-3" src="/media/imgs/20180921-raft/log-replication-3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> log replication 3 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>当这个命令提交完成了之后，命令就可以提交给应用层了。</p>
 <ul>
 <li>
@@ -462,9 +515,36 @@ candidate状态节点主循环：
 <li>如果两个日志条目有相同的索引号和任期号，那么这两条日志存储的是同一个指令。</li>
 <li>如果在两个不同的日志数据中，包含有相同索引和任期号的日志条目，那么在这两个不同的日志中，位于这条日志之前的日志数据是相同的。</li>
 </ul>
-<h2 id="新leader与follower同步数据">新leader与follower同步数据</h2>
+<h2 class="heading" id="新leader与follower同步数据">
+  新leader与follower同步数据
+  <a class="anchor" href="#%e6%96%b0leader%e4%b8%8efollower%e5%90%8c%e6%ad%a5%e6%95%b0%e6%8d%ae">#</a>
+</h2>
 <p>在正常的情况下，follower节点和leader节点的日志一直保持一致，此时AppendEntries RPC请求将不会失败。但是，当leader节点宕机时日志就可能出现不一致的情况，比如在这个leader节点宕机之前同步的数据并没有得到超过半数以上节点都复制成功了。如下图所示就是一种出现前后日志不一致的情况。</p>
-<p><img src="/media/imgs/20180921-raft/inconsistentlog.jpg" alt="inconsistent logs" title="inconsistent logs"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="inconsistent logs" src="/media/imgs/20180921-raft/inconsistentlog.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> inconsistent logs </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，最上面的一排数字是日志的索引，盒子中的数据是该日志对应的任期号，左边的字母表示的是a-f这几个不同的节点。图中演示了好几种节点日志与leader节点日志不一致的情况，下面说明中以二元组&lt;任期号，索引号&gt;来说明各个节点的日志数据情况：</p>
 <ul>
 <li>leader节点：&lt;6, 10&gt;。</li>
@@ -503,30 +583,180 @@ candidate状态节点主循环：
 </li>
 </ul>
 <p><strong>（注：在下面解释每个follower与leader同步流程的示意图中，follower节点回应的消息，格式是&lt;append消息的索引,当前follower当前的最大消息索引&gt;，比如&lt;10,4&gt;表示接收到leader发过来的append消息索引是10，而当前该follower最大消息索引是4。）</strong></p>
-<p><img src="/media/imgs/20180921-raft/leader-to-a.png" alt="leader-to-a" title="leader-to-a"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-a" src="/media/imgs/20180921-raft/leader-to-a.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-a </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>b节点：由于节点的最大日志数据二元组是&lt;4,4&gt;，与leader发送过来的日志数据&lt;6,10&gt;不匹配，将返回失败同时带上自己最后的日志索引4（即hintIndex=4），leader节点在收到该拒绝消息之后，将修改保存该节点的nextIndex为min(10,4+1)=5，所以下一次leader节点将同步从索引5到10的数据给b节点。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/leader-to-b.png" alt="leader-to-b" title="leader-to-b"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-b" src="/media/imgs/20180921-raft/leader-to-b.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-b </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>c节点：由于节点的最大日志数据二元组是&lt;6,11&gt;，与leader发送过来的日志数据&lt;6,10&gt;不匹配，由于两者任期号相同，节点C知道自己的索引11的数据需要删除。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/leader-to-c.png" alt="leader-to-c" title="leader-to-c"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-c" src="/media/imgs/20180921-raft/leader-to-c.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-c </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>d节点：由于节点的最大日志数据二元组是&lt;7,12&gt;，与leader发送过来的日志数据&lt;6,10&gt;不匹配，索引11、12的数据将被删除。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/leader-to-d.png" alt="leader-to-d" title="leader-to-d"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-d" src="/media/imgs/20180921-raft/leader-to-d.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-d </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>e节点：由于节点的最大日志数据二元组是&lt;4,7&gt;，与leader发送过来的日志数据&lt;6,10&gt;不匹配，将返回最后一个与节点数据一致的索引5给leader，于是leader从min(5+1,10)=6开始同步数据给节点e，最终e节点上索引7的数据被覆盖。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/leader-to-e.png" alt="leader-to-e" title="leader-to-e"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-e" src="/media/imgs/20180921-raft/leader-to-e.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-e </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>f节点：由于节点的最大日志数据二元组是&lt;3,11&gt;，与leader发送过来的日志数据&lt;6,10&gt;不匹配，将返回最后一个与节点数据一致的索引3给leader，于是leader从min(3+1,10)=4开始同步数据给节点f，最终f节点上索引4之后的数据被覆盖。</li>
 </ul>
-<p><img src="/media/imgs/20180921-raft/leader-to-f.png" alt="leader-to-f" title="leader-to-f"></p>
-<h2 id="安全性">安全性</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="leader-to-f" src="/media/imgs/20180921-raft/leader-to-f.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> leader-to-f </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="安全性">
+  安全性
+  <a class="anchor" href="#%e5%ae%89%e5%85%a8%e6%80%a7">#</a>
+</h2>
 <p>前面章节已经将leader选举以及日志同步的机制介绍了，这一小节讲解安全性相关的内容。</p>
-<h3 id="选举限制">选举限制</h3>
+<h3 class="heading" id="选举限制">
+  选举限制
+  <a class="anchor" href="#%e9%80%89%e4%b8%be%e9%99%90%e5%88%b6">#</a>
+</h3>
 <p>raft算法中，并不是所有节点都能成为leader。一个节点要成为leader，需要得到集群中半数以上节点的投票，而一个节点会投票给一个节点，其中一个充分条件是：这个进行选举的节点的日志，比本节点的日志更新。之所以要求这个条件，是为了保证每个当选的节点都有当前最新的数据。为了达到这个检查日志的目的，RequestVote RPC请求中需要带上参加选举节点的日志信息，如果节点发现选举节点的日志信息并不比自己更新，将拒绝给这个节点投票。</p>
 <p>如果判断日志的新旧？这通过对比日志的最后一个日志条目数据来决定，首先将对比条目的任期号，任期号更大的日志数据更新；如果任期号相同，那么索引号更大的数据更新。</p>
 <p>以上处理RequestVote请求的流程伪代码表示如下。</p>
@@ -538,9 +768,36 @@ candidate状态节点主循环：
       拒绝投票给该节点
     其他情况：
       说明选举节点的日志信息比本节点更新，投票给该节点。
-</code></pre><h3 id="提交前面任期的日志条目">提交前面任期的日志条目</h3>
+</code></pre><h3 class="heading" id="提交前面任期的日志条目">
+  提交前面任期的日志条目
+  <a class="anchor" href="#%e6%8f%90%e4%ba%a4%e5%89%8d%e9%9d%a2%e4%bb%bb%e6%9c%9f%e7%9a%84%e6%97%a5%e5%bf%97%e6%9d%a1%e7%9b%ae">#</a>
+</h3>
 <p>如果leader在写入但是还没有提交一条日志之前崩溃，那么这条没有提交的日志是否能提交？有几种情况需要考虑，如下图所示。</p>
-<p><img src="/media/imgs/20180921-raft/preterm-log.jpeg" alt="pre term log" title="pre term log"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="pre term log" src="/media/imgs/20180921-raft/preterm-log.jpeg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> pre term log </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，有以下的场景变更。</p>
 <ul>
 <li>
@@ -561,24 +818,108 @@ candidate状态节点主循环：
 <p>从情况d的两种场景可以看出，在index 2值为2，且已经被写入到半数以上节点的情况下，同样存在被新的leader覆盖的可能性。</p>
 <p>由于以上的原因，对于当前任期之前任期提交的日志，并不通过判断是否已经在半数以上集群节点写入成功来作为能否提交的依据。只有当前leader任期内的日志是通过比较写入数量是否超过半数来决定是否可以提交的。</p>
 <p>对于任期之前的日志，Raft采用的方式，是只要提交成功了当前任期的日志，那么在日志之前的日志就认为提交成功了。这也是为什么etcd-Raft代码中，在成为leader之后，需要再提交一条dummy的日志的原因&ndash;只要该日志提交成功，leader上该日志之前的日志就可以提交成功。</p>
-<h1 id="集群成员变更">集群成员变更</h1>
+<h1 class="heading" id="集群成员变更">
+  集群成员变更
+  <a class="anchor" href="#%e9%9b%86%e7%be%a4%e6%88%90%e5%91%98%e5%8f%98%e6%9b%b4">#</a>
+</h1>
 <p>在上面描述Raft基本算法流程中，都假设集群中的节点是稳定不变的。但是在某些情况下，需要手动改变集群的配置。</p>
-<h2 id="安全性-1">安全性</h2>
+<h2 class="heading" id="安全性-1">
+  安全性
+  <a class="anchor" href="#%e5%ae%89%e5%85%a8%e6%80%a7-1">#</a>
+</h2>
 <p>安全性是变更集群成员时首先需要考虑到的问题，任何时候都不能出现集群中存在一个以上leader的情况。为了避免出现这种情况，每次变更成员时不能一次添加或者修改超过一个节点，集群不能直接切换到新的状态，如下图所示。</p>
-<p><img src="/media/imgs/20180921-raft/disjoint-majorities.jpg" alt="disjoint majorities" title="disjoint majorities"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="disjoint majorities" src="/media/imgs/20180921-raft/disjoint-majorities.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> disjoint majorities </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，server 1、2、3组成的是旧集群，server 4、5是准备新加入集群的节点。注意到如果直接尝试切换到新的状态，在某些时间点里，如图中所示，由于server 1、2上的配置还是旧的集群配置，那么可能这两个节点已经选定了一个leader；而server 3、4、5又是新的配置，它们也可能选定了一个leader，而这两个leader不是同一个，这就出现了集群中存在一个以上leader的情况了。</p>
 <p>反之，下图所示是分别往奇数个以及偶数个集群节点中添加删除单个节点的场景。</p>
-<p><img src="/media/imgs/20180921-raft/change-single-server.jpg" alt="change single server" title="change single server"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="change single server" src="/media/imgs/20180921-raft/change-single-server.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> change single server </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以看到，不论旧集群节点数量是奇数还是偶数个，都不会出现同时有两个超过半数以上子集群的存在，也就不可能选出超过一个leader。</p>
 <p>raft采用将修改集群配置的命令放在日志条目中来处理，这样做的好处是：</p>
 <ul>
 <li>可以继续沿用原来的AppendEntries命令来同步日志数据，只要把修改集群的命令做为一种特殊的命令就可以了。</li>
 <li>在这个过程中，可以继续处理客户端请求。</li>
 </ul>
-<h2 id="可用性">可用性</h2>
-<h3 id="添加新节点到集群中">添加新节点到集群中</h3>
+<h2 class="heading" id="可用性">
+  可用性
+  <a class="anchor" href="#%e5%8f%af%e7%94%a8%e6%80%a7">#</a>
+</h2>
+<h3 class="heading" id="添加新节点到集群中">
+  添加新节点到集群中
+  <a class="anchor" href="#%e6%b7%bb%e5%8a%a0%e6%96%b0%e8%8a%82%e7%82%b9%e5%88%b0%e9%9b%86%e7%be%a4%e4%b8%ad">#</a>
+</h3>
 <p>添加一个新的节点到集群时，需要考虑一种情况，即新节点可能落后当前集群日志很多的情况，在这种情况下集群出现故障的概率会大大提高，如下图所示。</p>
-<p><img src="/media/imgs/20180921-raft/add-new-server.jpg" alt="add-new-server" title="add-new-server"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="add-new-server" src="/media/imgs/20180921-raft/add-new-server.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> add-new-server </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中的情况a中，s1、s2、s3是原有的集群节点，这时把节点s4添加进来，而s4上又什么数据都没有。如果此时s3发生故障，在集群中原来有三个节点的情况下，本来可以容忍一个节点的失败的；但是当变成四个节点的集群时，s3和s4同时不可用整个集群就不可用了。</p>
 <p>因此Raft算法针对这种新添加进来的节点，是如下处理的。</p>
 <ul>
@@ -586,12 +927,42 @@ candidate状态节点主循环：
 <li>leader同步数据给新节点的流程是，划分为多个轮次，每一轮同步一部分数据，而在同步的时候，leader仍然可以写入新的数据，只要等新的轮次到来继续同步就好。</li>
 </ul>
 <p>以下图来说明同步数据的流程。</p>
-<p><img src="/media/imgs/20180921-raft/new-server-sync-logs.jpg" alt="new-server-sync-logs" title="new-server-sync-logs"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="new-server-sync-logs" src="/media/imgs/20180921-raft/new-server-sync-logs.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> new-server-sync-logs </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图中，划分为多个轮次来同步数据。比如，在第一轮同步数据时，leader的最大数据索引为10，那么第一轮就同步10之前的数据。而在同步第一轮数据的同时，leader还能继续接收新的数据，假设当同步第一轮完毕时，最大数据索引变成了20，那么第二轮将继续同步从10到20的数据。以此类推。</p>
 <p>这个同步的轮次并不能一直持续下去，一般会有一个限制的轮次数量，比如最多同步10轮。</p>
-<h3 id="删除当前集群的leader节点">删除当前集群的leader节点</h3>
+<h3 class="heading" id="删除当前集群的leader节点">
+  删除当前集群的leader节点
+  <a class="anchor" href="#%e5%88%a0%e9%99%a4%e5%bd%93%e5%89%8d%e9%9b%86%e7%be%a4%e7%9a%84leader%e8%8a%82%e7%82%b9">#</a>
+</h3>
 <p>当需要下线当前集群的leader节点时，leader节点将发出一个变更节点配置的命令，只有在该命令被提交之后，原先的leader节点才下线，然后集群会自然有一个节点选举超时而进行新的一轮选举。</p>
-<h3 id="处理移出集群的节点">处理移出集群的节点</h3>
+<h3 class="heading" id="处理移出集群的节点">
+  处理移出集群的节点
+  <a class="anchor" href="#%e5%a4%84%e7%90%86%e7%a7%bb%e5%87%ba%e9%9b%86%e7%be%a4%e7%9a%84%e8%8a%82%e7%82%b9">#</a>
+</h3>
 <p>如果某个节点在一次配置更新之后，被移出了新的集群，但是这个节点又不知道这个情况，那么按照前面描述的Raft算法流程来说，它应该在选举超时之后，将任期号递增1，发起一次新的选举。虽然最终这个节点不会赢得选举，但是毕竟对集群运行的状态造成了干扰。而且如果这个节点一直不下线，那么上面这个发起新选举的流程就会一直持续下去。</p>
 <p>为了解决这个问题，Raft引入了一个成为“PreVote”的流程，在这个流程中，如果一个节点要发起一次新的选举，那么首先会广播给集群中的其它所有节点，询问下当前该节点上的日志是否足以赢下选举。只有在这个PreVote阶段赢得超过半数节点肯定的情况下，才真正发起一次新的选举。</p>
 <p>然而，PreVote并不能解决所有的问题，因为很有可能该被移除节点上的日志也是最新的。</p>
@@ -609,17 +980,50 @@ candidate状态节点主循环：
     拒绝该请求，返回
 
   接收该请求    
-</code></pre><h1 id="日志压缩">日志压缩</h1>
+</code></pre><h1 class="heading" id="日志压缩">
+  日志压缩
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e5%8e%8b%e7%bc%a9">#</a>
+</h1>
 <p>日志数据如果不进行压缩处理掉的话，会一直增长下去。为此Raft使用快照数据来进行日志压缩，比如针对键值a的几次操作日志a=1、删除a、a=3最后可以被压缩成为最后的结果数据即a=3。</p>
 <p>快照数据和日志数据的组织形式如下图。</p>
-<p><img src="/media/imgs/20180921-raft/snapshot.png" alt="snapshot" title="snapshot"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="snapshot" src="/media/imgs/20180921-raft/snapshot.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> snapshot </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中：</p>
 <ul>
 <li>未压缩日志前，日志数据保存到了&lt;3,5&gt;的位置，而在&lt;2,3&gt;的位置之前的数据都已经进行提交了，所以可以针对这部分数据进行压缩。</li>
 <li>压缩日志之后，快照文件中存放了几个值：压缩时最后一条日志的二元数据是&lt;2,3&gt;，而针对a的几次操作最后的值为a=3，b的值为2。</li>
 </ul>
-<h1 id="杂项">杂项</h1>
-<h2 id="高效处理只读请求">高效处理只读请求</h2>
+<h1 class="heading" id="杂项">
+  杂项
+  <a class="anchor" href="#%e6%9d%82%e9%a1%b9">#</a>
+</h1>
+<h2 class="heading" id="高效处理只读请求">
+  高效处理只读请求
+  <a class="anchor" href="#%e9%ab%98%e6%95%88%e5%a4%84%e7%90%86%e5%8f%aa%e8%af%bb%e8%af%b7%e6%b1%82">#</a>
+</h2>
 <p>前面已经提到过，处理一个命令时，需要经历以下流程：leader向集群中其它节点广播日志，在日志被超过半数节点应答之后，leader提交该日志，最后才应答客户端。这样的流程对于一个只读请求而言太久了，而且还涉及到日志落盘的操作，对于只读请求而言这些操作是不必要的。</p>
 <p>但是如果不经过上面的流程，leader节点在收到一个只读请求时就直接将本节点上保存的数据应答客户端，也是不安全的，因为这可能返回已经过期的数据。一方面leader节点可能已经发生了变化，只是这个节点并不知道；另一方面可能数据也发生了改变。返回过期的数据不符合一致性要求，因此这样的做法也是不允许的。</p>
 <p>Raft中针对只读请求是这样做处理的。</p>
@@ -630,184 +1034,92 @@ candidate状态节点主循环：
 <li></li>
 </ol>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/raft/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#raft</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="block">etcd Raft库解析</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#简介">简介</a></li>
-    <li><a href="#算法的基本流程">算法的基本流程</a>
-      <ul>
-        <li><a href="#raft算法概述">Raft算法概述</a></li>
-        <li><a href="#raft算法基础">Raft算法基础</a></li>
-        <li><a href="#leader选举">leader选举</a></li>
-        <li><a href="#日志复制">日志复制</a></li>
-        <li><a href="#新leader与follower同步数据">新leader与follower同步数据</a></li>
-        <li><a href="#安全性">安全性</a>
-          <ul>
-            <li><a href="#选举限制">选举限制</a></li>
-            <li><a href="#提交前面任期的日志条目">提交前面任期的日志条目</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#集群成员变更">集群成员变更</a>
-      <ul>
-        <li><a href="#安全性-1">安全性</a></li>
-        <li><a href="#可用性">可用性</a>
-          <ul>
-            <li><a href="#添加新节点到集群中">添加新节点到集群中</a></li>
-            <li><a href="#删除当前集群的leader节点">删除当前集群的leader节点</a></li>
-            <li><a href="#处理移出集群的节点">处理移出集群的节点</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#日志压缩">日志压缩</a></li>
-    <li><a href="#杂项">杂项</a>
-      <ul>
-        <li><a href="#高效处理只读请求">高效处理只读请求</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

@@ -1,317 +1,208 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>IM服务器设计-基础 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="IM服务器设计-消息存储"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="IM服务器设计-消息存储">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"IM服务器设计-基础",
-      "item":"https://www.codedump.info/post/20190608-im-design-base/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190608-im-design-base/"
-    },
-    "headline": "IM服务器设计-基础 - codedump的网络日志","datePublished": "2019-06-08T11:09:10+08:00",
-    "dateModified": "2019-06-08T11:09:10+08:00",
-    "wordCount":  3733 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "IM服务器设计-消息存储"
-}
-</script><meta property="og:title" content="IM服务器设计-基础 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190608-im-design-base/" />
-
-
-
-<meta property="og:description" content="IM服务器设计-消息存储" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-06-08T11:09:10&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-06-08T11:09:10&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="系统设计" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20191013-im-msg-out-of-order/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190608-im-msg-storage/" />
-
-
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    IM服务器设计-基础 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20190608-im-design-base/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20190608-im-design-base/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="IM服务器设计-基础">
+  <meta property="og:description" content="IM服务器设计-消息存储">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-06-08T11:09:10+08:00">
+    <meta property="article:modified_time" content="2019-06-08T11:09:10+08:00">
+    <meta property="article:tag" content="系统设计">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">IM服务器设计-基础</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-06-08</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190608-im-design-base/">IM服务器设计-基础</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">IM服务器设计-基础</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-06-08T11:09:10&#43;08:00">2019年6月8日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>8分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="hover:text-eureka"
-          >系统设计</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/im%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%AE%BE%E8%AE%A1/" class="hover:text-eureka"
-          >IM服务器设计</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+
   
 
-  <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
+  <div class="single-content">
+    <p>IM做为非常经典的服务器系统，其设计时候的考量具备代表性，所以这一次花几个篇幅讨论其相关设计。</p>
 <p>主要内容相当部分参考了 <a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a>一文，在此之上补充了更好的消息存储设计以及集群设计。</p>
-<h1 id="整体架构">整体架构</h1>
-<p><img src="/media/imgs/20190608-im-design-base/im-arch.png" alt="im-arch" title="im arch"></p>
+<h1 class="heading" id="整体架构">
+  整体架构
+  <a class="anchor" href="#%e6%95%b4%e4%bd%93%e6%9e%b6%e6%9e%84">#</a>
+</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-arch" src="/media/imgs/20190608-im-design-base/im-arch.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im arch </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以上架构图中，分为几个部分：</p>
 <ul>
 <li>客户端：支持IOS、Android系统。</li>
@@ -326,15 +217,51 @@
 <li>逻辑类服务器与存储层服务打交道，其中：redis用于存储用户在线状态、用户路由数据（用户路由数据就是指用户在哪个gate服务上维护长连接），而DB用于存储用户的消息数据，这部分留待下一部分讲解。</li>
 <li>以上的接入层、逻辑层由于本身不存储状态，因此都可以进行横向扩展。看似Gate维护着长连接，但是即使一个Gate宕机，客户端检测到之后可以重新发起请求接入另一台Gate服务器。</li>
 </ul>
-<h2 id="数据存储">数据存储</h2>
+<h2 class="heading" id="数据存储">
+  数据存储
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e5%ad%98%e5%82%a8">#</a>
+</h2>
 <ul>
 <li>路由数据：存放在Redis中，格式为（UID,客户端在哪个gate登录）。</li>
 <li>消息数据：存储在DB中，部分也会缓存在缓存中方便查询，这部分做为下一部分文章的重点来讲解，不在这部分展开讨论。</li>
 </ul>
-<h1 id="核心交互流程">核心交互流程</h1>
-<h2 id="统一登录系统">统一登录系统</h2>
-<h2 id="登录授权auth">登录授权（auth）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-login.png" alt="im-login" title="im login"></p>
+<h1 class="heading" id="核心交互流程">
+  核心交互流程
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e4%ba%a4%e4%ba%92%e6%b5%81%e7%a8%8b">#</a>
+</h1>
+<h2 class="heading" id="统一登录系统">
+  统一登录系统
+  <a class="anchor" href="#%e7%bb%9f%e4%b8%80%e7%99%bb%e5%bd%95%e7%b3%bb%e7%bb%9f">#</a>
+</h2>
+<h2 class="heading" id="登录授权auth">
+  登录授权（auth）
+  <a class="anchor" href="#%e7%99%bb%e5%bd%95%e6%8e%88%e6%9d%83auth">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-login" src="/media/imgs/20190608-im-design-base/im-login.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im login </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端通过统一登录系统验证登录密码等。</li>
 <li>SSO验证客户端用户名密码之后，生成登录token并返回给客户端。</li>
@@ -350,25 +277,106 @@
 <li>auth系统向gate返回验证登录结果。</li>
 <li>gate向客户端返回授权结果。</li>
 </ol>
-<h2 id="登出logout">登出（logout）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-logout.png" alt="im-logout" title="im logout"></p>
+<h2 class="heading" id="登出logout">
+  登出（logout）
+  <a class="anchor" href="#%e7%99%bb%e5%87%balogout">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-logout" src="/media/imgs/20190608-im-design-base/im-logout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im logout </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端向gate发出logout请求。</li>
 <li>gate设置客户端UID对应的peer无效，然后应答客户端登出成功。</li>
 <li>gate向logic server发出登录请求。</li>
 <li>处理该类请求的c2s服务器，清除redis中的客户端路由信息。</li>
 </ol>
-<h2 id="踢人kickout">踢人（kickout）</h2>
+<h2 class="heading" id="踢人kickout">
+  踢人（kickout）
+  <a class="anchor" href="#%e8%b8%a2%e4%ba%bakickout">#</a>
+</h2>
 <p>用户请求授权时，可能在另一个设备（同类型设备，比如一台苹果手机登录时发现一台安卓手机也在登录这个账号）开着软件处于登录状态。这种情况需要系统将那个设备踢下线。</p>
-<p><img src="/media/imgs/20190608-im-design-base/im-kickout.png" alt="im-kickout" title="im kickout"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-kickout" src="/media/imgs/20190608-im-design-base/im-kickout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im kickout </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>新的客户端登陆流程同上面的登陆认证流程，只不过在auth模块完成认证之后，会做如下的操作：</p>
 <ul>
 <li>根据UID到redis中查询路由数据，如果不存在说明前面没有登陆过，那么就像登陆流程一样返回即可。</li>
 <li>否则说明前面已经有其他设备登陆了，将向前面的gate发送踢人请求，然后保存新的路由信息到redis中。</li>
 <li>gate接收到踢人请求，踢掉客户端之后断掉与客户端的连接。</li>
 </ul>
-<h2 id="客户端上报消息c2s消息">客户端上报消息（c2s消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2smsg.png" alt="im-c2smsg" title="im c2s msg"></p>
+<h2 class="heading" id="客户端上报消息c2s消息">
+  客户端上报消息（c2s消息）
+  <a class="anchor" href="#%e5%ae%a2%e6%88%b7%e7%ab%af%e4%b8%8a%e6%8a%a5%e6%b6%88%e6%81%afc2s%e6%b6%88%e6%81%af">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-c2smsg" src="/media/imgs/20190608-im-design-base/im-c2smsg.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im c2s msg </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端向gate发送c2s消息数据。</li>
 <li>gate应答客户端。</li>
@@ -376,8 +384,35 @@
 <li>logic server的c2s模块，将消息发送到MQ消息总线中。</li>
 <li>appserver消费MQ消息做处理。</li>
 </ol>
-<h2 id="应用服务器推送消息s2c消息">应用服务器推送消息（s2c消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-s2cmsg.png" alt="im-s2cmsg" title="im s2c msg"></p>
+<h2 class="heading" id="应用服务器推送消息s2c消息">
+  应用服务器推送消息（s2c消息）
+  <a class="anchor" href="#%e5%ba%94%e7%94%a8%e6%9c%8d%e5%8a%a1%e5%99%a8%e6%8e%a8%e9%80%81%e6%b6%88%e6%81%afs2c%e6%b6%88%e6%81%af">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-s2cmsg" src="/media/imgs/20190608-im-design-base/im-s2cmsg.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im s2c msg </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>业务服务器向逻辑服务器发送s2c消息。</li>
 <li>逻辑服务器的s2c模块从redis中查询UID的路由数据，知道该用户在哪个gate上面登陆。</li>
@@ -386,8 +421,35 @@
 <li>客户端收到之后向gate ack消息。</li>
 <li>gate向逻辑服务器ack s2c消息。</li>
 </ol>
-<h2 id="单对单聊天c2c消息">单对单聊天（c2c消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2cmsg.png" alt="im-c2cmsg" title="im c2c msg"></p>
+<h2 class="heading" id="单对单聊天c2c消息">
+  单对单聊天（c2c消息）
+  <a class="anchor" href="#%e5%8d%95%e5%af%b9%e5%8d%95%e8%81%8a%e5%a4%a9c2c%e6%b6%88%e6%81%af">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-c2cmsg" src="/media/imgs/20190608-im-design-base/im-c2cmsg.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im c2c msg </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端向gate发送c2c消息。</li>
 <li>gate向逻辑服务器发送c2c消息。</li>
@@ -402,8 +464,35 @@
 <li>逻辑服务器的c2c模块，在消息存储中清空该消息的未读标志表示消息已读。</li>
 </ol>
 <p>注意第7步中，逻辑服务器的c2c模块在向gate转发c2c消息之后，需要加上定时器，如果在指定时间没有收到最后客户端的应答，需要重发。尝试几次重发都失败则放弃，等待下次用户登录了拉取离线消息。</p>
-<h2 id="群聊消息c2g消息">群聊消息（c2g消息）</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-c2gmsg.png" alt="im-c2gmsg" title="im c2g msg"></p>
+<h2 class="heading" id="群聊消息c2g消息">
+  群聊消息（c2g消息）
+  <a class="anchor" href="#%e7%be%a4%e8%81%8a%e6%b6%88%e6%81%afc2g%e6%b6%88%e6%81%af">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-c2gmsg" src="/media/imgs/20190608-im-design-base/im-c2gmsg.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im c2g msg </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端A向gate发送c2g消息。</li>
 <li>gate向逻辑服务器发送c2g消息。</li>
@@ -417,8 +506,35 @@
 <li>gate应答逻辑服务器的c2g模块用户已经收到c2g消息。</li>
 <li>c2g模块修改发送消息库该消息已读。</li>
 </ol>
-<h2 id="登录后拉取离线消息流程">登录后拉取离线消息流程</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-offlinemsg.png" alt="im-offlinemsg" title="im offline msg"></p>
+<h2 class="heading" id="登录后拉取离线消息流程">
+  登录后拉取离线消息流程
+  <a class="anchor" href="#%e7%99%bb%e5%bd%95%e5%90%8e%e6%8b%89%e5%8f%96%e7%a6%bb%e7%ba%bf%e6%b6%88%e6%81%af%e6%b5%81%e7%a8%8b">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-offlinemsg" src="/media/imgs/20190608-im-design-base/im-offlinemsg.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im offline msg </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>客户端请求离线消息，其中会带上的字段是：客户端uid、当前客户端上保存的最大消息id（msgid）、每次最多获取多少离线消息（size）。当msgid为0的时候，由服务器自行查询当前的离线消息返回给客户端；否则服务器只会返回该消息id以后的消息。在这个例子中，假设第一次请求时，msgid为0，即由服务器查询需要给客户端返回哪些离线消息。</li>
 <li>im服务器查询uid为100的用户的前10（因为size=10）的离线消息，具体来说就是去消息接收表中查询uid=100且read flag为false的前10条消息。这里假设第一次查询返回的消息中，最大消息id为100。</li>
@@ -428,9 +544,39 @@
 <li>获取uid=100且msgid&gt;100的未读消息返回给客户端。</li>
 </ol>
 <p>如果每次拉取的离线消息都等于拉取离线消息数量，客户端会一直重复拉取离线消息流程，直到拉取完毕。</p>
-<h1 id="协议设计">协议设计</h1>
-<h2 id="协议格式">协议格式</h2>
-<p><img src="/media/imgs/20190608-im-design-base/im-protocol-format.png" alt="im-protocol-format" title="im protocol format"></p>
+<h1 class="heading" id="协议设计">
+  协议设计
+  <a class="anchor" href="#%e5%8d%8f%e8%ae%ae%e8%ae%be%e8%ae%a1">#</a>
+</h1>
+<h2 class="heading" id="协议格式">
+  协议格式
+  <a class="anchor" href="#%e5%8d%8f%e8%ae%ae%e6%a0%bc%e5%bc%8f">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="im-protocol-format" src="/media/imgs/20190608-im-design-base/im-protocol-format.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> im protocol format </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>协议分为包头和包体两部分，其中包体为固定的大小，包括：</p>
 <ul>
 <li>version（4字节）：协议版本号。</li>
@@ -440,79 +586,100 @@
 <li>body length（4字节）：包体大小。</li>
 </ul>
 <p>其中，包体部分使用protobuf来定义，以下介绍不同命令的包体格式。</p>
-<h2 id="认证auth">认证（auth）</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">message</span> <span class="n">AuthRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">token</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 从SSO服务器返回的登录token，登录之后保存在客户端
-</span><span class="c1"></span>  <span class="n">srting</span> <span class="n">uid</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>   <span class="c1">// 用户ID
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="n">message</span> <span class="n">AuthResponse</span> <span class="p">{</span>
-  <span class="n">int32</span> <span class="n">status</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 应答状态码，0表示成功，其他表示失败
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">err_msg</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="c1">// 错误描述信息
-</span><span class="c1"></span><span class="p">}</span>
-</code></pre></div><h2 id="登出logout-1">登出（logout）</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">message</span> <span class="n">LogoutRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">token</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 从SSO服务器返回的登录token，登录之后保存在客户端
-</span><span class="c1"></span>  <span class="n">srting</span> <span class="n">uid</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>   <span class="c1">// 用户ID
-</span><span class="c1"></span><span class="p">}</span>
-<span class="n">message</span> <span class="n">LogoutResponse</span> <span class="p">{</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="踢人kickout-1">踢人（kickout）</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">message</span> <span class="n">KickoutRequest</span> <span class="p">{</span>
-  <span class="k">enum</span> <span class="n">Reason</span> <span class="p">{</span>
-    <span class="n">OTHER_LOGIN</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 其他设备登录
-</span><span class="c1"></span>  <span class="p">}</span>
-  <span class="n">int32</span> <span class="n">reason</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 踢人原因
-</span><span class="c1"></span><span class="p">}</span>
-<span class="n">message</span> <span class="n">KickoutResponse</span> <span class="p">{</span>
-<span class="p">}</span>
-</code></pre></div><h2 id="心跳包">心跳包</h2>
+<h2 class="heading" id="认证auth">
+  认证（auth）
+  <a class="anchor" href="#%e8%ae%a4%e8%af%81auth">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message AuthRequest {
+</span></span><span style="display:flex;"><span>  string token = 1; <span style="color:#888;font-style:italic">// 从SSO服务器返回的登录token，登录之后保存在客户端
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  srting uid = 2;   <span style="color:#888;font-style:italic">// 用户ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>message AuthResponse {
+</span></span><span style="display:flex;"><span>  int32 status = 1; <span style="color:#888;font-style:italic">// 应答状态码，0表示成功，其他表示失败
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string err_msg = 2; <span style="color:#888;font-style:italic">// 错误描述信息
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><h2 class="heading" id="登出logout-1">
+  登出（logout）
+  <a class="anchor" href="#%e7%99%bb%e5%87%balogout-1">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message LogoutRequest {
+</span></span><span style="display:flex;"><span>  string token = 1; <span style="color:#888;font-style:italic">// 从SSO服务器返回的登录token，登录之后保存在客户端
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  srting uid = 2;   <span style="color:#888;font-style:italic">// 用户ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>message LogoutResponse {
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 class="heading" id="踢人kickout-1">
+  踢人（kickout）
+  <a class="anchor" href="#%e8%b8%a2%e4%ba%bakickout-1">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>message KickoutRequest {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">enum</span> Reason {
+</span></span><span style="display:flex;"><span>    OTHER_LOGIN = 1; <span style="color:#888;font-style:italic">// 其他设备登录
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  }
+</span></span><span style="display:flex;"><span>  int32 reason = 1; <span style="color:#888;font-style:italic">// 踢人原因
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>message KickoutResponse {
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 class="heading" id="心跳包">
+  心跳包
+  <a class="anchor" href="#%e5%bf%83%e8%b7%b3%e5%8c%85">#</a>
+</h2>
 <p>无包体</p>
-<h2 id="单对单消息c2c">单对单消息（c2c）</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// 发送者发送消息的协议
-</span><span class="c1"></span><span class="n">message</span> <span class="n">C2CSendRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">from</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 发送者
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">to</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="c1">// 接收者
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">content</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span> <span class="c1">// 消息内容
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="n">message</span> <span class="n">C2CSendResponse</span> <span class="p">{</span>
-  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 落地的消息ID
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="c1">// 推送给接收者的协议
-</span><span class="c1"></span><span class="n">message</span> <span class="n">C2CPushRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">from</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
-  <span class="n">string</span> <span class="n">content</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
-  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="n">message</span> <span class="n">C2CPushResponse</span> <span class="p">{</span>
-  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>  <span class="c1">// 消息id，服务器收到这个id可以去置位这个消息已读
-</span><span class="c1"></span><span class="p">}</span>
-</code></pre></div><h2 id="群聊c2g">群聊（c2g）</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">// 发送者发送群消息协议
-</span><span class="c1"></span><span class="n">message</span> <span class="n">C2GSendRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">from</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 发送者
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">group</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="c1">// 群
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">content</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span> <span class="c1">// 消息内容
-</span><span class="c1"></span><span class="p">}</span>
-<span class="n">message</span> <span class="n">C2GSendResponse</span> <span class="p">{</span>
-  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 落地的消息ID
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="c1">// 推送给其他群成员消息协议
-</span><span class="c1"></span><span class="n">message</span> <span class="n">C2GPushRequest</span> <span class="p">{</span>
-  <span class="n">string</span> <span class="n">from</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 发送者
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">group</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span> <span class="c1">// 群
-</span><span class="c1"></span>  <span class="n">string</span> <span class="n">content</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span> <span class="c1">// 消息内容
-</span><span class="c1"></span>  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span> <span class="c1">// 落地的消息ID
-</span><span class="c1"></span><span class="p">}</span>
-
-<span class="n">message</span> <span class="n">C2GPushResponse</span> <span class="p">{</span>
-  <span class="n">int64</span> <span class="n">msgid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// 落地的消息ID
-</span><span class="c1"></span><span class="p">}</span>
-</code></pre></div><h2 id="拉离线消息pull">拉离线消息（pull）</h2>
+<h2 class="heading" id="单对单消息c2c">
+  单对单消息（c2c）
+  <a class="anchor" href="#%e5%8d%95%e5%af%b9%e5%8d%95%e6%b6%88%e6%81%afc2c">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 发送者发送消息的协议
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>message C2CSendRequest {
+</span></span><span style="display:flex;"><span>  string from = 1; <span style="color:#888;font-style:italic">// 发送者
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string to = 2; <span style="color:#888;font-style:italic">// 接收者
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string content = 3; <span style="color:#888;font-style:italic">// 消息内容
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>message C2CSendResponse {
+</span></span><span style="display:flex;"><span>  int64 msgid = 1; <span style="color:#888;font-style:italic">// 落地的消息ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 推送给接收者的协议
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>message C2CPushRequest {
+</span></span><span style="display:flex;"><span>  string from = 1;
+</span></span><span style="display:flex;"><span>  string content = 2;
+</span></span><span style="display:flex;"><span>  int64 msgid = 3;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>message C2CPushResponse {
+</span></span><span style="display:flex;"><span>  int64 msgid = 1;  <span style="color:#888;font-style:italic">// 消息id，服务器收到这个id可以去置位这个消息已读
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><h2 class="heading" id="群聊c2g">
+  群聊（c2g）
+  <a class="anchor" href="#%e7%be%a4%e8%81%8ac2g">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 发送者发送群消息协议
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>message C2GSendRequest {
+</span></span><span style="display:flex;"><span>  string from = 1; <span style="color:#888;font-style:italic">// 发送者
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string group = 2; <span style="color:#888;font-style:italic">// 群
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string content = 3; <span style="color:#888;font-style:italic">// 消息内容
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>message C2GSendResponse {
+</span></span><span style="display:flex;"><span>  int64 msgid = 1; <span style="color:#888;font-style:italic">// 落地的消息ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 推送给其他群成员消息协议
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>message C2GPushRequest {
+</span></span><span style="display:flex;"><span>  string from = 1; <span style="color:#888;font-style:italic">// 发送者
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string group = 2; <span style="color:#888;font-style:italic">// 群
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  string content = 3; <span style="color:#888;font-style:italic">// 消息内容
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  int64 msgid = 4; <span style="color:#888;font-style:italic">// 落地的消息ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>message C2GPushResponse {
+</span></span><span style="display:flex;"><span>  int64 msgid = 1; <span style="color:#888;font-style:italic">// 落地的消息ID
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><h2 class="heading" id="拉离线消息pull">
+  拉离线消息（pull）
+  <a class="anchor" href="#%e6%8b%89%e7%a6%bb%e7%ba%bf%e6%b6%88%e6%81%afpull">#</a>
+</h2>
 <pre tabindex="0"><code>message C2SPullMessageRequest {
   string uid = 1;
   int64 msgid = 2;  // 拉取该消息id以后的离线消息，为0由服务器自行判断
@@ -530,188 +697,102 @@ message PullMsg {
 message C2SPullMessageResponse {
   repeated PullMsg msg = 1; // 离线消息数组
 }
-</code></pre><h1 id="参考资料">参考资料</h1>
+</code></pre><h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="https://cloud.tencent.com/developer/article/1166255">单点登录（SSO），从原理到实现</a></li>
 <li><a href="https://ken.io/note/sso-design-implement">单点登录（SSO）的设计与实现</a></li>
 <li><a href="http://www.52im.net/thread-812-1-1.html">一套海量在线用户的移动端IM架构设计实践分享</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统设计</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190608-im-msg-storage/" class="block">IM服务器设计-消息存储</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190501-lua-stream/" class="block">OpenResty Lua Stream实现分析</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#整体架构">整体架构</a>
-      <ul>
-        <li><a href="#数据存储">数据存储</a></li>
-      </ul>
-    </li>
-    <li><a href="#核心交互流程">核心交互流程</a>
-      <ul>
-        <li><a href="#统一登录系统">统一登录系统</a></li>
-        <li><a href="#登录授权auth">登录授权（auth）</a></li>
-        <li><a href="#登出logout">登出（logout）</a></li>
-        <li><a href="#踢人kickout">踢人（kickout）</a></li>
-        <li><a href="#客户端上报消息c2s消息">客户端上报消息（c2s消息）</a></li>
-        <li><a href="#应用服务器推送消息s2c消息">应用服务器推送消息（s2c消息）</a></li>
-        <li><a href="#单对单聊天c2c消息">单对单聊天（c2c消息）</a></li>
-        <li><a href="#群聊消息c2g消息">群聊消息（c2g消息）</a></li>
-        <li><a href="#登录后拉取离线消息流程">登录后拉取离线消息流程</a></li>
-      </ul>
-    </li>
-    <li><a href="#协议设计">协议设计</a>
-      <ul>
-        <li><a href="#协议格式">协议格式</a></li>
-        <li><a href="#认证auth">认证（auth）</a></li>
-        <li><a href="#登出logout-1">登出（logout）</a></li>
-        <li><a href="#踢人kickout-1">踢人（kickout）</a></li>
-        <li><a href="#心跳包">心跳包</a></li>
-        <li><a href="#单对单消息c2c">单对单消息（c2c）</a></li>
-        <li><a href="#群聊c2g">群聊（c2g）</a></li>
-        <li><a href="#拉离线消息pull">拉离线消息（pull）</a></li>
-      </ul>
-    </li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

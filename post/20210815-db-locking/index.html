@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    《数据库系统概念》之并发控制（一）锁 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20210815-db-locking/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20210815-db-locking/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《数据库系统概念》之并发控制（一）锁">
+  <meta property="og:description" content="概述 # 并发控制有几种方式：
+悲观：加锁。 乐观： 锁 # 锁分为两类：
+共享锁（s-lock）：获得数据项共享锁的事务，可以对该对象进行读操作，但是不能进行写操作。 排他锁（x-lock）：获得数据项排他锁的事务，可以对该对象进行读和写操作。 两种锁的相容性矩阵（compatibility matrix）如下：
+相容性矩阵 可以简单总结如下：共享锁可以和共享锁相容，但是排他锁不能与其他锁相容。
+两阶段锁（two phase locking） # 两阶段锁把加锁过程分为以下两个阶段：
+增长阶段（growing phase）：这一阶段事务可以获得锁，但是不能释放锁。 缩减阶段（shrinking phase）：这一阶段事务只能释放锁，不能获得锁。 即：事务在增长阶段结束之后，不能再获得任何锁。
+两阶段锁 比如下图就违反了两阶段锁，因为在增长阶段结束之后又获得了锁：
+违反两阶段锁 两阶段锁的问题 # 两阶段锁能保证冲突可序列化，因为根据两阶段锁协议能生成无环的优先图。
+但是它仍然受到级联回滚（cascading aborts）操作的影响，如：
+级联回滚 上图中，事务T1、T2遵守了两阶段锁协议，但是当T1事务终止时仍然需要把其他相关事务一起终止。
+同样的，两阶段锁没有解决如下问题：
+脏读（dirty read）：解决方式是选择严格两阶段锁协议（string strict 2PL），下面将介绍。 死锁（deadlock）：解决方式是死锁检测和预防。 严格两阶段锁协议（string strict 2PL） # 严格两阶段锁协议在两阶段锁的基础上，还要求事务持有的排他锁在事务提交之后才释放。这样就不会出现其他事务在事务结束之前读到事务修改的数据了，即解决了脏读问题。
+严格两阶段锁 与上面两阶段锁的流程相比，上图中缩减阶段事务所持有的锁数量并没有下降，而是等到事务提交的时候一起全部释放。
+可以看出，一个调度是遵守严格两阶段协议的，指的是被一个事务修改的对象，在该事务结束之前，该对象都不能被其他事务读或者写。而非严格两阶段锁，则是只要该对象的锁被释放，即便事务还未结束，其他事务也能读到或者修改它的值。
+严格两阶段锁的优点在于：
+不会造成级联回滚。 终止的事务可以通过撤销修改原数据tuple的情况来恢复。 以下举例来说明非两阶段锁、两阶段锁、严格两阶段锁。
+初始情况：A、B两个账户都有1000，事务T1将A的100转到B账户下，事务T2打印A、B账户的和。
+非两阶段锁可能出现的一种调度情况如下：
+非两阶段锁调度 图中，事务T1并没有遵守两阶段协议：先对A加锁，然后释放，再对B加锁，释放。这就导致事务T2可能读取到A修改后的值，输出错误的结果1900（图中有误，写成了1100）。
+两阶段锁出现的调度如下：
+两阶段锁调度 图中，事务T1遵守两阶段锁协议，这样事务T2只有等事务T1的缩减阶段才能拿到锁（注意这时候事务T1没有结束），输出正确的结果2000。
+严格两阶段锁出现的调度如下：
+严格两阶段锁调度 图中，事务T1遵守严格两阶段锁协议，这样事务T2只有等事务T1结束才能拿到锁，输出正确的结果2000。与上面两阶段锁不同的是，事务T2必须等待事务T1阶段才能读到数据，因为事务T1结束之前都不会释放锁。
+死锁（deadlock） # 死锁指的是系统中的一组事务，在互相等待其他事务释放锁。比如下图：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-08-15T19:02:33+08:00">
+    <meta property="article:modified_time" content="2021-08-15T19:02:33+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20210815-db-locking/">《数据库系统概念》之并发控制（一）锁</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《数据库系统概念》之并发控制（一）锁</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-08-15T19:02:33&#43;08:00">2021年8月15日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>并发控制有几种方式：</p>
+<ul>
+<li>悲观：加锁。</li>
+<li>乐观：</li>
+</ul>
+<h1 class="heading" id="锁">
+  锁
+  <a class="anchor" href="#%e9%94%81">#</a>
+</h1>
+<p>锁分为两类：</p>
+<ul>
+<li>共享锁（s-lock）：获得数据项共享锁的事务，可以对该对象进行读操作，但是不能进行写操作。</li>
+<li>排他锁（x-lock）：获得数据项排他锁的事务，可以对该对象进行读和写操作。</li>
+</ul>
+<p>两种锁的相容性矩阵（compatibility matrix）如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="相容性矩阵" src="/media/imgs/20210815-db-locking/compatibility-matrix.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 相容性矩阵 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可以简单总结如下：共享锁可以和共享锁相容，但是排他锁不能与其他锁相容。</p>
+<h1 class="heading" id="两阶段锁two-phase-locking">
+  两阶段锁（two phase locking）
+  <a class="anchor" href="#%e4%b8%a4%e9%98%b6%e6%ae%b5%e9%94%81two-phase-locking">#</a>
+</h1>
+<p>两阶段锁把加锁过程分为以下两个阶段：</p>
+<ul>
+<li>增长阶段（growing phase）：这一阶段事务可以获得锁，但是不能释放锁。</li>
+<li>缩减阶段（shrinking phase）：这一阶段事务只能释放锁，不能获得锁。</li>
+</ul>
+<p>即：事务在增长阶段结束之后，不能再获得任何锁。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="两阶段锁" src="/media/imgs/20210815-db-locking/2pl.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 两阶段锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>比如下图就违反了两阶段锁，因为在增长阶段结束之后又获得了锁：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="违反两阶段锁" src="/media/imgs/20210815-db-locking/violation-2pl.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 违反两阶段锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="两阶段锁的问题">
+  两阶段锁的问题
+  <a class="anchor" href="#%e4%b8%a4%e9%98%b6%e6%ae%b5%e9%94%81%e7%9a%84%e9%97%ae%e9%a2%98">#</a>
+</h2>
+<p>两阶段锁能保证冲突可序列化，因为根据两阶段锁协议能生成无环的优先图。</p>
+<p>但是它仍然受到级联回滚（cascading aborts）操作的影响，如：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="级联回滚" src="/media/imgs/20210815-db-locking/cascading-aborts.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 级联回滚 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1、T2遵守了两阶段锁协议，但是当T1事务终止时仍然需要把其他相关事务一起终止。</p>
+<p>同样的，两阶段锁没有解决如下问题：</p>
+<ul>
+<li>脏读（dirty read）：解决方式是选择严格两阶段锁协议（string strict 2PL），下面将介绍。</li>
+<li>死锁（deadlock）：解决方式是死锁检测和预防。</li>
+</ul>
+<h2 class="heading" id="严格两阶段锁协议string-strict-2pl">
+  严格两阶段锁协议（string strict 2PL）
+  <a class="anchor" href="#%e4%b8%a5%e6%a0%bc%e4%b8%a4%e9%98%b6%e6%ae%b5%e9%94%81%e5%8d%8f%e8%ae%aestring-strict-2pl">#</a>
+</h2>
+<p>严格两阶段锁协议在两阶段锁的基础上，还要求事务持有的排他锁在事务提交之后才释放。这样就不会出现其他事务在事务结束之前读到事务修改的数据了，即解决了脏读问题。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="严格两阶段锁" src="/media/imgs/20210815-db-locking/strict-2pl.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 严格两阶段锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>与上面两阶段锁的流程相比，上图中缩减阶段事务所持有的锁数量并没有下降，而是等到事务提交的时候一起全部释放。</p>
+<p>可以看出，一个调度是遵守严格两阶段协议的，指的是被一个事务修改的对象，在该事务结束之前，该对象都不能被其他事务读或者写。而非严格两阶段锁，则是只要该对象的锁被释放，即便事务还未结束，其他事务也能读到或者修改它的值。</p>
+<p>严格两阶段锁的优点在于：</p>
+<ul>
+<li>不会造成级联回滚。</li>
+<li>终止的事务可以通过撤销修改原数据tuple的情况来恢复。</li>
+</ul>
+<p>以下举例来说明非两阶段锁、两阶段锁、严格两阶段锁。</p>
+<p>初始情况：A、B两个账户都有1000，事务T1将A的100转到B账户下，事务T2打印A、B账户的和。</p>
+<p>非两阶段锁可能出现的一种调度情况如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="非两阶段锁调度" src="/media/imgs/20210815-db-locking/non-2pl-ex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 非两阶段锁调度 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>图中，事务T1并没有遵守两阶段协议：先对A加锁，然后释放，再对B加锁，释放。这就导致事务T2可能读取到A修改后的值，输出错误的结果1900（图中有误，写成了1100）。</p>
+<p>两阶段锁出现的调度如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="两阶段锁调度" src="/media/imgs/20210815-db-locking/2pl-ex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 两阶段锁调度 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>图中，事务T1遵守两阶段锁协议，这样事务T2只有等事务T1的缩减阶段才能拿到锁（注意这时候事务T1没有结束），输出正确的结果2000。</p>
+<p>严格两阶段锁出现的调度如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="严格两阶段锁调度" src="/media/imgs/20210815-db-locking/strict-2pl-ex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 严格两阶段锁调度 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>图中，事务T1遵守严格两阶段锁协议，这样事务T2只有等事务T1结束才能拿到锁，输出正确的结果2000。与上面两阶段锁不同的是，事务T2必须等待事务T1阶段才能读到数据，因为事务T1结束之前都不会释放锁。</p>
+<h1 class="heading" id="死锁deadlock">
+  死锁（deadlock）
+  <a class="anchor" href="#%e6%ad%bb%e9%94%81deadlock">#</a>
+</h1>
+<p>死锁指的是系统中的一组事务，在互相等待其他事务释放锁。比如下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="死锁" src="/media/imgs/20210815-db-locking/deadlock-ex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 死锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，事务T1将对象A加锁，接下来事务T2将对象B加锁，当事务B试图对对象A加锁时，需要等待事务T1释放，而事务T1则在等待对对象B加锁，两个事务都在等待对方释放锁，于是导致了死锁。</p>
+<p>有以下两种方式来解决死锁问题：</p>
+<h2 class="heading" id="死锁检测deadlock-detection">
+  死锁检测（deadlock detection）
+  <a class="anchor" href="#%e6%ad%bb%e9%94%81%e6%a3%80%e6%b5%8bdeadlock-detection">#</a>
+</h2>
+<p>使用等待图（wait-for graph）来检测系统中是否存在死锁，其中：</p>
+<ul>
+<li>图中每个节点表示一个事务。</li>
+<li>如果存在一条从T到Tj的边，则表示事务T在等待事务Tj释放锁。</li>
+</ul>
+<p>如果等待图中存在环，则说明存在死锁。</p>
+<p>如下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="死锁检测" src="/media/imgs/20210815-db-locking/wait-for.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 死锁检测 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中：</p>
+<ul>
+<li>T1等待事务T2释放对象B的锁。</li>
+<li>T2等待事务T2释放对象C的锁。</li>
+<li>T3等待事务T1释放对象A的锁。</li>
+</ul>
+<p>于是，形成了右边存在环的等待图，即出现了死锁。</p>
+<h2 class="heading" id="死锁预防deadlock-prevention">
+  死锁预防（deadlock prevention）
+  <a class="anchor" href="#%e6%ad%bb%e9%94%81%e9%a2%84%e9%98%b2deadlock-prevention">#</a>
+</h2>
+<p>当一个事务试图获取一个已经被其他事务获得的锁，此时系统将中断它们之间的一个事务来预防死锁。</p>
+<p>这种方式无需构建等待图或者其他算法来检测是否出现了死锁。</p>
+<p>这种方式将给每个事务赋予一个时间戳（timestamp），更老的事务拥有更高的优先级，比如T1&gt;T2。</p>
+<p>有以下两种预防方式：</p>
+<ul>
+<li>等待-死亡（wait-die）：这种机制是一种非抢占的方式。事务Ti申请的数据当前被事务Tj所持有，仅当Ti的时间戳小于Tj（即Ti更老）的情况下才允许等待释放锁，否则就中断Ti的操作。</li>
+<li>伤害-等待（wound-wait）：这种机制是一种抢占机制，与等待-死亡机制相对应。事务Ti申请的数据当前被事务Tj所持有，仅当Ti的时间戳大于Tj（即Ti更年轻）的情况下才允许等待释放锁，否则Tj回滚（Tj被伤害）。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="死锁预防" src="/media/imgs/20210815-db-locking/deadlock-prevention.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 死锁预防 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中显示了同样的死锁场景，但是两种不同的预防方式下，需要中断的事务不同。</p>
+<h1 class="heading" id="锁粒度lock-granularities">
+  锁粒度（lock granularities）
+  <a class="anchor" href="#%e9%94%81%e7%b2%92%e5%ba%a6lock-granularities">#</a>
+</h1>
+<p>锁是有粒度层次之分的，如下图所示：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="锁层次" src="/media/imgs/20210815-db-locking/lock-hierarchy.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 锁层次 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中，最高层次的锁是对整个数据库加锁，接下来就是表、元组、属性等等。当需要修改一个元组时，事务只需要对元组加锁即可，不需要锁整个表甚至数据库，这样就能提高系统的并发性。</p>
+<p>有了上面树形表示的粒度层次之后，还需要对原先共享锁和排他锁的协议进行补充：</p>
+<ul>
+<li>事务对一个节点施加共享或排他锁的时候，意味着该事务以同样的锁模式对该节点的全部后裔节点都施加了锁。</li>
+<li>其中，对节点施加的锁被称为显示锁（explicit lock），而对全部后裔节点施加的锁被称为隐式锁（implicit lock），因为事务没有必要显示地给所有后裔节点都加锁。</li>
+</ul>
+<p>如上图中，事务T1给表1加上了显示锁，则表1所管理的元组、属性都被加上了隐式锁。</p>
+<p>除此之外，还需要谈到意向锁（intention lock）这个概念。一个事务想要对某个节点进行加锁的时候，必须知道该节点的祖先节点上是否有其他事务加锁了，这就要求向上遍历树来查询，但是这样又会导致并发性下降。</p>
+<p>于是就引入了意向锁来解决这个问题。如果一个节点加上了意向锁，则意味着要在该节点的某些后裔节点上显示上锁。在一个节点被显示加锁之前，该节点的全部祖先节点都需要加上意向锁。这样，另一个事务就不需要搜索整个树来判断是否能成功给一个节点加锁了。</p>
+<p>意向锁又分为以下三种：</p>
+<ul>
+<li>意向共享锁（IS）：在后裔节点只能加共享锁。</li>
+<li>意向排他锁（IX）：在后裔节点只能加排他锁。</li>
+<li>共享意向排他锁（SIX）：在该节点为根的子树上显示的加共享锁，在其后裔节点上加排他锁。</li>
+</ul>
+<p>意向锁协议如下：</p>
+<ul>
+<li>要对一个节点加S或IS锁，必须在其父节点上至少获得IS锁。</li>
+<li>要对一个节点加X或IX、SIX锁，必须在其父节点上至少获得IX锁。</li>
+</ul>
+<p>有下图为例，有三个事务并发执行：</p>
+<ul>
+<li>T1：扫描表R同时更新该表的一些元组数据。</li>
+<li>T2：对表R中的一个元组数据。</li>
+<li>T3：扫描表R中的所有元组。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="意向锁例子" src="/media/imgs/20210815-db-locking/intention-lock-ex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 意向锁例子 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中：</p>
+<ul>
+<li>事务T1在表R上获得了SIX锁，因为要对其后裔节点进行修改操作。</li>
+<li>事务T2在表R上获得了IS锁，因为要对其后裔节点进行读操作，因为S锁和SIX锁兼容，所以事务T2可以和T1并发执行。</li>
+<li>事务T3需要在表R上获得S锁，因为要扫描表R的所有元组，但是S锁与T1的SIX锁冲突，于是T3需要等待事务T1结束才能加锁。</li>
+</ul>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

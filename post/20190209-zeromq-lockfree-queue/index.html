@@ -1,303 +1,193 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>zeromq所谓的“无锁消息队列” - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="zeromq所谓的“无锁消息队列”"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="zeromq所谓的“无锁消息队列”">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"zeromq所谓的“无锁消息队列”",
-      "item":"https://www.codedump.info/post/20190209-zeromq-lockfree-queue/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190209-zeromq-lockfree-queue/"
-    },
-    "headline": "zeromq所谓的“无锁消息队列” - codedump的网络日志","datePublished": "2019-02-09T20:10:13+08:00",
-    "dateModified": "2019-02-09T20:10:13+08:00",
-    "wordCount":  5379 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "zeromq所谓的“无锁消息队列”"
-}
-</script><meta property="og:title" content="zeromq所谓的“无锁消息队列” - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/" />
-
-
-
-<meta property="og:description" content="zeromq所谓的“无锁消息队列”" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-02-09T20:10:13&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-02-09T20:10:13&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="网络编程" />
-
-<meta property="article:tag" content="zeromq" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    zeromq所谓的“无锁消息队列” | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">zeromq所谓的“无锁消息队列”</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-02-09</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>11分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190209-zeromq-lockfree-queue/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="zeromq所谓的“无锁消息队列”">
+  <meta property="og:description" content="zeromq所谓的“无锁消息队列”">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-02-09T20:10:13+08:00">
+    <meta property="article:modified_time" content="2019-02-09T20:10:13+08:00">
+    <meta property="article:tag" content="网络编程">
+    <meta property="article:tag" content="Zeromq">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >网络编程</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190209-zeromq-lockfree-queue/">zeromq所谓的“无锁消息队列”</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">zeromq所谓的“无锁消息队列”</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-02-09T20:10:13&#43;08:00">2019年2月9日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。</p>
-<h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <p>本文基于zeromq 4.3.0版本，分析其无锁消息队列的实现。</p>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>zeromq这个网络库，有以下几个亮点：</p>
 <ul>
 <li>从以往的面向TCP流的网络开发，变成了面向消息的开发。应用层关注的是什么类型的消息，库本身解决网络收发、断线重连等问题。</li>
 <li>将这些消息的传输模式封装成几个模式，应用开发者只需要关注自己的业务符合什么模式，采用搭积木的方式就能构建起应用服务。</li>
 <li>内部实现无锁消息队列用于对象间通信，类似actor模式。</li>
 </ul>
-<h1 id="基本架构">基本架构</h1>
+<h1 class="heading" id="基本架构">
+  基本架构
+  <a class="anchor" href="#%e5%9f%ba%e6%9c%ac%e6%9e%b6%e6%9e%84">#</a>
+</h1>
 <p>zeromq内部运行着多个io线程，每个io线程内部有以下两个核心组件：</p>
 <ul>
 <li>poller：即针对epoll、select等事件轮询器的封装。</li>
@@ -307,41 +197,95 @@
 <p>即这是一个per-thread-per-loop的线程设计，线程之间的通信通过消息邮箱来进行。</p>
 <p>除了io线程之外，io对象也有mailbox，即如果想与某个IO对象通信也是通过该mailbox进行。由于消息邮箱是zeromq中的重要组成部分，下面将专门分析zeromq是如何实现的。</p>
 <p>所有需要收发消息的对象都继承自object_t：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="n">class</span> <span class="n">object_t</span>
-<span class="p">{</span>
-<span class="nl">public</span><span class="p">:</span>
-  <span class="n">object_t</span> <span class="p">(</span><span class="n">zmq</span><span class="o">::</span><span class="n">ctx_t</span> <span class="o">*</span><span class="n">ctx_</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">tid_</span><span class="p">);</span>
-  <span class="kt">void</span> <span class="nf">process_command</span> <span class="p">(</span><span class="n">zmq</span><span class="o">::</span><span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">);</span>
-<span class="nl">private</span><span class="p">:</span>
-  <span class="n">zmq</span><span class="o">::</span><span class="n">ctx_t</span> <span class="o">*</span><span class="n">ctx</span><span class="p">;</span><span class="c1">//  Context provides access to the global state.
-</span><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">tid</span><span class="p">;</span><span class="c1">//  Thread ID of the thread the object belongs to.
-</span><span class="c1"></span>  <span class="kt">void</span> <span class="nf">send_command</span> <span class="p">(</span><span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div><p>而IO对象之间的命令通过command_t结构体来定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">command_t</span>
-<span class="p">{</span>
-  <span class="c1">//  Object to process the command.
-</span><span class="c1"></span>  <span class="n">zmq</span><span class="o">::</span><span class="n">object_t</span> <span class="o">*</span><span class="n">destination</span><span class="p">;</span>
-
-  <span class="k">enum</span> <span class="n">type_t</span>
-  <span class="p">{</span>
-    <span class="p">...</span>
-  <span class="p">}</span> <span class="n">type</span><span class="p">;</span>
-
-  <span class="k">union</span> <span class="p">{</span>
-    <span class="p">...</span>
-  <span class="p">}</span> <span class="n">args</span><span class="p">;</span>
-<span class="p">};</span>
-</code></pre></div><p>可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。</p>
-<h1 id="使用无锁队列实现的消息邮箱">使用无锁队列实现的消息邮箱</h1>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>class <span style="font-weight:bold;text-decoration:underline">object_t</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>public:
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">object_t</span> (zmq::<span style="font-weight:bold;text-decoration:underline">ctx_t</span> *ctx_, <span style="font-weight:bold;text-decoration:underline">uint32_t</span> tid_);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">process_command</span> (zmq::<span style="font-weight:bold;text-decoration:underline">command_t</span> &amp;cmd_);
+</span></span><span style="display:flex;"><span>private:
+</span></span><span style="display:flex;"><span>  zmq::<span style="font-weight:bold;text-decoration:underline">ctx_t</span> *ctx;<span style="color:#888;font-style:italic">//  Context provides access to the global state.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">uint32_t</span> tid;<span style="color:#888;font-style:italic">//  Thread ID of the thread the object belongs to.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">send_command</span> (<span style="font-weight:bold;text-decoration:underline">command_t</span> &amp;cmd_);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>而IO对象之间的命令通过command_t结构体来定义：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> <span style="font-weight:bold;text-decoration:underline">command_t</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Object to process the command.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  zmq::<span style="font-weight:bold;text-decoration:underline">object_t</span> *destination;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="font-weight:bold;text-decoration:underline">type_t</span>
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>  } type;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">union</span> {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>  } args;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>可以看到，zeromq实现对象间相互通信依赖于mailbox，本文重点在分析其无锁队列的实现上。</p>
+<h1 class="heading" id="使用无锁队列实现的消息邮箱">
+  使用无锁队列实现的消息邮箱
+  <a class="anchor" href="#%e4%bd%bf%e7%94%a8%e6%97%a0%e9%94%81%e9%98%9f%e5%88%97%e5%ae%9e%e7%8e%b0%e7%9a%84%e6%b6%88%e6%81%af%e9%82%ae%e7%ae%b1">#</a>
+</h1>
 <p>zeromq内部类似actor模型，每个actor内部有一个mailbox，负责收发消息，对外暴露的接口就是收发相关的send、recv接口。</p>
 <p>负责收发消息的类是mailbox_t，内部实现使用了ypipe_t来实现无锁消息队列，而ypipe_t内部又使用了yqueue_t来实现队列，这个实现的目的是为了减少内部的分配。</p>
-<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/mailbox_t.png" alt="mailbox_t" title="mailbox_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="mailbox_t" src="/media/imgs/20190209-zeromq-lockfree-queue/mailbox_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> mailbox_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>下面根据上面这个图，自上而下分析邮箱的实现。</p>
-<h2 id="yqueue_t">yqueue_t</h2>
+<h2 class="heading" id="yqueue_t">
+  yqueue_t
+  <a class="anchor" href="#yqueue_t">#</a>
+</h2>
 <p>yqueue_t的实现，每次能批量分配一批元素，减少内存的分配和释放。</p>
 <p>yqueue_t内部由一个一个chunk组成，每个chunk保存N个元素，如下图：</p>
-<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/yqueue_t.png" alt="yqueue_t" title="yqueue_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="yqueue_t" src="/media/imgs/20190209-zeromq-lockfree-queue/yqueue_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> yqueue_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>有了chunk_t来管理数据，这样每次需要新分配元素的时候，如果当前已经没有可用元素，可以一次性分配一个chunk_t，这里面有N个元素；另外在回收的时候，也不是马上被释放，根据局部性原理可以先回收到spare_chunk里面，当再次需要分配chunk_t的时候从spare_chunk中获取。</p>
 <p>yqueue_t内部有三个chunk_t类型指针以及对应的索引位置：</p>
 <ul>
@@ -350,7 +294,31 @@
 <li>end_chunk/end_pos：由于chunk是批量分配的，所以end_chunk用于指向分配的最后一个chunk位置。</li>
 </ul>
 <p>注意不要混淆了back和end的作用，<strong>back_chunk/back_pos负责的是元素的存储，而end_chunk/end_pos负责的是chunk的分配</strong>，yqueue_t的back函数返回的是back_pos，而对外部而言，end相关的数据不可见。</p>
-<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/chunk.png" alt="chunk" title="chunk"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="chunk" src="/media/imgs/20190209-zeromq-lockfree-queue/chunk.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> chunk </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图中：</p>
 <ul>
 <li>有三块chunk，分别由begin_chunk、back_chunk、end_chunk组成。</li>
@@ -359,7 +327,10 @@
 <li>由于back_pos已经指向了back_chunk的最后一个元素，所以end_pos就指向了end_chunk的第一个元素。</li>
 </ul>
 <p>另外还有一个spare_chunk指针，用于保存释放的chunk指针，当需要再次分配chunk的时候，会首先查看这里，从这里分配chunk。这里使用了原子的cas操作来完成，利用了操作系统的局部性原理。</p>
-<h2 id="ypipe_t">ypipe_t</h2>
+<h2 class="heading" id="ypipe_t">
+  ypipe_t
+  <a class="anchor" href="#ypipe_t">#</a>
+</h2>
 <p>ypipe_t在yqueue_t之上，构建了一个<strong>单写单读的无锁队列</strong>。</p>
 <p>内部的元素有以下几个：</p>
 <ul>
@@ -377,42 +348,78 @@
 <li>bool read (T *value_):读数据，将读出的数据写入value指针中，返回false意味着没有数据可读。</li>
 </ul>
 <p>以下面的场景来解释这个无锁队列相关的流程：</p>
-<p><img src="/media/imgs/20190209-zeromq-lockfree-queue/ypipe_t.png" alt="ypipe_t" title="ypipe_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ypipe_t" src="/media/imgs/20190209-zeromq-lockfree-queue/ypipe_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ypipe_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>说明：以下场景忽略begin、back、end在不同chunk的情况，假设都在一个chunk完成的操作。</p>
-<h3 id="1初始化">1、初始化</h3>
+<h3 class="heading" id="1初始化">
+  1、初始化
+  <a class="anchor" href="#1%e5%88%9d%e5%a7%8b%e5%8c%96">#</a>
+</h3>
 <p>ypipe_t构造函数在初始化的时候，将push进去一个哑元素在队列尾部，然后_r、_w、_c、_f指针都同时指向队列头。
 而经过这个操作之后，begin_pos和back_pos都为0，end_pos为1（因为push了一个元素）。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kr">inline</span> <span class="nf">ypipe_t</span> <span class="p">()</span>
-<span class="p">{</span>
-  <span class="c1">//  Insert terminator element into the queue.
-</span><span class="c1"></span>  <span class="c1">//  先放入一个空元素
-</span><span class="c1"></span>  <span class="n">_queue</span><span class="p">.</span><span class="n">push</span> <span class="p">();</span>
-
-  <span class="c1">//  Let all the pointers to point to the terminator.
-</span><span class="c1"></span>  <span class="c1">//  (unless pipe is dead, in which case c is set to NULL).
-</span><span class="c1"></span>  <span class="n">_r</span> <span class="o">=</span> <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">();</span>
-  <span class="n">_c</span><span class="p">.</span><span class="n">set</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">());</span>
-<span class="p">}</span>
-</code></pre></div><h3 id="2writea-true">2、write(&lsquo;a&rsquo;, true)</h3>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">inline</span> <span style="color:#666;font-weight:bold;font-style:italic">ypipe_t</span> ()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Insert terminator element into the queue.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  先放入一个空元素
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  _queue.<span style="color:#666;font-weight:bold;font-style:italic">push</span> ();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Let all the pointers to point to the terminator.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  (unless pipe is dead, in which case c is set to NULL).
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  _r = _w = _f = &amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">back</span> ();
+</span></span><span style="display:flex;"><span>  _c.<span style="color:#666;font-weight:bold;font-style:italic">set</span> (&amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">back</span> ());
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 class="heading" id="2writea-true">
+  2、write(&lsquo;a&rsquo;, true)
+  <a class="anchor" href="#2writea-true">#</a>
+</h3>
 <p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
 <p>写入一个元素a，同时incomplete为true，意味着写入还未完成，所以并没有更新flush指针，_w指针也没有在这个函数中被更新，因此当incomplete为true时不会更新上面的四个指针。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
-</span><span class="c1"></span><span class="kr">inline</span> <span class="kt">void</span> <span class="nf">write</span> <span class="p">(</span><span class="k">const</span> <span class="n">T</span> <span class="o">&amp;</span><span class="n">value_</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">incomplete_</span><span class="p">)</span>
-<span class="p">{</span>
-  <span class="c1">// 注意在这里写入数据的时候修改的是_f指针
-</span><span class="c1"></span>  <span class="c1">//  Place the value to the queue, add new terminator element.
-</span><span class="c1"></span>  <span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">()</span> <span class="o">=</span> <span class="n">value_</span><span class="p">;</span>
-  <span class="n">_queue</span><span class="p">.</span><span class="n">push</span> <span class="p">();</span>
-
-  <span class="c1">//  Move the &#34;flush up to here&#34; poiter.
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">incomplete_</span><span class="p">)</span>
-    <span class="c1">// incomplete_为false表示写完毕数据了，可以修改flush指针指向
-</span><span class="c1"></span>    <span class="n">_f</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">back</span> <span class="p">();</span>
-<span class="p">}</span>
-</code></pre></div><h3 id="3writeb-false">3、write(&lsquo;b&rsquo;, false)</h3>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">//  incomplete_为true意味着这只是写入数据的一部分，此时不需要修改flush的指针指向
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">inline</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">write</span> (<span style="font-weight:bold;text-decoration:underline">const</span> T &amp;value_, <span style="font-weight:bold;text-decoration:underline">bool</span> incomplete_)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 注意在这里写入数据的时候修改的是_f指针
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  Place the value to the queue, add new terminator element.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  _queue.<span style="color:#666;font-weight:bold;font-style:italic">back</span> () = value_;
+</span></span><span style="display:flex;"><span>  _queue.<span style="color:#666;font-weight:bold;font-style:italic">push</span> ();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Move the &#34;flush up to here&#34; poiter.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (!incomplete_)
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// incomplete_为false表示写完毕数据了，可以修改flush指针指向
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    _f = &amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">back</span> ();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 class="heading" id="3writeb-false">
+  3、write(&lsquo;b&rsquo;, false)
+  <a class="anchor" href="#3writeb-false">#</a>
+</h3>
 <p>由于进行了push操作，因此back_pos更新为1，而end_pos更新为2。</p>
 <p>写入一个元素b，同时incomplete为false，意味着写入完成，此时需要修改flush指针指向队列尾，即新的back_pos位置2。</p>
-<h3 id="4flush">4、flush()</h3>
+<h3 class="heading" id="4flush">
+  4、flush()
+  <a class="anchor" href="#4flush">#</a>
+</h3>
 <p>刷新数据操作，该操作中将更新_w以及_c指针。</p>
 <p>更新_w指针的操作，由于只有写线程来完成，因此不需要加锁，_w指针用于与_f指针进行对比，快速知道是否有数据需要刷新，以唤醒读线程来继续读数据。</p>
 <p>而_c指针，则是读写线程都可以操作，因此需要使用原子的CAS操作来修改，它的可能值有以下几种：</p>
@@ -425,36 +432,39 @@
 </ul>
 </li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">flush</span> <span class="p">()</span>
-<span class="p">{</span>
-  <span class="c1">//  If there are no un-flushed items, do nothing.
-</span><span class="c1"></span>  <span class="c1">//  _w等于_f，意味着没有需要刷新的元素了，直接返回
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">_w</span> <span class="o">==</span> <span class="n">_f</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
-
-  <span class="c1">//  Try to set &#39;c&#39; to &#39;f&#39;.
-</span><span class="c1"></span>  <span class="c1">//  如果c原来是_w，切换为_f，同时返回旧的值
-</span><span class="c1"></span>  <span class="c1">//  如果返回值不是_w，意味着旧的值不是_w
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">_c</span><span class="p">.</span><span class="n">cas</span> <span class="p">(</span><span class="n">_w</span><span class="p">,</span> <span class="n">_f</span><span class="p">)</span> <span class="o">!=</span> <span class="n">_w</span><span class="p">)</span> <span class="p">{</span>
-    <span class="c1">//  Compare-and-swap was unseccessful because &#39;c&#39; is NULL.
-</span><span class="c1"></span>    <span class="c1">//  This means that the reader is asleep. Therefore we don&#39;t
-</span><span class="c1"></span>    <span class="c1">//  care about thread-safeness and update c in non-atomic
-</span><span class="c1"></span>    <span class="c1">//  manner. We&#39;ll return false to let the caller know
-</span><span class="c1"></span>    <span class="c1">//  that reader is sleeping.
-</span><span class="c1"></span>    <span class="c1">//  cas操作返回不是_w，意味着_c指针为NULL
-</span><span class="c1"></span>    <span class="c1">//  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
-</span><span class="c1"></span>    <span class="n">_c</span><span class="p">.</span><span class="n">set</span> <span class="p">(</span><span class="n">_f</span><span class="p">);</span>
-    <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span><span class="p">;</span>
-    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
-  <span class="p">}</span>
-
-  <span class="c1">//  Reader is alive. Nothing special to do now. Just move
-</span><span class="c1"></span>  <span class="c1">//  the &#39;first un-flushed item&#39; pointer to &#39;f&#39;.
-</span><span class="c1"></span>  <span class="c1">//  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
-</span><span class="c1"></span>  <span class="n">_w</span> <span class="o">=</span> <span class="n">_f</span><span class="p">;</span>
-  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><h3 id="5readret">5、read(&amp;ret)</h3>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">inline</span> <span style="font-weight:bold;text-decoration:underline">bool</span> <span style="color:#666;font-weight:bold;font-style:italic">flush</span> ()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  If there are no un-flushed items, do nothing.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  _w等于_f，意味着没有需要刷新的元素了，直接返回
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (_w == _f)
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">true</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Try to set &#39;c&#39; to &#39;f&#39;.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  如果c原来是_w，切换为_f，同时返回旧的值
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  如果返回值不是_w，意味着旧的值不是_w
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (_c.<span style="color:#666;font-weight:bold;font-style:italic">cas</span> (_w, _f) != _w) {
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">//  Compare-and-swap was unseccessful because &#39;c&#39; is NULL.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  This means that the reader is asleep. Therefore we don&#39;t
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  care about thread-safeness and update c in non-atomic
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  manner. We&#39;ll return false to let the caller know
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  that reader is sleeping.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  cas操作返回不是_w，意味着_c指针为NULL
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="color:#888;font-style:italic">//  这种情况下读线程在休眠，因此需要修改_w指针为_f并且返回false唤醒读线程
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    _c.<span style="color:#666;font-weight:bold;font-style:italic">set</span> (_f);
+</span></span><span style="display:flex;"><span>    _w = _f;
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">false</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Reader is alive. Nothing special to do now. Just move
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  the &#39;first un-flushed item&#39; pointer to &#39;f&#39;.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  到了这里意味着读线程没有在休眠，直接修改_w指针为_f
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  _w = _f;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">true</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 class="heading" id="5readret">
+  5、read(&amp;ret)
+  <a class="anchor" href="#5readret">#</a>
+</h3>
 <p>第一次读操作，read函数返回true表示读到了数据，ret中保存的是&rsquo;a&rsquo;返回。</p>
 <p>读操作首先进入check_read函数中检查是否有数据可读，做以下的判断：</p>
 <ul>
@@ -463,59 +473,65 @@
 <li>否则，返回true意味着有数据可读。</li>
 </ul>
 <p>而在check_read函数返回true表示有数据可读的情况下，read函数将pop出队列的头部数据，这个操作将begin_pos递增一位。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="c1">//  返回是否有数据可以读
-</span><span class="c1"></span><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">check_read</span> <span class="p">()</span>
-<span class="p">{</span>
-  <span class="c1">//  Was the value prefetched already? If so, return.
-</span><span class="c1"></span>  <span class="c1">//  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">()</span> <span class="o">!=</span> <span class="n">_r</span> <span class="o">&amp;&amp;</span> <span class="n">_r</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
-
-  <span class="c1">//  There&#39;s no prefetched value, so let us prefetch more values.
-</span><span class="c1"></span>  <span class="c1">//  Prefetching is to simply retrieve the
-</span><span class="c1"></span>  <span class="c1">//  pointer from c in atomic fashion. If there are no
-</span><span class="c1"></span>  <span class="c1">//  items to prefetch, set c to NULL (using compare-and-swap).
-</span><span class="c1"></span>  <span class="c1">//  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
-</span><span class="c1"></span>  <span class="n">_r</span> <span class="o">=</span> <span class="n">_c</span><span class="p">.</span><span class="n">cas</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">(),</span> <span class="nb">NULL</span><span class="p">);</span>
-
-  <span class="c1">//  If there are no elements prefetched, exit.
-</span><span class="c1"></span>  <span class="c1">//  During pipe&#39;s lifetime r should never be NULL, however,
-</span><span class="c1"></span>  <span class="c1">//  it can happen during pipe shutdown when items
-</span><span class="c1"></span>  <span class="c1">//  are being deallocated.
-</span><span class="c1"></span>  <span class="c1">//  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">&amp;</span><span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">()</span> <span class="o">==</span> <span class="n">_r</span> <span class="o">||</span> <span class="o">!</span><span class="n">_r</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
-
-  <span class="c1">//  There was at least one value prefetched.
-</span><span class="c1"></span>  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="c1">//  Reads an item from the pipe. Returns false if there is no value.
-</span><span class="c1">//  available.
-</span><span class="c1"></span><span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">read</span> <span class="p">(</span><span class="n">T</span> <span class="o">*</span><span class="n">value_</span><span class="p">)</span>
-<span class="p">{</span>
-  <span class="c1">//  Try to prefetch a value.
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">check_read</span> <span class="p">())</span>
-    <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
-
-  <span class="c1">//  There was at least one value prefetched.
-</span><span class="c1"></span>  <span class="c1">//  Return it to the caller.
-</span><span class="c1"></span>  <span class="o">*</span><span class="n">value_</span> <span class="o">=</span> <span class="n">_queue</span><span class="p">.</span><span class="n">front</span> <span class="p">();</span>
-  <span class="n">_queue</span><span class="p">.</span><span class="n">pop</span> <span class="p">();</span>
-  <span class="k">return</span> <span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>明白了以上的流程，具体解释第一次调用read(&amp;ret)操作：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">//  返回是否有数据可以读
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">inline</span> <span style="font-weight:bold;text-decoration:underline">bool</span> <span style="color:#666;font-weight:bold;font-style:italic">check_read</span> ()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Was the value prefetched already? If so, return.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  队列首元素位置不等于_r并且_r不为NULL，说明有元素可读
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (&amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">front</span> () != _r &amp;&amp; _r)
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">true</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  There&#39;s no prefetched value, so let us prefetch more values.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  Prefetching is to simply retrieve the
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  pointer from c in atomic fashion. If there are no
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  items to prefetch, set c to NULL (using compare-and-swap).
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  返回_c的旧值到_r中，同时如果_c为队列头，则设置为NULL
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  _r = _c.<span style="color:#666;font-weight:bold;font-style:italic">cas</span> (&amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">front</span> (), <span style="font-weight:bold;font-style:italic">NULL</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  If there are no elements prefetched, exit.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  During pipe&#39;s lifetime r should never be NULL, however,
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  it can happen during pipe shutdown when items
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  are being deallocated.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  如果_c的旧值为队列头，或者_c的旧值为NULL，则没有数据可读
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (&amp;_queue.<span style="color:#666;font-weight:bold;font-style:italic">front</span> () == _r || !_r)
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">false</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  There was at least one value prefetched.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">true</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">//  Reads an item from the pipe. Returns false if there is no value.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">//  available.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">inline</span> <span style="font-weight:bold;text-decoration:underline">bool</span> <span style="color:#666;font-weight:bold;font-style:italic">read</span> (T *value_)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  Try to prefetch a value.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (!<span style="color:#666;font-weight:bold;font-style:italic">check_read</span> ())
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">false</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">//  There was at least one value prefetched.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="color:#888;font-style:italic">//  Return it to the caller.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  *value_ = _queue.<span style="color:#666;font-weight:bold;font-style:italic">front</span> ();
+</span></span><span style="display:flex;"><span>  _queue.<span style="color:#666;font-weight:bold;font-style:italic">pop</span> ();
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">true</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>明白了以上的流程，具体解释第一次调用read(&amp;ret)操作：</p>
 <ul>
 <li>在调用之前，_r指向队列头，由于_c不是指向队列头，所以_r = _c.cas (&amp;_queue.front (), NULL)的操作并没有修改_c的值，只是将_r置为_c，然后check_read函数返回true表示有数据可读。</li>
 <li>由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为1。</li>
 </ul>
-<h3 id="6readret">6、read(&amp;ret)</h3>
+<h3 class="heading" id="6readret">
+  6、read(&amp;ret)
+  <a class="anchor" href="#6readret">#</a>
+</h3>
 <p>第二次读操作，read函数返回true表示读到了数据，ret中保存的是&rsquo;b&rsquo;返回。</p>
 <p>流程如下：</p>
 <ul>
 <li>此时_r和_c为back_pos即索引位置2，而队列头为begin_pos索引位置1，因此有数据可读check_read返回true。</li>
 <li>由于check_read函数返回true表示有数据可读，因此read函数中调用pop函数读出队列头数据，同时将begin_pos递增为2。</li>
 </ul>
-<h3 id="7readret">7、read(&amp;ret)</h3>
+<h3 class="heading" id="7readret">
+  7、read(&amp;ret)
+  <a class="anchor" href="#7readret">#</a>
+</h3>
 <p>第三次读操作（上图中没有给出），read函数返回false表示没有数据可读。</p>
 <p>流程如下：</p>
 <ul>
@@ -532,197 +548,111 @@
 </ul>
 </li>
 </ul>
-<h2 id="mailbox_t">mailbox_t</h2>
+<h2 class="heading" id="mailbox_t">
+  mailbox_t
+  <a class="anchor" href="#mailbox_t">#</a>
+</h2>
 <p>有了以上的介绍，实际理解起来mailbox_t的实现就比较简单了。但是前面分析ypipe_t的时候提到过，这个无锁队列的实现是单写单读的，而正常情况下，会有多个不同的线程同时往一个actor发消息，即需要的是多写多读的模式，来看mailbox_t中send函数的实现：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">void</span> <span class="n">zmq</span><span class="o">::</span><span class="n">mailbox_t</span><span class="o">::</span><span class="n">send</span> <span class="p">(</span><span class="k">const</span> <span class="n">command_t</span> <span class="o">&amp;</span><span class="n">cmd_</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="c1">// 这里需要加锁，因为是多写一读的邮箱
-</span><span class="c1"></span>    <span class="n">_sync</span><span class="p">.</span><span class="n">lock</span> <span class="p">();</span>
-    <span class="n">_cpipe</span><span class="p">.</span><span class="n">write</span> <span class="p">(</span><span class="n">cmd_</span><span class="p">,</span> <span class="nb">false</span><span class="p">);</span>
-    <span class="k">const</span> <span class="kt">bool</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">_cpipe</span><span class="p">.</span><span class="n">flush</span> <span class="p">();</span>
-    <span class="n">_sync</span><span class="p">.</span><span class="n">unlock</span> <span class="p">();</span>
-    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">ok</span><span class="p">)</span>  <span class="c1">// flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
-</span><span class="c1"></span>        <span class="n">_signaler</span><span class="p">.</span><span class="n">send</span> <span class="p">();</span>
-<span class="p">}</span>
-</code></pre></div><p>可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> zmq::<span style="font-weight:bold;text-decoration:underline">mailbox_t</span>::<span style="color:#666;font-weight:bold;font-style:italic">send</span> (<span style="font-weight:bold;text-decoration:underline">const</span> <span style="font-weight:bold;text-decoration:underline">command_t</span> &amp;cmd_)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">// 这里需要加锁，因为是多写一读的邮箱
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    _sync.<span style="color:#666;font-weight:bold;font-style:italic">lock</span> ();
+</span></span><span style="display:flex;"><span>    _cpipe.<span style="color:#666;font-weight:bold;font-style:italic">write</span> (cmd_, <span style="font-weight:bold;font-style:italic">false</span>);
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">const</span> <span style="font-weight:bold;text-decoration:underline">bool</span> ok = _cpipe.<span style="color:#666;font-weight:bold;font-style:italic">flush</span> ();
+</span></span><span style="display:flex;"><span>    _sync.<span style="color:#666;font-weight:bold;font-style:italic">unlock</span> ();
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (!ok)  <span style="color:#888;font-style:italic">// flush操作返回false意味着读线程在休眠，signal发送信号唤醒读线程
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>        _signaler.<span style="color:#666;font-weight:bold;font-style:italic">send</span> ();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以从代码中看到，虽然ypipe_t的实现了一个单写单读的无锁队列，但是由于没有解决多写多读问题，还是需要在写入数据的时候加锁。
 因此，<strong>zeromq号称的无锁消息队列设计，其实准确的说只是针对读写线程无锁，对于多个写线程而言还是有锁的</strong>。</p>
 <p>另外，由于在没有元素可读的情况下，读线程会休眠，因此需要一个唤醒读线程的机制，这里采用了signaler_t类型的成员变量_signaler，内部实现实际上一个pipe，向这个pipe写入一个字符用于唤醒读线程。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
-    
-    <a href="https://www.codedump.info/tags/zeromq/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#zeromq</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190212-nginx-http-config/" class="block">Nginx源码阅读笔记-查询HTTP配置流程</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190131-nginx-read-http-request/" class="block">Nginx源码阅读笔记-接收HTTP请求流程</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#基本架构">基本架构</a></li>
-    <li><a href="#使用无锁队列实现的消息邮箱">使用无锁队列实现的消息邮箱</a>
-      <ul>
-        <li><a href="#yqueue_t">yqueue_t</a></li>
-        <li><a href="#ypipe_t">ypipe_t</a>
-          <ul>
-            <li><a href="#1初始化">1、初始化</a></li>
-            <li><a href="#2writea-true">2、write(&lsquo;a&rsquo;, true)</a></li>
-            <li><a href="#3writeb-false">3、write(&lsquo;b&rsquo;, false)</a></li>
-            <li><a href="#4flush">4、flush()</a></li>
-            <li><a href="#5readret">5、read(&amp;ret)</a></li>
-            <li><a href="#6readret">6、read(&amp;ret)</a></li>
-            <li><a href="#7readret">7、read(&amp;ret)</a></li>
-          </ul>
-        </li>
-        <li><a href="#mailbox_t">mailbox_t</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

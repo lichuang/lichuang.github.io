@@ -1,408 +1,371 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>Libuv代码简单分析 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="Libuv代码简单分析"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="Libuv代码简单分析">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"Libuv代码简单分析",
-      "item":"https://www.codedump.info/post/20190123-libuv/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190123-libuv/"
-    },
-    "headline": "Libuv代码简单分析 - codedump的网络日志","datePublished": "2019-01-23T08:43:49+08:00",
-    "dateModified": "2019-01-23T08:43:49+08:00",
-    "wordCount":  4551 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "Libuv代码简单分析"
-}
-</script><meta property="og:title" content="Libuv代码简单分析 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190123-libuv/" />
-
-
-
-<meta property="og:description" content="Libuv代码简单分析" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-01-23T08:43:49&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-01-23T08:43:49&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="网络编程" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    Libuv代码简单分析 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">Libuv代码简单分析</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190123-libuv/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-01-23</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>10分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190123-libuv/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Libuv代码简单分析">
+  <meta property="og:description" content="Libuv代码简单分析">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-01-23T08:43:49+08:00">
+    <meta property="article:modified_time" content="2019-01-23T08:43:49+08:00">
+    <meta property="article:tag" content="网络编程">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >网络编程</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190123-libuv/">Libuv代码简单分析</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Libuv代码简单分析</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-01-23T08:43:49&#43;08:00">2019年1月23日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>本文基于libuv 1.x版本进行简单的分析。</p>
-<h1 id="数据结构">数据结构</h1>
-<h2 id="uv__io_t">uv__io_t</h2>
+  
+
+  
+
+  <div class="single-content">
+    <p>本文基于libuv 1.x版本进行简单的分析。</p>
+<h1 class="heading" id="数据结构">
+  数据结构
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h1>
+<h2 class="heading" id="uv__io_t">
+  uv__io_t
+  <a class="anchor" href="#uv__io_t">#</a>
+</h2>
 <p>uv__io_t用来表示一个IO事件。</p>
 <p>其成员包括：</p>
 <table>
-<thead>
-<tr>
-<th>成员</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>uv__io_cb cb</td>
-<td>IO事件被触发的回调函数</td>
-</tr>
-<tr>
-<td>void* pending_queue[2]</td>
-<td>pending队列</td>
-</tr>
-<tr>
-<td>void* watcher_queue[2]</td>
-<td>watcher队列</td>
-</tr>
-<tr>
-<td>unsigned int pevents</td>
-<td>pending的事件mask，等待下一次被添加到事件中</td>
-</tr>
-<tr>
-<td>unsigned int events</td>
-<td>当前的事件mask</td>
-</tr>
-<tr>
-<td>int fd</td>
-<td>事件fd</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>成员</th>
+          <th>说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>uv__io_cb cb</td>
+          <td>IO事件被触发的回调函数</td>
+      </tr>
+      <tr>
+          <td>void* pending_queue[2]</td>
+          <td>pending队列</td>
+      </tr>
+      <tr>
+          <td>void* watcher_queue[2]</td>
+          <td>watcher队列</td>
+      </tr>
+      <tr>
+          <td>unsigned int pevents</td>
+          <td>pending的事件mask，等待下一次被添加到事件中</td>
+      </tr>
+      <tr>
+          <td>unsigned int events</td>
+          <td>当前的事件mask</td>
+      </tr>
+      <tr>
+          <td>int fd</td>
+          <td>事件fd</td>
+      </tr>
+  </tbody>
 </table>
-<h2 id="queue">queue</h2>
+<h2 class="heading" id="queue">
+  queue
+  <a class="anchor" href="#queue">#</a>
+</h2>
 <p>libuv的queue实现比较奇葩，一个queue里面的元素会有两个指针，一个指向队列前一个成员，一个指向队列下一个成员，在这里不做阐述，看到类似：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">void</span><span class="o">*</span> <span class="n">watcher_queue</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-</code></pre></div><p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
-<h2 id="uv_timer_t">uv_timer_t</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span>* watcher_queue[2]
+</span></span></code></pre></div><p>这样子定义了有两个void*指针的数组知道这是一个队列就好了。</p>
+<h2 class="heading" id="uv_timer_t">
+  uv_timer_t
+  <a class="anchor" href="#uv_timer_t">#</a>
+</h2>
 <p>定义定时器的结构体，libuv中使用最小堆来维护定时器。</p>
 <p>一般而言，都是首先从这个最小堆数据结构中获得距离当前最近的定时器，然后拿到它的超时时间，以该超时时间做为下一次loop事件循环的时间，某些情况下会无视这个值，比如存在idle handler的情况下，此时会以0做为超时时间。</p>
-<h2 id="uv_handle_t及其子类">uv_handle_t及其子类</h2>
+<h2 class="heading" id="uv_handle_t及其子类">
+  uv_handle_t及其子类
+  <a class="anchor" href="#uv_handle_t%e5%8f%8a%e5%85%b6%e5%ad%90%e7%b1%bb">#</a>
+</h2>
 <p>uv_handle_t是libuv中所有handler的基类，libuv中实现继承的手段也比较奇葩：</p>
 <ul>
 <li>类成员定义放在宏里。</li>
 <li>继承自某个基类的子类按照继承顺序依次放它前面基类的宏。</li>
 </ul>
 <p>比如uv_tcp_t继承自uv_stream_t，而后者又继承自uv_handle_t，三者的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">uv_handle_s</span> <span class="p">{</span>
-  <span class="n">UV_HANDLE_FIELDS</span>
-<span class="p">};</span>
-
-<span class="k">struct</span> <span class="n">uv_stream_s</span> <span class="p">{</span>
-  <span class="n">UV_HANDLE_FIELDS</span>
-  <span class="n">UV_STREAM_FIELDS</span>
-<span class="p">};</span>
-
-<span class="k">struct</span> <span class="n">uv_tcp_s</span> <span class="p">{</span>
-  <span class="n">UV_HANDLE_FIELDS</span>
-  <span class="n">UV_STREAM_FIELDS</span>
-  <span class="n">UV_TCP_PRIVATE_FIELDS</span>
-<span class="p">};</span>
-</code></pre></div><p>代码中可以看到：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> uv_handle_s {
+</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> uv_stream_s {
+</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
+</span></span><span style="display:flex;"><span>  UV_STREAM_FIELDS
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> uv_tcp_s {
+</span></span><span style="display:flex;"><span>  UV_HANDLE_FIELDS
+</span></span><span style="display:flex;"><span>  UV_STREAM_FIELDS
+</span></span><span style="display:flex;"><span>  UV_TCP_PRIVATE_FIELDS
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>代码中可以看到：</p>
 <ul>
 <li>uv_handle_t的成员放在宏UV_HANDLE_FIELDS。</li>
 <li>uv_stream_t继承自uv_handle_t，所以在它结构体定义的开始部分先放的就是前面的宏UV_HANDLE_FIELDS。另外，uv_stream_t本身的成员定义又放在了宏UV_STREAM_FIELDS里。</li>
 <li>uv_tcp_t继承自uv_stream_t，所以它结构体开始部分依次是宏UV_HANDLE_FIELDS，再到宏UV_STREAM_FIELDS。</li>
 </ul>
-<p><img src="/media/imgs/20190123-libuv/uv_tcp_t.png" alt="uv_tcp_t" title="uv_tcp_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="uv_tcp_t" src="/media/imgs/20190123-libuv/uv_tcp_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> uv_tcp_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以看到，uv_stream_t结构体的内存布局的开始部分与uv_handler_t一样，而uv_tcp_t又与uv_stream_t一样，因此可以这样来实现类似C++中的继承：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C">  <span class="n">uv_tcp_t</span> <span class="o">*</span><span class="n">tcp</span><span class="p">;</span>
-
-  <span class="n">uv_stream_t</span> <span class="o">*</span><span class="n">stream</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_stream_t</span><span class="o">*</span><span class="p">)</span><span class="n">tcp</span><span class="p">;</span>
-
-  <span class="n">uv_handle_t</span> <span class="o">*</span><span class="n">handle</span> <span class="o">=</span> <span class="p">(</span><span class="n">uv_handle_t</span><span class="o">*</span><span class="p">)</span><span class="n">stream</span><span class="p">;</span>
-</code></pre></div><p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">uv_tcp_t</span> *tcp;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">uv_stream_t</span> *stream = (<span style="font-weight:bold;text-decoration:underline">uv_stream_t</span>*)tcp;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">uv_handle_t</span> *handle = (<span style="font-weight:bold;text-decoration:underline">uv_handle_t</span>*)stream;
+</span></span></code></pre></div><p>C语言实现继承的方式很多，不一定非得使用宏来实现，使用宏最大的问题是导致代码的可读性下降，查找问题时带来困难。</p>
 <p>简单看下UV_HANDLE_FIELDS的成员：</p>
 <table>
-<thead>
-<tr>
-<th>成员</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>uv_loop_t* loop</td>
-<td>事件循环</td>
-</tr>
-<tr>
-<td>uv_handle_type type</td>
-<td>handler类型</td>
-</tr>
-<tr>
-<td>void* handle_queue[2]</td>
-<td>加入到的handler队列</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>成员</th>
+          <th>说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>uv_loop_t* loop</td>
+          <td>事件循环</td>
+      </tr>
+      <tr>
+          <td>uv_handle_type type</td>
+          <td>handler类型</td>
+      </tr>
+      <tr>
+          <td>void* handle_queue[2]</td>
+          <td>加入到的handler队列</td>
+      </tr>
+  </tbody>
 </table>
 <p>以下简单列出了handle相关类来：</p>
-<p><img src="/media/imgs/20190123-libuv/uv_handler_t.png" alt="uv_handler_t" title="uv_handler_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="uv_handler_t" src="/media/imgs/20190123-libuv/uv_handler_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> uv_handler_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以下解释几个特殊的handler。</p>
-<h3 id="uv_async_t">uv_async_t</h3>
+<h3 class="heading" id="uv_async_t">
+  uv_async_t
+  <a class="anchor" href="#uv_async_t">#</a>
+</h3>
 <p>该结构体用于线程之间消息通知之用。</p>
-<h3 id="uv_prepare_t">uv_prepare_t</h3>
+<h3 class="heading" id="uv_prepare_t">
+  uv_prepare_t
+  <a class="anchor" href="#uv_prepare_t">#</a>
+</h3>
 <p>prepare handler，用于注册在每次loop循环时需要被调用的回调函数，这些回调函数会在IO事件处理之前被回调。</p>
-<h3 id="uv_check_t">uv_check_t</h3>
+<h3 class="heading" id="uv_check_t">
+  uv_check_t
+  <a class="anchor" href="#uv_check_t">#</a>
+</h3>
 <p>check handler，用于注册在每次loop循环时需要被调用的回调函数，这些回调函数会在IO事件处理之后被回调。</p>
-<h3 id="uv_idle_t">uv_idle_t</h3>
+<h3 class="heading" id="uv_idle_t">
+  uv_idle_t
+  <a class="anchor" href="#uv_idle_t">#</a>
+</h3>
 <p>idle handler与prepare handler已经，在每次loop循环中处理IO事件之前被调用。两者的区别在于，当存在idle handler的时候，loop循环会以超时时间0来调用事件循环，即不论有没有IO事件都马上返回。</p>
-<h2 id="uv_req_t及其子类">uv_req_t及其子类</h2>
+<h2 class="heading" id="uv_req_t及其子类">
+  uv_req_t及其子类
+  <a class="anchor" href="#uv_req_t%e5%8f%8a%e5%85%b6%e5%ad%90%e7%b1%bb">#</a>
+</h2>
 <p>handler主要应对一定与某个文件fd相关联的事件，除了这些以外，libuv希望把所有可能导致阻塞的操作全部异步化，包括：文件操作、查询域名操作等。这部分需要异步化的流程，全部封装到了uv_req_t结构体中。</p>
 <p>每个uv_req_t子类中，都有一个类型为struct uv__work的成员：</p>
 <pre tabindex="0"><code>struct uv__work {
@@ -428,118 +391,187 @@
 <li>uv_worker_t：用于向线程提交一个任务。</li>
 </ul>
 <p>除了uv_worker_t之外，其它几个操作都有以下的特点：可能会阻塞线程，所以就单独拿出来处理了。</p>
-<h2 id="uv_loop_t">uv_loop_t</h2>
+<h2 class="heading" id="uv_loop_t">
+  uv_loop_t
+  <a class="anchor" href="#uv_loop_t">#</a>
+</h2>
 <p>uv_loop_t用于表达一个事件循环，即内部封装了epoll、kqueue这类的事件通知API。</p>
 <p>其内部数据分为两大部分：</p>
 <ul>
 <li>每个事件机制都会使用的数据，即公有数据。</li>
 <li>每个事件机制独立的数据，使用宏UV_LOOP_PRIVATE_FIELDS，区分了unix和win两种平台的实现。而在unix版本的宏UV_LOOP_PRIVATE_FIELDS定义的最后部分，又引入了宏UV_PLATFORM_LOOP_FIELDS，用于定义不同unix操作系统相关的数据。</li>
 </ul>
-<p><img src="/media/imgs/20190123-libuv/uv_loop_t.png" alt="uv_loop_t" title="uv_loop_t"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="uv_loop_t" src="/media/imgs/20190123-libuv/uv_loop_t.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> uv_loop_t </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>下面简单说明一下uv_loop_t公用的成员。</p>
 <table>
-<thead>
-<tr>
-<th>成员</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>unsigned int active_handles</td>
-<td>活跃的handler计数，每增加一个加一，相反减一</td>
-</tr>
-<tr>
-<td>void* handle_queue[2]</td>
-<td>存储handler的队列，每个添加到uv_loop_t的handler都会存储到这里来</td>
-</tr>
-<tr>
-<td>active_reqs</td>
-<td>存储活跃的req计数，不理解为什么这个成员要定义成union</td>
-</tr>
-<tr>
-<td>unsigned int stop_flag</td>
-<td>事件循环终止标志位</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>成员</th>
+          <th>说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>unsigned int active_handles</td>
+          <td>活跃的handler计数，每增加一个加一，相反减一</td>
+      </tr>
+      <tr>
+          <td>void* handle_queue[2]</td>
+          <td>存储handler的队列，每个添加到uv_loop_t的handler都会存储到这里来</td>
+      </tr>
+      <tr>
+          <td>active_reqs</td>
+          <td>存储活跃的req计数，不理解为什么这个成员要定义成union</td>
+      </tr>
+      <tr>
+          <td>unsigned int stop_flag</td>
+          <td>事件循环终止标志位</td>
+      </tr>
+  </tbody>
 </table>
 <p>下面简单说明一下uv_loop_t各事件机制独立的成员，即宏UV_LOOP_PRIVATE_FIELDS成员，以linux平台来说明。</p>
 <table>
-<thead>
-<tr>
-<th>成员</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>int backend_fd</td>
-<td>事件监听fd，如epoll_create返回的fd就保存到这里</td>
-</tr>
-<tr>
-<td>void* pending_queue[2]</td>
-<td>pending事件队列，后面会加以说明</td>
-</tr>
-<tr>
-<td>void* watcher_queue[2]</td>
-<td>观察事件队列，还没有加入事件监听的事件会先放在这里，后面会加以说明</td>
-</tr>
-<tr>
-<td>uv__io_t** watchers</td>
-<td>存储uv__io_t*数组，其数组索引是fd</td>
-</tr>
-<tr>
-<td>unsigned int nwatchers</td>
-<td>watchers的大小，不够的时候需要扩容</td>
-</tr>
-<tr>
-<td>unsigned int nfds</td>
-<td>watchers数组中实际存储的watcher数量</td>
-</tr>
-<tr>
-<td>void* wq[2]</td>
-<td>存储worker的队列</td>
-</tr>
-<tr>
-<td>void* process_handles[2]</td>
-<td>存储process handler的队列</td>
-</tr>
-<tr>
-<td>void* prepare_handles[2]</td>
-<td>存储prepare handler的队列</td>
-</tr>
-<tr>
-<td>void* check_handles[2]</td>
-<td>存储check handler的队列</td>
-</tr>
-<tr>
-<td>void* idle_handles[2]</td>
-<td>存储idle handler的队列</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>成员</th>
+          <th>说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>int backend_fd</td>
+          <td>事件监听fd，如epoll_create返回的fd就保存到这里</td>
+      </tr>
+      <tr>
+          <td>void* pending_queue[2]</td>
+          <td>pending事件队列，后面会加以说明</td>
+      </tr>
+      <tr>
+          <td>void* watcher_queue[2]</td>
+          <td>观察事件队列，还没有加入事件监听的事件会先放在这里，后面会加以说明</td>
+      </tr>
+      <tr>
+          <td>uv__io_t** watchers</td>
+          <td>存储uv__io_t*数组，其数组索引是fd</td>
+      </tr>
+      <tr>
+          <td>unsigned int nwatchers</td>
+          <td>watchers的大小，不够的时候需要扩容</td>
+      </tr>
+      <tr>
+          <td>unsigned int nfds</td>
+          <td>watchers数组中实际存储的watcher数量</td>
+      </tr>
+      <tr>
+          <td>void* wq[2]</td>
+          <td>存储worker的队列</td>
+      </tr>
+      <tr>
+          <td>void* process_handles[2]</td>
+          <td>存储process handler的队列</td>
+      </tr>
+      <tr>
+          <td>void* prepare_handles[2]</td>
+          <td>存储prepare handler的队列</td>
+      </tr>
+      <tr>
+          <td>void* check_handles[2]</td>
+          <td>存储check handler的队列</td>
+      </tr>
+      <tr>
+          <td>void* idle_handles[2]</td>
+          <td>存储idle handler的队列</td>
+      </tr>
+  </tbody>
 </table>
-<h1 id="核心流程">核心流程</h1>
+<h1 class="heading" id="核心流程">
+  核心流程
+  <a class="anchor" href="#%e6%a0%b8%e5%bf%83%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>有了对以上核心数据结构的了解，可以来看看libuv的核心流程了。</p>
-<h2 id="事件循环">事件循环</h2>
+<h2 class="heading" id="事件循环">
+  事件循环
+  <a class="anchor" href="#%e4%ba%8b%e4%bb%b6%e5%be%aa%e7%8e%af">#</a>
+</h2>
 <p>先来简单了解一下一个事件框架的主流程，有如下的伪代码：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="err">循环：</span>
-  <span class="err">根据定时器拿到距离最近的定时器超时时间</span>
-  <span class="err">进行事件查询，以刚刚的超时时间做为查询最大时间</span>
-  <span class="err">遍历查询回来的事件，对事件进行处理</span>
-  <span class="err">遍历定时器，取出超时的事件进行处理</span>
-</code></pre></div><p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
-<h3 id="新增的io事件">新增的IO事件</h3>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">循环：</span>
+</span></span><span style="display:flex;"><span>  <span style="">根据定时器拿到距离最近的定时器超时时间</span>
+</span></span><span style="display:flex;"><span>  <span style="">进行事件查询，以刚刚的超时时间做为查询最大时间</span>
+</span></span><span style="display:flex;"><span>  <span style="">遍历查询回来的事件，对事件进行处理</span>
+</span></span><span style="display:flex;"><span>  <span style="">遍历定时器，取出超时的事件进行处理</span>
+</span></span></code></pre></div><p>然而，这只是最核心的步骤，实现时还需要一定的优化，来看看libuv的做法。</p>
+<h3 class="heading" id="新增的io事件">
+  新增的IO事件
+  <a class="anchor" href="#%e6%96%b0%e5%a2%9e%e7%9a%84io%e4%ba%8b%e4%bb%b6">#</a>
+</h3>
 <p>uv_loop_t结构体中有watcher_queue队列，新增加进来的IO事件，并不首先直接添加到epoll事件中，而是首先放在watcher队列，待到下一次进行poll操作时，会首先将watcher队列中的IO事件添加进来，然后再执行poll操作。而定义一个IO事件，用到的就是前面的uv__io_t结构体。</p>
 <p>同时，由于IO事件肯定是uv_handler_t的子类，因此同时uv_loop_t又有一个handler queue，用于保存所有的handler。每次loop的循环中，也会去查看有哪些handler可以被释放了。</p>
-<h3 id="pending队列">pending队列</h3>
+<h3 class="heading" id="pending队列">
+  pending队列
+  <a class="anchor" href="#pending%e9%98%9f%e5%88%97">#</a>
+</h3>
 <p>pending队列用于收集需要在一次loop中被回调的IO事件。loop循环的时候，每次会对pending队列的handler进行遍历然后回调，同时会返回这一次遍历了多少pending的IO事件。</p>
-<h3 id="checkidle和prepare队列">check、idle和prepare队列</h3>
+<h3 class="heading" id="checkidle和prepare队列">
+  check、idle和prepare队列
+  <a class="anchor" href="#checkidle%e5%92%8cprepare%e9%98%9f%e5%88%97">#</a>
+</h3>
 <p>在src/unix/loop-watcher.c文件中，使用宏定义了check、idle和prepare三种队列。</p>
 <p>idle和prepare队列，会分别在loop主循环中，在poll操作之前被遍历调用，而check队列则在poll操作之后被遍历，主要用于添加poll之后的检查操作。</p>
 <p>而idle和prepare队列的区别在于，如果idle队列不为空，那么将会使用0做为poll操作的超时时间。</p>
-<h3 id="小结">小结</h3>
+<h3 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h3>
 <p>以<a href="http://docs.libuv.org/en/v1.x/design.html">libuv官网文档</a>中的一幅图来总结loop主循环的流程：</p>
-<p><img src="/media/imgs/20190123-libuv/loop_iteration.png" alt="loop_iteration" title="loop_iteration"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="loop_iteration" src="/media/imgs/20190123-libuv/loop_iteration.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> loop_iteration </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>每次loop循环开始的时候，首先更新时间，以减少这部分系统调用次数。</li>
 <li>如果loop当前不活跃，则直接退出函数了。如何判断是否活跃：看是否存在活跃的handler、活跃的请求。</li>
@@ -562,222 +594,131 @@
 <li>遍历check队列调用check handler。
 10.关闭需要释放的handler。</li>
 </ol>
-<h2 id="uv_req_t的处理">uv_req_t的处理</h2>
+<h2 class="heading" id="uv_req_t的处理">
+  uv_req_t的处理
+  <a class="anchor" href="#uv_req_t%e7%9a%84%e5%a4%84%e7%90%86">#</a>
+</h2>
 <p>uv_req_t系列的子类，最后都会放到某个线程中处理，完成操作了之后再进行回调。</p>
 <p>原因在于：libuv的设计中，不希望存在这些可能导致阻塞的操作，而是希望把这些操作全部异步化。</p>
 <p>以uv_getaddrinfo函数为例，本质上这个操作封装了getaddrinfo，该操作对应的uv__work结构体中，work函数为uv__getaddrinfo_work，即在该操作被回调时的回调函数，内部封装了getaddrinfo函数，done函数为uv__getaddrinfo_done，封装了执行结束之后的回调操作。</p>
 <p>libuv中，最终调用uv__work_submit函数向某个线程发送一个uv__work结构体指针来完成操作，其原型为：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">void</span> <span class="n">uv__work_submit</span><span class="p">(</span><span class="n">uv_loop_t</span><span class="o">*</span> <span class="n">loop</span><span class="p">,</span>
-                     <span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">,</span>
-                     <span class="k">enum</span> <span class="n">uv__work_kind</span> <span class="n">kind</span><span class="p">,</span>
-                     <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">work</span><span class="p">)(</span><span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">),</span>
-                     <span class="kt">void</span> <span class="p">(</span><span class="o">*</span><span class="n">done</span><span class="p">)(</span><span class="k">struct</span> <span class="n">uv__work</span><span class="o">*</span> <span class="n">w</span><span class="p">,</span> <span class="kt">int</span> <span class="n">status</span><span class="p">))</span>
-</code></pre></div><p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">enum</span> <span class="n">uv__work_kind</span> <span class="p">{</span>
-  <span class="n">UV__WORK_CPU</span><span class="p">,</span>     <span class="c1">// 耗CPU的操作
-</span><span class="c1"></span>  <span class="n">UV__WORK_FAST_IO</span><span class="p">,</span> <span class="c1">// 快速IO操作
-</span><span class="c1"></span>  <span class="n">UV__WORK_SLOW_IO</span>  <span class="c1">// 慢速IO操作
-</span><span class="c1"></span><span class="p">};</span>
-</code></pre></div><p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">uv__work_submit</span>(<span style="font-weight:bold;text-decoration:underline">uv_loop_t</span>* loop,
+</span></span><span style="display:flex;"><span>                     <span style="font-weight:bold;text-decoration:underline">struct</span> uv__work* w,
+</span></span><span style="display:flex;"><span>                     <span style="font-weight:bold;text-decoration:underline">enum</span> uv__work_kind kind,
+</span></span><span style="display:flex;"><span>                     <span style="font-weight:bold;text-decoration:underline">void</span> (*work)(<span style="font-weight:bold;text-decoration:underline">struct</span> uv__work* w),
+</span></span><span style="display:flex;"><span>                     <span style="font-weight:bold;text-decoration:underline">void</span> (*done)(<span style="font-weight:bold;text-decoration:underline">struct</span> uv__work* w, <span style="font-weight:bold;text-decoration:underline">int</span> status))
+</span></span></code></pre></div><p>这里传入的参数，前面已经做了大体的解释，而枚举类型uv__work_kind有如下类型：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">enum</span> uv__work_kind {
+</span></span><span style="display:flex;"><span>  UV__WORK_CPU,     <span style="color:#888;font-style:italic">// 耗CPU的操作
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  UV__WORK_FAST_IO, <span style="color:#888;font-style:italic">// 快速IO操作
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  UV__WORK_SLOW_IO  <span style="color:#888;font-style:italic">// 慢速IO操作
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>};
+</span></span></code></pre></div><p>根据worker类型的不同，在将任务放到线程中会有不太一样的处理。</p>
 <p>如果worker是UV__WORK_SLOW_IO，则该任务会放到slow_io_pending_wq队列中，如果慢速IO的任务数量，大于当前线程数量的一半以上，此时将暂停线程的执行，等待这些慢IO的操作完成才继续调度其它任务来执行。</p>
-<h1 id="总结">总结</h1>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
 <p>以下是读代码之后的一些简单总结：</p>
 <ul>
 <li>大量的使用宏来模拟面向对象，导致可读性下降，不是很推荐这种做法。</li>
 <li>将所有可能阻塞线程的操作都异步化了，用户使用这个库写不出阻塞同步的代码来。</li>
 <li>事件框架的内部实现其实已经大同小异，无非是红黑树（Nginx）还是最小堆（libevent、libuv）来实现定时器之类的区别，已经玩不出太多的花样来，但是在怎么让上层用户更好的使用上，libevent走的路线是再往上走实现HTTP协议，libuv的实现则是将操作全部异步化。</li>
 </ul>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="http://docs.libuv.org/en/v1.x/">Libuv 1.x官方文档</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#网络编程</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190131-nginx-master-worker/" class="block">Nginx源码阅读笔记-Master Woker进程模型</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="block">Nginx源码阅读笔记-配置解析流程</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#数据结构">数据结构</a>
-      <ul>
-        <li><a href="#uv__io_t">uv__io_t</a></li>
-        <li><a href="#queue">queue</a></li>
-        <li><a href="#uv_timer_t">uv_timer_t</a></li>
-        <li><a href="#uv_handle_t及其子类">uv_handle_t及其子类</a>
-          <ul>
-            <li><a href="#uv_async_t">uv_async_t</a></li>
-            <li><a href="#uv_prepare_t">uv_prepare_t</a></li>
-            <li><a href="#uv_check_t">uv_check_t</a></li>
-            <li><a href="#uv_idle_t">uv_idle_t</a></li>
-          </ul>
-        </li>
-        <li><a href="#uv_req_t及其子类">uv_req_t及其子类</a></li>
-        <li><a href="#uv_loop_t">uv_loop_t</a></li>
-      </ul>
-    </li>
-    <li><a href="#核心流程">核心流程</a>
-      <ul>
-        <li><a href="#事件循环">事件循环</a>
-          <ul>
-            <li><a href="#新增的io事件">新增的IO事件</a></li>
-            <li><a href="#pending队列">pending队列</a></li>
-            <li><a href="#checkidle和prepare队列">check、idle和prepare队列</a></li>
-            <li><a href="#小结">小结</a></li>
-          </ul>
-        </li>
-        <li><a href="#uv_req_t的处理">uv_req_t的处理</a></li>
-      </ul>
-    </li>
-    <li><a href="#总结">总结</a></li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

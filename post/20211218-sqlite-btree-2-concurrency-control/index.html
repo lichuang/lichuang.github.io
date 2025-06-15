@@ -1,338 +1,181 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="sqlite3.36版本 btree实现（二）- 并发控制框架"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="sqlite3.36版本 btree实现（二）- 并发控制框架">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"sqlite3.36版本 btree实现（二）- 并发控制框架",
-      "item":"https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/"
-    },
-    "headline": "sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志","datePublished": "2021-12-18T15:25:05+08:00",
-    "dateModified": "2021-12-18T15:25:05+08:00",
-    "wordCount":  3545 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "sqlite3.36版本 btree实现（二）- 并发控制框架"
-}
-</script><meta property="og:title" content="sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" />
-
-
-
-<meta property="og:description" content="sqlite3.36版本 btree实现（二）- 并发控制框架" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2021-12-18T15:25:05&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2021-12-18T15:25:05&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-<meta property="article:tag" content="sqlite" />
-
-<meta property="article:tag" content="btree" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-0/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    sqlite3.36版本 btree实现（二）- 并发控制框架 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">sqlite3.36版本 btree实现（二）- 并发控制框架</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2021-12-18</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>8分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="sqlite3.36版本 btree实现（二）- 并发控制框架">
+  <meta property="og:description" content="sqlite3.36版本 btree实现（二）- 并发控制框架">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-12-18T15:25:05+08:00">
+    <meta property="article:modified_time" content="2021-12-18T15:25:05+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Sqlite">
+    <meta property="article:tag" content="Btree">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/sqlite3.36%E7%89%88%E6%9C%AC-btree%E5%AE%9E%E7%8E%B0/" class="hover:text-eureka"
-          >sqlite3.36版本 btree实现</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20211218-sqlite-btree-2-concurrency-control/">sqlite3.36版本 btree实现（二）- 并发控制框架</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">sqlite3.36版本 btree实现（二）- 并发控制框架</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-12-18T15:25:05&#43;08:00">2021年12月18日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>《sqlite3.36版本 btree实现》系列文章：</p>
+  
+
+  
+
+  <div class="single-content">
+    <p>《sqlite3.36版本 btree实现》系列文章：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/">sqlite3.36版本 btree实现（一）- 管理页面缓存 - codedump的网络日志</a></li>
@@ -341,7 +184,10 @@
 <li><a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/">sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志</a></li>
 </ul>
-<h1 id="概述">概述</h1>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>按照之前起步阶段对sqlite btree整体架构的分析，“页面管理模块”分为以下几个子模块：</p>
 <ul>
 <li>页面缓存管理。</li>
@@ -356,37 +202,256 @@
 <p>前面一节讲完了“页面缓存管理”的实现，按照自下往上的顺序，就应该到“页面备份”了。“页面备份”核心的工作是：在真正修改页面内容之前，将还未修改的页面内容备份，这样一旦系统在事务过程中宕机崩溃，就可以用这部分内容回滚还未落盘的事务修改，让系统回到一个正确的状态。</p>
 <p>“页面备份”有两种实现方式，在早期使用的journal文件，这种方式性能不高；在3.7版本之后，sqlite引入了WAL文件来保存页面内容，这样做的效率更高。</p>
 <p>本节就讲解这部分内容，在对这部分内容有一个总体的了解之后，继续讲解页面备份的总体流程。后面的章节再具体分析journal以及WAL的实现。</p>
-<h1 id="写事务的流程">写事务的流程</h1>
+<h1 class="heading" id="写事务的流程">
+  写事务的流程
+  <a class="anchor" href="#%e5%86%99%e4%ba%8b%e5%8a%a1%e7%9a%84%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>（以下流程分析，按照sqlite官网中的文档<a href="https://sqlite.org/atomiccommit.html">Atomic Commit In SQLite</a>进行讲解，图例也全部引用自官网。）</p>
 <p>sqlite的写事务，分为以下几个流程：</p>
-<h2 id="1初始化阶段initial-state">1、初始化阶段（Initial State）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" alt="初始化" title="初始化"></p>
+<h2 class="heading" id="1初始化阶段initial-state">
+  1、初始化阶段（Initial State）
+  <a class="anchor" href="#1%e5%88%9d%e5%a7%8b%e5%8c%96%e9%98%b6%e6%ae%b5initial-state">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="初始化" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-0.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 初始化 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图中，从右到左即是系统的磁盘、操作系统缓冲区、用户空间三部分，其中磁盘和操作系统缓冲区有划分为多块的空间，每一块在sqlite里被称为一个<code>sector</code>，蓝色部分表示是修改之前的数据。</p>
 <p>这是系统初始时的样子。</p>
-<h2 id="2拿到读锁acquiring-a-read-lock">2、拿到读锁（Acquiring A Read Lock）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" alt="拿到读锁" title="拿到读锁"></p>
+<h2 class="heading" id="2拿到读锁acquiring-a-read-lock">
+  2、拿到读锁（Acquiring A Read Lock）
+  <a class="anchor" href="#2%e6%8b%bf%e5%88%b0%e8%af%bb%e9%94%81acquiring-a-read-lock">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="拿到读锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-1.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 拿到读锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在开始进行写操作之前，sqlite必须先把待修改的页面加载内存中（这就是上一节“页面缓存管理器”做的事情），后续的修改其实也是首先修改这部分加载到内存中的页面内容，因为可能一次提交会修改同一个页面中的多处内容，最后才把页面内容落盘。</p>
 <p>所以，这一步所要做的，是首先拿到数据库文件的读锁（shared lock），需要说明的是，这个读锁是数据库级别的锁。同一时间，系统中可以存在多个读锁，但是只要系统中还存在读锁，就不再允许分配出新的写锁（write lock）。</p>
-<h2 id="3读出页面的内容到页面缓存">3、读出页面的内容到页面缓存</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" alt="读出页面内容" title="读出页面内容"></p>
+<h2 class="heading" id="3读出页面的内容到页面缓存">
+  3、读出页面的内容到页面缓存
+  <a class="anchor" href="#3%e8%af%bb%e5%87%ba%e9%a1%b5%e9%9d%a2%e7%9a%84%e5%86%85%e5%ae%b9%e5%88%b0%e9%a1%b5%e9%9d%a2%e7%bc%93%e5%ad%98">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="读出页面内容" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-2.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 读出页面内容 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>拿到读锁之后，就可以把需要进行修改的页面读出来到用户空间的页面缓存了。从上图来看，读了三个页面的内容出来，也就是例子中的写操作要修改三个页面的内容。</p>
-<h2 id="4拿到保留锁obtaining-a-reserved-lock">4、拿到保留锁（Obtaining A Reserved Lock）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" alt="拿到保留锁" title="拿到保留锁"></p>
+<h2 class="heading" id="4拿到保留锁obtaining-a-reserved-lock">
+  4、拿到保留锁（Obtaining A Reserved Lock）
+  <a class="anchor" href="#4%e6%8b%bf%e5%88%b0%e4%bf%9d%e7%95%99%e9%94%81obtaining-a-reserved-lock">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="拿到保留锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-3.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 拿到保留锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在进行修改之前，还需要首先将前面拿到的读锁（shared lock）升级为保留锁（reserved lock）。同一时间，系统中保留锁可以和多个读锁并存，但是只能存在最多一个保留锁。这个机制，保证了同一时间只能有一个进程对数据库进行写操作。</p>
 <p>需要说明的是，拿到保留锁的进程，还并没有真正进行数据的修改操作，只是用这个锁，挡住了其它打算进行写操作的进程。</p>
-<h2 id="5创建回滚用的备份文件creating-a-rollback-journal-file">5、创建回滚用的备份文件（Creating A Rollback Journal File）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" alt="创建回滚用的备份文件" title="创建回滚用的备份文件"></p>
+<h2 class="heading" id="5创建回滚用的备份文件creating-a-rollback-journal-file">
+  5、创建回滚用的备份文件（Creating A Rollback Journal File）
+  <a class="anchor" href="#5%e5%88%9b%e5%bb%ba%e5%9b%9e%e6%bb%9a%e7%94%a8%e7%9a%84%e5%a4%87%e4%bb%bd%e6%96%87%e4%bb%b6creating-a-rollback-journal-file">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="创建回滚用的备份文件" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-4.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 创建回滚用的备份文件 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>到了这一步，首先将待修改的页面内容备份。官网原文写的是备份到回滚用的journal文件中，我们上面提到备份机制除了journal文件还有wal文件，所以这里的“journal文件”应该更泛化的理解为“保存到备份文件中”，这种备份文件可能是journal文件，也可能是wal文件，视机制而定。</p>
 <p>上图中，用户空间的页面写入到了备份文件中，注意到备份文件上面有一小块绿色的部分，理解为备份文件的meta信息即可。</p>
 <p>另外还需要特别说明的是，从上图中可以看到，备份工作也仅仅到了操作系统缓冲区，即图中的中间部分，而磁盘部分还是空的。即到了这一步，即便是备份页面的内容，也还并没有sync到磁盘中，即只进行了备份的写操作，并没有强制落盘。</p>
-<h2 id="6修改用户空间的页面内容changing-database-pages-in-user-space">6、修改用户空间的页面内容（Changing Database Pages In User Space）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" alt="修改用户空间的页面内容" title="修改用户空间的页面内容"></p>
+<h2 class="heading" id="6修改用户空间的页面内容changing-database-pages-in-user-space">
+  6、修改用户空间的页面内容（Changing Database Pages In User Space）
+  <a class="anchor" href="#6%e4%bf%ae%e6%94%b9%e7%94%a8%e6%88%b7%e7%a9%ba%e9%97%b4%e7%9a%84%e9%a1%b5%e9%9d%a2%e5%86%85%e5%ae%b9changing-database-pages-in-user-space">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="修改用户空间的页面内容" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-5.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 修改用户空间的页面内容 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>到了这一步，修改进程用户空间的页面内容，即上图中的橙色部分，就是修改后的用户空间数据。由于每个进程都有自己的用户空间（即便是同一个进程下的不同线程，对sqlite而言，只要使用的是不同的连接（connection），那么连接背后的页面缓冲区就不一样），所以这些修改并不被其它进程所见。这样，写进程做自己的修改，其它读进程读到的还是修改之前的页面数据。</p>
-<h2 id="7将备份文件的内容落盘flushing-the-rollback-journal-file-to-mass-storage">7、将备份文件的内容落盘（Flushing The Rollback Journal File To Mass Storage）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" alt="将备份文件的内容落盘" title="将备份文件的内容落盘"></p>
+<h2 class="heading" id="7将备份文件的内容落盘flushing-the-rollback-journal-file-to-mass-storage">
+  7、将备份文件的内容落盘（Flushing The Rollback Journal File To Mass Storage）
+  <a class="anchor" href="#7%e5%b0%86%e5%a4%87%e4%bb%bd%e6%96%87%e4%bb%b6%e7%9a%84%e5%86%85%e5%ae%b9%e8%90%bd%e7%9b%98flushing-the-rollback-journal-file-to-mass-storage">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="将备份文件的内容落盘" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-6.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 将备份文件的内容落盘 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上面的第5步提到，当时还只是写页面内容到备份文件中，这一步接在修改页面内容之后，将修改之前的页面内容sync到磁盘中。</p>
-<h2 id="8拿到排他锁obtaining-an-exclusive-lock">8、拿到排他锁（Obtaining An Exclusive Lock）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" alt="拿到排他锁" title="拿到排他锁"></p>
+<h2 class="heading" id="8拿到排他锁obtaining-an-exclusive-lock">
+  8、拿到排他锁（Obtaining An Exclusive Lock）
+  <a class="anchor" href="#8%e6%8b%bf%e5%88%b0%e6%8e%92%e4%bb%96%e9%94%81obtaining-an-exclusive-lock">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="拿到排他锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-7.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 拿到排他锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>前面的步骤做完，达到了这样的效果：</p>
 <ul>
 <li>对于待修改页面，修改之前的内容已经保存到了备份文件中。</li>
@@ -399,26 +464,167 @@
 </ul>
 <p>为什么要首先拿到悬锁？同一时间内，悬锁和前面的保留锁一样，只能存在最多一个；但是不同的是，悬锁不允许再分配新的读锁（shared lock），而保留锁没有这样的机制。换言之，在悬锁之前的所有读锁，可以继续读操作，悬锁会等待它们完成，再升级为排他锁；同时，只要系统中有悬锁，就不再允许有新的读操作，必须等待修改数据库完成才可以有新的读操作。</p>
 <p>这样的机制，避免了读操作时，读到了未提交的事务写到一半的数据。</p>
-<h2 id="9保存修改到数据库文件中writing-changes-to-the-database-file">9、保存修改到数据库文件中（Writing Changes To The Database File）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" alt="拿到排他锁" title="拿到排他锁"></p>
+<h2 class="heading" id="9保存修改到数据库文件中writing-changes-to-the-database-file">
+  9、保存修改到数据库文件中（Writing Changes To The Database File）
+  <a class="anchor" href="#9%e4%bf%9d%e5%ad%98%e4%bf%ae%e6%94%b9%e5%88%b0%e6%95%b0%e6%8d%ae%e5%ba%93%e6%96%87%e4%bb%b6%e4%b8%adwriting-changes-to-the-database-file">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="拿到排他锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-8.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 拿到排他锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>拿到了排他锁之后，意味着此时系统中没有读操作、没有其他写操作，这时候可以放心将页面缓存中的内容落盘到数据库文件中了。</p>
 <p>同样需要注意的是，这一步的修改，还还只是到了操作系统的缓冲区，并不保证落盘到数据库文件中。</p>
-<h2 id="10落盘数据库文件修改flushing-changes-to-mass-storage">10、落盘数据库文件修改（Flushing Changes To Mass Storage）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" alt="落盘数据库文件修改" title="落盘数据库文件修改"></p>
+<h2 class="heading" id="10落盘数据库文件修改flushing-changes-to-mass-storage">
+  10、落盘数据库文件修改（Flushing Changes To Mass Storage）
+  <a class="anchor" href="#10%e8%90%bd%e7%9b%98%e6%95%b0%e6%8d%ae%e5%ba%93%e6%96%87%e4%bb%b6%e4%bf%ae%e6%94%b9flushing-changes-to-mass-storage">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="落盘数据库文件修改" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-9.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 落盘数据库文件修改 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>这一步，将对数据库文件的修改落盘。</p>
-<h2 id="11删除备份文件deleting-the-rollback-journal">11、删除备份文件（Deleting The Rollback Journal）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" alt="删除备份文件" title="删除备份文件"></p>
+<h2 class="heading" id="11删除备份文件deleting-the-rollback-journal">
+  11、删除备份文件（Deleting The Rollback Journal）
+  <a class="anchor" href="#11%e5%88%a0%e9%99%a4%e5%a4%87%e4%bb%bd%e6%96%87%e4%bb%b6deleting-the-rollback-journal">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="删除备份文件" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-A.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 删除备份文件 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>至此，这一次写操作已经落盘到了数据库文件中，前面保存到备份文件中的数据可以清除了。清除备份文件内容，是一个比较费时的操作，具体实现由不同的机制去优化，后面讲到journal文件以及wal的实现时再展开描述。</p>
-<h2 id="12释放锁releasing-the-lock">12、释放锁（Releasing The Lock）</h2>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" alt="释放锁" title="释放锁"></p>
+<h2 class="heading" id="12释放锁releasing-the-lock">
+  12、释放锁（Releasing The Lock）
+  <a class="anchor" href="#12%e9%87%8a%e6%94%be%e9%94%81releasing-the-lock">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="释放锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/commit-B.gif" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 释放锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>写操作全部完成，备份文件也清除了，到了这一步就可以释放锁，以便后面其他的读写操作进来。</p>
-<h1 id="写事务中涉及到的锁">写事务中涉及到的锁</h1>
+<h1 class="heading" id="写事务中涉及到的锁">
+  写事务中涉及到的锁
+  <a class="anchor" href="#%e5%86%99%e4%ba%8b%e5%8a%a1%e4%b8%ad%e6%b6%89%e5%8f%8a%e5%88%b0%e7%9a%84%e9%94%81">#</a>
+</h1>
 <p>上面写事务流程中，依次会拿到以下类型的锁，下图中做一个简单的总结：</p>
-<p><img src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" alt="写操作中涉及到的锁" title="写操作中涉及到的锁"></p>
-<h1 id="崩溃恢复流程">崩溃恢复流程</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="写操作中涉及到的锁" src="/media/imgs/20211218-sqlite-btree-2-concurrency-control/write_lock.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 写操作中涉及到的锁 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="崩溃恢复流程">
+  崩溃恢复流程
+  <a class="anchor" href="#%e5%b4%a9%e6%ba%83%e6%81%a2%e5%a4%8d%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>上面的流程中，随时都可能因为系统崩溃而导致数据错乱的，因此一个写事务如果还未完成，重启时存储引擎需要识别出来，将还没有完成的事务进行回滚操作（rollback）。</p>
 <p>分为以下几种情况来处理：</p>
-<h2 id="写备份数据之前失败">写备份数据之前失败</h2>
+<h2 class="heading" id="写备份数据之前失败">
+  写备份数据之前失败
+  <a class="anchor" href="#%e5%86%99%e5%a4%87%e4%bb%bd%e6%95%b0%e6%8d%ae%e4%b9%8b%e5%89%8d%e5%a4%b1%e8%b4%a5">#</a>
+</h2>
 <p>如果系统在落盘备份数据之前失败，即前面的流程7之前失败，按照上面的流程来看，情况是这样的：</p>
 <ul>
 <li>写事务的数据还停留在用户空间的页面缓存中，未落盘到数据库文件上（流程6）。</li>
@@ -430,223 +636,117 @@
 <li>备份文件：可能损坏。</li>
 </ul>
 <p>于是，启动之后将校验备份文件是否完整，如果完整将重放一遍备份文件中的页面到数据库文件中；否则，只是简单的删除备份文件中的数据即可。</p>
-<h2 id="写数据库文件时失败">写数据库文件时失败</h2>
+<h2 class="heading" id="写数据库文件时失败">
+  写数据库文件时失败
+  <a class="anchor" href="#%e5%86%99%e6%95%b0%e6%8d%ae%e5%ba%93%e6%96%87%e4%bb%b6%e6%97%b6%e5%a4%b1%e8%b4%a5">#</a>
+</h2>
 <p>如果已经过了流程7，而在将页面缓存中的修改落盘到数据库文件的过程中，系统崩溃了，那么面临的是这样的情况：</p>
 <ul>
 <li>数据库文件肯定损坏了。</li>
 <li>写事务中被修改页面之前的内容，已经落盘到备份文件中了。</li>
 </ul>
 <p>于是，启动恢复的时候，只需要将备份文件中的页面重放一遍到数据库文件即可将数据库文件恢复到写事务修改前的状态了。</p>
-<h1 id="总结">总结</h1>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
 <p>以上，就是sqlite中写事务的总体流程，以及重启恢复的流程，这里还并没有涉及到具体的代码细节，有了对总体流程的理解，后面再来分析具体的两种备份机制：journal以及wal的实现。</p>
 <p>另外，需要看到的是：sqlite中锁的粒度，都还是数据库级别的，现在我还不知道其它更高效的数据库所谓行锁的实现，留待以后吧。</p>
-<h1 id="参考文档">参考文档</h1>
+<h1 class="heading" id="参考文档">
+  参考文档
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e6%96%87%e6%a1%a3">#</a>
+</h1>
 <ul>
 <li><a href="https://sqlite.org/atomiccommit.html">Atomic Commit In SQLite</a></li>
 <li><a href="https://www.sqlite.org/lockingv3.html">File Locking And Concurrency In SQLite Version 3</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-    <a href="https://www.codedump.info/tags/sqlite/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#sqlite</a>
-    
-    <a href="https://www.codedump.info/tags/btree/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#btree</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" class="block">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="block">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#写事务的流程">写事务的流程</a>
-      <ul>
-        <li><a href="#1初始化阶段initial-state">1、初始化阶段（Initial State）</a></li>
-        <li><a href="#2拿到读锁acquiring-a-read-lock">2、拿到读锁（Acquiring A Read Lock）</a></li>
-        <li><a href="#3读出页面的内容到页面缓存">3、读出页面的内容到页面缓存</a></li>
-        <li><a href="#4拿到保留锁obtaining-a-reserved-lock">4、拿到保留锁（Obtaining A Reserved Lock）</a></li>
-        <li><a href="#5创建回滚用的备份文件creating-a-rollback-journal-file">5、创建回滚用的备份文件（Creating A Rollback Journal File）</a></li>
-        <li><a href="#6修改用户空间的页面内容changing-database-pages-in-user-space">6、修改用户空间的页面内容（Changing Database Pages In User Space）</a></li>
-        <li><a href="#7将备份文件的内容落盘flushing-the-rollback-journal-file-to-mass-storage">7、将备份文件的内容落盘（Flushing The Rollback Journal File To Mass Storage）</a></li>
-        <li><a href="#8拿到排他锁obtaining-an-exclusive-lock">8、拿到排他锁（Obtaining An Exclusive Lock）</a></li>
-        <li><a href="#9保存修改到数据库文件中writing-changes-to-the-database-file">9、保存修改到数据库文件中（Writing Changes To The Database File）</a></li>
-        <li><a href="#10落盘数据库文件修改flushing-changes-to-mass-storage">10、落盘数据库文件修改（Flushing Changes To Mass Storage）</a></li>
-        <li><a href="#11删除备份文件deleting-the-rollback-journal">11、删除备份文件（Deleting The Rollback Journal）</a></li>
-        <li><a href="#12释放锁releasing-the-lock">12、释放锁（Releasing The Lock）</a></li>
-      </ul>
-    </li>
-    <li><a href="#写事务中涉及到的锁">写事务中涉及到的锁</a></li>
-    <li><a href="#崩溃恢复流程">崩溃恢复流程</a>
-      <ul>
-        <li><a href="#写备份数据之前失败">写备份数据之前失败</a></li>
-        <li><a href="#写数据库文件时失败">写数据库文件时失败</a></li>
-      </ul>
-    </li>
-    <li><a href="#总结">总结</a></li>
-    <li><a href="#参考文档">参考文档</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="no-underline">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/" class="no-underline">sqlite3.36版本 btree实现（零）- 起步及概述</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200726-boltdb-4/" class="no-underline">boltdb 1.3.0实现分析（四）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200725-boltdb-3/" class="no-underline">boltdb 1.3.0实现分析（三）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200711-boltdb-2/" class="no-underline">boltdb 1.3.0实现分析（二）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200625-boltdb-1/" class="no-underline">boltdb 1.3.0实现分析（一）</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

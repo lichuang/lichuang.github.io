@@ -1,410 +1,205 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>周刊（第21期）：Lamport时钟介绍 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="周刊（第21期）：Lamport时钟介绍"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="周刊（第21期）：Lamport时钟介绍">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"周刊（第21期）：Lamport时钟介绍",
-      "item":"https://www.codedump.info/post/20220703-weekly-21/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220703-weekly-21/"
-    },
-    "headline": "周刊（第21期）：Lamport时钟介绍 - codedump的网络日志","datePublished": "2022-07-03T10:59:09+08:00",
-    "dateModified": "2022-07-03T10:59:09+08:00",
-    "wordCount":  4375 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "周刊（第21期）：Lamport时钟介绍"
-}
-</script><meta property="og:title" content="周刊（第21期）：Lamport时钟介绍 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220703-weekly-21/" />
-
-
-
-<meta property="og:description" content="周刊（第21期）：Lamport时钟介绍" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-07-03T10:59:09&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-07-03T10:59:09&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="周刊" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220904-weekly-24/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220807-weekly-23/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220710-weekly-22/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    周刊（第21期）：Lamport时钟介绍 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">周刊（第21期）：Lamport时钟介绍</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20220703-weekly-21/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-07-03</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20220703-weekly-21/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第21期）：Lamport时钟介绍">
+  <meta property="og:description" content="周刊（第21期）：Lamport时钟介绍">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-07-03T10:59:09+08:00">
+    <meta property="article:modified_time" content="2022-07-03T10:59:09+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >周刊</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >2022周刊</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220703-weekly-21/">周刊（第21期）：Lamport时钟介绍</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第21期）：Lamport时钟介绍</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-07-03T10:59:09&#43;08:00">2022年7月3日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <hr>
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#概论">概论</a></li>
+    <li><a href="#物理时钟的问题">物理时钟的问题</a></li>
+    <li><a href="#全序和偏序">全序和偏序</a></li>
+    <li><a href="#lamport时钟">Lamport时钟</a></li>
+    <li><a href="#happen-before关系">happen-before关系</a></li>
+    <li><a href="#分布式一致性的基础">分布式一致性的基础</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <hr>
 <p>引言：在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 <a href="https://lamport.azurewebsites.net/pubs/time-clocks.pdf">《Time, Clocks, and the Ordering of Events in a Distributed System》</a>中提到的Lamport时钟。</p>
 <hr>
-<h1 id="lamport时钟介绍">Lamport时钟介绍</h1>
-<h2 id="概论">概论</h2>
+<h1 class="heading" id="lamport时钟介绍">
+  Lamport时钟介绍
+  <a class="anchor" href="#lamport%e6%97%b6%e9%92%9f%e4%bb%8b%e7%bb%8d">#</a>
+</h1>
+<h2 class="heading" id="概论">
+  概论
+  <a class="anchor" href="#%e6%a6%82%e8%ae%ba">#</a>
+</h2>
 <p>在分布式系统中，由于有多个机器（进程）在一起协调工作，于是如何定义分布式系统中事件的先后顺序就成了难题，本文介绍论文 <a href="https://lamport.azurewebsites.net/pubs/time-clocks.pdf">《Time, Clocks, and the Ordering of Events in a Distributed System》</a>中提到的Lamport时钟。</p>
 <p>内容以如下的顺序展开：</p>
 <ul>
@@ -413,11 +208,34 @@
 <li>Lamport时钟的原理介绍、<code>happen-before</code>关系介绍。（原理介绍）</li>
 <li>分布式一致性的基础。（更远的影响）</li>
 </ul>
-<h2 id="物理时钟的问题">物理时钟的问题</h2>
+<h2 class="heading" id="物理时钟的问题">
+  物理时钟的问题
+  <a class="anchor" href="#%e7%89%a9%e7%90%86%e6%97%b6%e9%92%9f%e7%9a%84%e9%97%ae%e9%a2%98">#</a>
+</h2>
 <p>分布式系统中定义一个事件的先后顺序是一个难点，下意识的第一反应是：给每个事件加上一个物理的时间戳，不就可以比较不同事件的时间戳来决定其顺序了吗？</p>
 <p>这样做的问题在于：在分布式系统中，由多个机器组合起来协调工作，而每个机器上的物理时间也不尽相同，所以“物理时间戳”本质上是一个机器属性，并不一定系统中所有机器都满足同一个时间度量。</p>
 <p>以下图为例：</p>
-<p><img src="https://sookocheff.com/post/time/lamport-clock/assets/clock-adjustment-error.png" alt=""></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="" src="https://sookocheff.com/post/time/lamport-clock/assets/clock-adjustment-error.png" >
+    </div>
+
+    
+</figure>
+</p>
 <p>（引用自<a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a>）</p>
 <p>上图中：</p>
 <ul>
@@ -426,7 +244,10 @@
 <li>可以看到这两个事件都以本地时间为准，当观察者进程收到这两个事件的时候，先后顺序与事件上所带的时间戳并不一致：先收到了时间戳更大的事件A。</li>
 </ul>
 <p>这个例子说明：在分布式系统中，以“物理时间”来衡量事件的先后顺序，并不可行。</p>
-<h2 id="全序和偏序">全序和偏序</h2>
+<h2 class="heading" id="全序和偏序">
+  全序和偏序
+  <a class="anchor" href="#%e5%85%a8%e5%ba%8f%e5%92%8c%e5%81%8f%e5%ba%8f">#</a>
+</h2>
 <p>在继续讲解之前，还需要了解两个数学上的概念：全序（total ordering）和偏序（partial ordering）关系。</p>
 <p>我们首先来定义集合上的几种关系，对一个集合${\displaystyle X}$中的${\displaystyle a,b}$和${\displaystyle c}$ 而言，有以下这些关系：</p>
 <ul>
@@ -454,9 +275,11 @@
 <p>你爷爷生了你爸爸和你叔叔，你爸爸生了你，满足传递；</p>
 <p>你不能生你爷爷，满足反对称；</p>
 <p>但不是全序，因为你有堂兄弟姐妹（这里认为你叔叔有子女）啊！</p>
-<p>那全序是啥？就是九代单传呗</p>
-</blockquote>
-<h2 id="lamport时钟">Lamport时钟</h2>
+<p>那全序是啥？就是九代单传呗</p></blockquote>
+<h2 class="heading" id="lamport时钟">
+  Lamport时钟
+  <a class="anchor" href="#lamport%e6%97%b6%e9%92%9f">#</a>
+</h2>
 <p>了解了物理时间的问题，以及全序、偏序关系的定义，可以正式来到Lamport时钟的解释。</p>
 <p>由于物理时钟天然的缺陷，就不能使用这个属性来定义事件的顺序了。Lamport时钟被定义为各进程来维护的一个只能递增的数字（即时间不能发生回退），它有两个规则：</p>
 <ul>
@@ -479,7 +302,27 @@ send(message, time);
 <pre tabindex="0"><code>(message, incoming_time) = receive();
 time = max(incoming_time, time) + 1;
 </code></pre><p>举一个具体的例子：</p>
-<p><img src="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock-request-sequence.png" alt=""></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="" src="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock-request-sequence.png" >
+    </div>
+
+    
+</figure>
+</p>
 <p>（引用自<a href="https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock.html">Lamport Clock</a>）</p>
 <p>上图中：</p>
 <ul>
@@ -492,7 +335,10 @@ time = max(incoming_time, time) + 1;
 <li>紧跟着blue进程向client进程发出事件，由于上面blue已经调整本地时间为2，于是这个事件的时间为2。</li>
 <li>其它的可以依次类推，就不再阐述了。</li>
 </ul>
-<h2 id="happen-before关系">happen-before关系</h2>
+<h2 class="heading" id="happen-before关系">
+  happen-before关系
+  <a class="anchor" href="#happen-before%e5%85%b3%e7%b3%bb">#</a>
+</h2>
 <p>可以看到，有了上面的两条规则之后，一个分布式系统中的事件，在很多情况（只是很多情况下，并没有全部，下面会展开讨论）下都能定义其先后顺序了，在论文中，lamport将这个关系定义为<code>happen-before</code>关系：</p>
 <ul>
 <li>引入符号$→ $做为表示事件之间<code>happen-before</code>的记号。</li>
@@ -506,7 +352,27 @@ time = max(incoming_time, time) + 1;
 </ul>
 <p>这两个问题可以放在一起解答：分布式系统中的所有事件并不都满足<code>happen-before</code>关系，按照前面全序、偏序关系的定义，由于这个集合中并不是所有情况下都满足这种关系，所以说<code>happen-before</code>关系是一种偏序关系。</p>
 <p>以下图来看看：</p>
-<p><img src="https://sookocheff.com/post/time/lamport-clock/assets/process-events.gif" alt=""></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="" src="https://sookocheff.com/post/time/lamport-clock/assets/process-events.gif" >
+    </div>
+
+    
+</figure>
+</p>
 <p>（引用自<a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a>）</p>
 <p>这个系统的工作方式，在前面解释规则1、2的时候已经有说明，在这里就不再阐述。可以注意到$P_3$进程和$P_2$进程都有一个时间2，在这个时间上这两个进程做了两个不同的事件：</p>
 <ul>
@@ -516,7 +382,10 @@ time = max(incoming_time, time) + 1;
 <p>所以无论如何，这两个进程上在时间2上发生的事件都不能比较先后顺序了。</p>
 <p>如果分布式系统中的两个事件，不满足<code>happen-before</code>关系，在论文中称这两个事件为“并行事件（concurrent event）”。</p>
 <p>现实的系统中，确实存在很多并行事件。比如向一个KV系统中同时写入两个并无关联的数据，由于无法根据Lamport时钟对比出先后来，这些操作就可以认为是并行的。</p>
-<h2 id="分布式一致性的基础">分布式一致性的基础</h2>
+<h2 class="heading" id="分布式一致性的基础">
+  分布式一致性的基础
+  <a class="anchor" href="#%e5%88%86%e5%b8%83%e5%bc%8f%e4%b8%80%e8%87%b4%e6%80%a7%e7%9a%84%e5%9f%ba%e7%a1%80">#</a>
+</h2>
 <p>Lamport时钟本质解决的是如何定义一个分布式系统中不同事件的前后顺序，这是分布式系统一致性的基础。</p>
 <p>以日志-状态机模型来看：组成一个分布式系统中的任意一个机器，如果都能按照同一个顺序来“灌入”日志到状态机中，最后都能得到一致的状态。</p>
 <p>但是上面在介绍Lamport时钟时，提到过<code>happen-before</code>关系是一种偏序关系，即并不是所有分布式系统中的事件都能有确定的先后顺序，对于这类不能确定先后顺序的事件（如前面提到的$P_3$和$P_2$进程在时间2发生的两件不同事件），可以通过对比其进程ID来确定先后顺序。</p>
@@ -526,8 +395,35 @@ time = max(incoming_time, time) + 1;
 <li>否则对比发出两个事件的进程ID号。</li>
 </ul>
 <p>有了这个补充之后，基于Lamport时钟的分布式事件，就能有一个确定的先后顺序来灌入状态机执行，既然顺序都是一致的最后状态也肯定是一致的：</p>
-<p><img src="/media/imgs/20210515-raft/statemachine.jpeg" alt="Etcd Raft与应用层的交互" title="Etcd Raft与应用层的交互"></p>
-<h2 id="总结">总结</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Etcd Raft与应用层的交互" src="/media/imgs/20210515-raft/statemachine.jpeg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> Etcd Raft与应用层的交互 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h2>
 <ul>
 <li>依赖“物理时间”来定义一个分布式系统中事件的先后顺序并不可行。</li>
 <li>全序、偏序关系的定义：
@@ -547,7 +443,10 @@ time = max(incoming_time, time) + 1;
 </ul>
 <p>回到最初“物理时钟”举的那个例子中，即便采用了Lamport时钟，在物理上看来也可能先后顺序并不同。比如进程A发出的Lamport时钟为1的事件A，以及进程B发出的Lamport时钟为2的事件B，最终在第三者收到的顺序却是相反的：事件B在事件A之前先到达，这是完全有可能的。</p>
 <p>换言之，Lamport时钟只是一种逻辑意义上的时间，与物理先后顺序并不一定相同。</p>
-<h2 id="参考资料">参考资料</h2>
+<h2 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h2>
 <ul>
 <li><a href="https://sookocheff.com/post/time/lamport-clock/">Lamport Clocks - Kevin Sookocheff</a></li>
 <li><a href="https://zh.wikipedia.org/wiki/%E5%85%A8%E5%BA%8F%E5%85%B3%E7%B3%BB">全序关系 - 维基百科，自由的百科全书</a></li>
@@ -556,189 +455,92 @@ time = max(incoming_time, time) + 1;
 <li><a href="http://zhangtielei.com/posts/blog-time-clock-ordering.html">分布式领域最重要的一篇论文，到底讲了什么？ - 铁蕾的个人博客</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20220710-weekly-22/" class="block">周刊（第22期）：图解一致性模型</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220625-weekly-20/" class="block">周刊（第20期）：Rust并发安全相关的几个概念(下)</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#lamport时钟介绍">Lamport时钟介绍</a>
-      <ul>
-        <li><a href="#概论">概论</a></li>
-        <li><a href="#物理时钟的问题">物理时钟的问题</a></li>
-        <li><a href="#全序和偏序">全序和偏序</a></li>
-        <li><a href="#lamport时钟">Lamport时钟</a></li>
-        <li><a href="#happen-before关系">happen-before关系</a></li>
-        <li><a href="#分布式一致性的基础">分布式一致性的基础</a></li>
-        <li><a href="#总结">总结</a></li>
-        <li><a href="#参考资料">参考资料</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20220625-weekly-20/" class="no-underline">周刊（第20期）：Rust并发安全相关的几个概念(下)</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220619-weekly-19/" class="no-underline">周刊（第19期）：Rust并发安全相关的几个概念(上)</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220227-weekly-7/" class="no-underline">周刊（第7期）：一个C系程序员的Rust初体验</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220528-weekly-17/" class="no-underline">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220507-weekly-14/" class="no-underline">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220417-weekly-13/" class="no-underline">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

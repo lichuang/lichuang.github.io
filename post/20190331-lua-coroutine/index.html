@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Lua Coroutine实现原理 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20190331-lua-coroutine/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20190331-lua-coroutine/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Lua Coroutine实现原理">
+  <meta property="og:description" content="之前写作《Lua设计与实现》时，有对协程的实现做过一些分析，最近因为要研究Openresty如何实现，又重新捡起来这部分内容。回头一看，觉得写的不能让我满意，遂决定再加上一些补充，主要某些函数、例子流程多加了一些图片说明，这样看起来会容易理解一些。
+Lua API及例子 # 首先看Lua提供了哪些协程方面的API。协程相关的操作集中在coroutine库中，里面提供了以下的API：
+API 传入参数 返回值 说明 create(f) 函数，作为协程运行的主函数 返回创建好的协程 该函数只负责创建协程，而如果要运行协程，还需要执行resume操作 resume(co,[val1,..]) 传入的第一个参数是create函数返回的协程，剩下的参数是传递给协程运行的参数 分两种情况，resume成功的情况下返回true以及上一次yield函数传入的参数；失败的情况下返回false以及错误信息 第一次执行resume操作时，会从create传入的函数开始执行，之后会在该协程主函数调用yield的下一个操作开始执行，直到这个函数执行完毕。调用resume操作必须是在主线程中。 running 空 返回当前正在执行的协程，如果是在主线程中被调用将返回nil status 空 返回当前协程的状态，有dead/runnning/suspend/normal wrap 与create类似，传入协程运行的主函数 返回创建好的协程 wrap函数相当于结合了create和resume函数。所不同的是，wrap函数返回的是创建好的协程，下一次直接传入参数调用该协程即可,无需调用resume函数。 yield 变长参数，这些是返回给此次resume函数的返回值 返回下一个resume操作传入的参数值 挂起当前协程的运行，调用yield操作必须是在协程中。 在以上Lua提供的协程API中，比较难理解也是最为重点的就是yield和resume这两个函数，以下以例子来说明两者如何通过传递参数来进行通信：
+1 function foo(a) 2 print(&#34;foo&#34;, a) 3 return coroutine.yield(2 * a) 4 end 5 6 co = coroutine.create(function ( a, b ) 7 print(&#34;co-body&#34;, a, b) 8 local r = foo(a &#43; 1) 9 print(&#34;co-body&#34;, r) 10 local r, s = coroutine.yield(a &#43; b, a - b) 11 print(&#34;co-body&#34;, r, s) 12 return b, &#34;end&#34; 13 end) 14 15 print(&#34;main&#34;, coroutine.resume(co, 1, 10)) 16 print(&#34;------&#34;) 17 print(&#34;main&#34;, coroutine.resume(co, &#34;r&#34;)) 18 print(&#34;------&#34;) 19 print(&#34;main&#34;, coroutine.resume(co, &#34;x&#34;, &#34;y&#34;)) 20 print(&#34;------&#34;) 21 print(&#34;main&#34;, coroutine.resume(co, &#34;x&#34;, &#34;y&#34;)) 上面例子中执行的流程如下图所示： co-example">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-03-31T16:50:18+08:00">
+    <meta property="article:modified_time" content="2019-03-31T16:50:18+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190331-lua-coroutine/">Lua Coroutine实现原理</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Lua Coroutine实现原理</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-03-31T16:50:18&#43;08:00">2019年3月31日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <p>之前写作<a href="https://book.douban.com/subject/27108476/">《Lua设计与实现》</a>时，有对协程的实现做过一些分析，最近因为要研究Openresty如何实现，又重新捡起来这部分内容。回头一看，觉得写的不能让我满意，遂决定再加上一些补充，主要某些函数、例子流程多加了一些图片说明，这样看起来会容易理解一些。</p>
+<h1 class="heading" id="lua-api及例子">
+  Lua API及例子
+  <a class="anchor" href="#lua-api%e5%8f%8a%e4%be%8b%e5%ad%90">#</a>
+</h1>
+<p>首先看Lua提供了哪些协程方面的API。协程相关的操作集中在coroutine库中，里面提供了以下的API：</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">API</th>
+          <th style="text-align: left">传入参数</th>
+          <th style="text-align: left">返回值</th>
+          <th style="text-align: left">说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">create(f)</td>
+          <td style="text-align: left">函数，作为协程运行的主函数</td>
+          <td style="text-align: left">返回创建好的协程</td>
+          <td style="text-align: left">该函数只负责创建协程，而如果要运行协程，还需要执行resume操作</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">resume(co,[val1,..])</td>
+          <td style="text-align: left">传入的第一个参数是create函数返回的协程，剩下的参数是传递给协程运行的参数</td>
+          <td style="text-align: left">分两种情况，resume成功的情况下返回true以及上一次yield函数传入的参数；失败的情况下返回false以及错误信息</td>
+          <td style="text-align: left">第一次执行resume操作时，会从create传入的函数开始执行，之后会在该协程主函数调用yield的下一个操作开始执行，直到这个函数执行完毕。调用resume操作必须是在主线程中。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">running</td>
+          <td style="text-align: left">空</td>
+          <td style="text-align: left">返回当前正在执行的协程，如果是在主线程中被调用将返回nil</td>
+          <td></td>
+      </tr>
+      <tr>
+          <td style="text-align: left">status</td>
+          <td style="text-align: left">空</td>
+          <td style="text-align: left">返回当前协程的状态，有dead/runnning/suspend/normal</td>
+          <td></td>
+      </tr>
+      <tr>
+          <td style="text-align: left">wrap</td>
+          <td style="text-align: left">与create类似，传入协程运行的主函数</td>
+          <td style="text-align: left">返回创建好的协程</td>
+          <td style="text-align: left">wrap函数相当于结合了create和resume函数。所不同的是，wrap函数返回的是创建好的协程，下一次直接传入参数调用该协程即可,无需调用resume函数。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">yield</td>
+          <td style="text-align: left">变长参数，这些是返回给此次resume函数的返回值</td>
+          <td style="text-align: left">返回下一个resume操作传入的参数值</td>
+          <td style="text-align: left">挂起当前协程的运行，调用yield操作必须是在协程中。</td>
+      </tr>
+  </tbody>
+</table>
+<p>在以上Lua提供的协程API中，比较难理解也是最为重点的就是yield和resume这两个函数，以下以例子来说明两者如何通过传递参数来进行通信：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Lua" data-lang="Lua"><span style="display:flex;"><span>  1 <span style="font-weight:bold;text-decoration:underline">function</span> <span style="color:#666;font-weight:bold;font-style:italic">foo</span>(a)
+</span></span><span style="display:flex;"><span>  2     print(<span style="color:#666;font-style:italic">&#34;foo&#34;</span>, a)
+</span></span><span style="display:flex;"><span>  3     <span style="font-weight:bold;text-decoration:underline">return</span> coroutine.yield(2 * a)
+</span></span><span style="display:flex;"><span>  4 <span style="font-weight:bold;text-decoration:underline">end</span>
+</span></span><span style="display:flex;"><span>  5
+</span></span><span style="display:flex;"><span>  6 co = coroutine.create(<span style="font-weight:bold;text-decoration:underline">function</span> ( a, b )
+</span></span><span style="display:flex;"><span>  7     print(<span style="color:#666;font-style:italic">&#34;co-body&#34;</span>, a, b)
+</span></span><span style="display:flex;"><span>  8     <span style="font-weight:bold;font-style:italic;text-decoration:underline">local</span> r = foo(a + 1)
+</span></span><span style="display:flex;"><span>  9     print(<span style="color:#666;font-style:italic">&#34;co-body&#34;</span>, r)
+</span></span><span style="display:flex;"><span> 10     <span style="font-weight:bold;font-style:italic;text-decoration:underline">local</span> r, s = coroutine.yield(a + b, a - b)
+</span></span><span style="display:flex;"><span> 11     print(<span style="color:#666;font-style:italic">&#34;co-body&#34;</span>, r, s)
+</span></span><span style="display:flex;"><span> 12     <span style="font-weight:bold;text-decoration:underline">return</span> b, <span style="color:#666;font-style:italic">&#34;end&#34;</span>
+</span></span><span style="display:flex;"><span> 13 <span style="font-weight:bold;text-decoration:underline">end</span>)
+</span></span><span style="display:flex;"><span> 14
+</span></span><span style="display:flex;"><span> 15 print(<span style="color:#666;font-style:italic">&#34;main&#34;</span>, coroutine.resume(co, 1, 10))
+</span></span><span style="display:flex;"><span> 16 print(<span style="color:#666;font-style:italic">&#34;------&#34;</span>)
+</span></span><span style="display:flex;"><span> 17 print(<span style="color:#666;font-style:italic">&#34;main&#34;</span>, coroutine.resume(co, <span style="color:#666;font-style:italic">&#34;r&#34;</span>))
+</span></span><span style="display:flex;"><span> 18 print(<span style="color:#666;font-style:italic">&#34;------&#34;</span>)
+</span></span><span style="display:flex;"><span> 19 print(<span style="color:#666;font-style:italic">&#34;main&#34;</span>, coroutine.resume(co, <span style="color:#666;font-style:italic">&#34;x&#34;</span>, <span style="color:#666;font-style:italic">&#34;y&#34;</span>))
+</span></span><span style="display:flex;"><span> 20 print(<span style="color:#666;font-style:italic">&#34;------&#34;</span>)
+</span></span><span style="display:flex;"><span> 21 print(<span style="color:#666;font-style:italic">&#34;main&#34;</span>, coroutine.resume(co, <span style="color:#666;font-style:italic">&#34;x&#34;</span>, <span style="color:#666;font-style:italic">&#34;y&#34;</span>))
+</span></span></code></pre></div><p>上面例子中执行的流程如下图所示：
+
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="co-example" src="/media/imgs/20190331-lua-coroutine/co-example.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> co-example </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>我们结合协程的API描述，来具体分析这段代码的执行:</p>
+<ul>
+<li>在第6行程序创建了协程co，但是此时该协程并没有开始运行，需要执行resume操作之后才会运行。</li>
+<li>15行，调用resume函数开始执行前面创建的协程。在这里，传入的参数是1、10。在协程主函数中，在第8行调用foo函数，在此函数中，协程将调用yield函数将执行权让出，而在让出时传入的参数是2*a（也就是4），这也就是前面resume函数执行完毕之后返回的第二个参数（第一个参数是true，表示协程执行成功，见前面API的注释)。因此，在18行第一次打印横线进行标记之前的输出为：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>co-body 1 10
+</span></span><span style="display:flex;"><span>foo 2
+</span></span><span style="display:flex;"><span>main  <span style="font-weight:bold;font-style:italic">true</span>  4
+</span></span></code></pre></div><ul>
+<li>在17行，程序再一次调用resume函数来执行协程。与上一次不同的是，这一次不是从协程主函数开始位置执行，而是从上一次协程执行yield操作让出执行权的地方继续执行。在这里传递进去的参数是字符串&quot;r&quot;，这就是协程重新获得执行权之后yield函数的返回值。之后，协程执行第10，11两行代码，其中11行再次调用yield函数让出执行权，此时传入的参数是a+b（也就是11）和a-b（也就是-9)）。可见，虽然协程co曾经调用yield函数让出执行权，但是该协程的执行环境，表现在这里就是主函数的局部参数a、b都还是保持原样的，并没有因此发生改变。
+从前面的分析可知，第一、二次横线之间打印输出的是：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>co-body r
+</span></span><span style="display:flex;"><span>main  <span style="font-weight:bold;font-style:italic">true</span>  11  -9
+</span></span></code></pre></div><ul>
+<li>接下来，程序在第19行再次调用resume函数唤醒协程，这次传入的参数是&quot;x&quot;,&ldquo;y&rdquo;，因此在第11行协程重新唤醒时yield函数的返回值就是&quot;x&quot;,&ldquo;y&rdquo;。协程主函数继续往下执行，这次没有再次yield让出执行权，而是执行完协程的主函数，并且返回10，&ldquo;end&quot;两个参数。因此,在第二,三次横线之间打印输出的是：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>co-body x y
+</span></span><span style="display:flex;"><span>main  <span style="font-weight:bold;font-style:italic">true</span>  10  end
+</span></span></code></pre></div><ul>
+<li>此时协程co已经执行完毕，因此在第21行再次调用resume函数试图唤醒该协程继续执行时，将返回false表示执行失败，以及失败的错误信息，因此这一次的输出是：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>main  <span style="font-weight:bold;font-style:italic">false</span> cannot resume dead coroutine
+</span></span></code></pre></div><p>从以上例子，我们再重温总结一下协程运行的几个关键点：</p>
+<ol>
+<li>
+<p>协程可以自由的由操作者执行（调用resume函数）或者挂起让出执行权(yield)，这是协程与操作系统级别的线程最大的不同：协程的运行可以由用户自行控制，而线程的调度是由操作系统内核来完成的，对用户并不可见。</p>
+</li>
+<li>
+<p>协程运行的两个主要函数就是resume和yield，协程调用者和协程之间可以通过这两个函数的参数来互相通信。具体的规则小结如下：</p>
+<ul>
+<li>
+<p>协程创建后，首次执行resume操作时，传入resume函数的参数是协程主函数的参数。</p>
+</li>
+<li>
+<p>调用yield操作让出执行权时，传入yield函数的参数，作为协程调用者执行resume函数的返回值。注意，这里的第一个返回值是true/false,表示协程是否执行成功。</p>
+</li>
+<li>
+<p>再次调用resume函数唤醒协程（非首次调用）时传入resume函数的参数，作为协程环境中调用yield函数的返回值。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h1 class="heading" id="实现">
+  实现
+  <a class="anchor" href="#%e5%ae%9e%e7%8e%b0">#</a>
+</h1>
+<p>从以上的分析可以看出，协程实现的两个关键点在于：</p>
+<ul>
+<li>协程状态的保存。</li>
+<li>不同协程之间的数据通信机制。</li>
+</ul>
+<p>在Lua代码中，使用的是lua_State结构体来表示协程，这与Lua虚拟机用的是同一个数据结构。这一点，可以从创建Lua协程的函数lua_newthread中看出来，唯一有区别的是，Lua协程的类型是LUA_TTHREAD。换言之，在Lua源码的处理中，Lua协程与Lua虚拟机的表现形式，并没有太大差异，也许这样做是为了实现的方便吧。前面提到过，一个协程有自己私有的环境，不会因为协程的切换而发生改变。</p>
+<p>接下来来看看如何在不同的协程之间进行通信，或者说Lua协程间数据的交换。前面提到过resume、yield函数的参数就是用来做协程数据交换的，现在来看看里面的实现。奥秘都在函数lua_xmove中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(lapi.c)
+</span></span><span style="display:flex;"><span> 110 LUA_API <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">lua_xmove</span> (lua_State *from, lua_State *to, <span style="font-weight:bold;text-decoration:underline">int</span> n) {
+</span></span><span style="display:flex;"><span> 111   <span style="font-weight:bold;text-decoration:underline">int</span> i;
+</span></span><span style="display:flex;"><span> 112   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (from == to) <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span> 113   <span style="color:#666;font-weight:bold;font-style:italic">lua_lock</span>(to);
+</span></span><span style="display:flex;"><span> 114   <span style="color:#666;font-weight:bold;font-style:italic">api_checknelems</span>(from, n);
+</span></span><span style="display:flex;"><span> 115   <span style="color:#666;font-weight:bold;font-style:italic">api_check</span>(from, <span style="color:#666;font-weight:bold;font-style:italic">G</span>(from) == <span style="color:#666;font-weight:bold;font-style:italic">G</span>(to));
+</span></span><span style="display:flex;"><span> 116   <span style="color:#666;font-weight:bold;font-style:italic">api_check</span>(from, to-&gt;ci-&gt;top - to-&gt;top &gt;= n);
+</span></span><span style="display:flex;"><span> 117   from-&gt;top -= n;
+</span></span><span style="display:flex;"><span> 118   <span style="font-weight:bold;text-decoration:underline">for</span> (i = 0; i &lt; n; i++) {
+</span></span><span style="display:flex;"><span> 119     <span style="color:#666;font-weight:bold;font-style:italic">setobj2s</span>(to, to-&gt;top++, from-&gt;top + i);
+</span></span><span style="display:flex;"><span> 120   }
+</span></span><span style="display:flex;"><span> 121   <span style="color:#666;font-weight:bold;font-style:italic">lua_unlock</span>(to);
+</span></span><span style="display:flex;"><span> 122 }
+</span></span></code></pre></div><p>这段代码做的事情，就是从from协程中，移动n个数据到to协程中。当然在移动之前，数据要在from协程的栈顶上准备好。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="lua_xmove" src="/media/imgs/20190331-lua-coroutine/lua_xmove.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> lua_xmove </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>创建协程在函数luaB_cocreate中进行:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(lbaselib.c)
+</span></span><span style="display:flex;"><span>576 <span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">luaB_cocreate</span> (lua_State *L) {
+</span></span><span style="display:flex;"><span>577   lua_State *NL = <span style="color:#666;font-weight:bold;font-style:italic">lua_newthread</span>(L);
+</span></span><span style="display:flex;"><span>578   <span style="color:#666;font-weight:bold;font-style:italic">luaL_argcheck</span>(L, <span style="color:#666;font-weight:bold;font-style:italic">lua_isfunction</span>(L, 1) &amp;&amp; !<span style="color:#666;font-weight:bold;font-style:italic">lua_iscfunction</span>(L, 1), 1,
+</span></span><span style="display:flex;"><span>579     <span style="color:#666;font-style:italic">&#34;Lua function expected&#34;</span>);
+</span></span><span style="display:flex;"><span>580   <span style="color:#666;font-weight:bold;font-style:italic">lua_pushvalue</span>(L, 1);  <span style="color:#888;font-style:italic">/* move function to top */</span>
+</span></span><span style="display:flex;"><span>581   <span style="color:#666;font-weight:bold;font-style:italic">lua_xmove</span>(L, NL, 1);  <span style="color:#888;font-style:italic">/* move function from L to NL */</span>
+</span></span><span style="display:flex;"><span>582   <span style="font-weight:bold;text-decoration:underline">return</span> 1;
+</span></span><span style="display:flex;"><span>583 }
+</span></span></code></pre></div><p>明白了前面的内容，理解创建协程的过程就不难，这里主要做几件事情：</p>
+<ol>
+<li>调用lua_newthread创建lua_State结构体。</li>
+<li>检查当前栈顶的元素是不是一个函数对象，因为需要一个函数作为协程开始运行时的主函数。这个主函数必须是Lua函数，C函数将会报错。</li>
+<li>将协程主函数压入当前lua_State中的栈中，然后调用lua_xmove将该函数从当前的lua_State移动到新创建的协程的lua_State栈中。</li>
+</ol>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="luaB_cocreate" src="/media/imgs/20190331-lua-coroutine/luaB_cocreate.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> luaB_cocreate </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>以上，了解了Lua协程实现相关的数据结构，接下来就是看看最核心的两个操作resume、yield是如何实现的了。</p>
+<p>resume操作在函数luaB_coresume中实现：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(lbaselib.c)
+</span></span><span style="display:flex;"><span>543 <span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">luaB_coresume</span> (lua_State *L) {
+</span></span><span style="display:flex;"><span>544   lua_State *co = <span style="color:#666;font-weight:bold;font-style:italic">lua_tothread</span>(L, 1);
+</span></span><span style="display:flex;"><span>545   <span style="font-weight:bold;text-decoration:underline">int</span> r;
+</span></span><span style="display:flex;"><span>546   <span style="color:#666;font-weight:bold;font-style:italic">luaL_argcheck</span>(L, co, 1, <span style="color:#666;font-style:italic">&#34;coroutine expected&#34;</span>);
+</span></span><span style="display:flex;"><span>547   r = <span style="color:#666;font-weight:bold;font-style:italic">auxresume</span>(L, co, <span style="color:#666;font-weight:bold;font-style:italic">lua_gettop</span>(L) - 1);
+</span></span><span style="display:flex;"><span>548   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (r &lt; 0) {
+</span></span><span style="display:flex;"><span>549     <span style="color:#666;font-weight:bold;font-style:italic">lua_pushboolean</span>(L, 0);
+</span></span><span style="display:flex;"><span>550     <span style="color:#666;font-weight:bold;font-style:italic">lua_insert</span>(L, -2);
+</span></span><span style="display:flex;"><span>551     <span style="font-weight:bold;text-decoration:underline">return</span> 2;  <span style="color:#888;font-style:italic">/* return false + error message */</span>
+</span></span><span style="display:flex;"><span>552   }
+</span></span><span style="display:flex;"><span>553   <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>554     <span style="color:#666;font-weight:bold;font-style:italic">lua_pushboolean</span>(L, 1);
+</span></span><span style="display:flex;"><span>555     <span style="color:#666;font-weight:bold;font-style:italic">lua_insert</span>(L, -(r + 1));
+</span></span><span style="display:flex;"><span>556     <span style="font-weight:bold;text-decoration:underline">return</span> r + 1;  <span style="color:#888;font-style:italic">/* return true + `resume&#39; returns */</span>
+</span></span><span style="display:flex;"><span>557   }
+</span></span><span style="display:flex;"><span>558 }
+</span></span></code></pre></div><p>可以看到，这里主要做几件事情：</p>
+<ol>
+<li>检查当前栈顶元素是不是协程指针。</li>
+<li>调用辅助函数auxresume进行实际的resume操作。</li>
+<li>根据auxresume的返回值来做不同的处理。当返回值小于0时，说明resume操作出错，并且此时出错信息在栈顶，因此压入&quot;false&quot;以及出错消息；否则，auxresume的返回值表示执行resume时返回的参数数量，这种情况下压入&quot;true&quot;以及这些返回参数。</li>
+</ol>
+<p>auxresume函数的实现:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(lbaselib.c)
+</span></span><span style="display:flex;"><span>518 <span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">auxresume</span> (lua_State *L, lua_State *co, <span style="font-weight:bold;text-decoration:underline">int</span> narg) {
+</span></span><span style="display:flex;"><span>519   <span style="font-weight:bold;text-decoration:underline">int</span> status = <span style="color:#666;font-weight:bold;font-style:italic">costatus</span>(L, co);
+</span></span><span style="display:flex;"><span>520   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (!<span style="color:#666;font-weight:bold;font-style:italic">lua_checkstack</span>(co, narg))
+</span></span><span style="display:flex;"><span>521     <span style="color:#666;font-weight:bold;font-style:italic">luaL_error</span>(L, <span style="color:#666;font-style:italic">&#34;too many arguments to resume&#34;</span>);
+</span></span><span style="display:flex;"><span>522   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (status != CO_SUS) {
+</span></span><span style="display:flex;"><span>523     <span style="color:#666;font-weight:bold;font-style:italic">lua_pushfstring</span>(L, <span style="color:#666;font-style:italic">&#34;cannot resume %s coroutine&#34;</span>, statnames[status]);
+</span></span><span style="display:flex;"><span>524     <span style="font-weight:bold;text-decoration:underline">return</span> -1;  <span style="color:#888;font-style:italic">/* error flag */</span>
+</span></span><span style="display:flex;"><span>525   }
+</span></span><span style="display:flex;"><span>526   <span style="color:#666;font-weight:bold;font-style:italic">lua_xmove</span>(L, co, narg);
+</span></span><span style="display:flex;"><span>527   <span style="color:#666;font-weight:bold;font-style:italic">lua_setlevel</span>(L, co);
+</span></span><span style="display:flex;"><span>528   status = <span style="color:#666;font-weight:bold;font-style:italic">lua_resume</span>(co, narg);
+</span></span><span style="display:flex;"><span>529   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (status == 0 || status == LUA_YIELD) {
+</span></span><span style="display:flex;"><span>530     <span style="font-weight:bold;text-decoration:underline">int</span> nres = <span style="color:#666;font-weight:bold;font-style:italic">lua_gettop</span>(co);
+</span></span><span style="display:flex;"><span>531     <span style="font-weight:bold;text-decoration:underline">if</span> (!<span style="color:#666;font-weight:bold;font-style:italic">lua_checkstack</span>(L, nres + 1))
+</span></span><span style="display:flex;"><span>532       <span style="color:#666;font-weight:bold;font-style:italic">luaL_error</span>(L, <span style="color:#666;font-style:italic">&#34;too many results to resume&#34;</span>);
+</span></span><span style="display:flex;"><span>533     <span style="color:#666;font-weight:bold;font-style:italic">lua_xmove</span>(co, L, nres);  <span style="color:#888;font-style:italic">/* move yielded values */</span>
+</span></span><span style="display:flex;"><span>534     <span style="font-weight:bold;text-decoration:underline">return</span> nres;
+</span></span><span style="display:flex;"><span>535   }
+</span></span><span style="display:flex;"><span>536   <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>537     <span style="color:#666;font-weight:bold;font-style:italic">lua_xmove</span>(co, L, 1);  <span style="color:#888;font-style:italic">/* move error message */</span>
+</span></span><span style="display:flex;"><span>538     <span style="font-weight:bold;text-decoration:underline">return</span> -1;  <span style="color:#888;font-style:italic">/* error flag */</span>
+</span></span><span style="display:flex;"><span>539   }
+</span></span><span style="display:flex;"><span>540 }
+</span></span></code></pre></div><p>它主要做如下的操作:</p>
+<ol>
+<li>数据的合法性检查。</li>
+<li>将参数通过lua_xmove函数传递到待启动的协程中，调用lua_resume函数执行协程代码。</li>
+<li>当lua_resume函数返回，说明该协程已经执行完毕，通过lua_xmove函数将yield传入的参数传递给启动该协程的协程。</li>
+</ol>
+<p>auxresume函数中会调用lua_resume函数，lua_resume中进行一些检查，以及调用层次的保护，最终会通过保护方式，即以luaD_rawrunprotected函数来保护调用resume函数执行实际的resume操作：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(ldo.c)
+</span></span><span style="display:flex;"><span>383 <span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">resume</span> (lua_State *L, <span style="font-weight:bold;text-decoration:underline">void</span> *ud) {
+</span></span><span style="display:flex;"><span>384   StkId firstArg = <span style="color:#666;font-weight:bold;font-style:italic">cast</span>(StkId, ud);
+</span></span><span style="display:flex;"><span>385   CallInfo *ci = L-&gt;ci;
+</span></span><span style="display:flex;"><span>386   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (L-&gt;status == 0) {  <span style="color:#888;font-style:italic">/* start coroutine? */</span>
+</span></span><span style="display:flex;"><span>387     <span style="color:#666;font-weight:bold;font-style:italic">lua_assert</span>(ci == L-&gt;base_ci &amp;&amp; firstArg &gt; L-&gt;base);
+</span></span><span style="display:flex;"><span>388     <span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">luaD_precall</span>(L, firstArg - 1, LUA_MULTRET) != PCRLUA)
+</span></span><span style="display:flex;"><span>389       <span style="font-weight:bold;text-decoration:underline">return</span>;
+</span></span><span style="display:flex;"><span>390   }
+</span></span><span style="display:flex;"><span>391   <span style="font-weight:bold;text-decoration:underline">else</span> {  <span style="color:#888;font-style:italic">/* resuming from previous yield */</span>
+</span></span><span style="display:flex;"><span>392     <span style="color:#666;font-weight:bold;font-style:italic">lua_assert</span>(L-&gt;status == LUA_YIELD);
+</span></span><span style="display:flex;"><span>393     L-&gt;status = 0;
+</span></span><span style="display:flex;"><span>394     <span style="color:#666;font-weight:bold;font-style:italic">if</span> (!<span style="color:#666;font-weight:bold;font-style:italic">f_isLua</span>(ci)) {  <span style="color:#888;font-style:italic">/* `common&#39; yield? */</span>
+</span></span><span style="display:flex;"><span>395       <span style="color:#888;font-style:italic">/* finish interrupted execution of `OP_CALL&#39; */</span>
+</span></span><span style="display:flex;"><span>396       <span style="color:#666;font-weight:bold;font-style:italic">lua_assert</span>(<span style="color:#666;font-weight:bold;font-style:italic">GET_OPCODE</span>(*((ci-1)-&gt;savedpc - 1)) == OP_CALL ||
+</span></span><span style="display:flex;"><span>397                  <span style="color:#666;font-weight:bold;font-style:italic">GET_OPCODE</span>(*((ci-1)-&gt;savedpc - 1)) == OP_TAILCALL);
+</span></span><span style="display:flex;"><span>398       <span style="font-weight:bold;text-decoration:underline">if</span> (<span style="color:#666;font-weight:bold;font-style:italic">luaD_poscall</span>(L, firstArg))  <span style="color:#888;font-style:italic">/* complete it... */</span>
+</span></span><span style="display:flex;"><span>399         L-&gt;top = L-&gt;ci-&gt;top;  <span style="color:#888;font-style:italic">/* and correct top if not multiple results */</span>
+</span></span><span style="display:flex;"><span>400     }
+</span></span><span style="display:flex;"><span>401     <span style="font-weight:bold;text-decoration:underline">else</span>  <span style="color:#888;font-style:italic">/* yielded inside a hook: just continue its execution */</span>
+</span></span><span style="display:flex;"><span>402       L-&gt;base = L-&gt;ci-&gt;base;
+</span></span><span style="display:flex;"><span>403   }
+</span></span><span style="display:flex;"><span>404   <span style="color:#666;font-weight:bold;font-style:italic">luaV_execute</span>(L, <span style="color:#666;font-weight:bold;font-style:italic">cast_int</span>(L-&gt;ci - L-&gt;base_ci));
+</span></span><span style="display:flex;"><span>405 }
+</span></span></code></pre></div><p>这个函数做了以下的事情：</p>
+<ol>
+<li>如果当前协程的状态是0，那么说明它是第一次执行resume操作，此时调用luaD_precall做函数调用前的准备工作。luaD_precall函数如果返回值不是PCRLUA，说明是在C函数中进行resume操作的，此时并不需要后面的luaV_execute函数，因此就直接返回了。</li>
+<li>否则就是从之前的YIELD状态中继续执行，首先将协程的状态置为0，其次判断此时ci的类型，如果不是Lua函数，说明之前是被中断的函数调用，此时调用luaD_poscall函数继续完成未完的函数操作；否则只需要调整base指针指向之前的ci的base指针即可。</li>
+<li>以上的几种情况，最终都会调用luaV_execute函数来进入Lua虚拟机中执行。在这里可以看到，由于使用了同样的结构Lua_State来表示Lua虚拟机和Lua协程，在表达Lua虚拟机的执行和协程的执行上，两者都是统一的使用LuaV_execute函数，方便了实现。</li>
+</ol>
+<p>yield操作在函数lua_yield中进行：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>(ldo.c)
+</span></span><span style="display:flex;"><span>443 LUA_API <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">lua_yield</span> (lua_State *L, <span style="font-weight:bold;text-decoration:underline">int</span> nresults) {
+</span></span><span style="display:flex;"><span>444   <span style="color:#666;font-weight:bold;font-style:italic">luai_userstateyield</span>(L, nresults);
+</span></span><span style="display:flex;"><span>445   <span style="color:#666;font-weight:bold;font-style:italic">lua_lock</span>(L);
+</span></span><span style="display:flex;"><span>446   <span style="color:#666;font-weight:bold;font-style:italic">if</span> (L-&gt;nCcalls &gt; L-&gt;baseCcalls)
+</span></span><span style="display:flex;"><span>447     <span style="color:#666;font-weight:bold;font-style:italic">luaG_runerror</span>(L, <span style="color:#666;font-style:italic">&#34;attempt to yield across metamethod/C-call boundary&#34;</span>);
+</span></span><span style="display:flex;"><span>448   L-&gt;base = L-&gt;top - nresults;  <span style="color:#888;font-style:italic">/* protect stack slots below */</span>
+</span></span><span style="display:flex;"><span>449   L-&gt;status = LUA_YIELD;
+</span></span><span style="display:flex;"><span>450   <span style="color:#666;font-weight:bold;font-style:italic">lua_unlock</span>(L);
+</span></span><span style="display:flex;"><span>451   <span style="font-weight:bold;text-decoration:underline">return</span> -1;
+</span></span><span style="display:flex;"><span>452 }
+</span></span></code></pre></div><p>yield函数做的事情相比起来就简单很多了，就是将协程执行状态至为YIELD，这样可以终止luaV_execute函数的循环。</p>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

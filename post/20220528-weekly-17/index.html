@@ -1,417 +1,203 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>周刊（第17期）：Read-Write Quorum System及在Raft中的实践 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"周刊（第17期）：Read-Write Quorum System及在Raft中的实践",
-      "item":"https://www.codedump.info/post/20220528-weekly-17/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220528-weekly-17/"
-    },
-    "headline": "周刊（第17期）：Read-Write Quorum System及在Raft中的实践 - codedump的网络日志","datePublished": "2022-05-28T16:16:57+08:00",
-    "dateModified": "2022-05-28T16:16:57+08:00",
-    "wordCount":  3527 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "周刊（第17期）：Read-Write Quorum System及在Raft中的实践"
-}
-</script><meta property="og:title" content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220528-weekly-17/" />
-
-
-
-<meta property="og:description" content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-05-28T16:16:57&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-05-28T16:16:57&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="周刊" />
-
-<meta property="article:tag" content="raft" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220904-weekly-24/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220807-weekly-23/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220710-weekly-22/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220703-weekly-21/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    周刊（第17期）：Read-Write Quorum System及在Raft中的实践 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20220528-weekly-17/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20220528-weekly-17/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践">
+  <meta property="og:description" content="周刊（第17期）：Read-Write Quorum System及在Raft中的实践">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-05-28T16:16:57+08:00">
+    <meta property="article:modified_time" content="2022-05-28T16:16:57+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-05-28</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220528-weekly-17/">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第17期）：Read-Write Quorum System及在Raft中的实践</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-05-28T16:16:57&#43;08:00">2022年5月28日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>8分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >周刊</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/raft/" class="hover:text-eureka"
-          >raft</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >2022周刊</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#read-write-quorum-system">Read-Write Quorum System</a></li>
+    <li><a href="#read-write-quorum视角下的raft成员变更算法">Read-Write Quorum视角下的Raft成员变更算法</a>
+      <ul>
+        <li><a href="#单步成员变更的问题">单步成员变更的问题</a></li>
+        <li><a href="#read-write-quorum视角下的joint-consensus算法">Read-Write Quorum视角下的joint consensus算法</a></li>
+        <li><a href="#quorum改造的启示">quorum改造的启示</a></li>
+      </ul>
+    </li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ul>
+</nav>
+  </aside>
   
 
-  <hr>
+  
+
+  <div class="single-content">
+    <hr>
 <p>引言：在Paxos、Raft这类一致性算法的描述里，经常会看到<code>Majority</code>、<code>Quorum</code>这两个词，在以前我以为都是表达“半数以上”的含义，最近才发现两者有不小的区别。本文介绍这两者的区别，以及在Raft中实践中的问题。有了<code>Quorum</code>的视角，能更好得理解一致性算法。</p>
 <hr>
-<h2 id="read-write-quorum-system">Read-Write Quorum System</h2>
+<h2 class="heading" id="read-write-quorum-system">
+  Read-Write Quorum System
+  <a class="anchor" href="#read-write-quorum-system">#</a>
+</h2>
 <p>首先来在数学上给出<code>Read-Write Quorum System</code>的定义。</p>
 <p>一个<code>Read-Write Quorum System（读写法定系统）</code>是两个集合组成的元组，即<code>Q=(R,W)</code>，其中：</p>
 <ul>
@@ -449,9 +235,57 @@
 </li>
 </ul>
 <p><strong>即可以认为<code>Majority</code>系统，只是<code>Read-Write Quorum System</code>的一个子集。</strong></p>
-<p><img src="/media/imgs/20220528-weekly-17/quorum.png" alt="quorum" title="quorum"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="quorum" src="/media/imgs/20220528-weekly-17/quorum.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> quorum </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>讲了这么多，来看一个非<code>Majoiry</code>的 <code>Read-Write Quorum System</code>，下面的集合<code>{a,b,c,d,e,f}</code>组成的网格（grid）被划分成了横竖两个读、写集合：</p>
-<p><img src="/media/imgs/20220528-weekly-17/grid.png" alt="grid" title="grid"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="grid" src="/media/imgs/20220528-weekly-17/grid.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> grid </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，定义了一个<code>Read-Write Quorum System</code>，<code>Q={{abc}∪{def},{ab}∪{bc}∪{ac}}</code>，其中：</p>
 <ul>
 <li>读集合为<code>{abc}∪{def}</code>，即横着的两个集合<code>{abc}</code>和<code>{def}</code>组成了读集合。</li>
@@ -460,11 +294,41 @@
 <p>显然这个划分是能够满足前面的条件：$r∈R,  w∈W,r∩w≠0 $ 的，因为任选一个读集合中的集合如<code>{abc}</code>，写集合中任选的一个集合如<code>{ad}</code>，这两个集合中的元素都会有重合。</p>
 <p>假设是这样构成的一个分布式系统，那么写操作只需要写入写集合中的任意一个集合即可认为成功，可以看到一个写集合最小可以只有两个节点构成，这个数量是小于<code>Majority</code>的。</p>
 <p>有了对<code>Read-Write Quorum System</code>系统及与<code>Majority</code>的区分和联系，以这个视角来看看raft的成员变更算法。</p>
-<h2 id="read-write-quorum视角下的raft成员变更算法">Read-Write Quorum视角下的Raft成员变更算法</h2>
+<h2 class="heading" id="read-write-quorum视角下的raft成员变更算法">
+  Read-Write Quorum视角下的Raft成员变更算法
+  <a class="anchor" href="#read-write-quorum%e8%a7%86%e8%a7%92%e4%b8%8b%e7%9a%84raft%e6%88%90%e5%91%98%e5%8f%98%e6%9b%b4%e7%ae%97%e6%b3%95">#</a>
+</h2>
 <p>实际这几个问题，在之前的博客<a href="https://www.codedump.info/post/20220507-weekly-14/">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇 - codedump的网络日志</a>中都有提及，不过这一次因为有了新的视角，再拿出来看看。</p>
-<h3 id="单步成员变更的问题">单步成员变更的问题</h3>
+<h3 class="heading" id="单步成员变更的问题">
+  单步成员变更的问题
+  <a class="anchor" href="#%e5%8d%95%e6%ad%a5%e6%88%90%e5%91%98%e5%8f%98%e6%9b%b4%e7%9a%84%e9%97%ae%e9%a2%98">#</a>
+</h3>
 <p>假设一种场景，机房中的某个节点<code>a</code>由于各种原因需要下线，替换成同一机房中的另一个节点<code>d</code>，即<code>a</code>、<code>d</code>节点在同机房，而<code>b</code>和<code>c</code>在另外两个机房。</p>
-<p><img src="/media/imgs/20220507-weekly-14/availability.png" alt="availability" title="availability"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="availability" src="/media/imgs/20220507-weekly-14/availability.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> availability </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>这意味着节点集合要从<code>{a,b,c}</code>变为<code>{b,c,d}</code>，根据Raft的单步成员变更算法，要经历如下两次单步变更：</p>
 <ul>
 <li>加入节点<code>d</code>，即从<code>{a,b,c}</code>变成<code>{a,b,c,d}</code>。</li>
@@ -480,21 +344,24 @@
 <pre tabindex="0"><code>Q(R,W) = Q(M(Q), M(Q) ∪ {b,c})。
 
 其中M(Q)为取集合Q的半数以上的节点集合，以{a,b,c，d}组成的集合来说，M(Q)={{a,b,c},{a,c,d},{b,c,d},{a,b,c,d}}
-</code></pre><p>显然，这里的读quorum集合和写quorum集合，是可以满足之前的条件的，即： $r∈R,  w∈W,r∩w≠0 $ ，这是因为 $M(Q)∩{b,c}≠0 $ 。</p>
+</code></pre><p>显然，这里的读quorum集合和写quorum集合，是可以满足之前的条件的，即： $r∈R,  w∈W,r∩w≠0 $ ，这是因为 $M(Q)∩\{b,c\}≠0 $ 。</p>
 <p>对于这个改造后的系统，可以认为：</p>
 <ul>
 <li>读操作，仍然需要读到集群中至少半数以上的节点才能算读成功。</li>
 <li>写操作，只要写入<code>{b,c}</code>（由于{b,c}已经包含在半数以上节点中，这里就不单独强调写半数以上节点这个条件了）就可以认为写成功了。</li>
 </ul>
 <p>这样改造之后，即便系统出现了前面的机房隔离问题，也没有问题。</p>
-<h3 id="read-write-quorum视角下的joint-consensus算法">Read-Write Quorum视角下的joint consensus算法</h3>
+<h3 class="heading" id="read-write-quorum视角下的joint-consensus算法">
+  Read-Write Quorum视角下的joint consensus算法
+  <a class="anchor" href="#read-write-quorum%e8%a7%86%e8%a7%92%e4%b8%8b%e7%9a%84joint-consensus%e7%ae%97%e6%b3%95">#</a>
+</h3>
 <p>与单步成员变更不同的是，joint consensus算法允许一次提交多个节点的变化，在之前对<code>joint consensus</code>算法的描述中（见：<a href="https://www.codedump.info/post/20220417-weekly-13/#%E4%B8%80%E6%AC%A1%E5%8F%98%E6%9B%B4%E5%A4%9A%E4%B8%AA%E8%8A%82%E7%82%B9">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇 - codedump的网络日志</a>），这个算法分为两阶段提交（假设旧的节点集合为$C_Old$，而新的节点集合为$C_New$）：</p>
 <ul>
 <li>首先提交一个$C_Old ∪ C_New$的配置。</li>
 <li>如果上述配置提交成功，再提交一个$C_New$的配置。</li>
 </ul>
-<p>在上面的例子中，$C_Old = {a,b,c}$，而$C_New = {b,c,d}$。</p>
-<p>从<code>Read-Write Quorum</code>的视角下来看看为什么<code>joint consensus</code>算法可以很好的工作，而不用像单步成员变更算法那样担心网络隔离导致的问题。来计算一下集合${a,b,c} ∪ {b,c,d}$的<code>Majority</code>值：</p>
+<p>在上面的例子中，$C_Old = \{a,b,c\}$，而$C_New = \{b,c,d\}$。</p>
+<p>从<code>Read-Write Quorum</code>的视角下来看看为什么<code>joint consensus</code>算法可以很好的工作，而不用像单步成员变更算法那样担心网络隔离导致的问题。来计算一下集合$\{a,b,c\} ∪ \{b,c,d\}$的<code>Majority</code>值：</p>
 <pre tabindex="0"><code>M(abc) x M(bcd) = {
     ab ∪ bc,
     ab ∪ cd,
@@ -516,203 +383,109 @@
 </code></pre><p>（引用自<a href="https://blog.openacid.com/distributed/raft-bug/">TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog</a>）</p>
 <p>可以看到，计算出来的<code>Majority</code>集合刚好就是前面提到的<code>M(a,b,c,d)∪ {b,c}</code>。</p>
 <p>换言之，从数学角度来看，以上证明了<code>joint consensus</code>算法即便在网络隔离的条件下，以<code>Majority</code>的条件来要求这个算法，也是能很好的工作的。这也就是为什么这个算法会比单步变更算法更为健壮的数学依据。</p>
-<h3 id="quorum改造的启示">quorum改造的启示</h3>
+<h3 class="heading" id="quorum改造的启示">
+  quorum改造的启示
+  <a class="anchor" href="#quorum%e6%94%b9%e9%80%a0%e7%9a%84%e5%90%af%e7%a4%ba">#</a>
+</h3>
 <p>从以上的分析来看，从<code>Read-Write Quorum</code>视角来看，<code>写Quorum集合</code>从<code>Majority</code>视角下的<code>W(Q)=M(Q)={{a,b,c},{a,c,d},{b,c,d},{a,b,c,d}}</code>，扩展为<code>W(Q)=M(Q)∪{b,c}</code>来提升系统的可用性。</p>
 <p>未来，是不是可以针对Raft的写操作，都能这样改造<code>写Quorum集合</code>，这会是一个有意思的方向，我还没有对这个方向思考的更多，先把问题放在这里：）</p>
 <p>在论文<a href="https://mwhittaker.github.io/publications/quoracle.pdf">Read-Write Quorum Systems Made Practical </a>中，作者给出了一个Python库<a href="https://github.com/mwhittaker/quoracle">quoracle:</a>，专门用于评估、计算不同的读、写集合下系统的可用性等指标。</p>
-<h2 id="参考资料">参考资料</h2>
+<h2 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h2>
 <ul>
 <li><a href="https://blog.openacid.com/distributed/raft-bug/">TiDB 在 Raft 成员变更上踩的坑 - OpenACID Blog</a></li>
 <li><a href="https://blog.openacid.com/algo/quorum/">后分布式时代: 多数派读写的’少数派’实现 - OpenACID Blog</a></li>
 <li><a href="https://mwhittaker.github.io/publications/quoracle.pdf">Read-Write Quorum Systems Made Practical </a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
-    
-    <a href="https://www.codedump.info/tags/raft/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#raft</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20220612-weekly-18/" class="block">周刊（第18期）：网状的思考，线性的写作</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220521-weekly-16/" class="block">周刊（第16期）：图解ARIES论文（下）</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li>
-      <ul>
-        <li><a href="#read-write-quorum-system">Read-Write Quorum System</a></li>
-        <li><a href="#read-write-quorum视角下的raft成员变更算法">Read-Write Quorum视角下的Raft成员变更算法</a>
-          <ul>
-            <li><a href="#单步成员变更的问题">单步成员变更的问题</a></li>
-            <li><a href="#read-write-quorum视角下的joint-consensus算法">Read-Write Quorum视角下的joint consensus算法</a></li>
-            <li><a href="#quorum改造的启示">quorum改造的启示</a></li>
-          </ul>
-        </li>
-        <li><a href="#参考资料">参考资料</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20220507-weekly-14/" class="no-underline">周刊（第14期）：重读Raft论文中的集群成员变更算法（二）：实践篇</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220417-weekly-13/" class="no-underline">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/" class="no-underline">etcd 3.5版本的joint consensus实现解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211011-raft-propose-prev-term/" class="no-underline">为什么Raft协议不能提交之前任期的日志？</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20210628-etcd-wal/" class="no-underline">Etcd Raft库的日志存储</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20210515-raft/" class="no-underline">Etcd Raft库的工程化实现</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

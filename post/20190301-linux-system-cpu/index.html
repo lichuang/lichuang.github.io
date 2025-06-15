@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Linux System性能相关之CPU篇 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20190301-linux-system-cpu/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20190301-linux-system-cpu/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Linux System性能相关之CPU篇">
+  <meta property="og:description" content="平均负载 # 使用uptime命令可以查看系统的负载情况，如：
+$ uptime 09:20:53 up 35 days, 11:30, 1 user, load average: 0.00, 0.01, 0.05 其中，最后三列表示是过去1分钟、5分钟、15分钟的平均负载（Load Average）。
+平均负载是指单位时间内，系统处于可运行状态和不可中断状态的平均进程数，也就是平均活跃进程数，和CPU使用率没有直接关系。
+这里解释一下可运行状态和不可中断状态的进程。
+所谓可运行状态的进程，是指正在使用CPU或者正在等待CPU的进程，也就是我们常用ps命令看到的，处于R状态（Running或Runnable）的进程。
+不可中断状态的进程则是正处于内核态关键流程中的进程，并且这些流程是不可打断的，比如常见的等待硬件设备的IO响应，也就是ps命令中看到的D状态（Uninterruptible Sleep，也称为 Disk Sleep）的进程。
+以上解释了“平均负载”的含义。平均负载最理想的情况是等于CPU个数，从下面的文件中查看系统的CPU数量：
+$ grep &#39;model name&#39; /proc/cpuinfo | wc -l 因此，uptime命令显示的过去几分钟的平均负载数的变化，体现出来的是系统平均负载的变化趋势。
+对比平均负载与CPU使用率 # 平均负载指单位时间内，处于可运行状态和不可中断状态的进程数。所以，不仅包括了正在使用CPU的进程，还包括等待CPU和等待IO的进程。
+而CPU使用率，是单位时间内CPU繁忙情况的统计，跟平均负载不一定完全对应，比如：
+CPU密集型进程，使用大量CPU会导致平均负载升高，此时两者是一致的。 IO密集型进程，等待IO也会导致平均负载升高，但是CPU使用率不一定很高。 大量等待CPU的进程调度也会导致平均负载升高，此时的CPU使用率也会比较高。 工具 # 可以使用pidstat工具查看CPU。
+CPU上下文切换 # 系统调用过程中，
+为了执行内核态代码，CPU寄存器首先需要更新为CPU内核态指令的新位置，然后跳转到内核态运行内核任务。 系统调用过程中，CPU寄存器需要恢复原来保存的用户态，然后再切换到用户空间，继续运行进程。 所以，一次系统调用过程，其实发生了两次CPU上下文切换。不过，系统调用过程中，并不会涉及到虚拟内存等用户态资源的切换，也不会切换进程。
+因此，系统调用过程通常被称为特权模式切换，而不是上下文切换。
+而进程是由内核来管理和调度的，进程的切换只能发生在内核态。所以，进程的上下文不仅包括了虚拟内存、栈、全局变量等用户空间的资源，还包括了堆栈、寄存器等内核空间的状态。
+因此，进程的上下文切换就比系统调用多了一步：在保存当前进程的内核状态和CPU寄存器之前，需要先把进程的虚拟内存、栈等保存下来；而加载了下一进程的内核态之后，还需要刷新进程的虚拟内存和用户栈。
+进程切换 # 进程调度的时机：
+为了保证所有进程可以得到公平调度，CPU时间被划分为一段段的时间片，这些时间片再被轮流分配给各个进程。这样，当某个进程的时间片被耗尽时，就会被系统挂起，切换其它正在等待CPU的进程来运行。
+进程在系统资源不足（比如内存不足）时，要等到资源满足后才可以运行，这个时候进程也会挂起，并由系统调度其它进程运行。
+当进程通过sleep这样的函数将自己主动挂起时，也会被重新调度。
+当优先级更高的进程运行时，为了保证高优先级进程的运行，当前进程也会被挂起，由更高优先级的进程来运行。
+最后，当发生硬件中断时，CPU上的进程会被中断挂起，转而执行内核中的中断服务程序。
+中断上下文切换 # 为了快速响应硬件的事件，中断处理会打断进程的正常调度和执行，转而调度中断处理程序，响应设备事件。而在打断其它进程时，就需要将进程当前的状态保存下来，这样在中断结束后，进程仍然可以从原来的状态恢复执行。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-03-01T09:09:08+08:00">
+    <meta property="article:modified_time" content="2019-03-01T09:09:08+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190301-linux-system-cpu/">Linux System性能相关之CPU篇</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Linux System性能相关之CPU篇</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-03-01T09:09:08&#43;08:00">2019年3月1日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="平均负载">
+  平均负载
+  <a class="anchor" href="#%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd">#</a>
+</h1>
+<p>使用uptime命令可以查看系统的负载情况，如：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">$</span> uptime
+</span></span><span style="display:flex;"><span> 09:20:53 up 35 days, 11:30,  1 user,  load average: 0.00, 0.01, 0.05
+</span></span></code></pre></div><p>其中，最后三列表示是过去1分钟、5分钟、15分钟的平均负载（Load Average）。</p>
+<p>平均负载是指单位时间内，系统处于可运行状态和不可中断状态的平均进程数，也就是平均活跃进程数，和CPU使用率没有直接关系。</p>
+<p>这里解释一下可运行状态和不可中断状态的进程。</p>
+<p>所谓可运行状态的进程，是指正在使用CPU或者正在等待CPU的进程，也就是我们常用ps命令看到的，处于R状态（Running或Runnable）的进程。</p>
+<p>不可中断状态的进程则是正处于内核态关键流程中的进程，并且这些流程是不可打断的，比如常见的等待硬件设备的IO响应，也就是ps命令中看到的D状态（Uninterruptible Sleep，也称为 Disk Sleep）的进程。</p>
+<p>以上解释了“平均负载”的含义。平均负载最理想的情况是等于CPU个数，从下面的文件中查看系统的CPU数量：</p>
+<pre tabindex="0"><code>$ grep &#39;model name&#39; /proc/cpuinfo | wc -l
+</code></pre><p>因此，uptime命令显示的过去几分钟的平均负载数的变化，体现出来的是系统平均负载的变化趋势。</p>
+<h2 class="heading" id="对比平均负载与cpu使用率">
+  对比平均负载与CPU使用率
+  <a class="anchor" href="#%e5%af%b9%e6%af%94%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd%e4%b8%8ecpu%e4%bd%bf%e7%94%a8%e7%8e%87">#</a>
+</h2>
+<p>平均负载指单位时间内，处于可运行状态和不可中断状态的进程数。所以，不仅包括了正在使用CPU的进程，还包括等待CPU和等待IO的进程。</p>
+<p>而CPU使用率，是单位时间内CPU繁忙情况的统计，跟平均负载不一定完全对应，比如：</p>
+<ul>
+<li>CPU密集型进程，使用大量CPU会导致平均负载升高，此时两者是一致的。</li>
+<li>IO密集型进程，等待IO也会导致平均负载升高，但是CPU使用率不一定很高。</li>
+<li>大量等待CPU的进程调度也会导致平均负载升高，此时的CPU使用率也会比较高。</li>
+</ul>
+<h2 class="heading" id="工具">
+  工具
+  <a class="anchor" href="#%e5%b7%a5%e5%85%b7">#</a>
+</h2>
+<p>可以使用pidstat工具查看CPU。</p>
+<h1 class="heading" id="cpu上下文切换">
+  CPU上下文切换
+  <a class="anchor" href="#cpu%e4%b8%8a%e4%b8%8b%e6%96%87%e5%88%87%e6%8d%a2">#</a>
+</h1>
+<p>系统调用过程中，</p>
+<ul>
+<li>为了执行内核态代码，CPU寄存器首先需要更新为CPU内核态指令的新位置，然后跳转到内核态运行内核任务。</li>
+<li>系统调用过程中，CPU寄存器需要恢复原来保存的用户态，然后再切换到用户空间，继续运行进程。</li>
+</ul>
+<p>所以，一次系统调用过程，其实发生了两次CPU上下文切换。不过，系统调用过程中，并不会涉及到虚拟内存等用户态资源的切换，也不会切换进程。</p>
+<p>因此，系统调用过程通常被称为特权模式切换，而不是上下文切换。</p>
+<p>而进程是由内核来管理和调度的，进程的切换只能发生在内核态。所以，进程的上下文不仅包括了虚拟内存、栈、全局变量等用户空间的资源，还包括了堆栈、寄存器等内核空间的状态。</p>
+<p>因此，进程的上下文切换就比系统调用多了一步：在保存当前进程的内核状态和CPU寄存器之前，需要先把进程的虚拟内存、栈等保存下来；而加载了下一进程的内核态之后，还需要刷新进程的虚拟内存和用户栈。</p>
+<h2 class="heading" id="进程切换">
+  进程切换
+  <a class="anchor" href="#%e8%bf%9b%e7%a8%8b%e5%88%87%e6%8d%a2">#</a>
+</h2>
+<p>进程调度的时机：</p>
+<ul>
+<li>
+<p>为了保证所有进程可以得到公平调度，CPU时间被划分为一段段的时间片，这些时间片再被轮流分配给各个进程。这样，当某个进程的时间片被耗尽时，就会被系统挂起，切换其它正在等待CPU的进程来运行。</p>
+</li>
+<li>
+<p>进程在系统资源不足（比如内存不足）时，要等到资源满足后才可以运行，这个时候进程也会挂起，并由系统调度其它进程运行。</p>
+</li>
+<li>
+<p>当进程通过sleep这样的函数将自己主动挂起时，也会被重新调度。</p>
+</li>
+<li>
+<p>当优先级更高的进程运行时，为了保证高优先级进程的运行，当前进程也会被挂起，由更高优先级的进程来运行。</p>
+</li>
+<li>
+<p>最后，当发生硬件中断时，CPU上的进程会被中断挂起，转而执行内核中的中断服务程序。</p>
+</li>
+</ul>
+<h2 class="heading" id="中断上下文切换">
+  中断上下文切换
+  <a class="anchor" href="#%e4%b8%ad%e6%96%ad%e4%b8%8a%e4%b8%8b%e6%96%87%e5%88%87%e6%8d%a2">#</a>
+</h2>
+<p>为了快速响应硬件的事件，中断处理会打断进程的正常调度和执行，转而调度中断处理程序，响应设备事件。而在打断其它进程时，就需要将进程当前的状态保存下来，这样在中断结束后，进程仍然可以从原来的状态恢复执行。</p>
+<p>跟进程上下文不同，中断上下文切换并不涉及到进程的用户态。所以，即使中断过程打断了一个正处在用户态的进程，也不需要保存和恢复进程的虚拟内存、全局变量等用户态资源。中断上下文，其实只包括内核态中断服务程序所需的状态，包括寄存器、内核堆栈、硬件中断参数等。</p>
+<p>对于同一个CPU而言，中断处理比进程拥有更高的优先级，所以中断上下文切换并不会与进程上下文切换同时发生。同样道理，由于中断会打断正常进程的调度和执行，所以大部分中断处理程序都短小精悍，以便尽可能快的执行结束。</p>
+<h2 class="heading" id="如何查看系统的上下文切换情况">
+  如何查看系统的上下文切换情况
+  <a class="anchor" href="#%e5%a6%82%e4%bd%95%e6%9f%a5%e7%9c%8b%e7%b3%bb%e7%bb%9f%e7%9a%84%e4%b8%8a%e4%b8%8b%e6%96%87%e5%88%87%e6%8d%a2%e6%83%85%e5%86%b5">#</a>
+</h2>
+<p>采用vmstat工具：</p>
+<h1 class="heading" id="每隔-5-秒输出-1-组数据">
+  每隔 5 秒输出 1 组数据
+  <a class="anchor" href="#%e6%af%8f%e9%9a%94-5-%e7%a7%92%e8%be%93%e5%87%ba-1-%e7%bb%84%e6%95%b0%e6%8d%ae">#</a>
+</h1>
+<pre tabindex="0"><code>$ vmstat 5
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 0  0      0 7005360  91564 818900    0    0     0     0   25   33  0  0 100  0  0
+</code></pre><h1 class="heading" id="todo">
+  TODO
+  <a class="anchor" href="#todo">#</a>
+</h1>
+<ul>
+<li>iostat命令</li>
+<li>vmstat命令</li>
+<li>pidstat命令</li>
+<li>去哪里读取各种指标？对应linux内核什么行为？</li>
+</ul>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
+<ul>
+<li>极客时间专栏-Linux性能优化实践</li>
+</ul>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

@@ -1,328 +1,180 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>boltdb 1.3.0实现分析（一） - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="boltdb 1.3.0实现分析"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="boltdb 1.3.0实现分析">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"boltdb 1.3.0实现分析（一）",
-      "item":"https://www.codedump.info/post/20200625-boltdb-1/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20200625-boltdb-1/"
-    },
-    "headline": "boltdb 1.3.0实现分析（一） - codedump的网络日志","datePublished": "2020-06-25T21:43:17+08:00",
-    "dateModified": "2020-06-25T21:43:17+08:00",
-    "wordCount":  4077 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "boltdb 1.3.0实现分析"
-}
-</script><meta property="og:title" content="boltdb 1.3.0实现分析（一） - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20200625-boltdb-1/" />
-
-
-
-<meta property="og:description" content="boltdb 1.3.0实现分析" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2020-06-25T21:43:17&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2020-06-25T21:43:17&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200726-boltdb-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200725-boltdb-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200711-boltdb-2/" />
-
-
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    boltdb 1.3.0实现分析（一） | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">boltdb 1.3.0实现分析（一）</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20200625-boltdb-1/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2020-06-25</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20200625-boltdb-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="boltdb 1.3.0实现分析（一）">
+  <meta property="og:description" content="boltdb 1.3.0实现分析">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-06-25T21:43:17+08:00">
+    <meta property="article:modified_time" content="2020-06-25T21:43:17+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/boltdb-1.3.0%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" class="hover:text-eureka"
-          >boltdb 1.3.0实现分析</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20200625-boltdb-1/">boltdb 1.3.0实现分析（一）</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">boltdb 1.3.0实现分析（一）</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-06-25T21:43:17&#43;08:00">2020年6月25日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <blockquote>
-<p>本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：</p>
-</blockquote>
+  
+
+  
+
+  <div class="single-content">
+    <blockquote>
+<p>本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：</p></blockquote>
 <blockquote>
 <ul>
 <li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
@@ -330,37 +182,65 @@
 <li><a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a></li>
 <li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上）</a></li>
 <li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下）</a></li>
-</ul>
-</blockquote>
+</ul></blockquote>
 <blockquote>
-<p>本文的写作，主要参考了<a href="https://www.jianshu.com/p/b86a69892990">《区块的持久化之BoltDB》系列文章</a>以及<a href="https://youjiali1995.github.io/storage/boltdb">boltdb 源码分析</a></p>
-</blockquote>
-<h1 id="概述">概述</h1>
+<p>本文的写作，主要参考了<a href="https://www.jianshu.com/p/b86a69892990">《区块的持久化之BoltDB》系列文章</a>以及<a href="https://youjiali1995.github.io/storage/boltdb">boltdb 源码分析</a></p></blockquote>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>boltdb是etcd项目使用的kv存储引擎，代码量不大，不算测试用例的话仅有几千行代码量，是入门存储引擎不错的参考项目。</p>
 <p>boltdb中与mysql这类的关系数据库相对应的概念列举如下：</p>
 <table>
-<thead>
-<tr>
-<th>boltdb</th>
-<th>mysql</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>db</td>
-<td>database</td>
-</tr>
-<tr>
-<td>bucket</td>
-<td>table</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>boltdb</th>
+          <th>mysql</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>db</td>
+          <td>database</td>
+      </tr>
+      <tr>
+          <td>bucket</td>
+          <td>table</td>
+      </tr>
+  </tbody>
 </table>
 <p>即：在boltdb中，db代表一个数据库，对应一个db文件；而一个数据库中可能有多个表，对应的概念就是boltdb中的bucket。</p>
 <p>另外，对B+树有了解的都知道，B+树中为了减少磁盘读写次数，每次读写都是以页为单位的，对应到boltdb中用<code>page</code>数据结构表示，<code>page</code>只是描述磁盘上一个页面的数据结构，当一个页面读取到内存中时，就使用<code>node</code>结构体来描述。另外，既然落地到磁盘的单位是页，就需要有数据结构来管理页面的分配，这部分使用<code>freelist</code>这个数据结构来管理。</p>
-<p><img src="/media/imgs/20200625-boltdb-1/page-struct.png" alt="page-struct" title="page-struct"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="page-struct" src="/media/imgs/20200625-boltdb-1/page-struct.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> page-struct </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以下，首先展开对页面相关核心数据结构的分析。</p>
-<h1 id="数据库文件的磁盘布局和页面">数据库文件的磁盘布局和页面</h1>
+<h1 class="heading" id="数据库文件的磁盘布局和页面">
+  数据库文件的磁盘布局和页面
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e5%ba%93%e6%96%87%e4%bb%b6%e7%9a%84%e7%a3%81%e7%9b%98%e5%b8%83%e5%b1%80%e5%92%8c%e9%a1%b5%e9%9d%a2">#</a>
+</h1>
 <p>前面提到过，boltdb中以页面为单位来进行磁盘的读写操作，一个页面的大小一般而言与操作系统的页面一致，即4K大小。在boltdb中，分为以下几种类型的页面：</p>
 <ul>
 <li>存储meta元数据的页面。</li>
@@ -369,14 +249,38 @@
 <li>Leaf页面，存储B+树数据节点，也就是叶子节点的页面。</li>
 </ul>
 <p>boltdb代码中定义页面类型如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">const</span> <span class="p">(</span>
-	<span class="nx">branchPageFlag</span>   <span class="p">=</span> <span class="mh">0x01</span>
-	<span class="nx">leafPageFlag</span>     <span class="p">=</span> <span class="mh">0x02</span>
-	<span class="nx">metaPageFlag</span>     <span class="p">=</span> <span class="mh">0x04</span>
-	<span class="nx">freelistPageFlag</span> <span class="p">=</span> <span class="mh">0x10</span>
-<span class="p">)</span>
-</code></pre></div><p>这四种页面，在boltdb的数据库文件的布局大体如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/boltdb-layout.png" alt="boltdb-layout" title="boltdb-layout"></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">const</span> (
+</span></span><span style="display:flex;"><span>	branchPageFlag   = 0x01
+</span></span><span style="display:flex;"><span>	leafPageFlag     = 0x02
+</span></span><span style="display:flex;"><span>	metaPageFlag     = 0x04
+</span></span><span style="display:flex;"><span>	freelistPageFlag = 0x10
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><p>这四种页面，在boltdb的数据库文件的布局大体如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="boltdb-layout" src="/media/imgs/20200625-boltdb-1/boltdb-layout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> boltdb-layout </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>从上图中可以看出：</p>
 <ul>
 <li>最开始的两个页面是两个meta页面，至于为什么是两个，后面再展开讨论。</li>
@@ -384,18 +288,21 @@
 <li>从上面可知，数据库文件中最开始的三个页面存的都是管理信息，此后数据数据型的branch以及leaf页面了。</li>
 </ul>
 <p>接下来就这几种页面具体的结构展开说明，不过在此之前还是首先来看看<code>page</code>结构体，它用于表示一个磁盘页面的数据结构。</p>
-<h2 id="page结构体">page结构体</h2>
+<h2 class="heading" id="page结构体">
+  page结构体
+  <a class="anchor" href="#page%e7%bb%93%e6%9e%84%e4%bd%93">#</a>
+</h2>
 <p><code>page</code>结构体的定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">pgid</span> <span class="kt">uint64</span>
-
-<span class="kd">type</span> <span class="nx">page</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">id</span>       <span class="nx">pgid</span>
-    <span class="nx">flags</span>    <span class="kt">uint16</span>
-    <span class="nx">count</span>    <span class="kt">uint16</span>
-    <span class="nx">overflow</span> <span class="kt">uint32</span>
-    <span class="nx">ptr</span>      <span class="kt">uintptr</span>
-<span class="p">}</span>
-</code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> pgid <span style="font-weight:bold;text-decoration:underline">uint64</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> page <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>    id       pgid
+</span></span><span style="display:flex;"><span>    flags    <span style="font-weight:bold;text-decoration:underline">uint16</span>
+</span></span><span style="display:flex;"><span>    count    <span style="font-weight:bold;text-decoration:underline">uint16</span>
+</span></span><span style="display:flex;"><span>    overflow <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>    ptr      <span style="font-weight:bold;text-decoration:underline">uintptr</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>id：页面ID。</li>
 <li>flags：标志位，不同类型的页面用不同的标志位来区分。分为：metaPageFlag、freelistPageFlag、branchPageFlag、leafPageFlag。</li>
@@ -404,22 +311,49 @@
 <li>ptr：指向页表头数据结尾，也就是页面数据的起始位置。一个页面的页表头由前面的id、flags、count和overflow字段构成，而ptr并不是页表头的一部分。</li>
 </ul>
 <p>根据以上的分析，一个页面的格式如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/page-layout.png" alt="page-layout" title="page-layout"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="page-layout" src="/media/imgs/20200625-boltdb-1/page-layout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> page-layout </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>有了对页面的初步认识，接着下来看具体的几种不同类型页面的格式。</p>
-<h2 id="meta页面">meta页面</h2>
+<h2 class="heading" id="meta页面">
+  meta页面
+  <a class="anchor" href="#meta%e9%a1%b5%e9%9d%a2">#</a>
+</h2>
 <p>meta页面用于存储表示整个数据库信息的元数据，其格式如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">meta</span> <span class="kd">struct</span> <span class="p">{</span>
-    <span class="nx">magic</span>    <span class="kt">uint32</span>
-    <span class="nx">version</span>  <span class="kt">uint32</span>
-    <span class="nx">pageSize</span> <span class="kt">uint32</span>
-    <span class="nx">flags</span>    <span class="kt">uint32</span>
-    <span class="nx">root</span>     <span class="nx">bucket</span>
-    <span class="nx">freelist</span> <span class="nx">pgid</span>
-    <span class="nx">pgid</span>     <span class="nx">pgid</span>
-    <span class="nx">txid</span>     <span class="nx">txid</span>
-    <span class="nx">checksum</span> <span class="kt">uint64</span>
-<span class="p">}</span>
-</code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> meta <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>    magic    <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>    version  <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>    pageSize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>    flags    <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>    root     bucket
+</span></span><span style="display:flex;"><span>    freelist pgid
+</span></span><span style="display:flex;"><span>    pgid     pgid
+</span></span><span style="display:flex;"><span>    txid     txid
+</span></span><span style="display:flex;"><span>    checksum <span style="font-weight:bold;text-decoration:underline">uint64</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>magic：boltdb的magic number，值为“0xED0CDAED”。</li>
 <li>version：boltdb的版本号，当前为2。</li>
@@ -432,21 +366,48 @@
 <li>checksum：校验码，用于校验元数据页面是否出错的。</li>
 </ul>
 <p>从上面对<code>page</code>结构体的分析，ptr指向具体的页面数据内容，据此，从<code>page</code>结构体中返回<code>meta</code>指针的函数如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">meta</span><span class="p">()</span> <span class="o">*</span><span class="nx">meta</span> <span class="p">{</span>
-    <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="nx">meta</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">))</span>
-<span class="p">}</span>
-</code></pre></div><p>即：将<code>page</code>的ptr指针转换为<code>meta</code>类型返回。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (p *page) <span style="color:#666;font-weight:bold;font-style:italic">meta</span>() *meta {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> (*meta)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;p.ptr))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>即：将<code>page</code>的ptr指针转换为<code>meta</code>类型返回。</p>
 <p>因此，一个<code>meta</code>页面的格式如下：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/meta-page-layout.png" alt="meta-page-layout" title="meta-page-layout"></p>
-<h2 id="freelist页面">freelist页面</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="meta-page-layout" src="/media/imgs/20200625-boltdb-1/meta-page-layout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> meta-page-layout </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="freelist页面">
+  freelist页面
+  <a class="anchor" href="#freelist%e9%a1%b5%e9%9d%a2">#</a>
+</h2>
 <p>接下来看freelist页面的构成。由于boltdb磁盘分配的单位是页面，所以当前哪些页面可用、哪些闲置，就需要用一个数据结构来描述，这部分信息就由freelist页面来维护。如果当前磁盘页面已经不够分配了，boltdb就需要扩大磁盘文件的大小，创建出更多可用的闲置页面供分配。</p>
 <p>来看freelist的数据结构定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">freelist</span> <span class="kd">struct</span> <span class="p">{</span>
-	<span class="nx">ids</span>     <span class="p">[]</span><span class="nx">pgid</span>          <span class="c1">// all free and available free page ids.
-</span><span class="c1"></span>	<span class="nx">pending</span> <span class="kd">map</span><span class="p">[</span><span class="nx">txid</span><span class="p">][]</span><span class="nx">pgid</span> <span class="c1">// mapping of soon-to-be free page ids by tx.
-</span><span class="c1"></span>	<span class="nx">cache</span>   <span class="kd">map</span><span class="p">[</span><span class="nx">pgid</span><span class="p">]</span><span class="kt">bool</span>   <span class="c1">// fast lookup of all free and pending page ids.
-</span><span class="c1"></span><span class="p">}</span>
-</code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> freelist <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	ids     []pgid          <span style="color:#888;font-style:italic">// all free and available free page ids.</span>
+</span></span><span style="display:flex;"><span>	pending <span style="font-weight:bold;font-style:italic;text-decoration:underline">map</span>[txid][]pgid <span style="color:#888;font-style:italic">// mapping of soon-to-be free page ids by tx.</span>
+</span></span><span style="display:flex;"><span>	cache   <span style="font-weight:bold;font-style:italic;text-decoration:underline">map</span>[pgid]<span style="font-weight:bold;text-decoration:underline">bool</span>   <span style="color:#888;font-style:italic">// fast lookup of all free and pending page ids.</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>ids：保存当前闲置页面id的数组。</li>
 <li>pending：保存事务操作对应的页面ID，键为事务ID，值为页面ID数组。这部分的页面ID，在事务操作完成之后即被释放。</li>
@@ -458,38 +419,62 @@
 <li>写页面内容到磁盘：对应操作在<code>freelist.write</code>中，读取<code>ids</code>数组和<code>pending</code>中的页面id，拼接、排序之后在一起写入磁盘。</li>
 </ul>
 <p>即：freelist页面的数据部分，仅存储的是可用的页面ID数组。这一部分在读取到内存时，写入<code>ids</code>成员中，而<code>pending</code>和<code>cache</code>，都是boltdb分配页面流程中的中间产物。</p>
-<p><img src="/media/imgs/20200625-boltdb-1/freelist-page-layout.png" alt="freelist-page-layout" title="freelist-page-layout"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="freelist-page-layout" src="/media/imgs/20200625-boltdb-1/freelist-page-layout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> freelist-page-layout </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p><code>freelist</code>中的一些操作与事务有关，这里暂时不展开这部分的讨论，先来看看基本的页面分配是怎么完成的。</p>
 <p><code>freelist</code>对外提供<code>allocate</code>函数，该函数的参数是一个整数n，表示希望能分配连续的n个页面，返回这些页面中第一个页面的页面ID。实际情况肯定不是每次这样分配就能成功的，在不成功的时候，boltdb就只能再进行<code>mmap</code>操作，扩大数据库磁盘文件的大小了：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// allocate returns a contiguous block of memory starting at a given page.
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span> <span class="kt">int</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">page</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
-  <span class="c1">// ...
-</span><span class="c1"></span>	<span class="c1">// Use pages from the freelist if they are available.
-</span><span class="c1"></span>	<span class="c1">// 分配页面id，传入的count表示需要多少个连续的id
-</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">freelist</span><span class="p">.</span><span class="nf">allocate</span><span class="p">(</span><span class="nx">count</span><span class="p">);</span> <span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
-		<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>
-	<span class="p">}</span>
-
-	<span class="c1">// 前面分配页面id失败，说明当前已经不够用了，所以需要重新mmap分配更大的空间出来
-</span><span class="c1"></span>
-	<span class="c1">// Resize mmap() if we&#39;re at the end.
-</span><span class="c1"></span>	<span class="nx">p</span><span class="p">.</span><span class="nx">id</span> <span class="p">=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span>
-	<span class="c1">// 计算需要的最小文件大小
-</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">minsz</span> <span class="p">=</span> <span class="nb">int</span><span class="p">((</span><span class="nx">p</span><span class="p">.</span><span class="nx">id</span><span class="o">+</span><span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">))</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="nx">db</span><span class="p">.</span><span class="nx">pageSize</span>
-	<span class="c1">// 如果大于当前文件大小，需要重新分配
-</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">minsz</span> <span class="o">&gt;=</span> <span class="nx">db</span><span class="p">.</span><span class="nx">datasz</span> <span class="p">{</span>
-		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">db</span><span class="p">.</span><span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;mmap allocate error: %s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
-		<span class="p">}</span>
-	<span class="p">}</span>
-
-	<span class="c1">// Move the page id high water mark.
-</span><span class="c1"></span>	<span class="c1">// 保存目前最高的页面id
-</span><span class="c1"></span>	<span class="nx">db</span><span class="p">.</span><span class="nx">rwtx</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">pgid</span> <span class="o">+=</span> <span class="nf">pgid</span><span class="p">(</span><span class="nx">count</span><span class="p">)</span>
-
-	<span class="k">return</span> <span class="nx">p</span><span class="p">,</span> <span class="kc">nil</span>  
-<span class="p">}</span>
-</code></pre></div><p>从以上代码可以看到：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// allocate returns a contiguous block of memory starting at a given page.</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (db *DB) <span style="color:#666;font-weight:bold;font-style:italic">allocate</span>(count <span style="font-weight:bold;text-decoration:underline">int</span>) (*page, <span style="font-weight:bold;text-decoration:underline">error</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Use pages from the freelist if they are available.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 分配页面id，传入的count表示需要多少个连续的id</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> p.id = db.freelist.<span style="color:#666;font-weight:bold;font-style:italic">allocate</span>(count); p.id != 0 {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">return</span> p, <span style="font-weight:bold;text-decoration:underline">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 前面分配页面id失败，说明当前已经不够用了，所以需要重新mmap分配更大的空间出来</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Resize mmap() if we&#39;re at the end.</span>
+</span></span><span style="display:flex;"><span>	p.id = db.rwtx.meta.pgid
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 计算需要的最小文件大小</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> minsz = <span style="font-weight:bold;font-style:italic">int</span>((p.id+<span style="color:#666;font-weight:bold;font-style:italic">pgid</span>(count))+1) * db.pageSize
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 如果大于当前文件大小，需要重新分配</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> minsz &gt;= db.datasz {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> err := db.<span style="color:#666;font-weight:bold;font-style:italic">mmap</span>(minsz); err != <span style="font-weight:bold;text-decoration:underline">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">nil</span>, fmt.<span style="color:#666;font-weight:bold;font-style:italic">Errorf</span>(<span style="color:#666;font-style:italic">&#34;mmap allocate error: %s&#34;</span>, err)
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Move the page id high water mark.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 保存目前最高的页面id</span>
+</span></span><span style="display:flex;"><span>	db.rwtx.meta.pgid += <span style="color:#666;font-weight:bold;font-style:italic">pgid</span>(count)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> p, <span style="font-weight:bold;text-decoration:underline">nil</span>  
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从以上代码可以看到：</p>
 <ul>
 <li>首先调用<code>freelist.allocate</code>分配count个连续页面，返回起始页面ID。</li>
 <li>这个过程一旦失败，意味着当前系统中已经没有了count个连续页面，此时计算满足条件需要的最小文件大小，如果超过了当前数据库文件大小，就调用<code>db.mmap</code>函数对磁盘文件扩容。</li>
@@ -518,7 +503,10 @@ func (db *DB) mmap(minsz int) error {
 <li>mmap操作之前首先调用<code>munmap</code>函数取消内存映射，再重新调用一次<code>mmap</code>函数扩大文件大小之后映射进入内存。</li>
 <li>由于以上的操作，磁盘大小发生了变化，那么肯定就需要更新<code>meta</code>页面信息。</li>
 </ul>
-<h2 id="branch页面">branch页面</h2>
+<h2 class="heading" id="branch页面">
+  branch页面
+  <a class="anchor" href="#branch%e9%a1%b5%e9%9d%a2">#</a>
+</h2>
 <p>branch页面就是用于存储B+树中的内部节点的页面，即这里的数据只有索引数据，由于只有索引数据，所以branch中并不会存储值。</p>
 <p>branch页面的数据部分划分为两个部分：</p>
 <ul>
@@ -526,57 +514,84 @@ func (db *DB) mmap(minsz int) error {
 <li>真实的数据部分。</li>
 </ul>
 <p>来看看<code>branchPageElement</code>结构体的定义，该结构体定义每个branch中的元素的信息：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// branchPageElement represents a node on a branch page.
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">branchPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
-	<span class="nx">pos</span>   <span class="kt">uint32</span>
-	<span class="nx">ksize</span> <span class="kt">uint32</span>
-	<span class="nx">pgid</span>  <span class="nx">pgid</span>
-<span class="p">}</span>
-</code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// branchPageElement represents a node on a branch page.</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> branchPageElement <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	pos   <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	ksize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	pgid  pgid
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>pos：存储键相对于当前页面数据部分的偏移量。</li>
 <li>ksize：键的大小。</li>
 <li>pgid：子节点的页面ID。</li>
 </ul>
 <p>branch页面的格式布局也可以从<code>page</code>序列化到内存中的<code>node</code>结构体的代码中看出，以下列出核心的几个函数：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// branchPageElement retrieves the branch node by index
-</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="nf">branchPageElement</span><span class="p">(</span><span class="nx">index</span> <span class="kt">uint16</span><span class="p">)</span> <span class="o">*</span><span class="nx">branchPageElement</span> <span class="p">{</span>
-	<span class="k">return</span> <span class="o">&amp;</span><span class="p">((</span><span class="o">*</span><span class="p">[</span><span class="mh">0x7FFFFFF</span><span class="p">]</span><span class="nx">branchPageElement</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">ptr</span><span class="p">)))[</span><span class="nx">index</span><span class="p">]</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">branchPageElement</span><span class="p">)</span> <span class="nf">key</span><span class="p">()</span> <span class="p">[]</span><span class="kt">byte</span> <span class="p">{</span>
-	<span class="nx">buf</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span>
-	<span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nx">maxAllocSize</span><span class="p">]</span><span class="kt">byte</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">buf</span><span class="p">[</span><span class="nx">n</span><span class="p">.</span><span class="nx">pos</span><span class="p">]))[:</span><span class="nx">n</span><span class="p">.</span><span class="nx">ksize</span><span class="p">]</span>
-<span class="p">}</span>
-
-<span class="kd">func</span> <span class="p">(</span><span class="nx">n</span> <span class="o">*</span><span class="nx">node</span><span class="p">)</span> <span class="nf">read</span><span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">page</span><span class="p">)</span> <span class="p">{</span>
-	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">count</span><span class="p">);</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
-		<span class="nx">inode</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">n</span><span class="p">.</span><span class="nx">inodes</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
-		<span class="k">if</span> <span class="nx">n</span><span class="p">.</span><span class="nx">isLeaf</span> <span class="p">{</span>
-		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-			<span class="nx">elem</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">branchPageElement</span><span class="p">(</span><span class="nb">uint16</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
-			<span class="nx">inode</span><span class="p">.</span><span class="nx">pgid</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nx">pgid</span>
-			<span class="nx">inode</span><span class="p">.</span><span class="nx">key</span> <span class="p">=</span> <span class="nx">elem</span><span class="p">.</span><span class="nf">key</span><span class="p">()</span>
-		<span class="p">}</span>
-	<span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div><p>以上代码中可以看到：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// branchPageElement retrieves the branch node by index</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (p *page) <span style="color:#666;font-weight:bold;font-style:italic">branchPageElement</span>(index <span style="font-weight:bold;text-decoration:underline">uint16</span>) *branchPageElement {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> &amp;((*[0x7FFFFFF]branchPageElement)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;p.ptr)))[index]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (n *branchPageElement) <span style="color:#666;font-weight:bold;font-style:italic">key</span>() []<span style="font-weight:bold;text-decoration:underline">byte</span> {
+</span></span><span style="display:flex;"><span>	buf := (*[maxAllocSize]<span style="font-weight:bold;text-decoration:underline">byte</span>)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(n))
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> (*[maxAllocSize]<span style="font-weight:bold;text-decoration:underline">byte</span>)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;buf[n.pos]))[:n.ksize]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (n *node) <span style="color:#666;font-weight:bold;font-style:italic">read</span>(p *page) {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">for</span> i := 0; i &lt; <span style="font-weight:bold;font-style:italic">int</span>(p.count); i++ {
+</span></span><span style="display:flex;"><span>		inode := &amp;n.inodes[i]
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> n.isLeaf {
+</span></span><span style="display:flex;"><span>		} <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>			elem := p.<span style="color:#666;font-weight:bold;font-style:italic">branchPageElement</span>(<span style="font-weight:bold;font-style:italic">uint16</span>(i))
+</span></span><span style="display:flex;"><span>			inode.pgid = elem.pgid
+</span></span><span style="display:flex;"><span>			inode.key = elem.<span style="color:#666;font-weight:bold;font-style:italic">key</span>()
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>以上代码中可以看到：</p>
 <ul>
 <li>根据<code>page.branchPageElement</code>函数的实现，在branch类型的页面中，<code>page.ptr</code>实际上指向的是一个<code>branchPageElement</code>类型的数组，于是将<code>ptr</code>指针转换成<code>branchPageElement</code>数组类型之后，就可以使用索引值取到对应位置的<code>branchPageElement</code>。</li>
 <li>而根据<code>branchPageElement.key</code>函数的实现，一个<code>branchPageElement</code>的<code>key</code>，位置在这个元素的<code>pos</code>位置开始，长度为<code>key</code>。</li>
 </ul>
 <p>因此，branch页面的格式如下图：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/branch-page-layout.png" alt="branch-page-layout" title="branch-page-layout"></p>
-<h2 id="leaf页面">leaf页面</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="branch-page-layout" src="/media/imgs/20200625-boltdb-1/branch-page-layout.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> branch-page-layout </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="leaf页面">
+  leaf页面
+  <a class="anchor" href="#leaf%e9%a1%b5%e9%9d%a2">#</a>
+</h2>
 <p>leaf页面就是B+树中存储数据的叶子节点，其页面元素定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="c1">// leafPageElement represents a node on a leaf page.
-</span><span class="c1"></span><span class="kd">type</span> <span class="nx">leafPageElement</span> <span class="kd">struct</span> <span class="p">{</span>
-	<span class="nx">flags</span> <span class="kt">uint32</span>
-	<span class="nx">pos</span>   <span class="kt">uint32</span>
-	<span class="nx">ksize</span> <span class="kt">uint32</span>
-	<span class="nx">vsize</span> <span class="kt">uint32</span>
-<span class="p">}</span>
-</code></pre></div><p>与branch不同的是，leaf页面元素有以下成员：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// leafPageElement represents a node on a leaf page.</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> leafPageElement <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	flags <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	pos   <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	ksize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	vsize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>与branch不同的是，leaf页面元素有以下成员：</p>
 <ul>
 <li>flags：标志位，为0的时候表示就是普通的叶子节点，而为1的时候表示是子bucket，子bucket后面再展开说明。</li>
 <li>vsize：存储数据的大小。</li>
@@ -587,180 +602,118 @@ func (db *DB) mmap(minsz int) error {
 <li>存储key、value数据的数组。</li>
 </ul>
 <p>可以看到，leaf节点元素与branch节点元素类似，在这里就不再加以说明，仅把格式示意图列在下面，读者可以自己参考代码阅读：</p>
-<p><img src="/media/imgs/20200625-boltdb-1/leaf-page-layout.png" alt="leaf-page-layout" title="leaf-page-layout"></p>
-
-</article>
-
-
-      
-        <div class="my-4">
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-</div>
-      
+<p>
 
 
 
-      
 
 
 
-      
 
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
+
+
+
+
+<figure class="">
+
     <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20200711-boltdb-2/" class="block">boltdb 1.3.0实现分析（二）</a>
-      
+        <img loading="lazy" alt="leaf-page-layout" src="/media/imgs/20200625-boltdb-1/leaf-page-layout.png" >
     </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20200620-sgfap-loadavg/" class="block">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</a>
-      
+
+    
+    <div class="caption-container">
+        <figcaption> leaf-page-layout </figcaption>
     </div>
+    
+</figure>
+</p>
+
+    
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#数据库文件的磁盘布局和页面">数据库文件的磁盘布局和页面</a>
-      <ul>
-        <li><a href="#page结构体">page结构体</a></li>
-        <li><a href="#meta页面">meta页面</a></li>
-        <li><a href="#freelist页面">freelist页面</a></li>
-        <li><a href="#branch页面">branch页面</a></li>
-        <li><a href="#leaf页面">leaf页面</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20200615-btree-2/" class="no-underline">B树、B&#43;树索引算法原理（下）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200609-btree-1/" class="no-underline">B树、B&#43;树索引算法原理（上）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190215-leveldb/" class="no-underline">Leveldb代码阅读笔记</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

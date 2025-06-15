@@ -1,328 +1,180 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>boltdb 1.3.0实现分析（四） - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="boltdb 1.3.0实现分析"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="boltdb 1.3.0实现分析">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"boltdb 1.3.0实现分析（四）",
-      "item":"https://www.codedump.info/post/20200726-boltdb-4/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20200726-boltdb-4/"
-    },
-    "headline": "boltdb 1.3.0实现分析（四） - codedump的网络日志","datePublished": "2020-07-26T17:55:11+08:00",
-    "dateModified": "2020-07-26T17:55:11+08:00",
-    "wordCount":  4326 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "boltdb 1.3.0实现分析"
-}
-</script><meta property="og:title" content="boltdb 1.3.0实现分析（四） - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20200726-boltdb-4/" />
-
-
-
-<meta property="og:description" content="boltdb 1.3.0实现分析" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2020-07-26T17:55:11&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2020-07-26T17:55:11&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200725-boltdb-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200711-boltdb-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20200625-boltdb-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    boltdb 1.3.0实现分析（四） | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">boltdb 1.3.0实现分析（四）</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20200726-boltdb-4/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2020-07-26</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20200726-boltdb-4/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="boltdb 1.3.0实现分析（四）">
+  <meta property="og:description" content="boltdb 1.3.0实现分析">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-07-26T17:55:11+08:00">
+    <meta property="article:modified_time" content="2020-07-26T17:55:11+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/boltdb-1.3.0%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" class="hover:text-eureka"
-          >boltdb 1.3.0实现分析</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20200726-boltdb-4/">boltdb 1.3.0实现分析（四）</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">boltdb 1.3.0实现分析（四）</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-07-26T17:55:11&#43;08:00">2020年7月26日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <blockquote>
-<p>本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：</p>
-</blockquote>
+  
+
+  
+
+  <div class="single-content">
+    <blockquote>
+<p>本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：</p></blockquote>
 <blockquote>
 <ul>
 <li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
@@ -330,51 +182,133 @@
 <li><a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a></li>
 <li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上）</a></li>
 <li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下）</a></li>
-</ul>
-</blockquote>
+</ul></blockquote>
 <blockquote>
-<p>本文的写作，主要参考了<a href="https://www.jianshu.com/p/b86a69892990">《区块的持久化之BoltDB》系列文章</a>以及<a href="https://youjiali1995.github.io/storage/boltdb">boltdb 源码分析</a></p>
-</blockquote>
+<p>本文的写作，主要参考了<a href="https://www.jianshu.com/p/b86a69892990">《区块的持久化之BoltDB》系列文章</a>以及<a href="https://youjiali1995.github.io/storage/boltdb">boltdb 源码分析</a></p></blockquote>
 <p>前面的章节中，分别讲解了boltdb的页面结构、Bucket结构以及事务相关的逻辑，最后一节讲解boltdb如何实现MVCC。</p>
-<h1 id="mvcc概述">MVCC概述</h1>
+<h1 class="heading" id="mvcc概述">
+  MVCC概述
+  <a class="anchor" href="#mvcc%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>数据库的<code>ACID</code>特性中，<code>Isolation</code>即隔离性是一个较难实现的特性。</p>
 <p>一个数据库被修改时，在这次事务提交之前，不希望其他事务操作读到修改的结果。一种常见的办法就是加锁，但是锁的粒度如果很大，就会影响数据库的并发性能，即在写操作完成之前不能进行其他操作。</p>
 <p><code>MVCC（Multiversion concurrency control，多版本并发控制）</code>是解决这个问题的一种方式。它的做法是：保存数据库中的多个版本，修改的是一个版本，而同时进行的读操作读取到的数据是旧版本的数据，这样即便读到了旧的数据也不影响，只要不是写操作中间的数据就好。</p>
-<p><img src="/media/imgs/20200726-boltdb-4/readCommitted.png" alt="readCommitted" title="readCommitted"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="readCommitted" src="/media/imgs/20200726-boltdb-4/readCommitted.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> readCommitted </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示，事务A修改了x的值为2，在这个事务提交之前，读事务B读取到的还是修改之前的值1，因为存在有两个该数据的不同版本，并且并没有因为有写操作同时存在而必须等待写操作完成才能进行读操作。在事务A提交之后，才能读到新的值2。（但是这个图里还有另外的问题，即同一个读事务的过程中，前后读到了同一个数据两次不同的值，这叫“不可重复读”，这就是另外一个问题了不在这里展开讨论。）</p>
 <p>本节讲解boltdb如何实现<code>MVCC</code>操作，在开始讨论之前先看看boltdb如何管理数据库文件的。</p>
-<h1 id="映射文件的使用">映射文件的使用</h1>
+<h1 class="heading" id="映射文件的使用">
+  映射文件的使用
+  <a class="anchor" href="#%e6%98%a0%e5%b0%84%e6%96%87%e4%bb%b6%e7%9a%84%e4%bd%bf%e7%94%a8">#</a>
+</h1>
 <p>boltdb通过<code>mmap</code>系统调用将数据库文件映射到内存中，64位体系下一个进程的虚拟内存空间有128TB，足够映射一个文件了。在把磁盘文件映射到内存之后，对磁盘文件的读写可以直接使用读写内存的操作，由操作系统内核来决定什么时候将哪部分的虚拟内存换入、换出物理内存。</p>
 <p>看上去这个好像方便了很多，其实并不建议在存储引擎中使用内存映射这样“偷懒”的技术。原因在于：操作系统内核除了知道什么时候换入换出物理内存之外，对数据库的其他操作一无所知，并不能很精准的控制其行为。</p>
-<p><img src="/media/imgs/20200726-boltdb-4/db-mmap.png" alt="db-mmap" title="db-mmap"></p>
-<p>对数据库进行内存映射的操作在函数<code>db.mmap</code>函数中进行，大体流程如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">func</span> <span class="p">(</span><span class="nx">db</span> <span class="o">*</span><span class="nx">DB</span><span class="p">)</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">minsz</span> <span class="kt">int</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
-	<span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
-  <span class="k">defer</span> <span class="nx">db</span><span class="p">.</span><span class="nx">mmaplock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
-  
-  <span class="c1">// 计算至少要多大的文件大小才能满足minsz需求
-</span><span class="c1"></span>	<span class="c1">// Memory-map the data file as a byte slice.
-</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">mmap</span><span class="p">(</span><span class="nx">db</span><span class="p">,</span> <span class="nx">size</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
-		<span class="k">return</span> <span class="nx">err</span>
-  <span class="p">}</span>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="db-mmap" src="/media/imgs/20200726-boltdb-4/db-mmap.png" >
+    </div>
+
     
-<span class="p">}</span>
-</code></pre></div><p>这个函数只有在以下两种情况会被调用到：</p>
+    <div class="caption-container">
+        <figcaption> db-mmap </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>对数据库进行内存映射的操作在函数<code>db.mmap</code>函数中进行，大体流程如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (db *DB) <span style="color:#666;font-weight:bold;font-style:italic">mmap</span>(minsz <span style="font-weight:bold;text-decoration:underline">int</span>) <span style="font-weight:bold;text-decoration:underline">error</span> {
+</span></span><span style="display:flex;"><span>	db.mmaplock.<span style="color:#666;font-weight:bold;font-style:italic">Lock</span>()
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">defer</span> db.mmaplock.<span style="color:#666;font-weight:bold;font-style:italic">Unlock</span>()
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 计算至少要多大的文件大小才能满足minsz需求</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Memory-map the data file as a byte slice.</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> err := <span style="color:#666;font-weight:bold;font-style:italic">mmap</span>(db, size); err != <span style="font-weight:bold;text-decoration:underline">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">return</span> err
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这个函数只有在以下两种情况会被调用到：</p>
 <ul>
 <li>db初始化时，即初次加载db文件到内存映射中。</li>
 <li>当前文件不够大，需要进行扩容时，即在<code>db.allocate</code>中分配新页面而当前页面不足需要扩充文件大小时。</li>
 </ul>
 <p>后者也被称为<code>remmap</code>操作，即以新的大小重新映射文件进行内存中。为了避免每次增加了文件大小都需要重新进行文件内存映射操作，实际上boltdb是对文件大小做了<code>over allocate</code>操作，具体的计算新文件大小的逻辑在函数<code>DB.mmapSize</code>函数中实现的，这里不做展开了。</p>
-<h1 id="boltdb的更新流程">boltdb的更新流程</h1>
+<h1 class="heading" id="boltdb的更新流程">
+  boltdb的更新流程
+  <a class="anchor" href="#boltdb%e7%9a%84%e6%9b%b4%e6%96%b0%e6%b5%81%e7%a8%8b">#</a>
+</h1>
 <p>了解了boltdb使用内存映射的机制，下面根据上一节的内容，进一步了解boltdb的更新流程。当db有更新时，无非就是以下两种情况的组合：</p>
 <ul>
 <li>是否需要增加文件大小。</li>
 <li>是否需要进行remmap。</li>
 </ul>
 <p>以下分这几种情况进行讨论。</p>
-<h2 id="初始化">初始化</h2>
+<h2 class="heading" id="初始化">
+  初始化
+  <a class="anchor" href="#%e5%88%9d%e5%a7%8b%e5%8c%96">#</a>
+</h2>
 <p>数据库文件的页面初始情况如下图：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-1.png" alt="dbfile-1" title="dbfile-1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="dbfile-1" src="/media/imgs/20200726-boltdb-4/dbfile-1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> dbfile-1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>其中：</p>
 <ul>
 <li><code>[0,1]</code>页面为<code>meta</code>页面，这两个人<code>meta</code>页面一定是最开始的两个页面不会发生变更。</li>
@@ -383,7 +317,10 @@
 <li><code>[11,12]</code>为目前还未分配出去的空闲页面，此时这两个页面在<code>freelist</code>的空闲页面id中。</li>
 <li><code>[13,14]</code>为当前<code>over allocate</code>多出的页面，此时这两个页面还不在<code>freelist</code>的空闲页面id中。</li>
 </ul>
-<h2 id="需要增加文件大小不需要remmap">需要增加文件大小，不需要remmap</h2>
+<h2 class="heading" id="需要增加文件大小不需要remmap">
+  需要增加文件大小，不需要remmap
+  <a class="anchor" href="#%e9%9c%80%e8%a6%81%e5%a2%9e%e5%8a%a0%e6%96%87%e4%bb%b6%e5%a4%a7%e5%b0%8f%e4%b8%8d%e9%9c%80%e8%a6%81remmap">#</a>
+</h2>
 <p>假设写事务第一次修改页面<code>[3,10]</code>，但是在事务提交时，即<code>rebalance</code>和<code>spill</code>操作之后，都没有新增页面。但是已经脏的页面，如这里的页面<code>[3,10]</code>，会分配一个新的页面进行存储，旧的脏页面会在这一次事务之后变成空闲页面。除此之外，由于页面的分配情况发生了变化，因此<code>freelist</code>页面也需要发生变化。</p>
 <p>总结起来就是：</p>
 <ul>
@@ -392,25 +329,133 @@
 <li>这一次事务对应的<code>pending</code>页面就是页面<code>[2,3,10]</code>（<code>2</code>为<code>freelist</code>页面），因为已经有新的页面保存它们的内容，在事务提交之后，下一次事务操作时，这三个页面就是空闲页面了。</li>
 </ul>
 <p>因此，事务结束之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-2.png" alt="dbfile-2" title="dbfile-2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="dbfile-2" src="/media/imgs/20200726-boltdb-4/dbfile-2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> dbfile-2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>即这种情况下，虽然增加了文件的大小（新增了页面<code>13</code>），但是由于在原先的<code>over allocate</code>范围之内，所以不需要重新remmap文件。</p>
 <p>这里的一个问题是：为什么在页面变脏之后，需要重新使用一个页面存储脏页面内容，而不是直接在原先的页面上修改？答案是为了做到<code>MVCC</code>，下面将展开分析。</p>
-<h2 id="需要增加文件大小需要remmap">需要增加文件大小，需要remmap</h2>
+<h2 class="heading" id="需要增加文件大小需要remmap">
+  需要增加文件大小，需要remmap
+  <a class="anchor" href="#%e9%9c%80%e8%a6%81%e5%a2%9e%e5%8a%a0%e6%96%87%e4%bb%b6%e5%a4%a7%e5%b0%8f%e9%9c%80%e8%a6%81remmap">#</a>
+</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[2,3,10]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>假设这个写事务修改了页面<code>[11,12]</code>，并且提交修改的时候发现超过了页面填充率的阈值，需要进行分裂。于是两个页面进行分裂，就需要4个新的页面来存储分裂后的数据。于是，旧的页面<code>[11,12,13]</code>（页面<code>13</code>是<code>freelist</code>页面）成为这次事务的<code>pending</code>页面。由于当前可用的空闲页面不够用，于是只能增加文件大小，同时进行了remmap操作，<code>meta.pgid</code>移动到了<code>16</code>。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-3.png" alt="dbfile-3" title="dbfile-3"></p>
-<h2 id="不需要增加文件大小需要remmap">不需要增加文件大小，需要remmap</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="dbfile-3" src="/media/imgs/20200726-boltdb-4/dbfile-3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> dbfile-3 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="不需要增加文件大小需要remmap">
+  不需要增加文件大小，需要remmap
+  <a class="anchor" href="#%e4%b8%8d%e9%9c%80%e8%a6%81%e5%a2%9e%e5%8a%a0%e6%96%87%e4%bb%b6%e5%a4%a7%e5%b0%8f%e9%9c%80%e8%a6%81remmap">#</a>
+</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[11,12,13]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>假设这一次写事务修改了页面<code>[2,3,10]</code>，将它们变成了<code>pending</code>页面，且页面<code>[11,12,13]</code>被依次分配给这三个页面存储新的页面数据。这时<code>freelist</code>页面就没有空闲页面来存储了，为了分配新页面，需要remmap将映射范围移动到下一页及页面17，而页面还在文件范围之内，因此不需要增加文件大小。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-4.png" alt="dbfile-4" title="dbfile-4"></p>
-<h2 id="不需要增加文件大小不需要remmap">不需要增加文件大小，不需要remmap</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="dbfile-4" src="/media/imgs/20200726-boltdb-4/dbfile-4.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> dbfile-4 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="不需要增加文件大小不需要remmap">
+  不需要增加文件大小，不需要remmap
+  <a class="anchor" href="#%e4%b8%8d%e9%9c%80%e8%a6%81%e5%a2%9e%e5%8a%a0%e6%96%87%e4%bb%b6%e5%a4%a7%e5%b0%8f%e4%b8%8d%e9%9c%80%e8%a6%81remmap">#</a>
+</h2>
 <p>接下来，开始了一个新的写事务操作，此时上一个事务的<code>pending</code>页面<code>[2,3,10,15]</code>在这个新的写事务中变成了可用的空闲页面。</p>
 <p>如果这一次写事务只修改了页面<code>12</code>，并且提交事务时不需要分裂，那么只需要一个空闲页面就能存储这个修改的脏页面，于是页面2做为这个新的页面被分配了出去，而页面12变成了这次事务操作之后的<code>pending</code>页面。同时<code>freelist</code>页面由页面16变成了页面3，因为有足够的空闲页面存储这一次的修改，于是既不会增加文件大小也不需要remmap操作。</p>
 <p>这次事务操作之后的页面分配情况如下图所示：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/dbfile-5.png" alt="dbfile-5" title="dbfile-5"></p>
-<h1 id="boltdb如何实现mvcc">boltdb如何实现MVCC</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="dbfile-5" src="/media/imgs/20200726-boltdb-4/dbfile-5.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> dbfile-5 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="boltdb如何实现mvcc">
+  boltdb如何实现MVCC
+  <a class="anchor" href="#boltdb%e5%a6%82%e4%bd%95%e5%ae%9e%e7%8e%b0mvcc">#</a>
+</h1>
 <p>从上面的分析可以看出：当一个页面被修改时，修改结果并不马上覆盖旧的页面，而是：</p>
 <ul>
 <li>分配一个空闲页面，将新的页面内容存储到这个空闲页面上。</li>
@@ -420,7 +465,31 @@
 <p>原因是为了实现<code>MVCC</code>操作。</p>
 <p>实现<code>MVCC</code>操作的核心：保存当前数据的多个版本，这样写事务操作的同时，允许有多个读事务操作进行，只是读事务不会马上读到写事务修改的数据，直到这个写事务提交为止。</p>
 <p>boltdb有两个<code>meta</code>页面，也是为了实现<code>MVCC</code>功能，以下图为例：</p>
-<p><img src="/media/imgs/20200726-boltdb-4/writeTx.png" alt="writeTx" title="writeTx"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="writeTx" src="/media/imgs/20200726-boltdb-4/writeTx.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> writeTx </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>其流程大体如下：</p>
 <ul>
 <li>在写事务开始之前，<code>meta</code>页面存储的事务ID是<code>10</code>和<code>11</code>，于是新的写事务ID是12。写事务12开始之前，拷贝的是页面1即事务11的<code>meta</code>内容，而在提交时将覆盖页面0即事务<code>10</code>的<code>meta</code>内容。</li>
@@ -429,7 +498,10 @@
 <li>最后事务12提交其修改，此时写事务只需要修改<code>freelist</code>和页面0的<code>meta</code>页面，将事务12写入页面0即可释放写锁。下一次再来新的事务，选择的是两个<code>meta</code>页面中事务ID更大的那个<code>meta</code>数据，于是读取的页面0的<code>meta</code>页面内容得到数据库的信息。</li>
 </ul>
 <p>从上面流程可以看出，双<code>meta</code>页面目的是为了实现读写操作时候的<code>MVCC</code>，让写操作不影响读操作的进行。</p>
-<h1 id="总结">总结</h1>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
 <p>至此，大体分析完毕boltdb的实现，其特点如下：</p>
 <ul>
 <li>使用内存映射将磁盘文件映射到进程的虚拟内存中，好处是读写起来方便，由OS内核来控制虚拟内存的映射分配，但是这种做法很偷懒。LMDB等也是使用的这种方式管理数据库文件。</li>
@@ -438,190 +510,92 @@
 </ul>
 <p>整体来看，代码量很精简，核心只有几千行的Go代码，也是生产级别的存储引擎，在这里学习到了B+树的实现以及<code>MVCC</code>实现的方式，学习的性价比还是很高的。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20201105-kcp/" class="block">KCP 1.4源码分析</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20200725-boltdb-3/" class="block">boltdb 1.3.0实现分析（三）</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#mvcc概述">MVCC概述</a></li>
-    <li><a href="#映射文件的使用">映射文件的使用</a></li>
-    <li><a href="#boltdb的更新流程">boltdb的更新流程</a>
-      <ul>
-        <li><a href="#初始化">初始化</a></li>
-        <li><a href="#需要增加文件大小不需要remmap">需要增加文件大小，不需要remmap</a></li>
-        <li><a href="#需要增加文件大小需要remmap">需要增加文件大小，需要remmap</a></li>
-        <li><a href="#不需要增加文件大小需要remmap">不需要增加文件大小，需要remmap</a></li>
-        <li><a href="#不需要增加文件大小不需要remmap">不需要增加文件大小，不需要remmap</a></li>
-      </ul>
-    </li>
-    <li><a href="#boltdb如何实现mvcc">boltdb如何实现MVCC</a></li>
-    <li><a href="#总结">总结</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20200725-boltdb-3/" class="no-underline">boltdb 1.3.0实现分析（三）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200711-boltdb-2/" class="no-underline">boltdb 1.3.0实现分析（二）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200625-boltdb-1/" class="no-underline">boltdb 1.3.0实现分析（一）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200615-btree-2/" class="no-underline">B树、B&#43;树索引算法原理（下）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200609-btree-1/" class="no-underline">B树、B&#43;树索引算法原理（上）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190215-leveldb/" class="no-underline">Leveldb代码阅读笔记</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    20201019 Braft 1-存储投票信息 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20201019-braft-1/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20201019-braft-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="20201019 Braft 1-存储投票信息">
+  <meta property="og:description" content="Ballot # Ballot类用来存储一次（注意是一次）投票的信息，其成员包括：
+std::vector _peers：当前节点信息。 int _quorum：_peers.size() / 2 &#43; 1。 std::vector _old_peers：旧的节点信息。 int _old_quorum：_old_peers.size() / 2 &#43; 1。 上面的UnfoundPeerId为了保存某个节点是否进行过投票，其成员如下：
+PeerId peer_id：节点信息。 bool found：是否同意了提案。 每次一个节点同意了提案，就调用函数Ballot::grant记录下来，如果之前这个节点没有同意过，就保存found为true，同时将对应的quorum减一。
+当_quorum和_old_quorum同时&lt;=0时，则认为这次投票被通过了（granted()函数返回true）。
+BallotBox # BallotBox用来存储所有还未提交的投票，每个投票信息用上面提到的Ballot类来保存，BallotBox类内部维护了一个队列来保存投票信息：
+std::deque _pending_meta_queue：保存投票信息的队列。 int64_t _pending_index：_pending_meta_queue队列中第一条投票信息对应的日志索引，即_pending_meta_queue保存的投票信息日志索引范围是[_pending_index,_pending_index&#43;_pending_meta_queue.size()]。 对应的，每个投票日志在提交之后，回调的函数放入队列ClosureQueue中，当投票日志被提交之后，会调用FSMCaller::on_committed函数通知应用层的状态机接口最新的提交日志索引。
+整体流程如下：
+BallotBox::commit_at函数：提交日志索引在[first_log_index,last_log_index]之间的投票日志。在该函数中会进行检查，如果传入的参数不在[_pending_index,_pending_index&#43;_pending_meta_queue.size()]范围内就是不合法的日志索引。接下来，会遍历_pending_meta_queue队列中对应的元素，调用Ballot::grant函数，如果该Ballot在该peerId统一之后到达了granted，就保存该日志索引为当前最大的提交日志索引last_committed_index。遍历完毕之后，将_pending_meta_queue队列中在last_committed_index之前的日志全部删除，因为已经提交成功了，更新类成员_last_committed_index即最大提交日志索引，最后调用FSMCaller::on_committed函数通知应用层的状态机接口最新的提交日志索引。 FSMCaller类内部有一个线程队列，FSMCaller::on_committed首先会往线程队列中新增一条任务，任务中保存了最新提交的日志索引。这样在这个任务队列被处理时，处理到这条消息时，最终会进入FSMCaller::do_committed函数中。 FSMCaller::do_committed函数：根据传入的committed_index索引，从ClosureQueue类中取出committed_index之前的所有closure，分为两种情况： 如果数据类型是ENTRY_TYPE_CONFIGURATION：调用StateMachine::on_configuration_committed函数，即通知应用层配置变更提交。 否则，调用StateMachine::on_apply函数，即通知应用层数据可以提交。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-10-19T08:06:55+08:00">
+    <meta property="article:modified_time" content="2020-10-19T08:06:55+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20201019-braft-1/">20201019 Braft 1-存储投票信息</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">20201019 Braft 1-存储投票信息</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-10-19T08:06:55&#43;08:00">2020年10月19日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="ballot">
+  Ballot
+  <a class="anchor" href="#ballot">#</a>
+</h1>
+<p>Ballot类用来存储一次（注意是一次）投票的信息，其成员包括：</p>
+<ul>
+<li>std::vector<UnfoundPeerId> _peers：当前节点信息。</li>
+<li>int _quorum：_peers.size() / 2 + 1。</li>
+<li>std::vector<UnfoundPeerId> _old_peers：旧的节点信息。</li>
+<li>int _old_quorum：_old_peers.size() / 2 + 1。</li>
+</ul>
+<p>上面的<code>UnfoundPeerId</code>为了保存某个节点是否进行过投票，其成员如下：</p>
+<ul>
+<li>PeerId peer_id：节点信息。</li>
+<li>bool found：是否同意了提案。</li>
+</ul>
+<p>每次一个节点同意了提案，就调用函数<code>Ballot::grant</code>记录下来，如果之前这个节点没有同意过，就保存found为true，同时将对应的quorum减一。</p>
+<p>当<code>_quorum</code>和<code>_old_quorum</code>同时&lt;=0时，则认为这次投票被通过了（granted()函数返回true）。</p>
+<h1 class="heading" id="ballotbox">
+  BallotBox
+  <a class="anchor" href="#ballotbox">#</a>
+</h1>
+<p><code>BallotBox</code>用来存储所有还未提交的投票，每个投票信息用上面提到的<code>Ballot</code>类来保存，<code>BallotBox</code>类内部维护了一个队列来保存投票信息：</p>
+<ul>
+<li>std::deque<Ballot> _pending_meta_queue：保存投票信息的队列。</li>
+<li>int64_t _pending_index：<code>_pending_meta_queue</code>队列中第一条投票信息对应的日志索引，即<code>_pending_meta_queue</code>保存的投票信息日志索引范围是<code>[_pending_index,_pending_index+_pending_meta_queue.size()]</code>。</li>
+</ul>
+<p>对应的，每个投票日志在提交之后，回调的函数放入队列<code>ClosureQueue</code>中，当投票日志被提交之后，会调用<code>FSMCaller::on_committed</code>函数通知应用层的状态机接口最新的提交日志索引。</p>
+<p>整体流程如下：</p>
+<ul>
+<li><code>BallotBox::commit_at</code>函数：提交日志索引在<code>[first_log_index,last_log_index]</code>之间的投票日志。在该函数中会进行检查，如果传入的参数不在<code>[_pending_index,_pending_index+_pending_meta_queue.size()]</code>范围内就是不合法的日志索引。接下来，会遍历<code>_pending_meta_queue</code>队列中对应的元素，调用<code>Ballot::grant</code>函数，如果该<code>Ballot</code>在该peerId统一之后到达了<code>granted</code>，就保存该日志索引为当前最大的提交日志索引<code>last_committed_index</code>。遍历完毕之后，将<code>_pending_meta_queue</code>队列中在<code>last_committed_index</code>之前的日志全部删除，因为已经提交成功了，更新类成员<code>_last_committed_index</code>即最大提交日志索引，最后调用<code>FSMCaller::on_committed</code>函数通知应用层的状态机接口最新的提交日志索引。</li>
+<li><code>FSMCaller</code>类内部有一个线程队列，<code>FSMCaller::on_committed</code>首先会往线程队列中新增一条任务，任务中保存了最新提交的日志索引。这样在这个任务队列被处理时，处理到这条消息时，最终会进入<code>FSMCaller::do_committed</code>函数中。</li>
+<li><code>FSMCaller::do_committed</code>函数：根据传入的<code>committed_index</code>索引，从<code>ClosureQueue</code>类中取出<code>committed_index</code>之前的所有closure，分为两种情况：
+<ul>
+<li>如果数据类型是<code>ENTRY_TYPE_CONFIGURATION</code>：调用<code>StateMachine::on_configuration_committed</code>函数，即通知应用层配置变更提交。</li>
+<li>否则，调用<code>StateMachine::on_apply</code>函数，即通知应用层数据可以提交。</li>
+</ul>
+</li>
+</ul>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

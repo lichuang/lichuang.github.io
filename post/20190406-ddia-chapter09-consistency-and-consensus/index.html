@@ -1,334 +1,307 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"《数据密集型应用系统设计》第九章《一致性与共识》笔记",
-      "item":"https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/"
-    },
-    "headline": "《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志","datePublished": "2019-04-18T08:40:34+08:00",
-    "dateModified": "2019-04-18T08:40:34+08:00",
-    "wordCount":  6981 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "《数据密集型应用系统设计》第九章《一致性与共识》笔记"
-}
-</script><meta property="og:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/" />
-
-
-
-<meta property="og:description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-04-18T08:40:34&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-04-18T08:40:34&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="读书笔记" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181125-etcd-server/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180922-etcd-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    《数据密集型应用系统设计》第九章《一致性与共识》笔记 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">《数据密集型应用系统设计》第九章《一致性与共识》笔记</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-04-18</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>14分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
+  <meta property="og:description" content="《数据密集型应用系统设计》第九章《一致性与共识》笔记">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-04-18T08:40:34+08:00">
+    <meta property="article:modified_time" content="2019-04-18T08:40:34+08:00">
+    <meta property="article:tag" content="读书笔记">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="hover:text-eureka"
-          >读书笔记</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
-      
-    </div>
-  
 
-  
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190406-ddia-chapter09-consistency-and-consensus/">《数据密集型应用系统设计》第九章《一致性与共识》笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《数据密集型应用系统设计》第九章《一致性与共识》笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-04-18T08:40:34&#43;08:00">2019年4月18日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="一致性保证">一致性保证</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="一致性保证">
+  一致性保证
+  <a class="anchor" href="#%e4%b8%80%e8%87%b4%e6%80%a7%e4%bf%9d%e8%af%81">#</a>
+</h1>
 <p>最终一致性（eventual consistency）：如果停止更新数据，等待一段时间（时间长度未知），则最终所有读请求将返回相同的内容。</p>
 <p>然而最终一致性是一种非常弱的一致性保证，因为无法知道何时（when）系统会收敛。而在收敛之前，读请求都可能返回任何值。</p>
-<h1 id="可线性化linearizability">可线性化（Linearizability）</h1>
+<h1 class="heading" id="可线性化linearizability">
+  可线性化（Linearizability）
+  <a class="anchor" href="#%e5%8f%af%e7%ba%bf%e6%80%a7%e5%8c%96linearizability">#</a>
+</h1>
 <p>可线性化（Lineariazability），也被称为原子一致性（atomic consistency）、强一致性（strong consistency），其基本的思想是让一个系统看起来好像只有一个数据副本，且所有的操作都是原子的。有了这个保证，应用程序不需要再关系系统内部有多少个副本。</p>
 <p>在一个可线性化的系统中，一旦客户端成功提交写请求，所有客户端的读请求一定能看到刚刚写入的值。这一保证让客户端认为只有一个副本，这样任何一次读取都能读到最新的值，而不是过期的数据。</p>
 <p>下图来解释在一个非线性化的系统中，可能出现什么问题。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-1.jpg" alt="9-1" title="9-1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-1" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-1.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，alice和bob同时等待2014年世界杯决赛的结果。在宣布最终比分之后，alice看到了最终的结果，然后将此结果告诉了bob，bob马上在自己的手机上刷新想看最新的结果，但是却返回了过期的数据，显示当前比赛还在进行中。</p>
-<h2 id="如何实现可线性化">如何实现可线性化？</h2>
+<h2 class="heading" id="如何实现可线性化">
+  如何实现可线性化？
+  <a class="anchor" href="#%e5%a6%82%e4%bd%95%e5%ae%9e%e7%8e%b0%e5%8f%af%e7%ba%bf%e6%80%a7%e5%8c%96">#</a>
+</h2>
 <p>前面只是简单介绍了可线性化的思想：使系统看起来只有一个数据副本。为了更好的理解可线性化，看下面的图示例子。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-2.jpg" alt="9-2" title="9-2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-2" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-2.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，分为两种操作：针对某个值进行read和write操作。</p>
 <p>客户端A的第一次和最后一次read操作，分别返回0和1，这没有问题，因为在这两次操作中间有客户端C的write操作将数据x更新为了1。</p>
 <p>但是，在写操作还在进行的时候，如果读操作返回的值会来回的跳变，即某次读请求返回的是旧值，而某一次又返回的是新值，这对于一个可线性化系统而言是不可接受的。</p>
 <p>为此，需要加入一个约束条件，如下图所示：</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-3.jpg" alt="9-3" title="9-3"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-3" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-3.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-3 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，箭头表示时序依赖关系。即先有客户端A的第二次read(x)操作，再有客户端B的第二次read(x)操作。客户端A的第二次读请求返回了x的新值1，而客户端B在这次读请求之后也去读x的值，此时应该返回的也是新值1。</p>
 <p><strong>即：在一个可线性化的系统中，有一个很重要的约束条件，在写操作开始和结束之间必然存在一个时间段，此时读到x的值会在旧值与新值之间跳变。但是，如果某个客户端的读请求返回了新值，那么即使这时写操作还未真正完成，后续的所有读请求也应该返回新值。</strong></p>
 <p>以下的例子进一步解释可线性化的操作，除了读写之外又引入另一种操作：</p>
 <ul>
 <li>cas(x, old, new)：表示一次原子的比较-设置操作（compare-and-set，简称CAS），如果此时x的值为old，则原子设置这个值为new；否则保留原有值不变，这个操作的返回值表示这次x原有的值是否为old，即设置操作是否发生。</li>
 </ul>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-4.jpg" alt="9-4" title="9-4"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-4" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-4.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-4 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中的每个操作都有一个竖线，表示可能的执行时间点。可线性化要求，连接这些标记的竖线，必须总是按时间（即从左到右）向前移动，而不能向后移动。因此，一旦新值被写入或读取，所有后续的值读到的都是新值，直到被覆盖。</p>
 <p>在上图中，有一些细节需要注意：</p>
 <ul>
@@ -342,8 +315,14 @@
 <li>可线性化：可线性化是读写寄存器（单个对象）的最新值保证，并不要求将操作组合到事务中，因此无法避免写倾斜等问题。</li>
 </ul>
 <p>数据库可以同时支持可串行化与可线性化，这种组合又被称为严格的可串行化或者强的单副本可串行化（strong one-copy Serializability）。</p>
-<h2 id="线性化的依赖条件">线性化的依赖条件</h2>
-<h1 id="实现线性化系统">实现线性化系统</h1>
+<h2 class="heading" id="线性化的依赖条件">
+  线性化的依赖条件
+  <a class="anchor" href="#%e7%ba%bf%e6%80%a7%e5%8c%96%e7%9a%84%e4%be%9d%e8%b5%96%e6%9d%a1%e4%bb%b6">#</a>
+</h2>
+<h1 class="heading" id="实现线性化系统">
+  实现线性化系统
+  <a class="anchor" href="#%e5%ae%9e%e7%8e%b0%e7%ba%bf%e6%80%a7%e5%8c%96%e7%b3%bb%e7%bb%9f">#</a>
+</h1>
 <p>由于线性化本质上意味着“表现的好像只有一个数据副本，其上的操作都是原子操作”。最简单的方案就是只用一个数据副本，但是这样无法容错。</p>
 <p>系统容错最常见的方法是采用复制机制，回顾一下之前的多种复制方案：</p>
 <ul>
@@ -352,13 +331,46 @@
 <li>多主复制（不可线性化）：用于同时在多个节点上执行写入操作，并将数据异步复制到其他节点，因此可能产生写入冲突。</li>
 <li>无主复制（可能不可线性化）：对于无主节点复制的系统，依赖于具体的quorum配置，以及如何定义强一致性，可能并不能保证线性化。</li>
 </ul>
-<h2 id="线性化与quorum">线性化与quorum</h2>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-6.jpg" alt="9-6" title="9-6"></p>
+<h2 class="heading" id="线性化与quorum">
+  线性化与quorum
+  <a class="anchor" href="#%e7%ba%bf%e6%80%a7%e5%8c%96%e4%b8%8equorum">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-6" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-6.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-6 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，x的初始值为0，写客户端向所有三副本（n=3，w=3）写入更新x为1。而客户端A从两个节点（r=2）读数据，其中一个节点返回1，而客户端B则从两个节点都得到了0。</p>
 <p>显然这是违反线性化要求的：客户端B在客户端A之后读取数据，但是仍然得到了旧值。</p>
 <p>总而言之，最安全的假定是类似Dynamo风格的无主复制系统无法保证线性化。</p>
-<h2 id="线性化的代价">线性化的代价</h2>
-<h3 id="cap理论">CAP理论</h3>
+<h2 class="heading" id="线性化的代价">
+  线性化的代价
+  <a class="anchor" href="#%e7%ba%bf%e6%80%a7%e5%8c%96%e7%9a%84%e4%bb%a3%e4%bb%b7">#</a>
+</h2>
+<h3 class="heading" id="cap理论">
+  CAP理论
+  <a class="anchor" href="#cap%e7%90%86%e8%ae%ba">#</a>
+</h3>
 <p>在一个数据中心内部，主要存在不可靠的网络，就可能会违背线性化的风险，需要做出权衡考虑：</p>
 <ul>
 <li>如果应用要求线性化，但是由于网络的原因，某些副本和其他副本断开连接之后无法继续处理请求，就必须等待网络恢复，或者直接返回错误。无论哪种方式，结果都是服务不可用。</li>
@@ -367,10 +379,16 @@
 <p>因此，不要求线性化的应用更能容忍网络故障。这种思路称为“CAP定力”。</p>
 <p>CAP定理，表示一致性、可用性、分区容错性，三者之间只能同时满足两个特性。不过，这种表示具有误导性，因为网络分区是一种故障，不管喜欢与否，都可能发生，而无法选择或者逃避这个问题。</p>
 <p>网络在发生故障以后，必须从一致性和可用性之间做出选择。因此，更准确的应该是“网络分区情况下，选择一致还是可用”。</p>
-<h1 id="顺序保证">顺序保证</h1>
+<h1 class="heading" id="顺序保证">
+  顺序保证
+  <a class="anchor" href="#%e9%a1%ba%e5%ba%8f%e4%bf%9d%e8%af%81">#</a>
+</h1>
 <p>因果关系对所发生的事件施加了某种顺序：发送消息先于收到消息，问题出现在答案之前等。</p>
 <p>如果系统满足因果关系所规定的顺序，称之为“因果一致性（causally consistent）”。</p>
-<h2 id="因果顺序并非全序">因果顺序并非全序</h2>
+<h2 class="heading" id="因果顺序并非全序">
+  因果顺序并非全序
+  <a class="anchor" href="#%e5%9b%a0%e6%9e%9c%e9%a1%ba%e5%ba%8f%e5%b9%b6%e9%9d%9e%e5%85%a8%e5%ba%8f">#</a>
+</h2>
 <p>全序关系（total order）支持任何两个元素之间进行比较，即对于任意元素，总是可以指出哪个大哪个小。</p>
 <p>但是有些集合并不符合全序关系，例如集合{a,b}大于集合{b,c}么？因为它们都不是对方的子集，所以无法直接进行比较。这种情况称之为不可比较（incomparable），数学集合只能是偏序关系（partially ordered）。</p>
 <p>全序和偏序的差异也体现在数据库一致性问题中：</p>
@@ -380,10 +398,16 @@
 </ul>
 <p>根据上面的定义，在可线性化的系统中不存在并发操作。一定有一个时间线将所有操作都全序执行，可能存在多个请求处于等待处理的状态，但是数据存储保证了在特定的时间点执行特定的操作，所以是单个时间轴、单个数据副本，没有并发。</p>
 <p>并发意味着时间线会出现分支和合并，而不同分支上的操作无法直接比较，一定有一个时间线将所有操作都全序执行。</p>
-<h2 id="可线性化强于因果一致性">可线性化强于因果一致性</h2>
+<h2 class="heading" id="可线性化强于因果一致性">
+  可线性化强于因果一致性
+  <a class="anchor" href="#%e5%8f%af%e7%ba%bf%e6%80%a7%e5%8c%96%e5%bc%ba%e4%ba%8e%e5%9b%a0%e6%9e%9c%e4%b8%80%e8%87%b4%e6%80%a7">#</a>
+</h2>
 <p>可线性化意味着一定满足因果关系，任何可线性化的系统一定能够正确满足因果关系。</p>
 <p>在许多情况下，系统只要能够满足因果一致性就足够了，可线性化的代价太高。</p>
-<h2 id="序列号排序">序列号排序</h2>
+<h2 class="heading" id="序列号排序">
+  序列号排序
+  <a class="anchor" href="#%e5%ba%8f%e5%88%97%e5%8f%b7%e6%8e%92%e5%ba%8f">#</a>
+</h2>
 <p>可以使用序列号或时间戳来排序事件。时间戳不一定来自物理时钟，可以只是逻辑时钟。</p>
 <p>特别地，还可以按照与因果关系一致的顺序来创建序列号：保证如果操作A发生在B之前，那么A的序列号一定比B更小。</p>
 <p>在主从复制数据库中，复制日志中可以定义与因果关系一致的写全序关系，即由主节点为每个操作递增计数器，从而系统中的每个操作都赋值一个单调递增的序列号。</p>
@@ -393,15 +417,45 @@
 <li>可以把时间戳信息（物理时钟）加到每个操作上。</li>
 <li>可以预先分配序列号的区间范围。</li>
 </ul>
-<h2 id="lamport时间戳">Lamport时间戳</h2>
+<h2 class="heading" id="lamport时间戳">
+  Lamport时间戳
+  <a class="anchor" href="#lamport%e6%97%b6%e9%97%b4%e6%88%b3">#</a>
+</h2>
 <p>如下图所示，每个节点都有唯一的标识符，且每个节点都有一个计数器来记录自己处理的请求总数，Lamport时间戳是一个值对：（计数器，节点ID），这样就能确保每个Lamport时间戳都是唯一的。</p>
 <p>给定两个Lamport时间戳，可以这样来对比得到全序关系：计数器大的时间戳大，如果计数器相同，那么节点ID大的时间戳更大。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-8.jpg" alt="9-8" title="9-8"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-8" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-8.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-8 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>Lamport时间戳与版本向量的区别在于：版本向量用于区分两个操作是并发的还是因果依赖的，而Lamport时间戳用于确保全序关系。即使Lamport时间戳不能用于区分两个操作属于并发关系，还是因果依赖关系。</p>
 <p>但是，即便有了全序的时间戳排序，有一些问题仍然无法解决。</p>
 <p>比如注册一个网站时，要求用户名需要唯一，虽然两个同样名字的创建用户请求过来，可以根据全序关系来决定究竟哪个请求在先抢占了这个用户名，但是这并不够，因为这个是在请求写入之后才进行的判断，在应答写请求时无法立刻知道结果，因为还需要查询所有节点，如果有节点失败的情况下还需要等待，等等。</p>
 <p>为了解决类似的问题，就需要引入”全序关系广播“这个概念了。</p>
-<h2 id="全序关系广播total-oder-broadcast">全序关系广播（Total Oder Broadcast）</h2>
+<h2 class="heading" id="全序关系广播total-oder-broadcast">
+  全序关系广播（Total Oder Broadcast）
+  <a class="anchor" href="#%e5%85%a8%e5%ba%8f%e5%85%b3%e7%b3%bb%e5%b9%bf%e6%92%adtotal-oder-broadcast">#</a>
+</h2>
 <p>全序关系广播指节点间交换消息的某种协议，要求满足以下两个基本安全属性：</p>
 <ul>
 <li>可靠发送：没有消息丢失，如果消息发送到了一个节点，也必须要发送到其他节点。</li>
@@ -410,16 +464,49 @@
 <p>即使节点或者网络发生故障，全序关系广播算法的正确实现也必须保证上述两条。在网络中断时发送失败的消息，在恢复之后要继续重试。</p>
 <p>全序关系广播正是数据库复制所需要的：如果每条消息代表数据库写请求，并且每个副本都按照相同的顺序处理这些写请求，那么所有副本可以保持一致。该原则称为“状态机复制”，ZK和etcd这样的服务就实现了全序关系广播。</p>
 <p>理解全序关系广播的另一种方式是将其视为日志（如复制日志），传递消息就像追加方式更新日志。由于所有节点必须以相同的顺序发送消息，因此所有节点都可以获取日志并看到相同的消息序列。</p>
-<h1 id="分布式事务与共识">分布式事务与共识</h1>
-<h3 id="两阶段提交two-phase-commit简称2pc">两阶段提交（two-phase commit，简称2PC）</h3>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-9.jpg" alt="9-9" title="9-9"></p>
+<h1 class="heading" id="分布式事务与共识">
+  分布式事务与共识
+  <a class="anchor" href="#%e5%88%86%e5%b8%83%e5%bc%8f%e4%ba%8b%e5%8a%a1%e4%b8%8e%e5%85%b1%e8%af%86">#</a>
+</h1>
+<h3 class="heading" id="两阶段提交two-phase-commit简称2pc">
+  两阶段提交（two-phase commit，简称2PC）
+  <a class="anchor" href="#%e4%b8%a4%e9%98%b6%e6%ae%b5%e6%8f%90%e4%ba%a4two-phase-commit%e7%ae%80%e7%a7%b02pc">#</a>
+</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-9" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-9.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-9 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以上是简单的2PC的操作示意图，图中引入了一个协调者（Coordinator）的角色。当应用程序开始提交事务时，协调者开始阶段1：发送一个准备请求给事务中的参与者，询问是否可以提交。协调者然后跟踪参与者的回应：</p>
 <ul>
 <li>如果所有参与者都应答”是“，表示它们已经准备好提交，协调者接下来在阶段2发出提交请求，提交才开始执行。</li>
 <li>如果任何参与者回答了”否“，则协调者在阶段2中向所有节点发送放弃请求。</li>
 </ul>
 <p>如果参与者在2PC期间失败，那么协调者将中断事务提交；如果在第二阶段发送提交时失败，协调者将无限期重试。</p>
-<h3 id="2pc的原理">2PC的原理</h3>
+<h3 class="heading" id="2pc的原理">
+  2PC的原理
+  <a class="anchor" href="#2pc%e7%9a%84%e5%8e%9f%e7%90%86">#</a>
+</h3>
 <p>以下详细分解2PC流程：</p>
 <ol>
 <li>启动分布式事务时，首先向协调者请求事务ID，该ID全局唯一。</li>
@@ -431,11 +518,41 @@
 </ol>
 <p>由此可见，该协议两个关键的“不归路”：首先，当参与者投票“是”时，做了肯定提交的承诺；其次，协调者做了提交的决定之后，这个决定也是不可撤销的。</p>
 <p>正是以上两点保证了2PC的原子性，而单节点事务提交实际上将两个事件合二为一，写入事务日志即提交。</p>
-<h3 id="协调者发生故障">协调者发生故障</h3>
+<h3 class="heading" id="协调者发生故障">
+  协调者发生故障
+  <a class="anchor" href="#%e5%8d%8f%e8%b0%83%e8%80%85%e5%8f%91%e7%94%9f%e6%95%85%e9%9a%9c">#</a>
+</h3>
 <p>但是，如果是协调者自身发生了故障，后面的行为无法预计，如下图所示。</p>
-<p><img src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-10.jpg" alt="9-10" title="9-10"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="9-10" src="/media/imgs/20190406-ddia-chapter09-consistency-and-consensus/9-10.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 9-10 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>2PC能够顺利完成的唯一方法是等待协调者恢复，这就是为什么协调者必须在向参与者发送提交请求之前需要先写入磁盘事务的日志：这是因为一旦协调者崩溃，恢复之后可以根据读取事务日志来确定所有未决的事务。</p>
-<h1 id="支持容错的共识算法">支持容错的共识算法</h1>
+<h1 class="heading" id="支持容错的共识算法">
+  支持容错的共识算法
+  <a class="anchor" href="#%e6%94%af%e6%8c%81%e5%ae%b9%e9%94%99%e7%9a%84%e5%85%b1%e8%af%86%e7%ae%97%e6%b3%95">#</a>
+</h1>
 <p>所有支持容错的共识算法都有以下的性质：</p>
 <ul>
 <li>协商一致性（Uniform agreement）：所有的节点都接受相同的决议。</li>
@@ -450,7 +567,10 @@
 <p>因此，可终止性属于一种活性属性（liveness property），而其它三个性质属于安全性方面的属性。</p>
 <p>任何共识性算法，都需要至少大部分节点正确运行才能保证终止性，这个”大多数节点“又被称为”quorum“。</p>
 <p>因此，可终止性的前提是，发生崩溃或者不可用的节点必须小于小半数节点。另外，共识算法也界定系统不存在拜占庭错误。</p>
-<h2 id="共识算法与全序广播">共识算法与全序广播</h2>
+<h2 class="heading" id="共识算法与全序广播">
+  共识算法与全序广播
+  <a class="anchor" href="#%e5%85%b1%e8%af%86%e7%ae%97%e6%b3%95%e4%b8%8e%e5%85%a8%e5%ba%8f%e5%b9%bf%e6%92%ad">#</a>
+</h2>
 <p>共识算法一般都是：决定了一系列值，然后采用全序关系广播算法传播数据。</p>
 <p>全序广播的要点是：消息按照相同的顺序发送到所有节点，有且只有一次。</p>
 <p>所以，全序广播算法相当于持续的多轮共识：</p>
@@ -460,232 +580,109 @@
 <li>由于合法性，消息不能被破坏和捏造。</li>
 <li>由于可终止性，消息不能丢失。</li>
 </ul>
-<h2 id="主从复制与共识">主从复制与共识</h2>
+<h2 class="heading" id="主从复制与共识">
+  主从复制与共识
+  <a class="anchor" href="#%e4%b8%bb%e4%bb%8e%e5%a4%8d%e5%88%b6%e4%b8%8e%e5%85%b1%e8%af%86">#</a>
+</h2>
 <p>主从复制，也是所有写入操作由主节点负责，并以相同顺序发送到从节点来保持副本数据更新，为什么那时候没有考虑共识问题？</p>
 <p>如果主节点由人手动选择和配置，那就是一个独裁性质的一致性算法，出现故障的时候需要人工干预。</p>
 <p>然而，共识算法由需要首先选择出一个主节点来，否则会出现脑裂问题。如何选举主节点呢？</p>
-<h2 id="epoch和quorum">epoch和quorum</h2>
+<h2 class="heading" id="epoch和quorum">
+  epoch和quorum
+  <a class="anchor" href="#epoch%e5%92%8cquorum">#</a>
+</h2>
 <p>共识算法中，每个协议会定义一个世代编号（epoch number），这个编号是递增唯一的，对应于paxos中的ballot number、vsp中的view number、raft中的term number。</p>
 <p>当主节点失效时，马上进行一轮新的投票来选举出新的主节点。选举会赋予一个单调递增的epoch号，如果出现不同的主节点，那么就看谁的epoch号更大的胜出。</p>
 <p>在主节点做出任何决定之前，必须首先检查是否存在比它更高的epoch号，如何检查呢？基于前面做分布式系统的一个准则”真理由多数决定“，节点不能依靠自己掌握的信息来决策，而应该从quorum节点中收集投票。节点只有当没有发现更高epoch的主节点存在的情况下，才会对当前的提议进行投票。</p>
 <p>因此实际上这里是两轮不同的投票：首先投票决定谁是主节点，然后是对主节点的提议进行投票。</p>
 <p>投票过程看起来像2PC，区别在于：2PC的协调者不是依靠选举产生；另外共识算法只需要收到quorum节点的应答就可以通过决议，而2PC需要所有参与者都通过才能通过决议。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#读书笔记</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190409-redis-sentinel/" class="block">redis高可用原理</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/" class="block">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#一致性保证">一致性保证</a></li>
-    <li><a href="#可线性化linearizability">可线性化（Linearizability）</a>
-      <ul>
-        <li><a href="#如何实现可线性化">如何实现可线性化？</a></li>
-        <li><a href="#线性化的依赖条件">线性化的依赖条件</a></li>
-      </ul>
-    </li>
-    <li><a href="#实现线性化系统">实现线性化系统</a>
-      <ul>
-        <li><a href="#线性化与quorum">线性化与quorum</a></li>
-        <li><a href="#线性化的代价">线性化的代价</a>
-          <ul>
-            <li><a href="#cap理论">CAP理论</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#顺序保证">顺序保证</a>
-      <ul>
-        <li><a href="#因果顺序并非全序">因果顺序并非全序</a></li>
-        <li><a href="#可线性化强于因果一致性">可线性化强于因果一致性</a></li>
-        <li><a href="#序列号排序">序列号排序</a></li>
-        <li><a href="#lamport时间戳">Lamport时间戳</a></li>
-        <li><a href="#全序关系广播total-oder-broadcast">全序关系广播（Total Oder Broadcast）</a></li>
-      </ul>
-    </li>
-    <li><a href="#分布式事务与共识">分布式事务与共识</a>
-      <ul>
-        <li>
-          <ul>
-            <li><a href="#两阶段提交two-phase-commit简称2pc">两阶段提交（two-phase commit，简称2PC）</a></li>
-            <li><a href="#2pc的原理">2PC的原理</a></li>
-            <li><a href="#协调者发生故障">协调者发生故障</a></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li><a href="#支持容错的共识算法">支持容错的共识算法</a>
-      <ul>
-        <li><a href="#共识算法与全序广播">共识算法与全序广播</a></li>
-        <li><a href="#主从复制与共识">主从复制与共识</a></li>
-        <li><a href="#epoch和quorum">epoch和quorum</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190405-ddia-chapter08-the-trouble-with-distributed-system/" class="no-underline">《数据密集型应用系统设计》第八章《分布式系统的挑战》笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" class="no-underline">《数据密集型应用系统设计》第七章《事务》笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181125-etcd-server/" class="no-underline">Etcd存储的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="no-underline">etcd Raft库解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" class="no-underline">《数据密集型应用系统设计》第六章数据分区笔记</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

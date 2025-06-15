@@ -1,336 +1,299 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>《数据密集型应用系统设计》第六章数据分区笔记 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content=""/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"《数据密集型应用系统设计》第六章数据分区笔记",
-      "item":"https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/"
-    },
-    "headline": "《数据密集型应用系统设计》第六章数据分区笔记 - codedump的网络日志","datePublished": "2019-04-02T22:17:24+08:00",
-    "dateModified": "2019-04-02T22:17:24+08:00",
-    "wordCount":  2235 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些"
-}
-</script><meta property="og:title" content="《数据密集型应用系统设计》第六章数据分区笔记 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/" />
-
-
-
-
-<meta property="og:description" content="键值数据的分区 基于关键字区间的分区 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些" />
-
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-04-02T22:17:24&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-04-02T22:17:24&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="读书笔记" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181118-ddia-chapter05-replication/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181125-etcd-server/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180922-etcd-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    《数据密集型应用系统设计》第六章数据分区笔记 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">《数据密集型应用系统设计》第六章数据分区笔记</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-04-02</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>5分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20181124-ddia-chapter06-partitioning/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《数据密集型应用系统设计》第六章数据分区笔记">
+  <meta property="og:description" content="键值数据的分区 # 基于关键字区间的分区 # 给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些关键字。
+关键字的区间段不一定要均匀分布，这是因为数据本身可能就不是均匀的。比如，某些分区包含以A和B开头字母的键，而某些分区包含了T、U、V、X、Y和Z开始的单词。
+基于关键字的区间分区的缺点是某些访问模式会导致热点（hot spot）。比如关键字是时间戳，分区对应一个时间范围，那么可能会出现所有的写入操作都集中在同一个分区（比如当天的分区），而其他分区始终处于空闲状态。
+为了避免类似的问题，需要使用时间戳以外的其他内容作为关键字的第一项。
+基于关键字Hash值分区 # 基于关键字Hash值分区，可以解决上面提到的数据倾斜和热点问题，但是丧失了良好的区间查询特性。
+负载倾斜和热点 # 基于关键字Hash值分区的办法，可以减轻数据热点问题，但是不能完全避免这类问题。一种常见的极端场景是，社交网络上某个名人有几百万的粉丝，当其发布一些热点事件时可能会引起访问风暴。此时，Hash起不到任何分流的作用。
+大部分系统解决不了这个问题，只能通过应用层来解决这类问题。比如某个关键字被确认是热点，一个简单的技术就是在关键字的开头或结尾处添加随机数，这样将访问分配到不同的分区上。但是随之而来的问题就是，之后的任何读取都需要额外的工作，必须将这些分区上的读取数据进行合并。
+分区与二级索引 # 键值类数据库的分区相对还简单一些，但是如果涉及到二级索引就变得复杂了。二级索引主要的挑战在于：它们不能规整的映射到分区中。
+基于文档分区的二级索引 # figure 6-4 上图中，数据根据ID 进行分区，但是实际查询的时候，还可以按照颜色和厂商进行过滤，所以每个分区上面还创建了颜色和厂商的索引。每次往分区中写入新数据时，自动创建这些二级索引。
+在这种索引方式中，每个分区完全独立。各自维护自己的二级索引。因此文档索引也成为本地索引，而不是全局索引。
+但是读取的时候，需要查询所有的分区数据然后进行合并才返回给客户端，这种叫分散/聚集（scatter/gather）。
+基于词条的二级索引 # 可以对所有的数据构建全局索引，而不是每个分区维护自己的本地索引。而且吧，为了避免成为瓶颈，不能将全局索引放在一个节点上，否则又破坏了分区均衡的目标，因此全局索引数据也需要进行分区。
+figure 6-5 上图中，所有数据分区中的颜色进行了分区，比如从a到r开始的颜色放在了分区0中，从s到z的颜色放在了分区1中，类似的，厂商索引也被分区。这种索引方式成为词条分区（term-partitioned）。
+优点：读取高效，不需要采用scatter/gather方式对所有分区都进行查询； 缺点：写入速度慢并且非常复杂，主要是因为单个文档需要更新的时候，里面可能涉及多个二级索引，而二级索引又放在不同的节点上。 在实践中，对全局二级索引数据的更新一般都是异步进行的。
+分区再平衡（Rebalancing Partitions） # 实际中，数据会发生某些变化，这时候需要将数据和请求从一个节点转移到另一个节点。这样的一个迁移负载的过程称为再平衡（rebalance）。
+分区再平衡至少需要满足：
+平衡之后，负载、数据存储、读写请求能够在集群范围内更均匀分布。 再平衡过程中，数据库可以继续处理客户端的读写请求。 避免不必要的负载迁移。 下面谈各种再平衡策略。
+为什么不能用取模？ # 对节点数进行取模的方式，最大的问题在于如果节点的数据发生了变化，会导致很多关键字从现有的节点迁移到另一个节点。
+固定数量的分区 # 创建远超实际节点数的分区数，然后给每个节点分配多个分区。比如只有10个节点的集群，划分了1000个逻辑分区。
+如果集群中添加了一个新节点，该新节点就可以从每个现有节点上匀走几个分区，直到分区再次达到全局平衡。
+这个方式的优点在于，关键字与逻辑分区的映射关系一开始就固定下来了，节点数量的变更只是改变了逻辑分区分布在哪些节点上。节点间迁移分区数据需要时间，这个过程中，就分区依然可以处理客户端的读写请求。
+figure 6-6 动态分区 # 按节点比例分区 # 自动与手动再平衡操作 # 请求路由 # 当客户端需要发起请求时，如果知道应该连接哪个节点？如果发生了分区再平衡，分区与节点的对应关系发生了变化。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-04-02T22:17:24+08:00">
+    <meta property="article:modified_time" content="2019-04-02T22:17:24+08:00">
+    <meta property="article:tag" content="读书笔记">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="hover:text-eureka"
-          >读书笔记</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
-      
-    </div>
-  
 
-  
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20181124-ddia-chapter06-partitioning/">《数据密集型应用系统设计》第六章数据分区笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《数据密集型应用系统设计》第六章数据分区笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-04-02T22:17:24&#43;08:00">2019年4月2日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="键值数据的分区">键值数据的分区</h1>
-<h2 id="基于关键字区间的分区">基于关键字区间的分区</h2>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="键值数据的分区">
+  键值数据的分区
+  <a class="anchor" href="#%e9%94%ae%e5%80%bc%e6%95%b0%e6%8d%ae%e7%9a%84%e5%88%86%e5%8c%ba">#</a>
+</h1>
+<h2 class="heading" id="基于关键字区间的分区">
+  基于关键字区间的分区
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e5%85%b3%e9%94%ae%e5%ad%97%e5%8c%ba%e9%97%b4%e7%9a%84%e5%88%86%e5%8c%ba">#</a>
+</h2>
 <p>给每个分区分配一段连续的关键字或者关键字区间（以最小值和最大值来指示），从关键字区间的上下限可以确定哪个分区包含这些关键字。</p>
 <p>关键字的区间段不一定要均匀分布，这是因为数据本身可能就不是均匀的。比如，某些分区包含以A和B开头字母的键，而某些分区包含了T、U、V、X、Y和Z开始的单词。</p>
 <p>基于关键字的区间分区的缺点是某些访问模式会导致热点（hot spot）。比如关键字是时间戳，分区对应一个时间范围，那么可能会出现所有的写入操作都集中在同一个分区（比如当天的分区），而其他分区始终处于空闲状态。</p>
 <p>为了避免类似的问题，需要使用时间戳以外的其他内容作为关键字的第一项。</p>
-<h2 id="基于关键字hash值分区">基于关键字Hash值分区</h2>
+<h2 class="heading" id="基于关键字hash值分区">
+  基于关键字Hash值分区
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e5%85%b3%e9%94%ae%e5%ad%97hash%e5%80%bc%e5%88%86%e5%8c%ba">#</a>
+</h2>
 <p>基于关键字Hash值分区，可以解决上面提到的数据倾斜和热点问题，但是丧失了良好的区间查询特性。</p>
-<h2 id="负载倾斜和热点">负载倾斜和热点</h2>
+<h2 class="heading" id="负载倾斜和热点">
+  负载倾斜和热点
+  <a class="anchor" href="#%e8%b4%9f%e8%bd%bd%e5%80%be%e6%96%9c%e5%92%8c%e7%83%ad%e7%82%b9">#</a>
+</h2>
 <p>基于关键字Hash值分区的办法，可以减轻数据热点问题，但是不能完全避免这类问题。一种常见的极端场景是，社交网络上某个名人有几百万的粉丝，当其发布一些热点事件时可能会引起访问风暴。此时，Hash起不到任何分流的作用。</p>
 <p>大部分系统解决不了这个问题，只能通过应用层来解决这类问题。比如某个关键字被确认是热点，一个简单的技术就是在关键字的开头或结尾处添加随机数，这样将访问分配到不同的分区上。但是随之而来的问题就是，之后的任何读取都需要额外的工作，必须将这些分区上的读取数据进行合并。</p>
-<h1 id="分区与二级索引">分区与二级索引</h1>
+<h1 class="heading" id="分区与二级索引">
+  分区与二级索引
+  <a class="anchor" href="#%e5%88%86%e5%8c%ba%e4%b8%8e%e4%ba%8c%e7%ba%a7%e7%b4%a2%e5%bc%95">#</a>
+</h1>
 <p>键值类数据库的分区相对还简单一些，但是如果涉及到二级索引就变得复杂了。二级索引主要的挑战在于：它们不能规整的映射到分区中。</p>
-<h2 id="基于文档分区的二级索引">基于文档分区的二级索引</h2>
-<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg" alt="figure 6-4" title="figure 6-4"></p>
+<h2 class="heading" id="基于文档分区的二级索引">
+  基于文档分区的二级索引
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e6%96%87%e6%a1%a3%e5%88%86%e5%8c%ba%e7%9a%84%e4%ba%8c%e7%ba%a7%e7%b4%a2%e5%bc%95">#</a>
+</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="figure 6-4" src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-4.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> figure 6-4 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，数据根据ID 进行分区，但是实际查询的时候，还可以按照颜色和厂商进行过滤，所以每个分区上面还创建了颜色和厂商的索引。每次往分区中写入新数据时，自动创建这些二级索引。</p>
 <p>在这种索引方式中，每个分区完全独立。各自维护自己的二级索引。因此文档索引也成为本地索引，而不是全局索引。</p>
 <p>但是读取的时候，需要查询所有的分区数据然后进行合并才返回给客户端，这种叫分散/聚集（scatter/gather）。</p>
-<h2 id="基于词条的二级索引">基于词条的二级索引</h2>
+<h2 class="heading" id="基于词条的二级索引">
+  基于词条的二级索引
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e8%af%8d%e6%9d%a1%e7%9a%84%e4%ba%8c%e7%ba%a7%e7%b4%a2%e5%bc%95">#</a>
+</h2>
 <p>可以对所有的数据构建全局索引，而不是每个分区维护自己的本地索引。而且吧，为了避免成为瓶颈，不能将全局索引放在一个节点上，否则又破坏了分区均衡的目标，因此全局索引数据也需要进行分区。</p>
-<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg" alt="figure 6-5" title="figure 6-5"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="figure 6-5" src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-5.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> figure 6-5 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，所有数据分区中的颜色进行了分区，比如从a到r开始的颜色放在了分区0中，从s到z的颜色放在了分区1中，类似的，厂商索引也被分区。这种索引方式成为词条分区（term-partitioned）。</p>
 <ul>
 <li>优点：读取高效，不需要采用scatter/gather方式对所有分区都进行查询；</li>
 <li>缺点：写入速度慢并且非常复杂，主要是因为单个文档需要更新的时候，里面可能涉及多个二级索引，而二级索引又放在不同的节点上。</li>
 </ul>
 <p>在实践中，对全局二级索引数据的更新一般都是异步进行的。</p>
-<h1 id="分区再平衡rebalancing-partitions">分区再平衡（Rebalancing Partitions）</h1>
+<h1 class="heading" id="分区再平衡rebalancing-partitions">
+  分区再平衡（Rebalancing Partitions）
+  <a class="anchor" href="#%e5%88%86%e5%8c%ba%e5%86%8d%e5%b9%b3%e8%a1%a1rebalancing-partitions">#</a>
+</h1>
 <p>实际中，数据会发生某些变化，这时候需要将数据和请求从一个节点转移到另一个节点。这样的一个迁移负载的过程称为再平衡（rebalance）。</p>
 <p>分区再平衡至少需要满足：</p>
 <ul>
@@ -339,17 +302,59 @@
 <li>避免不必要的负载迁移。</li>
 </ul>
 <p>下面谈各种再平衡策略。</p>
-<h2 id="为什么不能用取模">为什么不能用取模？</h2>
+<h2 class="heading" id="为什么不能用取模">
+  为什么不能用取模？
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e4%b8%8d%e8%83%bd%e7%94%a8%e5%8f%96%e6%a8%a1">#</a>
+</h2>
 <p>对节点数进行取模的方式，最大的问题在于如果节点的数据发生了变化，会导致很多关键字从现有的节点迁移到另一个节点。</p>
-<h2 id="固定数量的分区">固定数量的分区</h2>
+<h2 class="heading" id="固定数量的分区">
+  固定数量的分区
+  <a class="anchor" href="#%e5%9b%ba%e5%ae%9a%e6%95%b0%e9%87%8f%e7%9a%84%e5%88%86%e5%8c%ba">#</a>
+</h2>
 <p>创建远超实际节点数的分区数，然后给每个节点分配多个分区。比如只有10个节点的集群，划分了1000个逻辑分区。</p>
 <p>如果集群中添加了一个新节点，该新节点就可以从每个现有节点上匀走几个分区，直到分区再次达到全局平衡。</p>
 <p>这个方式的优点在于，关键字与逻辑分区的映射关系一开始就固定下来了，节点数量的变更只是改变了逻辑分区分布在哪些节点上。节点间迁移分区数据需要时间，这个过程中，就分区依然可以处理客户端的读写请求。</p>
-<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg" alt="figure 6-6" title="figure 6-6"></p>
-<h2 id="动态分区">动态分区</h2>
-<h2 id="按节点比例分区">按节点比例分区</h2>
-<h1 id="自动与手动再平衡操作">自动与手动再平衡操作</h1>
-<h1 id="请求路由">请求路由</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="figure 6-6" src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-6.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> figure 6-6 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="动态分区">
+  动态分区
+  <a class="anchor" href="#%e5%8a%a8%e6%80%81%e5%88%86%e5%8c%ba">#</a>
+</h2>
+<h2 class="heading" id="按节点比例分区">
+  按节点比例分区
+  <a class="anchor" href="#%e6%8c%89%e8%8a%82%e7%82%b9%e6%af%94%e4%be%8b%e5%88%86%e5%8c%ba">#</a>
+</h2>
+<h1 class="heading" id="自动与手动再平衡操作">
+  自动与手动再平衡操作
+  <a class="anchor" href="#%e8%87%aa%e5%8a%a8%e4%b8%8e%e6%89%8b%e5%8a%a8%e5%86%8d%e5%b9%b3%e8%a1%a1%e6%93%8d%e4%bd%9c">#</a>
+</h1>
+<h1 class="heading" id="请求路由">
+  请求路由
+  <a class="anchor" href="#%e8%af%b7%e6%b1%82%e8%b7%af%e7%94%b1">#</a>
+</h1>
 <p>当客户端需要发起请求时，如果知道应该连接哪个节点？如果发生了分区再平衡，分区与节点的对应关系发生了变化。</p>
 <p>这类问题属于典型的服务发现（service discover）问题。服务发现问题不限于数据库中，任何需要通过网络访问的系统都有这样的需求，尤其是服务目标需要支持高可用时。</p>
 <p>一般有以下三种处理策略。</p>
@@ -359,199 +364,145 @@
 <li>客户端需要感知分区与节点之间的映射关系。</li>
 </ul>
 <p>但是不管是上面的哪种方案，核心问题都是：做为路由决策的组件，如何知道分区与节点的对应关系以及其变化情况？</p>
-<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg" alt="figure 6-7" title="figure 6-7"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="figure 6-7" src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-7.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> figure 6-7 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>很多分布式系统依赖于独立的协调服务（比如zookeeper、etcd等）跟踪集群范围内的元数据（metadata）。如下图所示，每个节点都像zookeeper注册自己，zookeeper维护了分区到节点的最终映射关系。而其他参与者（比如路由层或者分区感知的客户端）向zookeeper订阅此信息。当分区信息发生了增删时，zookeeper会主动通知，这样就能够保持最新的状态。</p>
-<p><img src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg" alt="figure 6-8" title="figure 6-8"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="figure 6-8" src="/media/imgs/20181124-ddia-chapter06-partitioning/figure6-8.jpg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> figure 6-8 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>还有另一种策略，在节点之间使用gossip协议来同步集群状态的变化，请求可以发送到任何节点，由该节点负责将其转发到正确的节点上。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#读书笔记</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190403-ddia-chapter07-transaction/" class="block">《数据密集型应用系统设计》第七章《事务》笔记</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20181118-ddia-chapter05-replication/" class="block">《数据密集型应用系统设计》第五章数据复制笔记</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#键值数据的分区">键值数据的分区</a>
-      <ul>
-        <li><a href="#基于关键字区间的分区">基于关键字区间的分区</a></li>
-        <li><a href="#基于关键字hash值分区">基于关键字Hash值分区</a></li>
-        <li><a href="#负载倾斜和热点">负载倾斜和热点</a></li>
-      </ul>
-    </li>
-    <li><a href="#分区与二级索引">分区与二级索引</a>
-      <ul>
-        <li><a href="#基于文档分区的二级索引">基于文档分区的二级索引</a></li>
-        <li><a href="#基于词条的二级索引">基于词条的二级索引</a></li>
-      </ul>
-    </li>
-    <li><a href="#分区再平衡rebalancing-partitions">分区再平衡（Rebalancing Partitions）</a>
-      <ul>
-        <li><a href="#为什么不能用取模">为什么不能用取模？</a></li>
-        <li><a href="#固定数量的分区">固定数量的分区</a></li>
-        <li><a href="#动态分区">动态分区</a></li>
-        <li><a href="#按节点比例分区">按节点比例分区</a></li>
-      </ul>
-    </li>
-    <li><a href="#自动与手动再平衡操作">自动与手动再平衡操作</a></li>
-    <li><a href="#请求路由">请求路由</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20181118-ddia-chapter05-replication/" class="no-underline">《数据密集型应用系统设计》第五章数据复制笔记</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181125-etcd-server/" class="no-underline">Etcd存储的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="no-underline">etcd Raft库解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

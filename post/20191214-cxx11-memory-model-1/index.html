@@ -1,331 +1,236 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>C&#43;&#43;11中的内存模型上篇 - 内存模型基础 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"C++11中的内存模型上篇 - 内存模型基础",
-      "item":"https://www.codedump.info/post/20191214-cxx11-memory-model-1/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20191214-cxx11-memory-model-1/"
-    },
-    "headline": "C\u002b\u002b11中的内存模型上篇 - 内存模型基础 - codedump的网络日志","datePublished": "2019-12-14T10:10:15+08:00",
-    "dateModified": "2019-12-14T10:10:15+08:00",
-    "wordCount":  4334 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "C\u002b\u002b11中的内存模型上篇 - 内存模型基础"
-}
-</script><meta property="og:title" content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20191214-cxx11-memory-model-1/" />
-
-
-
-<meta property="og:description" content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-12-14T10:10:15&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-12-14T10:10:15&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="多核" />
-
-<meta property="article:tag" content="系统编程" />
-
-<meta property="article:tag" content="系统设计" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20191214-cxx11-memory-model-2/" />
-
-
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    C&#43;&#43;11中的内存模型上篇 - 内存模型基础 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20191214-cxx11-memory-model-1/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20191214-cxx11-memory-model-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础">
+  <meta property="og:description" content="C&#43;&#43;11中的内存模型上篇 - 内存模型基础">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-12-14T10:10:15+08:00">
+    <meta property="article:modified_time" content="2019-12-14T10:10:15+08:00">
+    <meta property="article:tag" content="多核">
+    <meta property="article:tag" content="系统编程">
+    <meta property="article:tag" content="系统设计">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-12-14</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20191214-cxx11-memory-model-1/">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">C&#43;&#43;11中的内存模型上篇 - 内存模型基础</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-12-14T10:10:15&#43;08:00">2019年12月14日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>9分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/%E5%A4%9A%E6%A0%B8/" class="hover:text-eureka"
-          >多核</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E7%BC%96%E7%A8%8B/" class="hover:text-eureka"
-          >系统编程</a
-        >
-      
-        
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="hover:text-eureka"
-          >系统设计</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/c&#43;&#43;11%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/" class="hover:text-eureka"
-          >C&#43;&#43;11中的内存模型</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+
   
 
-  <p>前段时间花了些精力研究C++11引入的内存模型相关的操作，于是把相关的知识都学习了一下，将这个学习过程整理为两篇文档，这是第一篇，主要分析内存模型的一些基础概念，第二篇展开讨论C++11相关的操作。</p>
-<h1 id="cpu架构的演进">CPU架构的演进</h1>
+  <div class="single-content">
+    <p>前段时间花了些精力研究C++11引入的内存模型相关的操作，于是把相关的知识都学习了一下，将这个学习过程整理为两篇文档，这是第一篇，主要分析内存模型的一些基础概念，第二篇展开讨论C++11相关的操作。</p>
+<h1 class="heading" id="cpu架构的演进">
+  CPU架构的演进
+  <a class="anchor" href="#cpu%e6%9e%b6%e6%9e%84%e7%9a%84%e6%bc%94%e8%bf%9b">#</a>
+</h1>
 <p>早期的CPU，CPU之间能共享访问的只有内存，此时的结构大体如图：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/memory.png" alt="memory" title="memory"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="memory" src="/media/imgs/20191214-cxx11-memory-model-1/memory.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> memory </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>随着硬件技术的发展，内存的访问已经跟不上CPU的执行速度，此时内存反而变成了瓶颈。为了加速读写速度，每个CPU也都有自己内部才能访问的缓存，结构变成了这样：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/multicore.png" alt="multicore" title="multicore"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="multicore" src="/media/imgs/20191214-cxx11-memory-model-1/multicore.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> multicore </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>其中：</p>
 <ul>
 <li>有多个CPU处理器，每个CPU处理器内部又有多个核心。</li>
@@ -336,59 +241,166 @@
 </ul>
 <p>当CPU结构发生变化，增加了只能由内部才能访问的缓存之后，一些在旧架构上不会出现的问题，在新的架构上就会出现。而本篇的主角内存模型（memory model），其作用就是规定了各种不同的访问共享内存的方式，不同的内存模型，既需要编译器的支持，也需要硬件CPU的支持。</p>
 <p>我们从一个最简单的多线程访问变量问题谈起。</p>
-<h1 id="简单的多线程访问数据问题">简单的多线程访问数据问题</h1>
+<h1 class="heading" id="简单的多线程访问数据问题">
+  简单的多线程访问数据问题
+  <a class="anchor" href="#%e7%ae%80%e5%8d%95%e7%9a%84%e5%a4%9a%e7%ba%bf%e7%a8%8b%e8%ae%bf%e9%97%ae%e6%95%b0%e6%8d%ae%e9%97%ae%e9%a2%98">#</a>
+</h1>
 <p>假设在程序执行之前，A=B=0，有两个线程同时分别执行如下的代码：</p>
 <table>
-<thead>
-<tr>
-<th>线程1</th>
-<th>线程2</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1. A=1</td>
-<td>3. B=2</td>
-</tr>
-<tr>
-<td>2. print(B)</td>
-<td>4. print(A)</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>线程1</th>
+          <th>线程2</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>1. A=1</td>
+          <td>3. B=2</td>
+      </tr>
+      <tr>
+          <td>2. print(B)</td>
+          <td>4. print(A)</td>
+      </tr>
+  </tbody>
 </table>
 <p>问上述程序的执行结果如何？</p>
 <p>这个问题是一个简单的排列组合问题，其结果有：</p>
 <blockquote>
-<p>2（先选择A或B输出）* 2（输出修改前还是之后的结果）* 1（前面第一步选择了一个变量之后，现在只能选剩下的变量）* 2（输出修改前还是之后的结果） = 8</p>
-</blockquote>
+<p>2（先选择A或B输出）* 2（输出修改前还是之后的结果）* 1（前面第一步选择了一个变量之后，现在只能选剩下的变量）* 2（输出修改前还是之后的结果） = 8</p></blockquote>
 <p>其可能的结果包括：(0,0)、(1,0)、(0,2)、(1,2)、(0,1)、(2,0)、(2,1)。（这里只有7个结果，是因为有两个(0,0)，所以少了一个）。</p>
 <p>由于多个线程交替执行，可能有以下几种结果，下面来分别解析。</p>
-<h2 id="两个线程依次执行">两个线程依次执行</h2>
+<h2 class="heading" id="两个线程依次执行">
+  两个线程依次执行
+  <a class="anchor" href="#%e4%b8%a4%e4%b8%aa%e7%ba%bf%e7%a8%8b%e4%be%9d%e6%ac%a1%e6%89%a7%e8%a1%8c">#</a>
+</h2>
 <p>最简单的情况，就是这两个线程依次执行，即一个线程执行完毕之后再执行另一个线程的指令，这种情况下有两种可能：</p>
 <ul>
 <li>1-&gt;2-&gt;3-&gt;4</li>
 </ul>
 <p>这种情况先执行完毕线程1，再执行线程2，最后输出的结果是(0,1)。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/sc1.png" alt="sc1" title="sc1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sc1" src="/media/imgs/20191214-cxx11-memory-model-1/sc1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sc1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>3-&gt;4-&gt;1-&gt;2</li>
 </ul>
 <p>这种情况先执行完毕线程2，再执行线程1，最后输出的结果是(0,2)。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/sc2.png" alt="sc2" title="sc2"></p>
-<h2 id="两个线程交替执行">两个线程交替执行</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sc2" src="/media/imgs/20191214-cxx11-memory-model-1/sc2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sc2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="两个线程交替执行">
+  两个线程交替执行
+  <a class="anchor" href="#%e4%b8%a4%e4%b8%aa%e7%ba%bf%e7%a8%8b%e4%ba%a4%e6%9b%bf%e6%89%a7%e8%a1%8c">#</a>
+</h2>
 <p>这样情况下，先执行的可能是线程1或者线程2，来看线程1先执行的情况。</p>
 <ul>
 <li>1-&gt;3-&gt;2-&gt;4</li>
 </ul>
 <p>这种情况下的输出是（2,1）。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/sc3.png" alt="sc3" title="sc3"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sc3" src="/media/imgs/20191214-cxx11-memory-model-1/sc3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sc3 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>1-&gt;3-&gt;4-&gt;2</li>
 </ul>
 <p>这种情况下的输出是（1,2）。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/sc4.png" alt="sc4" title="sc4"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sc4" src="/media/imgs/20191214-cxx11-memory-model-1/sc4.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sc4 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>以上是第一条指令先执行线程1执行的情况，同样地也有先执行线程2指令的情况（3-1-&gt;4-&gt;2和3-&gt;1-&gt;2-4），这里不再列出，有兴趣的读者可以自行画图理解。</p>
-<h2 id="不可能出现的情况">不可能出现的情况</h2>
+<h2 class="heading" id="不可能出现的情况">
+  不可能出现的情况
+  <a class="anchor" href="#%e4%b8%8d%e5%8f%af%e8%83%bd%e5%87%ba%e7%8e%b0%e7%9a%84%e6%83%85%e5%86%b5">#</a>
+</h2>
 <p>除了以上的情况之外，还有一种可能是输出(0,0)，但是这种输出在一般情况下不可能出现（我们接下来会解释什么情况下可能出现），下面来做解释。</p>
 <p>首先先来理解一个概念“happen-before（先于）”，比如对于变量A而言，其初始值是0，有如下两个操作：</p>
 <pre tabindex="0"><code>A = 1
@@ -397,18 +409,68 @@ print(A)
 <p>有了happen-before这个概念的初步印象，就可以进一步解释为什么在SC的要求之下，程序不可能输出(0,0)，在下面的讲解中，用箭头来表示两个操作之间的happen-before关系。</p>
 <p>由前面的分析可知，要求对变量A输出0，那么意味着&quot;print(A)&ldquo;操作happen-before修改变量A的赋值操作&quot;A=1&rdquo;。同样的，要求针对变量B的输出为0，那么意味着&quot;print(B)&ldquo;操作happen-before修改变量B的赋值操作&quot;B=2&rdquo;。</p>
 <p>用图来表示就是：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/happen-before.png" alt="happen-before" title="happen-before"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="happen-before" src="/media/imgs/20191214-cxx11-memory-model-1/happen-before.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> happen-before </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>由于输出结果(0,0)要求同时满足前面的两个分别针对变量A和B的happen-before关系，同时又不能违背程序顺序，因此出错了，见下图：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/00.png" alt="00" title="00"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="00" src="/media/imgs/20191214-cxx11-memory-model-1/00.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 00 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>首先，根据前面分析的输出关系，必须保证“4 happen-before 1”以及“2 happen-before 3”。
 同时，一个处理器内的执行顺序必须按照程序顺序（program order），因此也必须保证“1 happen before 2”以及“2 happen before 3”。</p>
 <p>当前面几个happen before关系合在一起，这个执行过程出现了死循环，不知道在哪里终止了。</p>
-<h1 id="sequential-consistency-顺序一致性">Sequential Consistency (顺序一致性）</h1>
+<h1 class="heading" id="sequential-consistency-顺序一致性">
+  Sequential Consistency (顺序一致性）
+  <a class="anchor" href="#sequential-consistency-%e9%a1%ba%e5%ba%8f%e4%b8%80%e8%87%b4%e6%80%a7">#</a>
+</h1>
 <p>这里就可以引入最直白、简单的一种内存模型：顺序一致性内存模型（Sequential Consistency）了。</p>
 <p>Sequential Consistency（以下简称SC）由Lamport提出，其严格定义是：</p>
 <blockquote>
-<p>“… the result of any execution is the same as if the operations of all the processors were executed in some sequential order, and the operations of each individual processor appear in this sequence in the order specified by its program.”</p>
-</blockquote>
+<p>“… the result of any execution is the same as if the operations of all the processors were executed in some sequential order, and the operations of each individual processor appear in this sequence in the order specified by its program.”</p></blockquote>
 <p>这句话看起来很拗口，它对程序的执行结果有两个要求：</p>
 <ul>
 <li>每个处理器的执行顺序和代码中的顺序（program order）一样。</li>
@@ -420,35 +482,113 @@ print(A)
 <li>每个人自己发出去的消息，必然是和ta说话的顺序一致的。即用户A在群聊中依次说了消息1和消息2，在群聊天的时候也必然是先看到消息1然后再看到消息2，这就是前面顺序一致性的第一个要求。</li>
 <li>群聊中有多个用户参与聊天（多处理器），如果所有人看到的消息顺序都一样，那么就满足了前面顺序一致性的第二个要求了，但是这个顺序首先不能违背前面的第一个要求。</li>
 </ul>
-<h2 id="顺序一致性的缺点">顺序一致性的缺点</h2>
+<h2 class="heading" id="顺序一致性的缺点">
+  顺序一致性的缺点
+  <a class="anchor" href="#%e9%a1%ba%e5%ba%8f%e4%b8%80%e8%87%b4%e6%80%a7%e7%9a%84%e7%bc%ba%e7%82%b9">#</a>
+</h2>
 <p>从以上的分析可以看到，顺序一致性实际上是一种强一致性，可以想象成整个程序过程中由一个开关来选择执行的线程，这样才能同时保证顺序一致性的两个条件。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/sc-switch.png" alt="sc-switch" title="sc-switch"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sc-switch" src="/media/imgs/20191214-cxx11-memory-model-1/sc-switch.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sc-switch </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以看到，这样实际上还是相当于同一时间只有一个线程在工作，这种保证导致了程序是低效的，无法充分利用上多核的优点。</p>
-<h1 id="全存储排序total-store-ordering-简称tso">全存储排序（Total Store Ordering, 简称TSO）</h1>
+<h1 class="heading" id="全存储排序total-store-ordering-简称tso">
+  全存储排序（Total Store Ordering, 简称TSO）
+  <a class="anchor" href="#%e5%85%a8%e5%ad%98%e5%82%a8%e6%8e%92%e5%ba%8ftotal-store-ordering-%e7%ae%80%e7%a7%b0tso">#</a>
+</h1>
 <p>有一些CPU架构，在处理核心中增加写缓存，一个写操作只要写入到本核心的写缓存中就可以返回，此时的CPU结构如图所示（图中并没有画出三级cache）：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/tso.png" alt="tso" title="tso"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="tso" src="/media/imgs/20191214-cxx11-memory-model-1/tso.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> tso </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在这种结构下，SC所不允许的一些操作可能会出现。</p>
 <p>还是以前面分析SC的程序例子来说明：</p>
 <table>
-<thead>
-<tr>
-<th>线程1</th>
-<th>线程2</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1. A=1</td>
-<td>3. B=2</td>
-</tr>
-<tr>
-<td>2. print(B)</td>
-<td>4. print(A)</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th>线程1</th>
+          <th>线程2</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>1. A=1</td>
+          <td>3. B=2</td>
+      </tr>
+      <tr>
+          <td>2. print(B)</td>
+          <td>4. print(A)</td>
+      </tr>
+  </tbody>
 </table>
 <p>在新的CPU架构下，写一个值可能值写到本核心的缓冲区中就返回了，接着执行下面的一条指令，因此可能出现以下的情况：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/multicore-2.png" alt="multicore-2" title="multicore-2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="multicore-2" src="/media/imgs/20191214-cxx11-memory-model-1/multicore-2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> multicore-2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ul>
 <li>执行操作1，core 1写入A的新值1到core 1的缓冲区中之后就马上返回了，还并没有更新到所有CPU都能访问到的内存中。</li>
 <li>执行操作3，core 2写入B的新值2到core 2的缓冲区中之后就马上返回了，还并没有更新到所有CPU都能访问到的内存中。</li>
@@ -456,22 +596,25 @@ print(A)
 <li>执行操作4，由于操作4访问到本core缓冲区中存储的A值还是原来的0，因此输出0。</li>
 </ul>
 <p>可以看到，在引入了只能由每个core才能访问到的写缓冲区之后，之前SC中不可能出现的输出(0,0)的情况在这样的条件下可能出现了。</p>
-<h1 id="松弛型内存模型relaxed-memory-models">松弛型内存模型（Relaxed memory models）</h1>
+<h1 class="heading" id="松弛型内存模型relaxed-memory-models">
+  松弛型内存模型（Relaxed memory models）
+  <a class="anchor" href="#%e6%9d%be%e5%bc%9b%e5%9e%8b%e5%86%85%e5%ad%98%e6%a8%a1%e5%9e%8brelaxed-memory-models">#</a>
+</h1>
 <p>以上已经介绍了两种内存模型，SC是最简单直白的内存模型，TSO在SC的基础上，加入了写缓存，写缓存的加入导致了一些在SC条件下不可能出现的情况也成为了可能。</p>
 <p>然而，即便如此，以上两种内存模型都没有改变单线程执行一个程序时的执行顺序。在这里要讲的松弛型内存模型，则改变了程序的执行顺序。</p>
 <p>在松散型的内存模型中，编译器可以在满足程序单线程执行结果的情况下进行重排序（reorder），来看下面的程序：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">int</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">;</span>
-
-<span class="kt">void</span> <span class="nf">foo</span><span class="p">()</span> <span class="p">{</span>
-  <span class="n">A</span> <span class="o">=</span> <span class="n">B</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-  <span class="n">B</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-  <span class="n">foo</span><span class="p">();</span>
-  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>如果在不使用优化的情况下编译，gcc foo.c -S，foo函数中针对A和B操作的汇编代码如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> A, B;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">foo</span>() {
+</span></span><span style="display:flex;"><span>  A = B + 1;
+</span></span><span style="display:flex;"><span>  B = 0;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>() {
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">foo</span>();
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>如果在不使用优化的情况下编译，gcc foo.c -S，foo函数中针对A和B操作的汇编代码如下：</p>
 <pre tabindex="0"><code>	movl	B(%rip), %eax
 	addl	$1, %eax
 	movl	%eax, A(%rip)
@@ -486,42 +629,99 @@ print(A)
 <p>其原因在于，foo函数中，只要将变量B的值暂存下来，那么对变量B的赋值操作可以被打乱而并不影响程序的执行结果，这就是编译器可以做的重排序优化。</p>
 <p>回到前面的例子中，在松弛型内存模型中，程序的执行顺序就不见得和代码中编写的一样了，这是这种内存模型和SC、TSO模型最大的差异。</p>
 <p>仍然以IM群聊消息为例子说明这个问题。假设有多人在群里聊天，如果A说的消息1与B说的消息2之间，没用明确的先后顺序，比如消息1是回复或者引用了消息2的话，那么其实在整个群聊视图里面，两者的先后顺序如何是无关紧要的。即参与群聊的两个用户，其中一个用户可能看到消息1在消息2之前，另一个用户看到的顺序相反，这都是无关大局的，因为两个消息之间没有关系。</p>
-<h2 id="内存栅栏memory-barrier">内存栅栏（memory barrier）</h2>
+<h2 class="heading" id="内存栅栏memory-barrier">
+  内存栅栏（memory barrier）
+  <a class="anchor" href="#%e5%86%85%e5%ad%98%e6%a0%85%e6%a0%8fmemory-barrier">#</a>
+</h2>
 <p>讲完了三种内存模型，这里还需要了解一下内存栅栏的概念。</p>
 <p>由于有了缓冲区的出现，导致一些操作不用到内存就可以返回继续执行后面的操作，为了保证某些操作必须是写入到内存之后才执行，就引入了内存栅栏（memory barrier，又称为memory fence）操作。内存栅栏指令保证了，在这条指令之前所有的内存操作的结果，都在这个指令之后的内存操作指令被执行之前，写入到内存中。也可以换另外的角度来理解内存栅栏指令的作用：显式的在程序的某些执行点上保证SC。</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/memorybarrier.png" alt="memorybarrier" title="memorybarrier"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="memorybarrier" src="/media/imgs/20191214-cxx11-memory-model-1/memorybarrier.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> memorybarrier </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>再次以前面的例子来说明这个指令，在X64下面，内存屏障指令使用汇编指令<code>asm volatile (&quot;pause&quot; ::: &quot;memory&quot;);</code>来实现，如果将这个指令放到两个赋值语句之间：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="kt">int</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">;</span>
-
-<span class="kt">void</span> <span class="nf">foo</span><span class="p">()</span>
-<span class="p">{</span>
-    <span class="n">A</span> <span class="o">=</span> <span class="n">B</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-    <span class="k">asm</span> <span class="k">volatile</span> <span class="p">(</span><span class="s">&#34;pause&#34;</span> <span class="o">:::</span> <span class="s">&#34;memory&#34;</span><span class="p">);</span>
-    <span class="n">B</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-  <span class="n">foo</span><span class="p">();</span>
-  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>那么再次使用O2编译出来的汇编代码就变成了：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> A, B;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">foo</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    A = B + 1;
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">asm</span> <span style="font-weight:bold;text-decoration:underline">volatile</span> (<span style="color:#666;font-style:italic">&#34;pause&#34;</span> ::: <span style="color:#666;font-style:italic">&#34;memory&#34;</span>);
+</span></span><span style="display:flex;"><span>    B = 0;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>() {
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">foo</span>();
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>那么再次使用O2编译出来的汇编代码就变成了：</p>
 <pre tabindex="0"><code>.LFB1:
   .cfi_startproc
   movl  B(%rip), %eax
   addl  $1, %eax
   movl  %eax, A(%rip)
 #APP
-# 6 &quot;foo.c&quot; 1
+# 6 &#34;foo.c&#34; 1
   pause
-# 0 &quot;&quot; 2
+# 0 &#34;&#34; 2
 #NO_APP
   movl  $0, B(%rip)
 </code></pre><p>可以看到，插入内存屏障指令之后，生成的汇编代码顺序就不会乱序了。</p>
-<h1 id="小结">小结</h1>
+<h1 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h1>
 <p>以上，从引入一个多线程读写多个变量的例子出发，依次讲解了SC、TSO、Relaxed model三种内存模型，这三种内存模型其一致性要求依次减弱，其总结如下图：</p>
-<p><img src="/media/imgs/20191214-cxx11-memory-model-1/memorymodel.png" alt="memorymodel" title="memorymodel"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="memorymodel" src="/media/imgs/20191214-cxx11-memory-model-1/memorymodel.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> memorymodel </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>有了上面的介绍，下一篇介绍C++11之后引入的几种内存模型操作。</p>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li>《A Primer on Memory Consistency and Cache Coherence》</li>
 <li><a href="http://www.parallellabs.com/2010/03/06/why-should-programmer-care-about-sequential-consistency-rather-than-cache-coherence/">《为什么程序员需要关心顺序一致性（Sequential Consistency）而不是Cache一致性（Cache Coherence？）》</a></li>
@@ -529,200 +729,92 @@ print(A)
 <li><a href="https://preshing.com/20120625/memory-ordering-at-compile-time/">《Memory Ordering at Compile Time》</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%A4%9A%E6%A0%B8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#多核</a>
-    
-    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E7%BC%96%E7%A8%8B/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统编程</a>
-    
-    <a href="https://www.codedump.info/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#系统设计</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20191214-cxx11-memory-model-2/" class="block">C&#43;&#43;11中的内存模型下篇 - C&#43;&#43;11支持的几种内存模型</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/" class="block">对比脚本型和编译型游戏服务器的热更新方案</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#cpu架构的演进">CPU架构的演进</a></li>
-    <li><a href="#简单的多线程访问数据问题">简单的多线程访问数据问题</a>
-      <ul>
-        <li><a href="#两个线程依次执行">两个线程依次执行</a></li>
-        <li><a href="#两个线程交替执行">两个线程交替执行</a></li>
-        <li><a href="#不可能出现的情况">不可能出现的情况</a></li>
-      </ul>
-    </li>
-    <li><a href="#sequential-consistency-顺序一致性">Sequential Consistency (顺序一致性）</a>
-      <ul>
-        <li><a href="#顺序一致性的缺点">顺序一致性的缺点</a></li>
-      </ul>
-    </li>
-    <li><a href="#全存储排序total-store-ordering-简称tso">全存储排序（Total Store Ordering, 简称TSO）</a></li>
-    <li><a href="#松弛型内存模型relaxed-memory-models">松弛型内存模型（Relaxed memory models）</a>
-      <ul>
-        <li><a href="#内存栅栏memory-barrier">内存栅栏（memory barrier）</a></li>
-      </ul>
-    </li>
-    <li><a href="#小结">小结</a></li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20191206-gameserver-hot-refresh/" class="no-underline">对比脚本型和编译型游戏服务器的热更新方案</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20191013-im-msg-out-of-order/" class="no-underline">IM服务器设计-如何解决消息的乱序</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190818-im-msg-gate/" class="no-underline">IM服务器设计-网关接入层</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190629-service-history/" class="no-underline">服务调用的演进历史</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190608-im-msg-storage/" class="no-underline">IM服务器设计-消息存储</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190608-im-design-base/" class="no-underline">IM服务器设计-基础</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

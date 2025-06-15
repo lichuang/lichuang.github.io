@@ -1,332 +1,282 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>redis高可用原理 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="redis高可用原理"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="redis高可用原理">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"redis高可用原理",
-      "item":"https://www.codedump.info/post/20190409-redis-sentinel/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20190409-redis-sentinel/"
-    },
-    "headline": "redis高可用原理 - codedump的网络日志","datePublished": "2019-04-21T22:52:16+08:00",
-    "dateModified": "2019-04-21T22:52:16+08:00",
-    "wordCount":  3196 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "redis高可用原理"
-}
-</script><meta property="og:title" content="redis高可用原理 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20190409-redis-sentinel/" />
-
-
-
-<meta property="og:description" content="redis高可用原理" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2019-04-21T22:52:16&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2019-04-21T22:52:16&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="redis" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190413-problem-fix/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190123-libuv/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190103-nginx-config-parse/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    redis高可用原理 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">redis高可用原理</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20190409-redis-sentinel/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2019-04-21</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>7分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20190409-redis-sentinel/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="redis高可用原理">
+  <meta property="og:description" content="redis高可用原理">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-04-21T22:52:16+08:00">
+    <meta property="article:modified_time" content="2019-04-21T22:52:16+08:00">
+    <meta property="article:tag" content="Redis">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/redis/" class="hover:text-eureka"
-          >redis</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190409-redis-sentinel/">redis高可用原理</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">redis高可用原理</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-04-21T22:52:16&#43;08:00">2019年4月21日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>redis中为了实现高可用（High Availability，简称HA），采用了如下两个方式：</p>
+  
+
+  
+
+  <div class="single-content">
+    <p>redis中为了实现高可用（High Availability，简称HA），采用了如下两个方式：</p>
 <ul>
 <li>主从复制数据。</li>
 <li>采用哨兵监控数据节点的运行情况，一旦主节点出现问题由从节点顶上继续进行服务。</li>
 </ul>
-<h1 id="主从复制">主从复制</h1>
+<h1 class="heading" id="主从复制">
+  主从复制
+  <a class="anchor" href="#%e4%b8%bb%e4%bb%8e%e5%a4%8d%e5%88%b6">#</a>
+</h1>
 <p>redis中主从节点复制数据有全量复制和部分复制之分。</p>
-<h2 id="旧版本全量复制功能的实现">旧版本全量复制功能的实现</h2>
+<h2 class="heading" id="旧版本全量复制功能的实现">
+  旧版本全量复制功能的实现
+  <a class="anchor" href="#%e6%97%a7%e7%89%88%e6%9c%ac%e5%85%a8%e9%87%8f%e5%a4%8d%e5%88%b6%e5%8a%9f%e8%83%bd%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h2>
 <p>全量复制使用snyc命令来实现，其流程是：</p>
 <ul>
 <li>从服务器向主服务器发送sync命令。</li>
 <li>主服务器在收到sync命令之后，调用bgsave命令生成最新的rdb文件，将这个文件同步给从服务器，这样从服务器载入这个rdb文件之后，状态就会和主服务器执行bgsave命令时候的一致。</li>
 <li>主服务器将保存在命令缓冲区中的写命令同步给从服务器，从服务器执行这些命令，这样从服务器的状态就跟主服务器当前状态一致了。</li>
 </ul>
-<p><img src="/media/imgs/20190409-redis-sentinel/sync.png" alt="sync" title="sync"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sync" src="/media/imgs/20190409-redis-sentinel/sync.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sync </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>旧版本全量复制功能，其最大的问题是从服务器断线重连时，即便在从服务器上已经有一部分数据了，也需要进行全量复制，这样做的效率很低，于是新版本的redis在这部分做了改进。</p>
-<h2 id="新版本全量复制功能的实现">新版本全量复制功能的实现</h2>
+<h2 class="heading" id="新版本全量复制功能的实现">
+  新版本全量复制功能的实现
+  <a class="anchor" href="#%e6%96%b0%e7%89%88%e6%9c%ac%e5%85%a8%e9%87%8f%e5%a4%8d%e5%88%b6%e5%8a%9f%e8%83%bd%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h2>
 <p>新版本redis使用psync命令来代替sync命令，该命令既可以实现完整全同步也可以实现部分同步。</p>
-<h3 id="复制偏移量">复制偏移量</h3>
+<h3 class="heading" id="复制偏移量">
+  复制偏移量
+  <a class="anchor" href="#%e5%a4%8d%e5%88%b6%e5%81%8f%e7%a7%bb%e9%87%8f">#</a>
+</h3>
 <p>执行复制的双方，主从服务器，分别会维护一个复制偏移量：</p>
 <ul>
 <li>主服务器每次向从服务器同步了N字节数据之后，将修改自己的复制偏移量+N。</li>
 <li>从服务器每次从主服务器同步了N字节数据之后，将修改自己的复制偏移量+N。</li>
 </ul>
-<h2 id="复制积压缓冲区">复制积压缓冲区</h2>
+<h2 class="heading" id="复制积压缓冲区">
+  复制积压缓冲区
+  <a class="anchor" href="#%e5%a4%8d%e5%88%b6%e7%a7%af%e5%8e%8b%e7%bc%93%e5%86%b2%e5%8c%ba">#</a>
+</h2>
 <p>主服务器内部维护了一个固定长度的先进先出队列做为复制积压缓冲区，其默认大小为1MB。</p>
 <p>在主服务器进行命令传播时，不仅会将写命令同步到从服务器，还会将写命令写入复制积压缓冲区。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/replication-backlog.png" alt="replication-backlog" title="replication-backlog"></p>
-<h2 id="服务器运行id">服务器运行ID</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="replication-backlog" src="/media/imgs/20190409-redis-sentinel/replication-backlog.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> replication-backlog </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="服务器运行id">
+  服务器运行ID
+  <a class="anchor" href="#%e6%9c%8d%e5%8a%a1%e5%99%a8%e8%bf%90%e8%a1%8cid">#</a>
+</h2>
 <p>每个redis服务器，都有其运行ID，运行ID由服务器在启动时自动生成，主服务器会将自己的运行ID发送给从服务器，而从服务器会将主服务器的运行ID保存起来。</p>
 <p>从服务器redis断线重连之后进行同步时，就是根据运行ID来判断同步的进度：</p>
 <ul>
 <li>如果从服务器上面保存的主服务器运行ID与当前主服务器运行ID一致，则认为这一次断线重连连接的是之前复制的主服务器，主服务器可以继续尝试部分同步操作。</li>
 <li>否则，如果前后两次主服务器运行ID不相同，则认为是完成全同步流程。</li>
 </ul>
-<h2 id="psync命令流程">psync命令流程</h2>
+<h2 class="heading" id="psync命令流程">
+  psync命令流程
+  <a class="anchor" href="#psync%e5%91%bd%e4%bb%a4%e6%b5%81%e7%a8%8b">#</a>
+</h2>
 <p>有了前面的准备，下面开始分析psync命令的流程：</p>
 <ul>
 <li>如果从服务器之前没有复制过任何主服务器，或者之前执行过slaveof no one命令，那么从服务器就会向主服务器发送psync ? -1命令，请求主服务器进行数据的全量同步。</li>
@@ -338,8 +288,35 @@
 <li>如果主服务器应答+continue，那么表示主服务器与从服务器进行部分数据同步操作，将从服务器缺失的数据同步过来即可。</li>
 <li>如果主服务器应答-err，那么表示主服务器版本低于2.8，识别不了psync命令，此时从服务器将向主服务器发送sync命令，执行完整的全量数据同步。</li>
 </ul>
-<p><img src="/media/imgs/20190409-redis-sentinel/psync.png" alt="psync" title="psync"></p>
-<h1 id="哨兵机制概述">哨兵机制概述</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="psync" src="/media/imgs/20190409-redis-sentinel/psync.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> psync </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="哨兵机制概述">
+  哨兵机制概述
+  <a class="anchor" href="#%e5%93%a8%e5%85%b5%e6%9c%ba%e5%88%b6%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>redis使用哨兵机制来实现高可用(HA)，其大概工作原理是：</p>
 <ul>
 <li>redis使用一组哨兵（sentinel）节点来监控主从redis服务的可用性。</li>
@@ -359,9 +336,15 @@
 <li>哨兵节点选择新的主redis节点的依据是什么？</li>
 </ul>
 <p>以下来逐个回答这些问题。</p>
-<h1 id="三个监控任务">三个监控任务</h1>
+<h1 class="heading" id="三个监控任务">
+  三个监控任务
+  <a class="anchor" href="#%e4%b8%89%e4%b8%aa%e7%9b%91%e6%8e%a7%e4%bb%bb%e5%8a%a1">#</a>
+</h1>
 <p>哨兵节点通过三个定时监控任务监控redis数据节点的服务可用性。</p>
-<h2 id="info命令">info命令</h2>
+<h2 class="heading" id="info命令">
+  info命令
+  <a class="anchor" href="#info%e5%91%bd%e4%bb%a4">#</a>
+</h2>
 <p>每隔10秒，每个哨兵节点都会向主、从redis数据节点发送info命令，获取新的拓扑结构信息。</p>
 <p>redis拓扑结构信息包括了：</p>
 <ul>
@@ -369,27 +352,165 @@
 <li>主从节点的地址、端口信息。</li>
 </ul>
 <p>这样，哨兵节点就能从info命令中自动获取到从节点信息，因此那些后续才加入的从节点信息不需要显式配置就能自动感知。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/redis-info.png" alt="redis-info" title="redis-info"></p>
-<h2 id="向__sentinel__hello频道同步信息">向__sentinel__:hello频道同步信息</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="redis-info" src="/media/imgs/20190409-redis-sentinel/redis-info.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> redis-info </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="向__sentinel__hello频道同步信息">
+  向__sentinel__:hello频道同步信息
+  <a class="anchor" href="#%e5%90%91__sentinel__hello%e9%a2%91%e9%81%93%e5%90%8c%e6%ad%a5%e4%bf%a1%e6%81%af">#</a>
+</h2>
 <p>每隔2秒，每个哨兵节点将会向redis数据节点的__sentinel__:hello频道同步自身得到的主节点信息以及当前哨兵节点的信息，由于其他哨兵节点也订阅了这个频道，因此实际上这个操作可以交换哨兵节点之间关于主节点以及哨兵节点的信息。</p>
 <p>这一操作实际上完成了两件事情：</p>
 <ul>
 <li>发现新的哨兵节点：如果有新的哨兵节点加入，此时保存下来这个新哨兵节点的信息，后续与该哨兵节点建立连接。</li>
 <li>交换主节点的状态信息，作为后续客观判断主节点下线的依据。</li>
 </ul>
-<p><img src="/media/imgs/20190409-redis-sentinel/hello.png" alt="hello" title="hello"></p>
-<h2 id="向数据节点做心跳探测">向数据节点做心跳探测</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="hello" src="/media/imgs/20190409-redis-sentinel/hello.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> hello </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="向数据节点做心跳探测">
+  向数据节点做心跳探测
+  <a class="anchor" href="#%e5%90%91%e6%95%b0%e6%8d%ae%e8%8a%82%e7%82%b9%e5%81%9a%e5%bf%83%e8%b7%b3%e6%8e%a2%e6%b5%8b">#</a>
+</h2>
 <p>每隔1秒，每个哨兵节点向主、从数据节点以及其他sentinel节点发送ping命令做心跳探测，这个心跳探测是后续主观判断数据节点下线的依据。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/ping.png" alt="ping" title="ping"></p>
-<h1 id="主观下线和客观下线">主观下线和客观下线</h1>
-<h2 id="主观下线">主观下线</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="ping" src="/media/imgs/20190409-redis-sentinel/ping.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> ping </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="主观下线和客观下线">
+  主观下线和客观下线
+  <a class="anchor" href="#%e4%b8%bb%e8%a7%82%e4%b8%8b%e7%ba%bf%e5%92%8c%e5%ae%a2%e8%a7%82%e4%b8%8b%e7%ba%bf">#</a>
+</h1>
+<h2 class="heading" id="主观下线">
+  主观下线
+  <a class="anchor" href="#%e4%b8%bb%e8%a7%82%e4%b8%8b%e7%ba%bf">#</a>
+</h2>
 <p>上面三个监控任务中的第三个探测心跳任务，如果在配置的down-after-milliseconds之后没有收到有效回复，那么就认为该数据节点“主观下线（sdown）”。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/sdown.png" alt="sdown" title="sdown"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sdown" src="/media/imgs/20190409-redis-sentinel/sdown.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sdown </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>为什么称为“主观下线”？因为在一个分布式系统中，有多个机器在一起联动工作，网络可能出现各种状况，仅凭一个节点的判断还不足以认为一个数据节点下线了，这就需要后面的“客观下线”。</p>
-<h2 id="客观下线">客观下线</h2>
+<h2 class="heading" id="客观下线">
+  客观下线
+  <a class="anchor" href="#%e5%ae%a2%e8%a7%82%e4%b8%8b%e7%ba%bf">#</a>
+</h2>
 <p>当一个哨兵节点认为主节点主观下线时，该哨兵节点需要通过&quot;sentinel is-master-down-by addr&quot;命令向其他哨兵节点咨询该主节点是否下线了，如果有超过半数的哨兵节点都回答了下线，此时认为主节点“客观下线”。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/odown.png" alt="odown" title="odown"></p>
-<h1 id="选举哨兵领导者">选举哨兵领导者</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="odown" src="/media/imgs/20190409-redis-sentinel/odown.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> odown </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="选举哨兵领导者">
+  选举哨兵领导者
+  <a class="anchor" href="#%e9%80%89%e4%b8%be%e5%93%a8%e5%85%b5%e9%a2%86%e5%af%bc%e8%80%85">#</a>
+</h1>
 <p>当主节点客观下线时，需要选举出一个哨兵节点做为哨兵领导者，以完成后续选出新的主节点的工作。</p>
 <p>这个选举的大体思路是：</p>
 <ul>
@@ -399,8 +520,35 @@
 <li>如果前面三步在一定时间内都没有选出一个哨兵领导者，将重新开始下一次选举。</li>
 </ul>
 <p>可以看到，这个选举领导者的流程很像raft中选举leader的流程。</p>
-<p><img src="/media/imgs/20190409-redis-sentinel/sentinel-leader.png" alt="sentinel-leader" title="sentinel-leader"></p>
-<h1 id="选出新的主节点">选出新的主节点</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="sentinel-leader" src="/media/imgs/20190409-redis-sentinel/sentinel-leader.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> sentinel-leader </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="选出新的主节点">
+  选出新的主节点
+  <a class="anchor" href="#%e9%80%89%e5%87%ba%e6%96%b0%e7%9a%84%e4%b8%bb%e8%8a%82%e7%82%b9">#</a>
+</h1>
 <p>在剩下的redis从节点中，按照以下顺序来选择新的主节点：</p>
 <ul>
 <li>过滤掉“不健康”的数据节点：比如主观下线、断线的从节点、五秒内没有回复过哨兵节点ping命令的节点、与主节点失联的从节点。</li>
@@ -408,206 +556,153 @@
 <li>选择复制偏移量最大的从节点，这意味着这个从节点上面的数据最完整，如果存在则返回不存在则继续后面的流程。</li>
 <li>到了这里，所有剩余从节点的状态都是一样的，选择runid最小的从节点。</li>
 </ul>
-<p><img src="/media/imgs/20190409-redis-sentinel/new-leader.png" alt="new-leader" title="new-leader"></p>
-<h1 id="提升新的主节点">提升新的主节点</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="new-leader" src="/media/imgs/20190409-redis-sentinel/new-leader.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> new-leader </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="提升新的主节点">
+  提升新的主节点
+  <a class="anchor" href="#%e6%8f%90%e5%8d%87%e6%96%b0%e7%9a%84%e4%b8%bb%e8%8a%82%e7%82%b9">#</a>
+</h1>
 <p>选择了新的主节点之后，还需要最后的流程让该节点成为新的主节点：</p>
 <ul>
 <li>哨兵领导者向上一步选出的从节点发出“slaveof no one”命令，让该节点成为主节点。</li>
 <li>哨兵领导者向剩余的从节点发送命令，让它们成为新主节点的从节点。</li>
 <li>哨兵节点集合会将原来的主节点更新为从节点，当其恢复之后命令它去复制新的主节点的数据。</li>
 </ul>
-<p><img src="/media/imgs/20190409-redis-sentinel/new-master.png" alt="new-master" title="new-master"></p>
-
-</article>
-
-
-      
-        <div class="my-4">
-    
-    <a href="https://www.codedump.info/tags/redis/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#redis</a>
-    
-</div>
-      
+<p>
 
 
 
-      
 
 
 
-      
 
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
+
+
+
+
+<figure class="">
+
     <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190501-lua-stream/" class="block">OpenResty Lua Stream实现分析</a>
-      
+        <img loading="lazy" alt="new-master" src="/media/imgs/20190409-redis-sentinel/new-master.png" >
     </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20190406-ddia-chapter09-consistency-and-consensus/" class="block">《数据密集型应用系统设计》第九章《一致性与共识》笔记</a>
-      
+
+    
+    <div class="caption-container">
+        <figcaption> new-master </figcaption>
     </div>
+    
+</figure>
+</p>
+
+    
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#主从复制">主从复制</a>
-      <ul>
-        <li><a href="#旧版本全量复制功能的实现">旧版本全量复制功能的实现</a></li>
-        <li><a href="#新版本全量复制功能的实现">新版本全量复制功能的实现</a>
-          <ul>
-            <li><a href="#复制偏移量">复制偏移量</a></li>
-          </ul>
-        </li>
-        <li><a href="#复制积压缓冲区">复制积压缓冲区</a></li>
-        <li><a href="#服务器运行id">服务器运行ID</a></li>
-        <li><a href="#psync命令流程">psync命令流程</a></li>
-      </ul>
-    </li>
-    <li><a href="#哨兵机制概述">哨兵机制概述</a></li>
-    <li><a href="#三个监控任务">三个监控任务</a>
-      <ul>
-        <li><a href="#info命令">info命令</a></li>
-        <li><a href="#向__sentinel__hello频道同步信息">向__sentinel__:hello频道同步信息</a></li>
-        <li><a href="#向数据节点做心跳探测">向数据节点做心跳探测</a></li>
-      </ul>
-    </li>
-    <li><a href="#主观下线和客观下线">主观下线和客观下线</a>
-      <ul>
-        <li><a href="#主观下线">主观下线</a></li>
-        <li><a href="#客观下线">客观下线</a></li>
-      </ul>
-    </li>
-    <li><a href="#选举哨兵领导者">选举哨兵领导者</a></li>
-    <li><a href="#选出新的主节点">选出新的主节点</a></li>
-    <li><a href="#提升新的主节点">提升新的主节点</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190413-problem-fix/" class="no-underline">线上存储服务崩溃问题分析记录</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190123-libuv/" class="no-underline">Libuv代码简单分析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="no-underline">Nginx源码阅读笔记-配置解析流程</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

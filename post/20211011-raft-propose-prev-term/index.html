@@ -1,315 +1,219 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="为什么Raft协议不能提交之前任期的日志？"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="为什么Raft协议不能提交之前任期的日志？">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"为什么Raft协议不能提交之前任期的日志？",
-      "item":"https://www.codedump.info/post/20211011-raft-propose-prev-term/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20211011-raft-propose-prev-term/"
-    },
-    "headline": "为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志","datePublished": "2021-10-11T23:14:01+08:00",
-    "dateModified": "2021-10-11T23:14:01+08:00",
-    "wordCount":  2557 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "为什么Raft协议不能提交之前任期的日志？"
-}
-</script><meta property="og:title" content="为什么Raft协议不能提交之前任期的日志？ - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20211011-raft-propose-prev-term/" />
-
-
-
-<meta property="og:description" content="为什么Raft协议不能提交之前任期的日志？" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2021-10-11T23:14:01&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2021-10-11T23:14:01&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="raft" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20210628-etcd-wal/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20210515-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20181125-etcd-server/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180922-etcd-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190629-service-history/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    为什么Raft协议不能提交之前任期的日志？ | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">为什么Raft协议不能提交之前任期的日志？</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20211011-raft-propose-prev-term/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2021-10-11</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>6分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20211011-raft-propose-prev-term/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="为什么Raft协议不能提交之前任期的日志？">
+  <meta property="og:description" content="为什么Raft协议不能提交之前任期的日志？">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-10-11T23:14:01+08:00">
+    <meta property="article:modified_time" content="2021-10-11T23:14:01+08:00">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20211011-raft-propose-prev-term/">为什么Raft协议不能提交之前任期的日志？</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">为什么Raft协议不能提交之前任期的日志？</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-10-11T23:14:01&#43;08:00">2021年10月11日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>在Raft大论文中3.6.2中，有一个细节“不允许提交之前任期的日志”，之前看了几次都理解的不够准确，把这部分内容展开阐述一下。</p>
-<h1 id="问题">问题</h1>
+<h1 class="heading" id="问题">
+  问题
+  <a class="anchor" href="#%e9%97%ae%e9%a2%98">#</a>
+</h1>
 <p>还是先从论文的图例开始解释，如下图：</p>
-<p><img src="/media/imgs/20211011-raft-propose-prev-term/propose-prev-term.png" alt="论文截图" title="论文截图"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="论文截图" src="/media/imgs/20211011-raft-propose-prev-term/propose-prev-term.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 论文截图 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>需要特别说明的是，图例中演示的是**“如果允许提交之前任期的日志，将导致什么问题”**，这是大前提，这个前提条件后面会反复强调。</p>
 <p>有了这个前提，下面展开图中的步骤讨论：</p>
 <ul>
 <li>(a) ：S1 是leader，将黄色的日志2同步到了S2，然后S1崩溃。</li>
 <li>(b) ：S5 在任期 3 里通过 S3、S4 和自己的选票赢得选举，将蓝色日志3存储到本地，然后崩溃了。</li>
-<li>(c)：S1重新启动，选举成功。注意在这时，<strong>如果允许“提交之前任期的日志”</strong>，将首先开始同步过往任期的日志，即将S1上的本地黄色的日志2同步到了S3。这时黄色的节点2已经同步到了集群多数节点，然后S1写了一条新日志4，然后S1又崩溃了。</li>
+<li>\(c\)：S1重新启动，选举成功。注意在这时，<strong>如果允许“提交之前任期的日志”</strong>，将首先开始同步过往任期的日志，即将S1上的本地黄色的日志2同步到了S3。这时黄色的节点2已经同步到了集群多数节点，然后S1写了一条新日志4，然后S1又崩溃了。</li>
 <li>接下来，就可能出现两种不同的情况：
 <ul>
 <li>（d1）：S5重新当选，<strong>如果允许“提交之前任期的日志”</strong>，就开始同步往期日志，将本地的蓝色日志3同步到所有的节点。结果已经被同步到半数以上节点的黄色日志2被覆盖了。这说明，如果允许“提交之前任期的日志”，会可能出现即便已经同步到半数以上节点的日志被覆盖，这是不允许的。</li>
@@ -320,25 +224,34 @@
 <p>再次强调，这里图示想演示的是**“如果允许提交之前任期的日志，将导致什么问题”**。</p>
 <p>我们可以看到的是，如果允许这么做，那么：</p>
 <ul>
-<li>(c)中，S1恢复之后，又再次提交在任期2中的黄色日志2。但是，从后面可以看到，即便这个之前任期中的黄色日志2，提交到大部分节点，如果允许“提交之前任期的日志”，仍然存在被覆盖的可能性，因为：</li>
+<li>\(c\)中，S1恢复之后，又再次提交在任期2中的黄色日志2。但是，从后面可以看到，即便这个之前任期中的黄色日志2，提交到大部分节点，如果允许“提交之前任期的日志”，仍然存在被覆盖的可能性，因为：</li>
 <li>(d1)中，S5恢复之后，也会提交在自己本地上保存的之前任期3的蓝色日志，这会导致覆盖了前面已经到半数以上节点的黄色日志2。</li>
 </ul>
-<p>所以，“如果允许提交之前任期的日志”，即如同(c)和(d1)演示的那样：重新当选之后，马上提交自己本地保存的、之前任期的日志，就会<strong>可能导致即便已经同步到半数以上节点的日志，被覆盖的情况</strong>。</p>
+<p>所以，“如果允许提交之前任期的日志”，即如同\(c\)和(d1)演示的那样：重新当选之后，马上提交自己本地保存的、之前任期的日志，就会<strong>可能导致即便已经同步到半数以上节点的日志，被覆盖的情况</strong>。</p>
 <p>而“已同步到半数以上节点的日志”，一定在新当选leader上（否则这个节点不可能成为新leader）且达成了一致可提交，即不允许被覆盖。</p>
 <p>这就是矛盾的地方，即允许“提交之前任期的日志”，最终导致了违反协议规则的情况。</p>
 <p>那么，如何确保新当选的leader节点，其本地的未提交日志被正确提交呢？图(d2)展示了正常的情况：即当选之后，不要首先提交本地已有的黄色日志2，而是首先提交一条新日志4，如果这条新日志被提交成功，那么按照Raft日志的匹配规则（log matching property）：日志4如果能提交，它前面的日志也提交了。</p>
 <p>可是，新的问题又出现了，如果在(d2)中，S1重新当选之后，客户端写入没有这条新的日志4，那么前面的日志2是不是永远无法提交了？为了解决这个问题，raft要求每个leader新当选之后，马上写入一条只有任期号和索引、而没有内容的所谓“no-op”日志，以这条日志来驱动在它之前的日志达成一致。</p>
 <p>这就是论文中这部分内容想要表达的。这部分内容之所以比较难理解，是因为经常忽略了这个图示展示的是错误的情况，允许“提交之前任期的日志”可能导致的问题。</p>
-<h1 id="其他疑问">其他疑问</h1>
-<h2 id="c和d2-有什么区别">(c)和(d2) 有什么区别？</h2>
-<p>看起来，(c)和(d2)一样，S1当选后都提交了日志1、2、4，那么两者的区别在哪里？</p>
+<h1 class="heading" id="其他疑问">
+  其他疑问
+  <a class="anchor" href="#%e5%85%b6%e4%bb%96%e7%96%91%e9%97%ae">#</a>
+</h1>
+<h2 class="heading" id="和-有什么区别">
+  \(c\)和\(d2\) 有什么区别？
+  <a class="anchor" href="#%e5%92%8c-%e6%9c%89%e4%bb%80%e4%b9%88%e5%8c%ba%e5%88%ab">#</a>
+</h2>
+<p>看起来，\(c\)和\(d2\)一样，S1当选后都提交了日志1、2、4，那么两者的区别在哪里？</p>
 <p>虽然两个场景中，提交的日志都是一样的，但是日志达成一致的顺序并不一致：</p>
 <ul>
-<li>(c)：S1成为leader之后，先提交过往任期、本地的日志2，再提交日志4。这就是“提交之前任期日志”的情况。</li>
-<li>(d2)：S1成为leader之后，先提交本次任期的日志4，如果日志4能提交成功，那么它前面的日志2就能提交成功了。</li>
+<li>\(c\)：S1成为leader之后，先提交过往任期、本地的日志2，再提交日志4。这就是“提交之前任期日志”的情况。</li>
+<li>\(d2\)：S1成为leader之后，先提交本次任期的日志4，如果日志4能提交成功，那么它前面的日志2就能提交成功了。</li>
 </ul>
-<p>关于(d2)的这个场景，有可能又存在着下一个疑问：</p>
-<h2 id="如何理解d2中本任期的日志4提交成功那么它前面的日志2也能提交成功了">如何理解(d2)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？</h2>
+<p>关于\(d2\)的这个场景，有可能又存在着下一个疑问：</p>
+<h2 class="heading" id="如何理解中本任期的日志4提交成功那么它前面的日志2也能提交成功了">
+  如何理解\(d2\)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？
+  <a class="anchor" href="#%e5%a6%82%e4%bd%95%e7%90%86%e8%a7%a3%e4%b8%ad%e6%9c%ac%e4%bb%bb%e6%9c%9f%e7%9a%84%e6%97%a5%e5%bf%974%e6%8f%90%e4%ba%a4%e6%88%90%e5%8a%9f%e9%82%a3%e4%b9%88%e5%ae%83%e5%89%8d%e9%9d%a2%e7%9a%84%e6%97%a5%e5%bf%972%e4%b9%9f%e8%83%bd%e6%8f%90%e4%ba%a4%e6%88%90%e5%8a%9f%e4%ba%86">#</a>
+</h2>
 <p>这是由raft日志的<code>Log Matching Property</code>决定的:</p>
 <ul>
 <li>If two entries in different logs have the same index and term, then they store the same command.
@@ -352,188 +265,95 @@ If two entries in different logs have the same index and term, then the logs are
 <li>leader为每一个follower维护一个nextIndex，表示待发送的下一个日志的index。初始化为日志长度。</li>
 <li>leader在follower拒绝<code>AppendEntries</code>之后会对nextIndex减一，然后继续重试AppendEntries直到两者一致。</li>
 </ul>
-<p>于是，回到我们开始的问题，(d2)场景中，在添加本任期日志4的时候，会发现有一些节点上并不存在过往任期的日志2，这时候就会相应地计算不同节点的nextIndex索引，来驱动同步日志2到这些节点上。</p>
+<p>于是，回到我们开始的问题，\(d2\)场景中，在添加本任期日志4的时候，会发现有一些节点上并不存在过往任期的日志2，这时候就会相应地计算不同节点的nextIndex索引，来驱动同步日志2到这些节点上。</p>
 <p>总而言之，根据日志的性质，只要本任期的日志4能达成一致，上一条日志2就能达成一致。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/raft/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#raft</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/" class="block">sqlite3.36版本 btree实现（零）- 起步及概述</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20210812-memcached/" class="block">Memcached的存储原理解析（续）</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#问题">问题</a></li>
-    <li><a href="#其他疑问">其他疑问</a>
-      <ul>
-        <li><a href="#c和d2-有什么区别">(c)和(d2) 有什么区别？</a></li>
-        <li><a href="#如何理解d2中本任期的日志4提交成功那么它前面的日志2也能提交成功了">如何理解(d2)中，“本任期的日志4提交成功，那么它前面的日志2也能提交成功了”？</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20210628-etcd-wal/" class="no-underline">Etcd Raft库的日志存储</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20210515-raft/" class="no-underline">Etcd Raft库的工程化实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20181125-etcd-server/" class="no-underline">Etcd存储的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="no-underline">etcd Raft库解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20190629-service-history/" class="no-underline">服务调用的演进历史</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

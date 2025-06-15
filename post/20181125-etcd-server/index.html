@@ -1,297 +1,182 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>Etcd存储的实现 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="Etcd存储的实现"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="Etcd存储的实现">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"Etcd存储的实现",
-      "item":"https://www.codedump.info/post/20181125-etcd-server/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20181125-etcd-server/"
-    },
-    "headline": "Etcd存储的实现 - codedump的网络日志","datePublished": "2018-11-25T15:13:28+08:00",
-    "dateModified": "2018-11-25T15:13:28+08:00",
-    "wordCount":  8440 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "Etcd存储的实现"
-}
-</script><meta property="og:title" content="Etcd存储的实现 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20181125-etcd-server/" />
-
-
-
-<meta property="og:description" content="Etcd存储的实现" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2018-11-25T15:13:28&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2018-11-25T15:13:28&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="raft" />
-
-<meta property="article:tag" content="分布式" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180922-etcd-raft/" />
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20180921-raft/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    Etcd存储的实现 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">Etcd存储的实现</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20181125-etcd-server/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2018-11-25</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>17分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20181125-etcd-server/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Etcd存储的实现">
+  <meta property="og:description" content="Etcd存储的实现">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2018-11-25T15:13:28+08:00">
+    <meta property="article:modified_time" content="2018-11-25T15:13:28+08:00">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="hover:text-eureka"
-          >分布式</a
-        >
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20181125-etcd-server/">Etcd存储的实现</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Etcd存储的实现</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2018-11-25T15:13:28&#43;08:00">2018年11月25日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <h1 id="概述">概述</h1>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>本文是博客解析raft算法及etcd raft库实现的系列三篇文章之一，之所以详细结合etcd实现解析raft算法原理及实现，因为etcd的raft实现是最接近论文本身的，结合论文原理一起阅读十分酸爽。这个系列文章的索引如下：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
@@ -300,7 +185,10 @@
 <li><a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现</a></li>
 </ul>
 <p>另外，我个人还针对etcd 3.1.10版本的raft相关代码实现做了一些代码的注释笔记，地址在此：<a href="https://github.com/lichuang/etcd-3.1.10-codedump">etcd-3.1.10-codedump</a>。</p>
-<h1 id="概览">概览</h1>
+<h1 class="heading" id="概览">
+  概览
+  <a class="anchor" href="#%e6%a6%82%e8%a7%88">#</a>
+</h1>
 <p>在前面已经分析了Raft算法原理、etcd raft库的实现，接着就可以看etcd如何使用raft实现存储服务的了。</p>
 <p>以下的分析主要针对etcd V3版本的实现。</p>
 <p>下图中展示了etcd如何处理一个客户端请求的涉及到的模块和流程。图中淡紫色的矩形表示etcd，它包括如下几个模块：</p>
@@ -308,7 +196,31 @@
 <li>etcd server：对外接收客户端的请求，对应etcd代码中的etcdserver目录，其中还有一个raft.go的模块与etcd-raft库进行通信。etcdserver中与存储相关的模块是applierV3，这里封装了V3版本的数据存储，WAL（write ahead log），用于写数据日志，etcd启动时会根据这部分内容进行恢复。</li>
 <li>etcd raft：etcd的raft库，前面的文章已经具体分析过这部分代码。除了与本节点的etcd server通信之外，还与集群中的其他etcd server进行交互做一致性数据同步的工作（在图中集群中其他etcd服务用橙色的椭圆表示）。</li>
 </ul>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-server.png" alt="etcd server" title="etcd server"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd server" src="/media/imgs/20181125-etcd-server/etcd-server.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd server </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，一个请求与一个etcd集群交互的主要流程分为两大部分：</p>
 <ol>
 <li>写数据到某个etcd server中。</li>
@@ -339,10 +251,37 @@
 <li>etcd raft中的raftLog，按照前面文章的分析，其中的数据是保存到内存中的，重启即失效，上层应用真实的数据是持久化保存到WAL和applierV3中的。</li>
 </ul>
 <p>以下就来分析etcd server与这部分相关的几个模块。</p>
-<h1 id="etcd-server与raft的交互">etcd server与raft的交互</h1>
+<h1 class="heading" id="etcd-server与raft的交互">
+  etcd server与raft的交互
+  <a class="anchor" href="#etcd-server%e4%b8%8eraft%e7%9a%84%e4%ba%a4%e4%ba%92">#</a>
+</h1>
 <p>EtcdServer结构体，负责对外与客户端进行通信。内部有一个raftNode结构的成员，负责与etcd的raft库进行交互。</p>
 <p>etcd V3版本的API，通过GRPC协议与客户端进行交互，其相关代码在etcdserver/v3_server.go中。以一次Put请求为例，最后将会调用的代码在函数EtcdServer::processInternalRaftRequestOnce中，代码的主要流程分析如下。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-flowchart.png" alt="etcd flowchart" title="etcd flowchart"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd flowchart" src="/media/imgs/20181125-etcd-server/etcd-flowchart.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd flowchart </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>拿到当前raft中的apply和commit索引，如果commit索引比apply索引超出太多，说明当前有很多数据都没有apply，返回ErrTooManyRequests错误。</li>
 <li>调用s.reqIDGen.Next()函数生成一个针对当前请求的ID，注意这个ID并不是一个随机数而是一个严格递增的整数。同时将请求序列化为byte数据，这会做为raft的数据进行存储。</li>
@@ -360,15 +299,18 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>客户端通过EtcdServer提交的数据修改都会通过raftNode来提交，而EtcdServer本身通过监听channel与raft库进行通信，由Ready结构体来通过EtcdServer哪些数据已经提交成功。</li>
 <li>由于每个请求都会一个对应的ID，ID绑定了Channel，所以提交成功的请求通过ID找到对应的Channel来唤醒提交流程，最后通知客户端提交数据成功。</li>
 </ol>
-<h1 id="wal">WAL</h1>
+<h1 class="heading" id="wal">
+  WAL
+  <a class="anchor" href="#wal">#</a>
+</h1>
 <p>以上介绍了EtcdServer的大体流程，接下来看WAL的实现。</p>
 <p>前面已经分析过了，etcd raft提交数据成功之后，将通知上面的应用层（在这里就是EtcdServer），然后再进行持久化数据存储。而数据的持久化可能会花费一些时间，因此在应答应用层之前，EtcdServer中的raftNode会首先将这些数据写入WAL日志中。这样即使在做持久化的时候数据丢失了，启动恢复的时候也可以根据WAL的日志进行数据恢复。</p>
 <p>etcdserver模块中，给raftNode用于写WAL日志的工作，交给了接口Storage来完成，而这个接口由storage来具体实现：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Go" data-lang="Go"><span class="kd">type</span> <span class="nx">storage</span> <span class="kd">struct</span> <span class="p">{</span>
-	<span class="o">*</span><span class="nx">wal</span><span class="p">.</span><span class="nx">WAL</span>
-	<span class="o">*</span><span class="nx">snap</span><span class="p">.</span><span class="nx">Snapshotter</span>
-<span class="p">}</span>
-</code></pre></div><p>可以看到，这个结构体组合了WAL和snap.Snapshotter结构，Snapshotter负责的是存储快照数据。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> storage <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	*wal.WAL
+</span></span><span style="display:flex;"><span>	*snap.Snapshotter
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到，这个结构体组合了WAL和snap.Snapshotter结构，Snapshotter负责的是存储快照数据。</p>
 <p>WAL日志文件中，每条日志记录有以下的类型：</p>
 <ol>
 <li>Type：日志记录类型，下面详细解释都有哪些类型。</li>
@@ -386,14 +328,92 @@ b.  如果channel返回，说明已经提交成功。</li>
 <p>etcd使用两个目录分别存放WAL文件以及快照文件。其中，WAL文件的文件名格式是“16位的WAL文件编号-该WAL第一条entry数据的index号.wal”，这样就能从WAL文件名知道该WAL文件中保存的entry数据至少大于什么索引号。而快照文件名的格式则是“16位的快照数据最后一条日志记录任期号-16位的快照数据最后一条记录的索引号.snap”。</p>
 <p>Etcd会管理WAL目录中的所有WAL文件，但是在生成快照文件之后，在快照数据之前的WAL文件将被清除掉，保证磁盘不会一直增长。</p>
 <p>比如当前etcd中有三个WAL文件，可以从这些文件的文件名知道其中存放数据的索引范围。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-wal1.png" alt="etcd wal1" title="etcd wal1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd wal1" src="/media/imgs/20181125-etcd-server/etcd-wal1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd wal1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在生成快照文件之后，此时就只剩一个WAL文件和一个快照文件了：</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-wal2.png" alt="etcd wal2" title="etcd wal2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd wal2" src="/media/imgs/20181125-etcd-server/etcd-wal2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd wal2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>那么，又是在什么情况下生成快照文件呢？Etcdserver在主循环中通过监听channel获知当前raft协议返回的Ready数据，此时会做判断如果当前保存的快照数据索引距离上一次已经超过一个阈值（EtcdServer.snapCount），此时就从raft的存储中生成一份当前的快照数据，写入快照文件成功之后，就可以将这之前的WAL文件释放了。</p>
 <p>以上流程和对应的具体函数见下面的流程图。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-snapshot.png" alt="etcd snapshot" title="etcd snapshot"></p>
-<h1 id="backend-store的实现">backend store的实现</h1>
-<h2 id="revision概念">revision概念</h2>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd snapshot" src="/media/imgs/20181125-etcd-server/etcd-snapshot.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd snapshot </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="backend-store的实现">
+  backend store的实现
+  <a class="anchor" href="#backend-store%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h1>
+<h2 class="heading" id="revision概念">
+  revision概念
+  <a class="anchor" href="#revision%e6%a6%82%e5%bf%b5">#</a>
+</h2>
 <p>Etcd存储数据时，并不是像其他的KV存储那样，存放数据的键做为key，而是以数据的revision做为key，键值做为数据来存放。如何理解revision这个概念，以下面的例子来说明。</p>
 <p>比如通过批量接口两次更新两对键值，第一次写入数据时，写入&lt;key1,value1&gt;和&lt;key2,value2&gt;，在Etcd这边的存储看来，存放的数据就是这样的：</p>
 <pre tabindex="0"><code>  revision={1,0}, key=key1, value=value1
@@ -403,12 +423,63 @@ b.  如果channel返回，说明已经提交成功。</li>
   revision={2,1}, key=key2, value=update2
 </code></pre><p>其中revision有两部分组成，第一部分成为main revision，每次事务递增1；第二部分称为sub revision，一个事务内的一次操作递增1。
 两者结合，就能保证每次key唯一而且是递增的。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-revision.png" alt="etcd revision" title="etcd revision"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd revision" src="/media/imgs/20181125-etcd-server/etcd-revision.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd revision </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>但是，就客户端看来，每次操作的时候是根据Key来进行操作的，所以这里就需要一个Key映射到当前revision的操作了，为了做到这个映射关系，Etcd引入了一个内存中的Btree索引，整个操作过程如下面的流程所示。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex.png" alt="etcd keyindex" title="etcd keyindex"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd keyindex" src="/media/imgs/20181125-etcd-server/etcd-keyindex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd keyindex </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>查询时，先通过内存中的btree索引来查询该key对应的keyIndex结构体，然后再根据这个结构体才能去boltdb中查询真实的数据返回。</p>
 <p>所以，下面先展开讨论这个keyIndex结构体和btree索引。</p>
-<h2 id="keyindex结构">keyIndex结构</h2>
+<h2 class="heading" id="keyindex结构">
+  keyIndex结构
+  <a class="anchor" href="#keyindex%e7%bb%93%e6%9e%84">#</a>
+</h2>
 <p>keyIndex结构体有以下成员：</p>
 <ul>
 <li>key：存储数据真实的键。</li>
@@ -423,26 +494,83 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>revs：存放该generation中存放的revision数组。</li>
 </ul>
 <p>以下图来说明keyIndex结构体：</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" alt="etcd keyindex struct" title="etcd keyindex struct"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd keyindex struct" src="/media/imgs/20181125-etcd-server/etcd-keyindex-struct.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd keyindex struct </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示，存放的键为test的keyIndex结构。</p>
 <p>它的generations数组有两条记录，其中generations[0]在revision 1.0时创建，当revision2.1的时候进行tombstone操作，因此该generation的created是1.0；对应的generations[1]在revision3.3时创建，紧跟着就做了tombstone操作。</p>
 <p>所以该keyIndex.modifiled成员存放的是3.3，因为这是这条数据最后一次被修改的revision。</p>
 <p>一个已经被tombstone的generation是可以被删除的，如果整个generations数组都已经被删除空了，那么整个keyIndex记录也可以被删除了。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-generation-compact.png" alt="etcd generation_compact" title="etcd generation compact"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd generation_compact" src="/media/imgs/20181125-etcd-server/etcd-generation-compact.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd generation compact </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示，keyIndex.compact(n)函数可以对keyIndex数据进行压缩操作，将删除满足main revision &lt; n的数据。</p>
 <ul>
 <li>compact(2)：找到了generations[0]的1.0 revision的数据进行了删除。</li>
 <li>compact(3)：找到了generations[0]的2.1 revision的数据进行了删除，此时由于generations[0]已经没有数据了，所以这一整个generation被删除，原先的generations[1]变成了generations[0]。</li>
 <li>compact(4)：找到了generations[0]的3.3 revision的数据进行了删除。由于所有的generation数据都被删除了，此时这个keyIndex数据可以删除了。</li>
 </ul>
-<h2 id="treeindex结构">treeIndex结构</h2>
+<h2 class="heading" id="treeindex结构">
+  treeIndex结构
+  <a class="anchor" href="#treeindex%e7%bb%93%e6%9e%84">#</a>
+</h2>
 <p>Etcd中使用treeIndex来在内存中存放keyIndex数据信息，这样就可以快速的根据输入的key定位到对应的keyIndex。</p>
 <p>treeIndex使用开源的github.com/google/btree来在内存中存储btree索引信息，因为用的是外部库，所以不打算就这部分做解释。而如果很清楚了前面keyIndex结构，其实这部分很好理解。</p>
 <p>所有的操作都以key做为参数进行操作，treeIndex使用btree根据key查找到对应的keyIndex，再进行相关的操作，最后重新写入到btree中。</p>
-<h2 id="store">store</h2>
+<h2 class="heading" id="store">
+  store
+  <a class="anchor" href="#store">#</a>
+</h2>
 <p>前面讲到了WAL数据的存储、内存索引数据的存储，这部分讨论持久化存储数据的模块。</p>
 <p>etcd V3版本中，使用BoltDB来持久化存储数据（etcd V2版本的实现不做讨论）。所以这里先简单解释一下BoltDB中的相关概念。</p>
-<h3 id="boltdb相关概念">BoltDB相关概念</h3>
+<h3 class="heading" id="boltdb相关概念">
+  BoltDB相关概念
+  <a class="anchor" href="#boltdb%e7%9b%b8%e5%85%b3%e6%a6%82%e5%bf%b5">#</a>
+</h3>
 <p>BoltDB中涉及到的几个数据结构，分别为DB、Bucket、Tx、Cursor、Tx等。</p>
 <p>其中：</p>
 <ul>
@@ -452,9 +580,15 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>Cursor：迭代器，用于按顺序遍历Bucket中的键值对。</li>
 <li>Tx：表示数据库操作中的一次只读或者读写事务。</li>
 </ul>
-<h3 id="backend与backendtx接口">Backend与BackendTx接口</h3>
+<h3 class="heading" id="backend与backendtx接口">
+  Backend与BackendTx接口
+  <a class="anchor" href="#backend%e4%b8%8ebackendtx%e6%8e%a5%e5%8f%a3">#</a>
+</h3>
 <p>Backend和BackendTx内部的实现，封装了BoltDB，太简单就不做分析了。</p>
-<h3 id="lessor接口">Lessor接口</h3>
+<h3 class="heading" id="lessor接口">
+  Lessor接口
+  <a class="anchor" href="#lessor%e6%8e%a5%e5%8f%a3">#</a>
+</h3>
 <p>etcd中没有提供针对数据设置过期时间的操作，通过租约（Lease）来实现数据过期的效果。而Lessor接口就提供了管理租约的相关接口。</p>
 <p>比如，使用etcdctl命令可以创建一个lease：</p>
 <p><code>etcdctl lease grant 10 lease 694d67ed2bfbea03 granted with TTL(10s)</code></p>
@@ -464,7 +598,31 @@ b.  如果channel返回，说明已经提交成功。</li>
 <p>从上面的命令可以看出，一个Lease可以与多个键值对应，由这个Lease通过管理与其绑定的键值数据的生命周期。</p>
 <p>etcd中，将Lease ID存放在名为“lease”的Bucket中，注意在这里只存放Lease相关的数据，其键值为：&lt;Lease ID，序列化后的Lease数据包括TTL、ID&gt;，之所以不存放与Lease绑定的键值，是因为这些键值已经存放到另外的Bucket里了，写入数据的时候也会将这些键值绑定的Lease ID写入，这样在恢复数据的时候就可以将键值与Lease ID绑定的关系写入内存中。</p>
 <p>即：Lease这边需要持久化的数据只有Lease ID与TTL值，而键值对这边会持久化所绑定的Lease ID，这样在启动恢复的时候可以将两者对应的关系恢复到内存中。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-lease-store.png" alt="etcd lease_store" title="etcd lease store"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd lease_store" src="/media/imgs/20181125-etcd-server/etcd-lease-store.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd lease store </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>明白了以上关系再来理解Lessor的实现就很简单了。</p>
 <p>lessor中主要包括以下的成员：</p>
 <ul>
@@ -479,7 +637,10 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>lessor启动之后会运行一个goroutine协程，在这个协程里定期查询哪些Lease超时，超时的Lease将通过expiredC channel通知外部。</li>
 <li>而针对Lease的CRUD操作，都需要进行加锁才能操作。</li>
 </ol>
-<h2 id="kv接口">KV接口</h2>
+<h2 class="heading" id="kv接口">
+  KV接口
+  <a class="anchor" href="#kv%e6%8e%a5%e5%8f%a3">#</a>
+</h2>
 <p>有了以上的准备，可以开始分析数据存储相关的内容了。在etcd V3中，所有涉及到数据的存储，都会通过KV接口。</p>
 <p>store结构体实现了KV接口，其中最重要的就是封装了前面提到的几个数据结构：</p>
 <ul>
@@ -489,8 +650,35 @@ b.  如果channel返回，说明已经提交成功。</li>
 </ul>
 <p>在store结构体初始化时，根据传入的backend.Backend，初始化backend.BatchTx结构，后面的任何涉及到事务的操作，都可以通过这个backend.BatchTx来进行。</p>
 <p>其实有了前面的准备，理解store结构做的事情已经不难，以一次Put操作为例，其流程主要如下图所示：</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-store-put.png" alt="etcd store_put" title="etcd store put"></p>
-<h1 id="applierv3">applierV3</h1>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd store_put" src="/media/imgs/20181125-etcd-server/etcd-store-put.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd store put </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="applierv3">
+  applierV3
+  <a class="anchor" href="#applierv3">#</a>
+</h1>
 <p>EtcdServer内部实现中，实际使用的是applierV3接口来进行持久化数据的操作。</p>
 <p>这个接口有以下几个实现，但是其中applierV3backend的实现是最重要的，其内部使用了前面提到的KV接口来进行数据的处理。</p>
 <p>另外，applierV3接口还有其他几个实现，这里分别列举一下。</p>
@@ -500,9 +688,36 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>authApplierV3：在applierV3backend的基础上扩展出权限控制的功能。</li>
 <li>quotaApplierV3：在applierV3backend的基础上加上了限流功能，即底层的存储到了上限的话，会触发限流操作。</li>
 </ul>
-<h1 id="综述">综述</h1>
+<h1 class="heading" id="综述">
+  综述
+  <a class="anchor" href="#%e7%bb%bc%e8%bf%b0">#</a>
+</h1>
 <p>下图将上面涉及到的关键数据结构串联在一起，看看EtcdServer在收到Raft库通过Ready channel通知的可以持久化数据之后，都做了什么操作。</p>
-<p><img src="/media/imgs/20181125-etcd-server/etcd-raft-flow.png" alt="etcd raft_flow" title="etcd raft flow"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="etcd raft_flow" src="/media/imgs/20181125-etcd-server/etcd-raft-flow.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> etcd raft flow </figcaption>
+    </div>
+    
+</figure>
+</p>
 <ol>
 <li>raft库通过Ready Channel通知上层的raftNode哪些数据可以进行持久化。</li>
 <li>raftNode启动之后也是会启动一个Goroutine来一直监听这个Ready Channel，以便收到可以持久化数据的通知。</li>
@@ -512,186 +727,92 @@ b.  如果channel返回，说明已经提交成功。</li>
 <li>EtcdServer通过调用applierV3接口来持久化数据。applierV3backend结构体实现applierV3接口, applierV3backend结构体实现applierV3接口，内部通过调用KV接口进行持久化操作。而在实现KV接口的store结构体中，treeIndex负责在内存中维护数据键值与revision的对应关系即keyIndex数据，Backend接口负责持久化数据，最后持久化的数据将落盘到BoltDB中。</li>
 </ol>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/raft/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#raft</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#分布式</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20190103-nginx-config-parse/" class="block">Nginx源码阅读笔记-配置解析流程</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="block">etcd Raft库解析</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#概览">概览</a></li>
-    <li><a href="#etcd-server与raft的交互">etcd server与raft的交互</a></li>
-    <li><a href="#wal">WAL</a></li>
-    <li><a href="#backend-store的实现">backend store的实现</a>
-      <ul>
-        <li><a href="#revision概念">revision概念</a></li>
-        <li><a href="#keyindex结构">keyIndex结构</a></li>
-        <li><a href="#treeindex结构">treeIndex结构</a></li>
-        <li><a href="#store">store</a>
-          <ul>
-            <li><a href="#boltdb相关概念">BoltDB相关概念</a></li>
-            <li><a href="#backend与backendtx接口">Backend与BackendTx接口</a></li>
-            <li><a href="#lessor接口">Lessor接口</a></li>
-          </ul>
-        </li>
-        <li><a href="#kv接口">KV接口</a></li>
-      </ul>
-    </li>
-    <li><a href="#applierv3">applierV3</a></li>
-    <li><a href="#综述">综述</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20180922-etcd-raft/" class="no-underline">etcd Raft库解析</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20180921-raft/" class="no-underline">Raft算法原理</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

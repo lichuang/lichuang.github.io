@@ -1,338 +1,181 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="sqlite3.36版本 btree实现（四）- WAL的实现"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="sqlite3.36版本 btree实现（四）- WAL的实现">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"sqlite3.36版本 btree实现（四）- WAL的实现",
-      "item":"https://www.codedump.info/post/20220106-sqlite-btree-4-wal/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220106-sqlite-btree-4-wal/"
-    },
-    "headline": "sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志","datePublished": "2022-01-06T21:48:18+08:00",
-    "dateModified": "2022-01-06T21:48:18+08:00",
-    "wordCount":  16500 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "sqlite3.36版本 btree实现（四）- WAL的实现"
-}
-</script><meta property="og:title" content="sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" />
-
-
-
-<meta property="og:description" content="sqlite3.36版本 btree实现（四）- WAL的实现" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-01-06T21:48:18&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-01-06T21:48:18&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-<meta property="article:tag" content="sqlite" />
-
-<meta property="article:tag" content="btree" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20211217-sqlite-btree-0/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    sqlite3.36版本 btree实现（四）- WAL的实现 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">sqlite3.36版本 btree实现（四）- WAL的实现</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-01-06</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>33分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="sqlite3.36版本 btree实现（四）- WAL的实现">
+  <meta property="og:description" content="sqlite3.36版本 btree实现（四）- WAL的实现">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-01-06T21:48:18+08:00">
+    <meta property="article:modified_time" content="2022-01-06T21:48:18+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Sqlite">
+    <meta property="article:tag" content="Btree">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/sqlite3.36%E7%89%88%E6%9C%AC-btree%E5%AE%9E%E7%8E%B0/" class="hover:text-eureka"
-          >sqlite3.36版本 btree实现</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">sqlite3.36版本 btree实现（四）- WAL的实现</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-01-06T21:48:18&#43;08:00">2022年1月6日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <p>《sqlite3.36版本 btree实现》系列文章：</p>
+  
+
+  
+
+  <div class="single-content">
+    <p>《sqlite3.36版本 btree实现》系列文章：</p>
 <ul>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/">sqlite3.36版本 btree实现（一）- 管理页面缓存 - codedump的网络日志</a></li>
@@ -341,7 +184,10 @@
 <li><a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志</a></li>
 <li><a href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/">sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志</a></li>
 </ul>
-<h1 id="概述">概述</h1>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
 <p>前面两节，分别讲解了sqlite中写入事务时的并发控制框架，以及journal备份文件的实现机制。</p>
 <p>回忆一下journal备份文件的实现：</p>
 <ul>
@@ -351,21 +197,50 @@
 </ul>
 <p>可以看到，journal备份的整个流程都较为原始，性能不高，所以在sqlite 3.7.0版本（<a href="https://www.sqlite.org/releaselog/3_7_0.html">SQLite Release 3.7.0 On 2010-07-21</a>，2010-07-21）中，引入了另一种备份机制：WAL（Write Ahead Log）。</p>
 <p>本节首先介绍WAL的实现原理，然后再展开其具体的实现。</p>
-<h1 id="wal工作原理">WAL工作原理</h1>
+<h1 class="heading" id="wal工作原理">
+  WAL工作原理
+  <a class="anchor" href="#wal%e5%b7%a5%e4%bd%9c%e5%8e%9f%e7%90%86">#</a>
+</h1>
 <p>从前面journal的实现中可以看到，写入journal文件中的内容，是待修改页面修改之前的内容，而WAL则相反：被修改的页面内容首先写入到WAL中。</p>
 <p>用sqlite官网的文字来说，WAL文件的定义是这样的：</p>
 <blockquote>
-<p>The write-ahead log or &ldquo;wal&rdquo; file is a roll-forward journal that records transactions that have been committed but not yet applied to the main database.</p>
-</blockquote>
+<p>The write-ahead log or &ldquo;wal&rdquo; file is a roll-forward journal that records transactions that have been committed but not yet applied to the main database.</p></blockquote>
 <p>即WAL文件中存储的是被修改但是还没有写入数据库文件的页面内容。</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/page-backup.png" alt="两种页面备份机制" title="两种页面备份机制"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="两种页面备份机制" src="/media/imgs/20220106-sqlite-btree-4-wal/page-backup.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 两种页面备份机制 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>WAL整体的实现机制，分为以下几个流程：</p>
 <ul>
 <li>对页面的修改，可以只写入到WAL文件中就认为完成，不必一定要落盘到数据库文件才能算完成，这个设定保证了WAL的修改操作比journal性能有很大的提升。</li>
 <li>由于上面的这一点保证，同一时间的并发读操作，能继续读数据库中未修改的内容，极大提升了读并发的性能。</li>
 <li>当然WAL也不能无限制的一直写下去，必须有一个机制，触发将保存在WAL中的页面内容写入回到数据库文件中，这个流程被称为<code>checkpoint</code>。</li>
 </ul>
-<h2 id="wal相关文件结构">WAL相关文件结构</h2>
+<h2 class="heading" id="wal相关文件结构">
+  WAL相关文件结构
+  <a class="anchor" href="#wal%e7%9b%b8%e5%85%b3%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84">#</a>
+</h2>
 <p>在工作原理部分，只会简单讲解WAL相关文件结构，具体的格式等细节留待下面的实现部分详细讲解。</p>
 <p>WAL文件本身的格式很简单，有如下两部分组成：</p>
 <ul>
@@ -375,17 +250,71 @@
 </ul>
 <p>换言之，一个WAL中，可能先后存储了多个事务的写入。</p>
 <p>由于WAL文件保存的<strong>修改页面</strong>的内容，同一个页面，可能在一次事务中被多次修改，如下所示：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-and-index.png" alt="WAL及WAL页面索引数据" title="WAL及WAL页面索引数据"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL及WAL页面索引数据" src="/media/imgs/20220106-sqlite-btree-4-wal/wal-and-index.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL及WAL页面索引数据 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>WAL存储了四个页面数据，其中页面编号1被修改了两次。</p>
 <p>如果在这个写操作完成之后，需要读这些页面的内容，都需要读到最新的内容。所以，WAL还有一个对应的<code>WAL页面索引</code>数据，这部分索引数据存储在内存中，作用是根据页面编号，知道该页面编号对应的最新内容，存储在WAL文件中的具体位置，以取得某个页面的最新页面内容；如果在这个内存索引中查不到的数据，都需要到数据库文件中读取。</p>
-<h2 id="checkpoint">checkpoint</h2>
+<h2 class="heading" id="checkpoint">
+  checkpoint
+  <a class="anchor" href="#checkpoint">#</a>
+</h2>
 <p>随着WAL文件的增长，终究要将里面修改的内容同步到数据库文件中，这个流程被称为“checkpoint”。只要WAL文件被“checkpoint”，就可以从头开始写这个文件，避免文件的无限增大。</p>
 <p>对于journal备份机制而言，只有两种操作：读和写；而对于WAL机制而言，实际有三种操作：读、写、checkpoint。这也是两种机制的主要区别之一。</p>
-<h2 id="并发的实现">并发的实现</h2>
+<h2 class="heading" id="并发的实现">
+  并发的实现
+  <a class="anchor" href="#%e5%b9%b6%e5%8f%91%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h2>
 <p>前面提到了，WAL机制的一个优势在于：在写未完成之前，可以允许同时并发多个读操作，来看看这一点是如何做到的。</p>
 <p>在每次读操作开始之前，都会记录下来当前最后提交事务的提交记录，这条记录被称为“end mark”。因为WAL会随着写操作的进行不断增加，通过读操作的“end mark”，就能知道对于这个读操作而言，页面内容应该以当前WAL内容为准，还是以数据库文件为准。</p>
 <p>以下图为例来做个说明：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/read-concurrency.png" alt="读并发的实现" title="读并发的实现"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="读并发的实现" src="/media/imgs/20220106-sqlite-btree-4-wal/read-concurrency.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 读并发的实现 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中：</p>
 <ul>
 <li>WAL文件中先后记录了两个写事务，其中第一个写事务修改了页面编号1、2，已经提交完成；还有一个在进行还未完成的写事务，修改了页面编号1。</li>
@@ -399,7 +328,10 @@
 </ul>
 <p>可见，有了“end mark”这一标记位置之后，加上页面索引，任意数量的读操作都能快速判断自己应该读WAL文件还是数据库文件，写操作可以继续写，读和写之间并不会冲突，极大提升了读并发的性能。</p>
 <p>同样要看到的是，由于只有一个WAL文件，同一时间之内，只能有一个写操作。即：<strong>sqlite的WAL模式，只能支持单写多读的模式。</strong></p>
-<h2 id="读操作和checkpoint的联系">读操作和checkpoint的联系</h2>
+<h2 class="heading" id="读操作和checkpoint的联系">
+  读操作和checkpoint的联系
+  <a class="anchor" href="#%e8%af%bb%e6%93%8d%e4%bd%9c%e5%92%8ccheckpoint%e7%9a%84%e8%81%94%e7%b3%bb">#</a>
+</h2>
 <p>前面讲到了checkpoint以及读并发的实现，两者可以并发一起执行，但是某些时刻会有一些关联，影响系统的性能。</p>
 <p>因为超过读操作“end mark”的页面，读操作需要到数据库文件中读取该页面内容，那么反过来，当checkpoint操作要将一个超过当前并发的<strong>任意读操作</strong>“end mark”的页面落到数据库文件中时，就必须等待这个读操作完成才能进行。</p>
 <p>仍然以前面读并发的示意图来解释这个过程：</p>
@@ -410,14 +342,20 @@
 <p>换言之：一个执行很久的读操作，可能会影响同时在进行的checkpoint操作的执行。</p>
 <p>被阻塞的checkpoint必须等待读操作完成才能继续执行，因此需要一些额外的信息来维护当前checkpoint执行的状态，这些具体的实现细节都会在下面实现环节的分析中涉及。</p>
 <p>现在已经大体清楚WAL的原理了，下面来看具体的实现。</p>
-<h1 id="wal的实现">WAL的实现</h1>
+<h1 class="heading" id="wal的实现">
+  WAL的实现
+  <a class="anchor" href="#wal%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h1>
 <p>sqlite中，可以使用<code>PRAGMA journal_mode=wal</code>设置页面备份机制为wal，这时候就会有三个与数据库相关的文件在同一个目录：</p>
 <ul>
 <li>数据库文件，假设名字为X。</li>
 <li>WAL文件，名字为“X-wal”。</li>
 <li>wal索引文件，名字为“X-shm”。</li>
 </ul>
-<h2 id="wal的文件格式">WAL的文件格式</h2>
+<h2 class="heading" id="wal的文件格式">
+  WAL的文件格式
+  <a class="anchor" href="#wal%e7%9a%84%e6%96%87%e4%bb%b6%e6%a0%bc%e5%bc%8f">#</a>
+</h2>
 <p>首先来看WAL文件的格式，分为两个部分：</p>
 <ul>
 <li>WAL文件头：一次写事务，对应一个WAL文件头。</li>
@@ -429,105 +367,135 @@
 </li>
 </ul>
 <p>WAL文件头，只会在每次写事务中写入一次，而帧可能在一次写事务中多多个，取决于这一次写事务修改了多少页面。如下图：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-format.png" alt="WAL文件结构" title="WAL文件结构"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL文件结构" src="/media/imgs/20220106-sqlite-btree-4-wal/wal-format.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL文件结构 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图中，依次存储了两次写事务的数据，其中第一次写了两帧数据，第二次写了一帧数据。</p>
 <p>有了以上的概念，下面详细看WAL文件的结构。</p>
-<h3 id="wal文件头格式">WAL文件头格式</h3>
+<h3 class="heading" id="wal文件头格式">
+  WAL文件头格式
+  <a class="anchor" href="#wal%e6%96%87%e4%bb%b6%e5%a4%b4%e6%a0%bc%e5%bc%8f">#</a>
+</h3>
 <p>（引用自 <a href="https://www.sqlite.org/fileformat2.html">Database File Format</a> section 4.1）</p>
 <table>
-<thead>
-<tr>
-<th style="text-align:left">Offset</th>
-<th style="text-align:left">Size</th>
-<th style="text-align:left">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">0</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Magic number. 0x377f0682 or 0x377f0683</td>
-</tr>
-<tr>
-<td style="text-align:left">4</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">File format version. Currently 3007000.</td>
-</tr>
-<tr>
-<td style="text-align:left">8</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Database page size. Example: 1024</td>
-</tr>
-<tr>
-<td style="text-align:left">12</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Checkpoint sequence number</td>
-</tr>
-<tr>
-<td style="text-align:left">16</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Salt-1: random integer incremented with each checkpoint</td>
-</tr>
-<tr>
-<td style="text-align:left">20</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Salt-2: a different random number for each checkpoint</td>
-</tr>
-<tr>
-<td style="text-align:left">24</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Checksum-1: First part of a checksum on the first 24 bytes of header</td>
-</tr>
-<tr>
-<td style="text-align:left">28</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Checksum-2: Second part of the checksum on the first 24 bytes of header</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th style="text-align: left">Offset</th>
+          <th style="text-align: left">Size</th>
+          <th style="text-align: left">Description</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">0</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Magic number. 0x377f0682 or 0x377f0683</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">File format version. Currently 3007000.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">8</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Database page size. Example: 1024</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">12</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Checkpoint sequence number</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">16</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Salt-1: random integer incremented with each checkpoint</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">20</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Salt-2: a different random number for each checkpoint</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">24</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Checksum-1: First part of a checksum on the first 24 bytes of header</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">28</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Checksum-2: Second part of the checksum on the first 24 bytes of header</td>
+      </tr>
+  </tbody>
 </table>
 <p>其中的很多字段自有解释，其中多数涉及到页面内容的校验，后面再展开说。</p>
-<h3 id="wal帧头部格式">WAL帧头部格式</h3>
+<h3 class="heading" id="wal帧头部格式">
+  WAL帧头部格式
+  <a class="anchor" href="#wal%e5%b8%a7%e5%a4%b4%e9%83%a8%e6%a0%bc%e5%bc%8f">#</a>
+</h3>
 <p>（引用自 <a href="https://www.sqlite.org/fileformat2.html">Database File Format</a> section 4.1）</p>
 <table>
-<thead>
-<tr>
-<th style="text-align:left">Offset</th>
-<th style="text-align:left">Size</th>
-<th style="text-align:left">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">0</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Page number</td>
-</tr>
-<tr>
-<td style="text-align:left">4</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">For commit records, the size of the database file in pages after the commit. For all other records, zero.</td>
-</tr>
-<tr>
-<td style="text-align:left">8</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Salt-1 copied from the WAL header</td>
-</tr>
-<tr>
-<td style="text-align:left">12</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Salt-2 copied from the WAL header</td>
-</tr>
-<tr>
-<td style="text-align:left">16</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Checksum-1: Cumulative checksum up through and including this page</td>
-</tr>
-<tr>
-<td style="text-align:left">20</td>
-<td style="text-align:left">4</td>
-<td style="text-align:left">Checksum-2: Second half of the cumulative checksum.</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th style="text-align: left">Offset</th>
+          <th style="text-align: left">Size</th>
+          <th style="text-align: left">Description</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">0</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Page number</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">For commit records, the size of the database file in pages after the commit. For all other records, zero.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">8</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Salt-1 copied from the WAL header</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">12</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Salt-2 copied from the WAL header</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">16</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Checksum-1: Cumulative checksum up through and including this page</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">20</td>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left">Checksum-2: Second half of the cumulative checksum.</td>
+      </tr>
+  </tbody>
 </table>
 <p>帧头部需要存储如下的信息：</p>
 <ul>
@@ -535,7 +503,10 @@
 <li>4-8字节：对于提交记录而言，这4字节存储的是该事务提交之后，数据库文件的最大页面编号；其它的时候，这4字节为0。也就是说，这4字节大于0的时候，表示是一次事务的最后一次页面修改。</li>
 </ul>
 <p>其它的字段，都跟页面的校验有关，接下来就看看这部分的实现。</p>
-<h3 id="页面内容校验算法">页面内容校验算法</h3>
+<h3 class="heading" id="页面内容校验算法">
+  页面内容校验算法
+  <a class="anchor" href="#%e9%a1%b5%e9%9d%a2%e5%86%85%e5%ae%b9%e6%a0%a1%e9%aa%8c%e7%ae%97%e6%b3%95">#</a>
+</h3>
 <p>前面的格式中，无论是WAL文件头，还是WAL帧头部，都有以下的字段：</p>
 <ul>
 <li>8字节的salt数据。</li>
@@ -565,10 +536,40 @@
 </li>
 </ul>
 <p>校验页面的函数实现在<code>walDecodeFrame</code>中，而计算页面校验值的函数实现在<code>walChecksumBytes</code>中。</p>
-<h2 id="wal页面索引">WAL页面索引</h2>
-<h3 id="结构">结构</h3>
+<h2 class="heading" id="wal页面索引">
+  WAL页面索引
+  <a class="anchor" href="#wal%e9%a1%b5%e9%9d%a2%e7%b4%a2%e5%bc%95">#</a>
+</h2>
+<h3 class="heading" id="结构">
+  结构
+  <a class="anchor" href="#%e7%bb%93%e6%9e%84">#</a>
+</h3>
 <p>前面分析WAL文件结构的时候，提到保存一页数据的内容被称为“帧（frame）”，帧的编号从1开始顺序递增，每一帧内容存储的页面内容可能会发生变化，如下图所示：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-frame.png" alt="帧与页面的对应关系" title="帧与页面的对应关系"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="帧与页面的对应关系" src="/media/imgs/20220106-sqlite-btree-4-wal/wal-frame.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 帧与页面的对应关系 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>图中，依次有四帧页面数据，帧数与页面的对应关系依次是：(1,1)，(2,3)，(3,5)，(4,4)。假设随着运行，第一帧对应的页面1被写入了数据库，那么第一帧的空间就会被复用来存储别的页面的内容。</p>
 <p>所以，WAL页面索引中，需要存储帧数与页面编号之间的对应关系，这样就能：</p>
 <ul>
@@ -576,65 +577,116 @@
 <li>根据页面编号，能查到这个页面的最新数据保存在哪一帧中。</li>
 </ul>
 <p>根据需要的这两份数据，定义了用于保存wal索引的数据结构：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="k">struct</span> <span class="n">WalHashLoc</span> <span class="p">{</span>
-  <span class="k">volatile</span> <span class="n">ht_slot</span> <span class="o">*</span><span class="n">aHash</span><span class="p">;</span>  <span class="cm">/* Start of the wal-index hash table */</span>
-  <span class="k">volatile</span> <span class="n">u32</span> <span class="o">*</span><span class="n">aPgno</span><span class="p">;</span>      <span class="cm">/* aPgno[1] is the page of first frame indexed */</span>
-  <span class="n">u32</span> <span class="n">iZero</span><span class="p">;</span>                <span class="cm">/* One less than the frame number of first indexed*/</span>
-<span class="p">};</span>
-</code></pre></div><p>其中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalHashLoc {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">volatile</span> ht_slot *aHash;  <span style="color:#888;font-style:italic">/* Start of the wal-index hash table */</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">volatile</span> u32 *aPgno;      <span style="color:#888;font-style:italic">/* aPgno[1] is the page of first frame indexed */</span>
+</span></span><span style="display:flex;"><span>  u32 iZero;                <span style="color:#888;font-style:italic">/* One less than the frame number of first indexed*/</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>aHash：保存了根据页面编号查找iFrame帧数的hash数组数据。</li>
 <li>aPgno：保存了根据帧数查找页面编号的数据。</li>
 <li>iZero：保存了当前索引页面第一帧的帧数。</li>
 </ul>
 <p>这么看来有一些抽象，我们以下图来做解释wal-index文件的结构：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/wal-index-format.png" alt="WAL-Index索引文件结构图" title="WAL-Index索引文件结构图"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL-Index索引文件结构图" src="/media/imgs/20220106-sqlite-btree-4-wal/wal-index-format.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL-Index索引文件结构图 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示，其中：</p>
 <ul>
 <li>wal索引文件一页大小为32KB，需要注意的是：不要把wal索引文件的一页与数据库文件的一页搞混，两者并不一定相同，但是都为2的次方，数据库文件的一页可以编译期修改，但是wal索引文件的一页大小写死为32KB。</li>
 <li>第一页相对有些特殊，因为最开始的136字节是wal索引文件头，所以相对的，剩下用来存储索引数据的空间就会变少一些。索引文件头的内容，留待后面再详细解释。</li>
 <li>每一页存储的数据中，<code>aPgno</code>大小为4096（第一页只有4062，因为有头部用到的空间），<code>aHash</code>的大小为8192。</li>
 </ul>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/WalHashLoc.png" alt="页面索引数据的构成" title="页面索引数据的构成"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="页面索引数据的构成" src="/media/imgs/20220106-sqlite-btree-4-wal/WalHashLoc.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 页面索引数据的构成 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>这几个常量，由下面这几个宏来定义：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="c1">// 每一页aPgno数组大小
-</span><span class="c1"></span><span class="cp">#define HASHTABLE_NPAGE      4096                 </span><span class="cm">/* Must be power of 2 */</span><span class="cp">
-</span><span class="cp"></span><span class="c1">// 查询时hash取模时的质数
-</span><span class="c1"></span><span class="cp">#define HASHTABLE_HASH_1     383                  </span><span class="cm">/* Should be prime */</span><span class="cp">
-</span><span class="cp"></span><span class="c1">// 每一页hash slot数组大小
-</span><span class="c1"></span><span class="cp">#define HASHTABLE_NSLOT      (HASHTABLE_NPAGE*2)  </span><span class="cm">/* Must be a power of 2 */</span><span class="cp">
-</span><span class="cp"></span>
-<span class="c1">// 页面1实际能容纳的aPgno大小：HASHTABLE_NPAGE减去WALINDEX_HDR_SIZE使用的大小
-</span><span class="c1"></span><span class="cp">#define HASHTABLE_NPAGE_ONE  (HASHTABLE_NPAGE - (WALINDEX_HDR_SIZE/sizeof(u32)))
-</span><span class="cp"></span>
-<span class="c1">// 一个wal索引页面的大小，为4096*4+8192*2 = 32KB
-</span><span class="c1"></span><span class="cp">#define WALINDEX_PGSZ   (                                         \
-</span><span class="cp">    sizeof(ht_slot)*HASHTABLE_NSLOT + HASHTABLE_NPAGE*sizeof(u32) \
-</span><span class="cp">)
-</span></code></pre></div><h4 id="索引文件头结构">索引文件头结构</h4>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 每一页aPgno数组大小
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NPAGE      4096                 </span><span style="color:#888;font-style:italic">/* Must be power of 2 */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 查询时hash取模时的质数
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_HASH_1     383                  </span><span style="color:#888;font-style:italic">/* Should be prime */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 每一页hash slot数组大小
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NSLOT      (HASHTABLE_NPAGE*2)  </span><span style="color:#888;font-style:italic">/* Must be a power of 2 */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 页面1实际能容纳的aPgno大小：HASHTABLE_NPAGE减去WALINDEX_HDR_SIZE使用的大小
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NPAGE_ONE  (HASHTABLE_NPAGE - (WALINDEX_HDR_SIZE/sizeof(u32)))
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 一个wal索引页面的大小，为4096*4+8192*2 = 32KB
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WALINDEX_PGSZ   (                                         \
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">    sizeof(ht_slot)*HASHTABLE_NSLOT + HASHTABLE_NPAGE*sizeof(u32) \
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">)
+</span></span></span></code></pre></div><h4 class="heading" id="索引文件头结构">
+  索引文件头结构
+  <a class="anchor" href="#%e7%b4%a2%e5%bc%95%e6%96%87%e4%bb%b6%e5%a4%b4%e7%bb%93%e6%9e%84">#</a>
+</h4>
 <p>来看看索引文件头的结构，其整体大小为136字节，划分为三部分：</p>
 <p>（引用自<a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a> section 2.1）</p>
 <table>
-<thead>
-<tr>
-<th style="text-align:left">Bytes</th>
-<th style="text-align:left">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">0..47</td>
-<td style="text-align:left">First copy of the WAL Index Information</td>
-</tr>
-<tr>
-<td style="text-align:left">48..95</td>
-<td style="text-align:left">Second copy of the WAL Index Information</td>
-</tr>
-<tr>
-<td style="text-align:left">96..135</td>
-<td style="text-align:left">Checkpoint Information and Locks</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th style="text-align: left">Bytes</th>
+          <th style="text-align: left">Description</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">0..47</td>
+          <td style="text-align: left">First copy of the WAL Index Information</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">48..95</td>
+          <td style="text-align: left">Second copy of the WAL Index Information</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">96..135</td>
+          <td style="text-align: left">Checkpoint Information and Locks</td>
+      </tr>
+  </tbody>
 </table>
 <p>这总共136字节的数据，一共分为三个部分：</p>
 <ul>
@@ -645,103 +697,106 @@
 <p>下面的表格，详细展示了这136字节中都有哪些字段。</p>
 <p>（引用自<a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a> section 2.1）</p>
 <table>
-<thead>
-<tr>
-<th style="text-align:left">Bytes</th>
-<th style="text-align:left">Name</th>
-<th style="text-align:left">Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">0..3</td>
-<td style="text-align:left">iVersion</td>
-<td style="text-align:left">The WAL-index format version number. Always 3007000.</td>
-</tr>
-<tr>
-<td style="text-align:left">4..7</td>
-<td style="text-align:left"></td>
-<td style="text-align:left">Unused padding space. Must be zero.</td>
-</tr>
-<tr>
-<td style="text-align:left">8..11</td>
-<td style="text-align:left">iChange</td>
-<td style="text-align:left">Unsigned integer counter, incremented with each transaction</td>
-</tr>
-<tr>
-<td style="text-align:left">12</td>
-<td style="text-align:left">isInit</td>
-<td style="text-align:left">The &ldquo;isInit&rdquo; flag. 1 when the shm file has been initialized.</td>
-</tr>
-<tr>
-<td style="text-align:left">13</td>
-<td style="text-align:left">bigEndCksum</td>
-<td style="text-align:left">True if the WAL file uses big-ending checksums. 0 if the WAL uses little-endian checksums.</td>
-</tr>
-<tr>
-<td style="text-align:left">14..15</td>
-<td style="text-align:left">szPage</td>
-<td style="text-align:left">The database page size in bytes, or 1 if the page size is 65536.</td>
-</tr>
-<tr>
-<td style="text-align:left">16..19</td>
-<td style="text-align:left">mxFrame</td>
-<td style="text-align:left">Number of valid and committed frames in the WAL file.</td>
-</tr>
-<tr>
-<td style="text-align:left">20..23</td>
-<td style="text-align:left">nPage</td>
-<td style="text-align:left">Size of the database file in pages.</td>
-</tr>
-<tr>
-<td style="text-align:left">24..31</td>
-<td style="text-align:left">aFrameCksum</td>
-<td style="text-align:left">Checksum of the last frame in the WAL file.</td>
-</tr>
-<tr>
-<td style="text-align:left">32..39</td>
-<td style="text-align:left">aSalt</td>
-<td style="text-align:left">The two salt value copied from the WAL file header. These values are in the byte-order of the WAL file, which might be different from the native byte-order of the machine.</td>
-</tr>
-<tr>
-<td style="text-align:left">40..47</td>
-<td style="text-align:left">aCksum</td>
-<td style="text-align:left">A checksum over bytes 0 through 39 of this header.</td>
-</tr>
-<tr>
-<td style="text-align:left">48..95</td>
-<td style="text-align:left"></td>
-<td style="text-align:left">A copy of bytes 0 through 47 of this header.</td>
-</tr>
-<tr>
-<td style="text-align:left">96..99</td>
-<td style="text-align:left">nBackfill</td>
-<td style="text-align:left">Number of WAL frames that have already been backfilled into the database by prior checkpoints</td>
-</tr>
-<tr>
-<td style="text-align:left">100..119</td>
-<td style="text-align:left">read-mark[0..4]</td>
-<td style="text-align:left">Five &ldquo;read marks&rdquo;. Each read mark is a 32-bit unsigned integer (4 bytes).</td>
-</tr>
-<tr>
-<td style="text-align:left">120..127</td>
-<td style="text-align:left"></td>
-<td style="text-align:left">Unused space set aside for 8 file locks.</td>
-</tr>
-<tr>
-<td style="text-align:left">128..132</td>
-<td style="text-align:left">nBackfillAttempted</td>
-<td style="text-align:left">Number of WAL frames that have attempted to be backfilled but which might not have been backfilled successfully.</td>
-</tr>
-<tr>
-<td style="text-align:left">132..136</td>
-<td style="text-align:left"></td>
-<td style="text-align:left">Unused space reserved for further expansion.</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th style="text-align: left">Bytes</th>
+          <th style="text-align: left">Name</th>
+          <th style="text-align: left">Meaning</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">0..3</td>
+          <td style="text-align: left">iVersion</td>
+          <td style="text-align: left">The WAL-index format version number. Always 3007000.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">4..7</td>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">Unused padding space. Must be zero.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">8..11</td>
+          <td style="text-align: left">iChange</td>
+          <td style="text-align: left">Unsigned integer counter, incremented with each transaction</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">12</td>
+          <td style="text-align: left">isInit</td>
+          <td style="text-align: left">The &ldquo;isInit&rdquo; flag. 1 when the shm file has been initialized.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">13</td>
+          <td style="text-align: left">bigEndCksum</td>
+          <td style="text-align: left">True if the WAL file uses big-ending checksums. 0 if the WAL uses little-endian checksums.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">14..15</td>
+          <td style="text-align: left">szPage</td>
+          <td style="text-align: left">The database page size in bytes, or 1 if the page size is 65536.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">16..19</td>
+          <td style="text-align: left">mxFrame</td>
+          <td style="text-align: left">Number of valid and committed frames in the WAL file.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">20..23</td>
+          <td style="text-align: left">nPage</td>
+          <td style="text-align: left">Size of the database file in pages.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">24..31</td>
+          <td style="text-align: left">aFrameCksum</td>
+          <td style="text-align: left">Checksum of the last frame in the WAL file.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">32..39</td>
+          <td style="text-align: left">aSalt</td>
+          <td style="text-align: left">The two salt value copied from the WAL file header. These values are in the byte-order of the WAL file, which might be different from the native byte-order of the machine.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">40..47</td>
+          <td style="text-align: left">aCksum</td>
+          <td style="text-align: left">A checksum over bytes 0 through 39 of this header.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">48..95</td>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">A copy of bytes 0 through 47 of this header.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">96..99</td>
+          <td style="text-align: left">nBackfill</td>
+          <td style="text-align: left">Number of WAL frames that have already been backfilled into the database by prior checkpoints</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">100..119</td>
+          <td style="text-align: left">read-mark[0..4]</td>
+          <td style="text-align: left">Five &ldquo;read marks&rdquo;. Each read mark is a 32-bit unsigned integer (4 bytes).</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">120..127</td>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">Unused space set aside for 8 file locks.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">128..132</td>
+          <td style="text-align: left">nBackfillAttempted</td>
+          <td style="text-align: left">Number of WAL frames that have attempted to be backfilled but which might not have been backfilled successfully.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">132..136</td>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">Unused space reserved for further expansion.</td>
+      </tr>
+  </tbody>
 </table>
 <p>下面就这里的一些重点字段做一下介绍。</p>
-<h5 id="为什么需要两个相同大小的wal索引头部">为什么需要两个相同大小的WAL索引头部？</h5>
+<h5 class="heading" id="为什么需要两个相同大小的wal索引头部">
+  为什么需要两个相同大小的WAL索引头部？
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e9%9c%80%e8%a6%81%e4%b8%a4%e4%b8%aa%e7%9b%b8%e5%90%8c%e5%a4%a7%e5%b0%8f%e7%9a%84wal%e7%b4%a2%e5%bc%95%e5%a4%b4%e9%83%a8">#</a>
+</h5>
 <p>注意到0-47和48-95这两部分48字节的数据，都是同样类型的数据，都由<code>WalIndexHdr</code>结构体来描述。</p>
 <p>这样设计的目的，是为了读写的时候数据校验。假设头48字节为<code>h1</code>，后48字节为<code>h2</code>。那么读操作的时候是先读<code>h1</code>再读<code>h2</code>，而写操作的时候则相反，先写<code>h2</code>再写<code>h1</code>。这样，如果在读操作的时候，读到这两部分内容并不一样，说明当前有写操作在进行。</p>
 <p>读头部的实现见函数<code>walIndexTryHdr</code>：</p>
@@ -785,7 +840,10 @@
   /* The header was successfully read. Return zero. */
   return 0;
 }
-</code></pre><h5 id="mxframe和nbackfill">mxFrame和nBackfill</h5>
+</code></pre><h5 class="heading" id="mxframe和nbackfill">
+  mxFrame和nBackfill
+  <a class="anchor" href="#mxframe%e5%92%8cnbackfill">#</a>
+</h5>
 <p><code>mxFrame</code>记录着当前WAL文件的最大帧数，而<code>nBackfill</code>记录着当前<code>checkpoint</code>操作进行到第几帧，即在<code>nBackfill</code>之前的帧数都已经被写入数据库文件了。</p>
 <p>显然这两个值有如下关系：<code>nBackfill&lt;=mxFrame</code>：</p>
 <ul>
@@ -798,9 +856,15 @@
 </ul>
 </li>
 </ul>
-<h3 id="实现">实现</h3>
+<h3 class="heading" id="实现">
+  实现
+  <a class="anchor" href="#%e5%ae%9e%e7%8e%b0">#</a>
+</h3>
 <p>有了前面的准备，我们来看看这两种对应关系的查找是怎么做的。</p>
-<h4 id="索引页面的存储">索引页面的存储</h4>
+<h4 class="heading" id="索引页面的存储">
+  索引页面的存储
+  <a class="anchor" href="#%e7%b4%a2%e5%bc%95%e9%a1%b5%e9%9d%a2%e7%9a%84%e5%ad%98%e5%82%a8">#</a>
+</h4>
 <p>前面分析到，一个wal索引页面的大小为32KB，这些数据是存储在<code>Wal</code>结构体中的：</p>
 <pre tabindex="0"><code>struct Wal {
 	// ...
@@ -813,7 +877,10 @@
 <li>apWiData：存储页面指针的数组。</li>
 <li>nWiData：页面指针数组的大小。</li>
 </ul>
-<h4 id="根据帧数查询页面编号">根据帧数查询页面编号</h4>
+<h4 class="heading" id="根据帧数查询页面编号">
+  根据帧数查询页面编号
+  <a class="anchor" href="#%e6%a0%b9%e6%8d%ae%e5%b8%a7%e6%95%b0%e6%9f%a5%e8%af%a2%e9%a1%b5%e9%9d%a2%e7%bc%96%e5%8f%b7">#</a>
+</h4>
 <p>首先来看根据帧数查询这一帧存储的是哪个页面的数据，即根据帧数查询页面编号的实现。</p>
 <p>由于wal文件中，到了一定大小之后，就会执行“checkpoint”操作，所以帧数一定是有限的。即帧数满足以下的条件：</p>
 <ul>
@@ -824,30 +891,54 @@
 <ul>
 <li>首先根据帧数，知道在第几个索引页面中，也就是<code>apWiData</code>数组的第几个元素，这样就拿到这一帧对应在哪个32KB的数据。（函数<code>walHashGet</code>，另外函数<code>walFramePage</code>是根据帧数得到<code>apWiData</code>数组索引）。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">rc</span> <span class="o">=</span> <span class="n">walHashGet</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="n">walFramePage</span><span class="p">(</span><span class="n">iFrame</span><span class="p">),</span> <span class="o">&amp;</span><span class="n">sLoc</span><span class="p">);</span>
-</code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>rc = <span style="color:#666;font-weight:bold;font-style:italic">walHashGet</span>(pWal, <span style="color:#666;font-weight:bold;font-style:italic">walFramePage</span>(iFrame), &amp;sLoc);
+</span></span></code></pre></div><ul>
 <li>
 <p>帧数减去这一页的<code>iZero</code>知道是这一页中的<code>aPgno</code>数组的索引：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">idx</span> <span class="o">=</span> <span class="n">iFrame</span> <span class="o">-</span> <span class="n">sLoc</span><span class="p">.</span><span class="n">iZero</span><span class="p">;</span>
-</code></pre></div></li>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>idx = iFrame - sLoc.iZero;
+</span></span></code></pre></div></li>
 <li>
 <p>在hash数组中找到空位置存储页面编号：</p>
 </li>
 </ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c">    <span class="cm">/* Write the aPgno[] array entry and the hash-table slot. */</span>
-    <span class="n">nCollide</span> <span class="o">=</span> <span class="n">idx</span><span class="p">;</span>
-    <span class="k">for</span><span class="p">(</span><span class="n">iKey</span><span class="o">=</span><span class="n">walHash</span><span class="p">(</span><span class="n">iPage</span><span class="p">);</span> <span class="n">sLoc</span><span class="p">.</span><span class="n">aHash</span><span class="p">[</span><span class="n">iKey</span><span class="p">];</span> <span class="n">iKey</span><span class="o">=</span><span class="n">walNextHash</span><span class="p">(</span><span class="n">iKey</span><span class="p">)){</span>
-      <span class="k">if</span><span class="p">(</span> <span class="p">(</span><span class="n">nCollide</span><span class="o">--</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span> <span class="p">)</span> <span class="k">return</span> <span class="n">SQLITE_CORRUPT_BKPT</span><span class="p">;</span>
-    <span class="p">}</span>
-</code></pre></div><ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">/* Write the aPgno[] array entry and the hash-table slot. */</span>
+</span></span><span style="display:flex;"><span>    nCollide = idx;
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">for</span>(iKey=<span style="color:#666;font-weight:bold;font-style:italic">walHash</span>(iPage); sLoc.aHash[iKey]; iKey=<span style="color:#666;font-weight:bold;font-style:italic">walNextHash</span>(iKey)){
+</span></span><span style="display:flex;"><span>      <span style="font-weight:bold;text-decoration:underline">if</span>( (nCollide--)==0 ) <span style="font-weight:bold;text-decoration:underline">return</span> SQLITE_CORRUPT_BKPT;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><ul>
 <li>
 <p>将两者的对应关系存储下来，即：向<code>aPgno</code>中存入页面编号，向<code>aHash</code>中存储帧数：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c">    <span class="n">sLoc</span><span class="p">.</span><span class="n">aPgno</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">iPage</span><span class="p">;</span>
-    <span class="n">AtomicStore</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sLoc</span><span class="p">.</span><span class="n">aHash</span><span class="p">[</span><span class="n">iKey</span><span class="p">],</span> <span class="p">(</span><span class="n">ht_slot</span><span class="p">)</span><span class="n">idx</span><span class="p">);</span>
-</code></pre></div></li>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>    sLoc.aPgno[idx] = iPage;
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">AtomicStore</span>(&amp;sLoc.aHash[iKey], (ht_slot)idx);
+</span></span></code></pre></div></li>
 </ul>
 <p>下图展示了这个过程的大体示意：</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/frame-pageno.png" alt="添加帧数与页面编号对应关系的流程" title="添加帧数与页面编号对应关系的流程"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="添加帧数与页面编号对应关系的流程" src="/media/imgs/20220106-sqlite-btree-4-wal/frame-pageno.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 添加帧数与页面编号对应关系的流程 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>举个例子来说明上面的流程，假设要存储的对应关系是帧数5000存储的是页面编号5：</p>
 <ul>
 <li>
@@ -870,7 +961,10 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>通过帧数找到<code>aPgno</code>是一个两次索引的过程：第一次根据帧数找到32KB页面，第二次再根据帧数找到在这一页中的帧数偏移量。</li>
 <li>最后修改<code>aHash</code>是一次原子操作，因为其它地方可能同时在查询。</li>
 </ul>
-<h4 id="根据页面编号查询所在帧">根据页面编号查询所在帧</h4>
+<h4 class="heading" id="根据页面编号查询所在帧">
+  根据页面编号查询所在帧
+  <a class="anchor" href="#%e6%a0%b9%e6%8d%ae%e9%a1%b5%e9%9d%a2%e7%bc%96%e5%8f%b7%e6%9f%a5%e8%af%a2%e6%89%80%e5%9c%a8%e5%b8%a7">#</a>
+</h4>
 <p>前面分析了如何存储帧数到页面编号的对应关系，可以看到这一次更新是把两个对应关系一起更新的。也可以看到，根据帧数查找的流程实际还是相对简单的，就是两次索引：一次找到页面，再一次就是页面内的查找，原因在于：帧数是有限的。</p>
 <p>但是页面就不是这样了，因为这里要存储的页面编号是数据库文件中的页面编号，并不知道当前数据库到底变到多大了，这样就不能按照前面的方式来两次索引。</p>
 <p>我们来看看如何根据页面编号，知道这一页面是存储在哪一帧里的，即wal文件的帧数，这个过程在函数<code>sqlite3WalFindFrame</code>中。</p>
@@ -879,10 +973,40 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>从后往前遍历这些页面，每个页面中到<code>WalHashLoc-&gt;aHash</code>中，根据页面编号的hash值来查找。</li>
 <li>这个流程一直到找到页面，或者全部遍历完毕为止。</li>
 </ul>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/sqlite3WalFindFrame.png" alt="根据页面编号查找帧的流程" title="根据页面编号查找帧的流程"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="根据页面编号查找帧的流程" src="/media/imgs/20220106-sqlite-btree-4-wal/sqlite3WalFindFrame.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 根据页面编号查找帧的流程 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>从这个流程可以看到：查找页面对应帧数的流程，最坏的情况下可能遍历了所有索引页面，虽然其中的查找过程会根据页面编号的hash值来查找。于是一个重要的结论就出来了：<strong>WAL的实现，其中有一个缺点是，当WAL文件很大时，对应的索引页面也会很大，在索引中查找页面编号的流程就会变久。</strong></p>
-<h2 id="锁的实现">锁的实现</h2>
-<h3 id="数据结构">数据结构</h3>
+<h2 class="heading" id="锁的实现">
+  锁的实现
+  <a class="anchor" href="#%e9%94%81%e7%9a%84%e5%ae%9e%e7%8e%b0">#</a>
+</h2>
+<h3 class="heading" id="数据结构">
+  数据结构
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e7%bb%93%e6%9e%84">#</a>
+</h3>
 <p>wal模式提供了以下4种锁，这4种锁从wal索引文件头部120字节处开始，每种锁占一个字节：</p>
 <ul>
 <li>WAL_WRITE_LOCK：写锁，写操作之前必须拿到写锁。</li>
@@ -891,101 +1015,104 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>WAL_READ_LOCK：读锁，一共有五个读锁，但是作用不尽相同。</li>
 </ul>
 <p>这四种锁，其中有五个读锁，一共加起来就是8个锁，定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="c1">// wal索引文件中锁的数量
-</span><span class="c1"></span><span class="cp">#define SQLITE_SHM_NLOCK        8
-</span><span class="cp"></span>
-<span class="c1">// 写锁在所有锁中的偏移量
-</span><span class="c1"></span><span class="cp">#define WAL_WRITE_LOCK 0
-</span><span class="cp"></span><span class="c1">// 除了写锁以外的其他所有锁
-</span><span class="c1"></span><span class="cp">#define WAL_ALL_BUT_WRITE 1
-</span><span class="cp"></span><span class="c1">// checkpoint锁在所有锁中的偏移量
-</span><span class="c1"></span><span class="cp">#define WAL_CKPT_LOCK 1
-</span><span class="cp"></span><span class="c1">// 恢复锁在所有锁中的偏移量
-</span><span class="c1"></span><span class="cp">#define WAL_RECOVER_LOCK 2
-</span><span class="cp"></span><span class="c1">// 输入读锁索引，返回对应读锁在所有锁中的偏移量，因为读锁从3开始，所以+3
-</span><span class="c1"></span><span class="cp">#define WAL_READ_LOCK(I) (3 + (I))
-</span><span class="cp"></span><span class="c1">// 读索引的数量 = 所有锁数量 - 读锁起始位置3
-</span><span class="c1"></span><span class="cp">#define WAL_NREADER (SQLITE_SHM_NLOCK - 3)
-</span></code></pre></div><p>问题来了，为什么是索引文件头部120字节处开始的呢？从上面对wal索引文件的格式分析可知：索引文件开始是两个<code>WalIndexHdr</code> + 一个<code>WalCkptInfo</code>，而<code>WalCkptInfo</code>结构体定义如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">struct</span> <span class="n">WalCkptInfo</span>
-<span class="p">{</span>
-  <span class="n">u32</span> <span class="n">nBackfill</span><span class="p">;</span>              <span class="cm">/* Number of WAL frames backfilled into DB */</span>
-  <span class="n">u32</span> <span class="n">aReadMark</span><span class="p">[</span><span class="n">WAL_NREADER</span><span class="p">];</span> <span class="cm">/* Reader marks */</span>
-  <span class="n">u8</span> <span class="n">aLock</span><span class="p">[</span><span class="n">SQLITE_SHM_NLOCK</span><span class="p">];</span> <span class="cm">/* Reserved space for locks */</span>
-  <span class="n">u32</span> <span class="n">nBackfillAttempted</span><span class="p">;</span>     <span class="cm">/* WAL frames perhaps written, or maybe not */</span>
-  <span class="n">u32</span> <span class="n">notUsed0</span><span class="p">;</span>               <span class="cm">/* Available for future enhancements */</span>
-<span class="p">};</span>
-</code></pre></div><p>其中的<code>aLock</code>字段就是存储上面的这些锁的数组，把前面这些数据的大小加起来，一直到这个字段就正好是120，有宏定义为证：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cm">/* A block of WALINDEX_LOCK_RESERVED bytes beginning at
-</span><span class="cm">** WALINDEX_LOCK_OFFSET is reserved for locks. Since some systems
-</span><span class="cm">** only support mandatory file-locks, we do not read or write data
-</span><span class="cm">** from the region of the file on which locks are applied.
-</span><span class="cm">*/</span>
-<span class="cp">#define WALINDEX_LOCK_OFFSET (sizeof(WalIndexHdr) * 2 + offsetof(WalCkptInfo, aLock))
-</span></code></pre></div><p>（引用自<a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a>）</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// wal索引文件中锁的数量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define SQLITE_SHM_NLOCK        8
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 写锁在所有锁中的偏移量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_WRITE_LOCK 0
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 除了写锁以外的其他所有锁
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_ALL_BUT_WRITE 1
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// checkpoint锁在所有锁中的偏移量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_CKPT_LOCK 1
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 恢复锁在所有锁中的偏移量
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_RECOVER_LOCK 2
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 输入读锁索引，返回对应读锁在所有锁中的偏移量，因为读锁从3开始，所以+3
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_READ_LOCK(I) (3 + (I))
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 读索引的数量 = 所有锁数量 - 读锁起始位置3
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_NREADER (SQLITE_SHM_NLOCK - 3)
+</span></span></span></code></pre></div><p>问题来了，为什么是索引文件头部120字节处开始的呢？从上面对wal索引文件的格式分析可知：索引文件开始是两个<code>WalIndexHdr</code> + 一个<code>WalCkptInfo</code>，而<code>WalCkptInfo</code>结构体定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalCkptInfo
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  u32 nBackfill;              <span style="color:#888;font-style:italic">/* Number of WAL frames backfilled into DB */</span>
+</span></span><span style="display:flex;"><span>  u32 aReadMark[WAL_NREADER]; <span style="color:#888;font-style:italic">/* Reader marks */</span>
+</span></span><span style="display:flex;"><span>  u8 aLock[SQLITE_SHM_NLOCK]; <span style="color:#888;font-style:italic">/* Reserved space for locks */</span>
+</span></span><span style="display:flex;"><span>  u32 nBackfillAttempted;     <span style="color:#888;font-style:italic">/* WAL frames perhaps written, or maybe not */</span>
+</span></span><span style="display:flex;"><span>  u32 notUsed0;               <span style="color:#888;font-style:italic">/* Available for future enhancements */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>其中的<code>aLock</code>字段就是存储上面的这些锁的数组，把前面这些数据的大小加起来，一直到这个字段就正好是120，有宏定义为证：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">/* A block of WALINDEX_LOCK_RESERVED bytes beginning at
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** WALINDEX_LOCK_OFFSET is reserved for locks. Since some systems
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** only support mandatory file-locks, we do not read or write data
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** from the region of the file on which locks are applied.
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">*/</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define WALINDEX_LOCK_OFFSET (sizeof(WalIndexHdr) * 2 + offsetof(WalCkptInfo, aLock))
+</span></span></span></code></pre></div><p>（引用自<a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a>）</p>
 <table>
-<thead>
-<tr>
-<th style="text-align:left">Name</th>
-<th style="text-align:left">Offset</th>
-<th></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left"></td>
-<td style="text-align:left">xShmLock</td>
-<td>File</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_WRITE_LOCK</td>
-<td style="text-align:left">0</td>
-<td>120</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_CKPT_LOCK</td>
-<td style="text-align:left">1</td>
-<td>121</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_RECOVER_LOCK</td>
-<td style="text-align:left">2</td>
-<td>122</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_READ_LOCK(0)</td>
-<td style="text-align:left">3</td>
-<td>123</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_READ_LOCK(1)</td>
-<td style="text-align:left">4</td>
-<td>124</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_READ_LOCK(2)</td>
-<td style="text-align:left">5</td>
-<td>125</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_READ_LOCK(3)</td>
-<td style="text-align:left">6</td>
-<td>126</td>
-</tr>
-<tr>
-<td style="text-align:left">WAL_READ_LOCK(4)</td>
-<td style="text-align:left">7</td>
-<td>127</td>
-</tr>
-</tbody>
+  <thead>
+      <tr>
+          <th style="text-align: left">Name</th>
+          <th style="text-align: left">Offset</th>
+          <th></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">xShmLock</td>
+          <td>File</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_WRITE_LOCK</td>
+          <td style="text-align: left">0</td>
+          <td>120</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_CKPT_LOCK</td>
+          <td style="text-align: left">1</td>
+          <td>121</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_RECOVER_LOCK</td>
+          <td style="text-align: left">2</td>
+          <td>122</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_READ_LOCK(0)</td>
+          <td style="text-align: left">3</td>
+          <td>123</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_READ_LOCK(1)</td>
+          <td style="text-align: left">4</td>
+          <td>124</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_READ_LOCK(2)</td>
+          <td style="text-align: left">5</td>
+          <td>125</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_READ_LOCK(3)</td>
+          <td style="text-align: left">6</td>
+          <td>126</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">WAL_READ_LOCK(4)</td>
+          <td style="text-align: left">7</td>
+          <td>127</td>
+      </tr>
+  </tbody>
 </table>
-<h3 id="加解锁操作">加解锁操作</h3>
+<h3 class="heading" id="加解锁操作">
+  加解锁操作
+  <a class="anchor" href="#%e5%8a%a0%e8%a7%a3%e9%94%81%e6%93%8d%e4%bd%9c">#</a>
+</h3>
 <p>wal与前面的journal相比，少了很多其他类型的锁，wal只有两种类型的锁：shared共享锁，以及exclusive排它锁。对应的API有下面四个：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">static</span> <span class="kt">int</span> <span class="nf">walLockShared</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">);</span>
-<span class="k">static</span> <span class="kt">void</span> <span class="nf">walUnlockShared</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">);</span>
-<span class="k">static</span> <span class="kt">int</span> <span class="nf">walLockExclusive</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">,</span> <span class="kt">int</span> <span class="n">n</span><span class="p">);</span>
-<span class="k">static</span> <span class="kt">void</span> <span class="nf">walUnlockExclusive</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">,</span> <span class="kt">int</span> <span class="n">n</span><span class="p">);</span>
-</code></pre></div><p>这里有几个细节，需要交待一下。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">walLockShared</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx);
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">walUnlockShared</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx);
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx, <span style="font-weight:bold;text-decoration:underline">int</span> n);
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">walUnlockExclusive</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx, <span style="font-weight:bold;text-decoration:underline">int</span> n);
+</span></span></code></pre></div><p>这里有几个细节，需要交待一下。</p>
 <p>首先，其中传入的参数<code>lockIdx</code>，就是上面提到的几种锁的类型索引。</p>
 <p>其次，代码中有<code>walLockShared(pWal, WAL_WRITE_LOCK)</code>这样的操作。对一个写锁加共享锁应该怎么理解？需要纠正的是，类似<code>WAL_WRITE_LOCK</code>这样的宏，只是表示这一字节用于什么操作，比如<code>WAL_WRITE_LOCK</code>用于写操作，即：</p>
 <ul>
@@ -996,12 +1123,12 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <p>最后一个细节是，加共享锁时只能传入锁类型索引，而加排它锁的时候还能传入一个参数n，这是什么意思？</p>
 <p>因为这些不同类型的锁，本质上就是wal索引共享文件上连续的字节，所以区别在于，共享锁一次只能对一个锁进行操作；而排它锁则可以一次多对多个锁进行操作。</p>
 <p>比如</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="n">walLockExclusive</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="n">WAL_READ_LOCK</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">WAL_NREADER</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
-</code></pre></div><p>这样就能把从1号读锁开始的所有读锁都加上排它锁。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(pWal, <span style="color:#666;font-weight:bold;font-style:italic">WAL_READ_LOCK</span>(1), WAL_NREADER - 1);
+</span></span></code></pre></div><p>这样就能把从1号读锁开始的所有读锁都加上排它锁。</p>
 <p>再比如：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c">  <span class="n">iLock</span> <span class="o">=</span> <span class="n">WAL_ALL_BUT_WRITE</span> <span class="o">+</span> <span class="n">pWal</span><span class="o">-&gt;</span><span class="n">ckptLock</span><span class="p">;</span>
-  <span class="n">rc</span> <span class="o">=</span> <span class="n">walLockExclusive</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="n">iLock</span><span class="p">,</span> <span class="n">WAL_READ_LOCK</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">iLock</span><span class="p">);</span>
-</code></pre></div><p>这里的几个常量取值如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>  iLock = WAL_ALL_BUT_WRITE + pWal-&gt;ckptLock;
+</span></span><span style="display:flex;"><span>  rc = <span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(pWal, iLock, <span style="color:#666;font-weight:bold;font-style:italic">WAL_READ_LOCK</span>(0) - iLock);
+</span></span></code></pre></div><p>这里的几个常量取值如下：</p>
 <ul>
 <li><code>ckptLock</code>取值为0或者1。</li>
 <li><code>WAL_ALL_BUT_WRITE</code>为1。</li>
@@ -1024,17 +1151,26 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </ul>
 </li>
 </ul>
-<h3 id="特殊的0号读锁">特殊的0号读锁</h3>
+<h3 class="heading" id="特殊的0号读锁">
+  特殊的0号读锁
+  <a class="anchor" href="#%e7%89%b9%e6%ae%8a%e7%9a%840%e5%8f%b7%e8%af%bb%e9%94%81">#</a>
+</h3>
 <p>除此以外，还需要注意0号读锁很特殊，它表示读事务申请的共享锁，和WAL_WRITE_LOCK不冲突，读写可以完全并发进行，互不影响，但是不能和数据库同步操作和WAL-index文件恢复并发进行。0号读锁表示只从数据库读取页。</p>
 <p>有了对锁的了解，可以接下来看各种操作的具体实现了。</p>
-<h2 id="读操作">读操作</h2>
+<h2 class="heading" id="读操作">
+  读操作
+  <a class="anchor" href="#%e8%af%bb%e6%93%8d%e4%bd%9c">#</a>
+</h2>
 <p>进行读操作时，大体需要以下两个操作：</p>
 <ul>
 <li>保存当前的<code>aReadMark</code>，因为这涉及到读页面的时候数据从哪里来的问题。</li>
 <li>拿到对应的读锁。</li>
 </ul>
 <p>下面分别讨论这两方面的内容。</p>
-<h3 id="readmark">readMark</h3>
+<h3 class="heading" id="readmark">
+  readMark
+  <a class="anchor" href="#readmark">#</a>
+</h3>
 <p>首先来了解一下什么叫<code>readMark</code>，以及有什么作用。</p>
 <p>回顾之前谈到wal文件以及wal索引文件的格式，有这么几个要点：</p>
 <ul>
@@ -1048,7 +1184,31 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </li>
 </ul>
 <p>以下图为例来说明情况，为了简化说明，一个页面存储的一对KV的信息。</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/read-wal.png" alt="读操作看到的数据库文件和wal" title="读操作看到的数据库文件和wal"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="读操作看到的数据库文件和wal" src="/media/imgs/20220106-sqlite-btree-4-wal/read-wal.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 读操作看到的数据库文件和wal </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中：</p>
 <ul>
 <li>有三个写事务，其中：
@@ -1096,16 +1256,19 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </ul>
 <p>再次说明的是，为了问题描述的简化，这里假设一个页面只存储了一对KV的值。</p>
 <p>有了对<code>readMark</code>的初步了解，继续看读操作如何获得读锁。</p>
-<h3 id="读锁">读锁</h3>
+<h3 class="heading" id="读锁">
+  读锁
+  <a class="anchor" href="#%e8%af%bb%e9%94%81">#</a>
+</h3>
 <p>前面已经提到，读锁的信息保存在<code>WalCkptInfo</code>的<code>aLock</code>成员中：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="k">struct</span> <span class="n">WalCkptInfo</span>
-<span class="p">{</span>
-	<span class="c1">// ...
-</span><span class="c1"></span>  <span class="n">u32</span> <span class="n">aReadMark</span><span class="p">[</span><span class="n">WAL_NREADER</span><span class="p">];</span> <span class="cm">/* Reader marks */</span>
-  <span class="n">u8</span> <span class="n">aLock</span><span class="p">[</span><span class="n">SQLITE_SHM_NLOCK</span><span class="p">];</span> <span class="cm">/* Reserved space for locks */</span>
-  <span class="c1">// ...
-</span><span class="c1"></span><span class="p">};</span>
-</code></pre></div><p>在这里：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalCkptInfo
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  u32 aReadMark[WAL_NREADER]; <span style="color:#888;font-style:italic">/* Reader marks */</span>
+</span></span><span style="display:flex;"><span>  u8 aLock[SQLITE_SHM_NLOCK]; <span style="color:#888;font-style:italic">/* Reserved space for locks */</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>};
+</span></span></code></pre></div><p>在这里：</p>
 <ul>
 <li><code>aReadMark</code>：用于存储每个读操作的<code>readMark</code>值，这个值已经在上面做了解释，这个数组的大小为<code>WAL_NREADER</code>，即每个reader一个readMark值。</li>
 <li><code>aLock</code>：存储锁类型的数组，这些锁类型也在上面做了诠释。</li>
@@ -1129,28 +1292,58 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>在前面的过程中，很可能有写操作在进行，所以在返回之前，最后判断一下wal 索引头数据是否发生了变化，如果发生了变化，前面的步骤就得重新来过，返回重试。</li>
 </ol>
 <p>需要补充说明的是，函数<code>walTryBeginRead</code>在调用时，如果返回重试（<code>WAL_RETRY</code>）的话，调用者会将调用计数递增，当这个调用计数超过一个阈值时，再次调用时<code>walTryBeginRead</code>会休眠一下，超过100次则会报错不再尝试。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c">  <span class="c1">// 尝试超过5次的情况下，要休眠一下
-</span><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">5</span><span class="p">)</span>
-  <span class="p">{</span>
-    <span class="kt">int</span> <span class="n">nDelay</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="cm">/* Pause time in microseconds */</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
-    <span class="p">{</span>
-      <span class="c1">// 超过100次了，退出报错
-</span><span class="c1"></span>      <span class="n">VVA_ONLY</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">lockError</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;)</span>
-      <span class="k">return</span> <span class="n">SQLITE_PROTOCOL</span><span class="p">;</span>
-    <span class="p">}</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">)</span>
-      <span class="n">nDelay</span> <span class="o">=</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">-</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">-</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="mi">39</span><span class="p">;</span>
-    <span class="n">sqlite3OsSleep</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">pVfs</span><span class="p">,</span> <span class="n">nDelay</span><span class="p">);</span>
-  <span class="p">}</span>
-</code></pre></div><p><img src="/media/imgs/20220106-sqlite-btree-4-wal/walTryBeginRead.png" alt="walTryBeginRead函数流程" title="walTryBeginRead函数流程"></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 尝试超过5次的情况下，要休眠一下
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt; 5)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">int</span> nDelay = 1; <span style="color:#888;font-style:italic">/* Pause time in microseconds */</span>
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt; 100)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#888;font-style:italic">// 超过100次了，退出报错
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>      <span style="color:#666;font-weight:bold;font-style:italic">VVA_ONLY</span>(pWal-&gt;lockError = 1;)
+</span></span><span style="display:flex;"><span>      <span style="font-weight:bold;text-decoration:underline">return</span> SQLITE_PROTOCOL;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt;= 10)
+</span></span><span style="display:flex;"><span>      nDelay = (cnt - 9) * (cnt - 9) * 39;
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">sqlite3OsSleep</span>(pWal-&gt;pVfs, nDelay);
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="walTryBeginRead函数流程" src="/media/imgs/20220106-sqlite-btree-4-wal/walTryBeginRead.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> walTryBeginRead函数流程 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以从加读锁的流程看到：</p>
 <ul>
 <li>sqlite的WAL机制，最大只能支持同时有<code>WAL_NREADER</code>个读操作并发。</li>
 <li>加读锁的时候，如果因为写操作导致wal索引文件头发生了变化，将前功尽弃再次尝试。</li>
 </ul>
-<h2 id="写操作">写操作</h2>
-<h3 id="写锁">写锁</h3>
+<h2 class="heading" id="写操作">
+  写操作
+  <a class="anchor" href="#%e5%86%99%e6%93%8d%e4%bd%9c">#</a>
+</h2>
+<h3 class="heading" id="写锁">
+  写锁
+  <a class="anchor" href="#%e5%86%99%e9%94%81">#</a>
+</h3>
 <p>拿到写锁的流程，对比上面拿到读锁的流程来说，就简单很多了，在函数<code>sqlite3WalBeginWriteTransaction</code>中：</p>
 <ol>
 <li>调用<code>walLockExclusive(pWal, WAL_WRITE_LOCK, 1)</code>拿到写锁的排它锁。</li>
@@ -1158,7 +1351,10 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </ol>
 <p>而解写锁操作就在函数<code>sqlite3WalBeginWriteTransaction</code>。</p>
 <p>这两个函数的实现都挺简单，就不展开阐述了。</p>
-<h3 id="写操作-1">写操作</h3>
+<h3 class="heading" id="写操作-1">
+  写操作
+  <a class="anchor" href="#%e5%86%99%e6%93%8d%e4%bd%9c-1">#</a>
+</h3>
 <p>真正将脏页面写入wal文件中的操作在函数<code>sqlite3WalFrames</code>中，该函数有几个比较重要的参数：</p>
 <ul>
 <li>PgHdr *pList：脏页面链表。</li>
@@ -1175,19 +1371,76 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>最后，更新<code>mxFrame</code>的值为WAL文件当前的最大帧数。</li>
 </ul>
 <p>还是以一个例子来说明这个流程。</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/write-wal.png" alt="写事务修改WAL文件和WAL索引数据" title="写事务修改WAL文件和WAL索引数据"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="写事务修改WAL文件和WAL索引数据" src="/media/imgs/20220106-sqlite-btree-4-wal/write-wal.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 写事务修改WAL文件和WAL索引数据 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>如上图所示，精简了很多情况，假设从WAL文件的开头开始写脏页面了，图中的写事务一共写了三次页面：</p>
 <ul>
 <li>写入<code>y=200</code>：这时候将这个内容写入WAL文件中的第一帧，更新wal索引中y页面的帧数为1，而此时x还没有内容。写完毕之后，更新<code>mxFrame=1</code>。</li>
 <li>写入<code>x=100</code>：这时候将这个内容写入WAL文件中的第二帧，更新wal索引中x页面的帧数为2。写完毕之后，更新<code>mxFrame=1</code>。</li>
 <li>写入<code>y=101</code>：写入时发现，同一个事务之前已经修改过y页面了，于是这一次并不把<code>y=101</code>的修改继续写到WAL文件结尾，而是覆盖第一帧中已经存在的y页面内容，同时索引数据也不需要更新：因为是覆盖操作，y页面的帧数并没有发生变化。同样的，由于没有修改WAL文件的最大帧数，<code>mxFrame</code>也没有修改。</li>
 </ul>
-<h3 id="页面校验值的计算">页面校验值的计算</h3>
-<h2 id="checkpoint-1">checkpoint</h2>
-<h3 id="总体流程">总体流程</h3>
+<h3 class="heading" id="页面校验值的计算">
+  页面校验值的计算
+  <a class="anchor" href="#%e9%a1%b5%e9%9d%a2%e6%a0%a1%e9%aa%8c%e5%80%bc%e7%9a%84%e8%ae%a1%e7%ae%97">#</a>
+</h3>
+<h2 class="heading" id="checkpoint-1">
+  checkpoint
+  <a class="anchor" href="#checkpoint-1">#</a>
+</h2>
+<h3 class="heading" id="总体流程">
+  总体流程
+  <a class="anchor" href="#%e6%80%bb%e4%bd%93%e6%b5%81%e7%a8%8b">#</a>
+</h3>
 <p>有了前面读、写操作的了解，接着来了解一下checkpoint操作是如何实现的。</p>
 <p>我们回顾一下<code>checkpoint</code>操作要完成的事情：由于wal日志中存储的，都是每次写事务被修改的页面，因此<code>checkpoint</code>操作就是将wal日志中被修改的页面写入数据库文件中。也是因为这个原因，因此<code>checkpoint</code>也被称为<code>backfill（回填）</code>操作。</p>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint.png" alt="checkpoint操作" title="checkpoint操作"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="checkpoint操作" src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> checkpoint操作 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>从上面的读写流程的分析里看出：</p>
 <ul>
 <li>同时能支持多个读事务，每个读事务都有一个<code>readMark</code>值，用来区分这个读操作读到在WAL中存储的某个页面时，是以wal的页面为准，还是应该到数据库文件中读取这个页面。</li>
@@ -1198,7 +1451,31 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>不能将未提交写事务的修改，回填到数据库文件中。</li>
 <li>对于正在进行的读操作，不能将超过该读操作的<code>readMark</code>值的帧，回填到数据库文件中，需要等待读操作完成才能回填这部分数据。</li>
 </ul>
-<p><img src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint-readmark.png" alt="checkpoint操作" title="checkpoint操作"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="checkpoint操作" src="/media/imgs/20220106-sqlite-btree-4-wal/checkpoint-readmark.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> checkpoint操作 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>第一点很好理解，因为未提交的写事务，可能只修改了一部分，如果在未提交这个写事务之前，就把这一部分回填到数据库文件中，会造成读出来的这部分数据驴头不对马嘴。比如一个写事务的修改，是将A账号的100转账到B账号上，于是这个写事务就涉及两个修改：</p>
 <ul>
 <li>A：扣除100。</li>
@@ -1239,29 +1516,50 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 </li>
 </ul>
 <p>想了解更多细节的读者可以自行阅读。</p>
-<h3 id="不同的checkpoint模式">不同的checkpoint模式</h3>
+<h3 class="heading" id="不同的checkpoint模式">
+  不同的checkpoint模式
+  <a class="anchor" href="#%e4%b8%8d%e5%90%8c%e7%9a%84checkpoint%e6%a8%a1%e5%bc%8f">#</a>
+</h3>
 <p>上面只是了解了<code>checkpoint</code>的大体流程，但是不同的checkpoint模式又有区别，有如下的宏来进行区分：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cp">#define SQLITE_CHECKPOINT_PASSIVE  0  </span><span class="cm">/* Do as much as possible w/o blocking */</span><span class="cp">
-</span><span class="cp">#define SQLITE_CHECKPOINT_FULL     1  </span><span class="cm">/* Wait for writers, then checkpoint */</span><span class="cp">
-</span><span class="cp">#define SQLITE_CHECKPOINT_RESTART  2  </span><span class="cm">/* Like FULL but wait for for readers */</span><span class="cp">
-</span><span class="cp">#define SQLITE_CHECKPOINT_TRUNCATE 3  </span><span class="cm">/* Like RESTART but also truncate WAL */</span><span class="cp">
-</span></code></pre></div><h4 id="sqlite_checkpoint_passive">SQLITE_CHECKPOINT_PASSIVE</h4>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_PASSIVE  0  </span><span style="color:#888;font-style:italic">/* Do as much as possible w/o blocking */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_FULL     1  </span><span style="color:#888;font-style:italic">/* Wait for writers, then checkpoint */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_RESTART  2  </span><span style="color:#888;font-style:italic">/* Like FULL but wait for for readers */</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_TRUNCATE 3  </span><span style="color:#888;font-style:italic">/* Like RESTART but also truncate WAL */</span><span style="color:#888;font-weight:bold">
+</span></span></span></code></pre></div><h4 class="heading" id="sqlite_checkpoint_passive">
+  SQLITE_CHECKPOINT_PASSIVE
+  <a class="anchor" href="#sqlite_checkpoint_passive">#</a>
+</h4>
 <p>这个模式下，不会等待读写操作完成，而是基于现有的数据，尽可能将安全的帧回填到数据库文件中。</p>
 <p>可以看到，这种模式更接近于一种”步进（step）“的模式：每次回填一部分数据，回填不完就直接返回不再进行。所以，需要某些变量来保存当前的回填进度，这个值保存在<code>WalCkptInfo.nBackfill</code>，所以回填还没有结束的条件也就是：<code>pInfo-&gt;nBackfill &lt; pWal-&gt;hdr.mxFrame</code>。</p>
-<h4 id="sqlite_checkpoint_full">SQLITE_CHECKPOINT_FULL</h4>
+<h4 class="heading" id="sqlite_checkpoint_full">
+  SQLITE_CHECKPOINT_FULL
+  <a class="anchor" href="#sqlite_checkpoint_full">#</a>
+</h4>
 <p>这个模式下，<code>checkpoint</code>操作会等待写操作完成，才继续进行回填操作，而在回填过程中也不再允许有新的写操作进行。</p>
-<h4 id="sqlite_checkpoint_restart">SQLITE_CHECKPOINT_RESTART</h4>
+<h4 class="heading" id="sqlite_checkpoint_restart">
+  SQLITE_CHECKPOINT_RESTART
+  <a class="anchor" href="#sqlite_checkpoint_restart">#</a>
+</h4>
 <p>对比<code>SQLITE_CHECKPOINT_FULL</code>模式，这一个模式更进了一步：等待所有读操作完成才开始回填操作，同样的，在<code>checkpoint</code>过程中除了不能有写操作还不能有读操作。</p>
-<h4 id="sqlite_checkpoint_truncate">SQLITE_CHECKPOINT_TRUNCATE</h4>
+<h4 class="heading" id="sqlite_checkpoint_truncate">
+  SQLITE_CHECKPOINT_TRUNCATE
+  <a class="anchor" href="#sqlite_checkpoint_truncate">#</a>
+</h4>
 <p>这一个模式对比<code>SQLITE_CHECKPOINT_RESTART</code>又更近了一步，在回填完毕之后，将截断WAL文件，这样后面新来的wal的写操作，将从wal文件的开始位置开始写。我们前面提到，在wal文件中查找一个页面时，跟wal文件的大小成正比，所以回填完毕截断wal文件重新开始写，会加速后面的查询操作。</p>
-<h2 id="错误恢复">错误恢复</h2>
+<h2 class="heading" id="错误恢复">
+  错误恢复
+  <a class="anchor" href="#%e9%94%99%e8%af%af%e6%81%a2%e5%a4%8d">#</a>
+</h2>
 <p>以上已经把wal的读、写、checkpoint流程都了解了，最后了解一下wal的错误恢复是如何实现的。</p>
 <p>区分几种情况下面的出错崩溃，以及这些情况下都如何恢复的：</p>
 <ul>
 <li>写事务进行时出错崩溃：这种情况下，显然wal中存储了一部分这个写事务的修改，崩溃恢复时校验后会发现这部分的修改不完全，于是会将这部分修改截断，而数据库文件，根据前面<code>checkpoint</code>流程的讲解，并不会回填还未提交的写事务的修改，所以数据库文件并未损坏。</li>
 <li>当前没有任何写事务，在进行<code>checkpoint</code>过程中崩溃：在进行<code>checkpoint</code>时，不允许同时并发有写操作。于是这种情况下，wal文件中保存的数据，都是完整的写事务修改数据。启动后校验wal文件发现内容都是对的，于是遍历wal文件，首先将当前wal文件中的内容全部回填至数据库文件中再启动即可。</li>
 </ul>
-<h1 id="总结">总结</h1>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
 <p>最后对wal机制做一个简短的总结：</p>
 <ul>
 <li>与journal备份机制不同的是：journal备份的是修改之前的页面内容，而wal存储的是修改后的内容。</li>
@@ -1273,7 +1571,10 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>有两个重要的变量来保证并发读时不会读到读操作开始之后的修改：<code>mxFrame</code>保存的是当前最提交的写事务写的最大帧数；每个读操作还保存了一个<code>readMark</code>值，存储的是读操作开始时的<code>mxFrame</code>值。</li>
 <li><code>checkpoint</code>操作，又称为<code>回填（backfill）</code>操作，用于将wal文件的内容同步到数据库文件中，它需要前面的<code>mxFrame</code>和<code>readMark</code>来保证回填操作的正确性。回填操作会影响同时在进行的读、写操作。</li>
 </ul>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li><a href="https://www.sqlite.org/wal.html">Write-Ahead Logging</a></li>
 <li><a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a></li>
@@ -1283,258 +1584,92 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li><a href="https://blog.csdn.net/pfysw/article/details/80531495">SQLite3源码学习（31） WAL日志的锁机制_test-CSDN博客</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-    <a href="https://www.codedump.info/tags/sqlite/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#sqlite</a>
-    
-    <a href="https://www.codedump.info/tags/btree/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#btree</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20220116-weekly-1/" class="block">周刊(第1期)：开刊，数字化生活数据</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220101-etcd3.5-joint-consensus/" class="block">etcd 3.5版本的joint consensus实现解析</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#概述">概述</a></li>
-    <li><a href="#wal工作原理">WAL工作原理</a>
-      <ul>
-        <li><a href="#wal相关文件结构">WAL相关文件结构</a></li>
-        <li><a href="#checkpoint">checkpoint</a></li>
-        <li><a href="#并发的实现">并发的实现</a></li>
-        <li><a href="#读操作和checkpoint的联系">读操作和checkpoint的联系</a></li>
-      </ul>
-    </li>
-    <li><a href="#wal的实现">WAL的实现</a>
-      <ul>
-        <li><a href="#wal的文件格式">WAL的文件格式</a>
-          <ul>
-            <li><a href="#wal文件头格式">WAL文件头格式</a></li>
-            <li><a href="#wal帧头部格式">WAL帧头部格式</a></li>
-            <li><a href="#页面内容校验算法">页面内容校验算法</a></li>
-          </ul>
-        </li>
-        <li><a href="#wal页面索引">WAL页面索引</a>
-          <ul>
-            <li><a href="#结构">结构</a>
-              <ul>
-                <li><a href="#索引文件头结构">索引文件头结构</a>
-                  <ul>
-                    <li><a href="#为什么需要两个相同大小的wal索引头部">为什么需要两个相同大小的WAL索引头部？</a></li>
-                    <li><a href="#mxframe和nbackfill">mxFrame和nBackfill</a></li>
-                  </ul>
-                </li>
-              </ul>
-            </li>
-            <li><a href="#实现">实现</a>
-              <ul>
-                <li><a href="#索引页面的存储">索引页面的存储</a></li>
-                <li><a href="#根据帧数查询页面编号">根据帧数查询页面编号</a></li>
-                <li><a href="#根据页面编号查询所在帧">根据页面编号查询所在帧</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><a href="#锁的实现">锁的实现</a>
-          <ul>
-            <li><a href="#数据结构">数据结构</a></li>
-            <li><a href="#加解锁操作">加解锁操作</a></li>
-            <li><a href="#特殊的0号读锁">特殊的0号读锁</a></li>
-          </ul>
-        </li>
-        <li><a href="#读操作">读操作</a>
-          <ul>
-            <li><a href="#readmark">readMark</a></li>
-            <li><a href="#读锁">读锁</a></li>
-          </ul>
-        </li>
-        <li><a href="#写操作">写操作</a>
-          <ul>
-            <li><a href="#写锁">写锁</a></li>
-            <li><a href="#写操作-1">写操作</a></li>
-            <li><a href="#页面校验值的计算">页面校验值的计算</a></li>
-          </ul>
-        </li>
-        <li><a href="#checkpoint-1">checkpoint</a>
-          <ul>
-            <li><a href="#总体流程">总体流程</a></li>
-            <li><a href="#不同的checkpoint模式">不同的checkpoint模式</a>
-              <ul>
-                <li><a href="#sqlite_checkpoint_passive">SQLITE_CHECKPOINT_PASSIVE</a></li>
-                <li><a href="#sqlite_checkpoint_full">SQLITE_CHECKPOINT_FULL</a></li>
-                <li><a href="#sqlite_checkpoint_restart">SQLITE_CHECKPOINT_RESTART</a></li>
-                <li><a href="#sqlite_checkpoint_truncate">SQLITE_CHECKPOINT_TRUNCATE</a></li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><a href="#错误恢复">错误恢复</a></li>
-      </ul>
-    </li>
-    <li><a href="#总结">总结</a></li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" class="no-underline">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" class="no-underline">sqlite3.36版本 btree实现（二）- 并发控制框架</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="no-underline">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/" class="no-underline">sqlite3.36版本 btree实现（零）- 起步及概述</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200726-boltdb-4/" class="no-underline">boltdb 1.3.0实现分析（四）</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20200725-boltdb-3/" class="no-underline">boltdb 1.3.0实现分析（三）</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

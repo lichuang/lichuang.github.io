@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Innodb学习笔记 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20200805-innodb/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20200805-innodb/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Innodb学习笔记">
+  <meta property="og:description" content="体系架构 # 后台线程 # master线程 # 主要负责将缓冲区的数据异步刷新到磁盘，保证数据的一致性，包括：
+脏页的刷新。 合并插入缓冲（insert buffer）。 undo页的回收。 IO线程 # innodb大量使用AIO来异步处理IO请求，IO线程就是负责这些IO请求的回调处理的，有如下的IO线程：
+write read insert buffer log IO线程。 可以这样查询IO线程的数量：
+mysql&gt; show variables like &#39;innodb_%io_threads&#39;; &#43;-------------------------&#43;-------&#43; | Variable_name | Value | &#43;-------------------------&#43;-------&#43; | innodb_read_io_threads | 4 | | innodb_write_io_threads | 4 | &#43;-------------------------&#43;-------&#43; 还可以这样观察IO线程的工作：
+show engine innodb status; -------- I/O thread 0 state: waiting for completed aio requests (insert buffer thread) I/O thread 1 state: waiting for completed aio requests (log thread) I/O thread 2 state: waiting for completed aio requests (read thread) I/O thread 3 state: waiting for completed aio requests (read thread) I/O thread 4 state: waiting for completed aio requests (read thread) I/O thread 5 state: waiting for completed aio requests (read thread) I/O thread 6 state: waiting for completed aio requests (write thread) I/O thread 7 state: waiting for completed aio requests (write thread) I/O thread 8 state: waiting for completed aio requests (write thread) I/O thread 9 state: waiting for completed aio requests (write thread) Pending normal aio reads: 0 [0, 0, 0, 0] , aio writes: 0 [0, 0, 0, 0] , purge线程 # 回收已经使用并不再需要的undo页面的线程。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-08-05T18:09:56+08:00">
+    <meta property="article:modified_time" content="2020-08-05T18:09:56+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20200805-innodb/">Innodb学习笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Innodb学习笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-08-05T18:09:56&#43;08:00">2020年8月5日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="体系架构">
+  体系架构
+  <a class="anchor" href="#%e4%bd%93%e7%b3%bb%e6%9e%b6%e6%9e%84">#</a>
+</h1>
+<h2 class="heading" id="后台线程">
+  后台线程
+  <a class="anchor" href="#%e5%90%8e%e5%8f%b0%e7%ba%bf%e7%a8%8b">#</a>
+</h2>
+<h3 class="heading" id="master线程">
+  master线程
+  <a class="anchor" href="#master%e7%ba%bf%e7%a8%8b">#</a>
+</h3>
+<p>主要负责将缓冲区的数据异步刷新到磁盘，保证数据的一致性，包括：</p>
+<ul>
+<li>脏页的刷新。</li>
+<li>合并插入缓冲（insert buffer）。</li>
+<li>undo页的回收。</li>
+</ul>
+<h3 class="heading" id="io线程">
+  IO线程
+  <a class="anchor" href="#io%e7%ba%bf%e7%a8%8b">#</a>
+</h3>
+<p>innodb大量使用AIO来异步处理IO请求，IO线程就是负责这些IO请求的回调处理的，有如下的IO线程：</p>
+<ul>
+<li>write</li>
+<li>read</li>
+<li>insert buffer</li>
+<li>log IO线程。</li>
+</ul>
+<p>可以这样查询IO线程的数量：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span>mysql&gt; <span style="font-weight:bold;text-decoration:underline">show</span> variables <span style="font-weight:bold;text-decoration:underline">like</span> <span style="color:#666;font-style:italic">&#39;innodb_%io_threads&#39;</span>;
+</span></span><span style="display:flex;"><span>+<span style="color:#888;font-style:italic">-------------------------+-------+
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>| Variable_name           | Value |
+</span></span><span style="display:flex;"><span>+<span style="color:#888;font-style:italic">-------------------------+-------+
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>| innodb_read_io_threads  | 4     |
+</span></span><span style="display:flex;"><span>| innodb_write_io_threads | 4     |
+</span></span><span style="display:flex;"><span>+<span style="color:#888;font-style:italic">-------------------------+-------+
+</span></span></span></code></pre></div><p>还可以这样观察IO线程的工作：</p>
+<pre tabindex="0"><code>show engine innodb status;
+
+--------
+I/O thread 0 state: waiting for completed aio requests (insert buffer thread)
+I/O thread 1 state: waiting for completed aio requests (log thread)
+I/O thread 2 state: waiting for completed aio requests (read thread)
+I/O thread 3 state: waiting for completed aio requests (read thread)
+I/O thread 4 state: waiting for completed aio requests (read thread)
+I/O thread 5 state: waiting for completed aio requests (read thread)
+I/O thread 6 state: waiting for completed aio requests (write thread)
+I/O thread 7 state: waiting for completed aio requests (write thread)
+I/O thread 8 state: waiting for completed aio requests (write thread)
+I/O thread 9 state: waiting for completed aio requests (write thread)
+Pending normal aio reads: 0 [0, 0, 0, 0] , aio writes: 0 [0, 0, 0, 0] ,
+</code></pre><h3 class="heading" id="purge线程">
+  purge线程
+  <a class="anchor" href="#purge%e7%ba%bf%e7%a8%8b">#</a>
+</h3>
+<p>回收已经使用并不再需要的undo页面的线程。</p>
+<pre tabindex="0"><code>mysql&gt; show variables like &#39;innodb_purge_threads&#39;;
++-------------------------+-------+
+| Variable_name           | Value |
++-------------------------+-------+
+| innodb_purge_threads    | 0     |
++-------------------------+-------+
+</code></pre><h2 class="heading" id="内存">
+  内存
+  <a class="anchor" href="#%e5%86%85%e5%ad%98">#</a>
+</h2>
+<h3 class="heading" id="缓冲池">
+  缓冲池
+  <a class="anchor" href="#%e7%bc%93%e5%86%b2%e6%b1%a0">#</a>
+</h3>
+<h3 class="heading" id="lru链表">
+  LRU链表
+  <a class="anchor" href="#lru%e9%93%be%e8%a1%a8">#</a>
+</h3>
+<h3 class="heading" id="重做日志缓冲redo-log-buffer">
+  重做日志缓冲（redo log buffer）
+  <a class="anchor" href="#%e9%87%8d%e5%81%9a%e6%97%a5%e5%bf%97%e7%bc%93%e5%86%b2redo-log-buffer">#</a>
+</h3>
+<h2 class="heading" id="checkpoint技术">
+  checkpoint技术
+  <a class="anchor" href="#checkpoint%e6%8a%80%e6%9c%af">#</a>
+</h2>
+<h2 class="heading" id="关键特性">
+  关键特性
+  <a class="anchor" href="#%e5%85%b3%e9%94%ae%e7%89%b9%e6%80%a7">#</a>
+</h2>
+<h3 class="heading" id="插入缓冲insert-buffer">
+  插入缓冲（insert buffer）
+  <a class="anchor" href="#%e6%8f%92%e5%85%a5%e7%bc%93%e5%86%b2insert-buffer">#</a>
+</h3>
+<p>使用插入缓冲有两个条件：</p>
+<ul>
+<li>索引是辅助索引而非聚集索引。</li>
+<li>索引不是唯一的。
+那么在插入的时候会首先插入到插入缓冲区中，然后再进行合并之后才写入磁盘。</li>
+</ul>
+<h3 class="heading" id="change-buffer">
+  change buffer
+  <a class="anchor" href="#change-buffer">#</a>
+</h3>
+<p>做为insert buffer的升级，针对数据库的insert、delete、update都能进行缓冲，其使用的条件也和前面的插入缓冲一样。</p>
+<h3 class="heading" id="两次写">
+  两次写
+  <a class="anchor" href="#%e4%b8%a4%e6%ac%a1%e5%86%99">#</a>
+</h3>
+<p>写入数据库的时候，可能会出现“部分失败”的问题，比如写16KB的数据，实际只成功了4KB，之后就发生了宕机。</p>
+<p>双写（doublewrite）缓存就是为了解决这类问题。</p>
+<p>双写缓冲区由两部分组成：</p>
+<ul>
+<li>内存中的doublewrite buffer，大小为2MB。</li>
+<li>磁盘上共享表空间中连续的128个页面，即两个区（extent），大小同样为2MB。</li>
+</ul>
+<p>在将缓冲池的脏页刷新到磁盘的时候，并不是直接写磁盘，而是：</p>
+<ul>
+<li>memcpy复制脏页到内存中的双写缓冲区。</li>
+<li>双写缓冲区之后再分为两次，每次1MB顺序写入共享表空间的物理磁盘上。因此doublewrite页面是连续的，因此这个过程是顺序的。</li>
+<li>完成磁盘上的doublewrite页面的写入之后，再将双写缓冲区中的页面写入各个表空间文件中，这时候的写入是离散的。</li>
+</ul>
+<p>当需要进行崩溃恢复的时候，顺序如下：</p>
+<ul>
+<li>先从共享表空间中的doublewrite找到该页面的副本</li>
+<li>将其复制到表空间文件，再应用重做日志。</li>
+</ul>
+<h3 class="heading" id="自适应hash索引">
+  自适应hash索引
+  <a class="anchor" href="#%e8%87%aa%e9%80%82%e5%ba%94hash%e7%b4%a2%e5%bc%95">#</a>
+</h3>
+<p>自优化的一种算法，针对频繁使用的查询做hash索引，称为自适应索引（Adaptive Hash Index，AHI）。</p>
+<p>AHI的要求：</p>
+<ul>
+<li>针对这个页访问模式一样的查询才能简历AHI，比如<code>where a=xxx</code>和<code>where a=xxx and b=xxx</code>这两个查询如果交替进行，那么并不会构造AHI。</li>
+<li>以同一个模式访问了100次。</li>
+<li>页通过该模式访问了N次，其中N=页中记录/16。</li>
+</ul>
+<h3 class="heading" id="异步io">
+  异步IO
+  <a class="anchor" href="#%e5%bc%82%e6%ad%a5io">#</a>
+</h3>
+<h3 class="heading" id="刷新邻接页">
+  刷新邻接页
+  <a class="anchor" href="#%e5%88%b7%e6%96%b0%e9%82%bb%e6%8e%a5%e9%a1%b5">#</a>
+</h3>
+<p>刷新一个脏页时，引擎会检测页面所在区（extent）的所有页，如果是脏页，那么一起进行刷新。</p>
+<h2 class="heading" id="innodb相关文件">
+  innodb相关文件
+  <a class="anchor" href="#innodb%e7%9b%b8%e5%85%b3%e6%96%87%e4%bb%b6">#</a>
+</h2>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

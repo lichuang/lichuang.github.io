@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    英雄三国服务器代码笔记 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20190306-work-sanguo/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20190306-work-sanguo/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="英雄三国服务器代码笔记">
+  <meta property="og:description" content="基础架构 # TDataHandler # 纯虚类，有以下接口：
+//处理连接 virtual void HandleConnect(int error) { } // 处理写 virtual void HandleWrite() { } // 处理读 virtual void HandleRead() = 0; // 处理错误 virtual void HandleError(int error) = 0; TSocket # 从Descriptor中继承下来，负责管理socket，内部有两个buffer list：读read_list_和写write_list_。
+可读的时候将数据读入到read_list_，可写的时候把write_list_中的数据写出去。
+另外，还有个状态保存连接状态，因为这个socket可能是对外建立连接用的。
+由于采用了epoll的ET模式，属于边缘触发，所以还需要一个变量表示是否可写。
+内部还有一个TDataHandler指针，用于处理socket的各种情况。
+TSession # 管理一个连接，继承自TDataHandler。
+RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工作：
+注册RPC方法：每个RPC方法有一个对应的method ID，与之关联。RPC协议中头部会带上对应的method ID用于查询对应的是哪个方法，然后再来根据具体方法进行处理。 管理rpc channel：内部维护一个map用于管理rpc channel，一个地址对应一个RPC channel，如果同样的地址又来了一个channel连接，将踢掉之前的rpc channel，即同一个地址只能有一个channel。内部的map可以通过多种方式访问到channel：host-port组合、地址、guid。 PacketParser # 负责RPC协议的读写。RPC协议具体的格式如下：
+协议包头 1个字节的magic number。 8个字节的call guid，用于表示发送方。 8个字节的method ID，为0的时候表示这是一个rpc应答消息。 4个字节的包体长度。 包体内容：大小如包体长度所示。 内部集成了socket对象，用于收发RPC数据。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-03-06T09:26:21+08:00">
+    <meta property="article:modified_time" content="2019-03-06T09:26:21+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20190306-work-sanguo/">英雄三国服务器代码笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">英雄三国服务器代码笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-03-06T09:26:21&#43;08:00">2019年3月6日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="基础架构">
+  基础架构
+  <a class="anchor" href="#%e5%9f%ba%e7%a1%80%e6%9e%b6%e6%9e%84">#</a>
+</h1>
+<h2 class="heading" id="tdatahandler">
+  TDataHandler
+  <a class="anchor" href="#tdatahandler">#</a>
+</h2>
+<p>纯虚类，有以下接口：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">//处理连接
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleConnect</span>(<span style="font-weight:bold;text-decoration:underline">int</span> error) {
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理写
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleWrite</span>() {
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理读
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleRead</span>() = 0;
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理错误
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleError</span>(<span style="font-weight:bold;text-decoration:underline">int</span> error) = 0;
+</span></span></code></pre></div><h2 class="heading" id="tsocket">
+  TSocket
+  <a class="anchor" href="#tsocket">#</a>
+</h2>
+<p>从Descriptor中继承下来，负责管理socket，内部有两个buffer list：读read_list_和写write_list_。</p>
+<p>可读的时候将数据读入到read_list_，可写的时候把write_list_中的数据写出去。</p>
+<p>另外，还有个状态保存连接状态，因为这个socket可能是对外建立连接用的。</p>
+<p>由于采用了epoll的ET模式，属于边缘触发，所以还需要一个变量表示是否可写。</p>
+<p>内部还有一个TDataHandler指针，用于处理socket的各种情况。</p>
+<h2 class="heading" id="tsession">
+  TSession
+  <a class="anchor" href="#tsession">#</a>
+</h2>
+<p>管理一个连接，继承自TDataHandler。</p>
+<h1 class="heading" id="rpc">
+  RPC
+  <a class="anchor" href="#rpc">#</a>
+</h1>
+<h2 class="heading" id="protobufservice">
+  ProtobufService
+  <a class="anchor" href="#protobufservice">#</a>
+</h2>
+<p>ProtobufService继承自TAcceptHandler，负责以下工作：</p>
+<ul>
+<li>注册RPC方法：每个RPC方法有一个对应的method ID，与之关联。RPC协议中头部会带上对应的method ID用于查询对应的是哪个方法，然后再来根据具体方法进行处理。</li>
+<li>管理rpc channel：内部维护一个map用于管理rpc channel，一个地址对应一个RPC channel，如果同样的地址又来了一个channel连接，将踢掉之前的rpc channel，即同一个地址只能有一个channel。内部的map可以通过多种方式访问到channel：host-port组合、地址、guid。</li>
+</ul>
+<h2 class="heading" id="packetparser">
+  PacketParser
+  <a class="anchor" href="#packetparser">#</a>
+</h2>
+<p>负责RPC协议的读写。RPC协议具体的格式如下：</p>
+<ul>
+<li>协议包头
+<ul>
+<li>1个字节的magic number。</li>
+<li>8个字节的call guid，用于表示发送方。</li>
+<li>8个字节的method ID，为0的时候表示这是一个rpc应答消息。</li>
+<li>4个字节的包体长度。</li>
+</ul>
+</li>
+<li>包体内容：大小如包体长度所示。</li>
+</ul>
+<p>内部集成了socket对象，用于收发RPC数据。</p>
+<h2 class="heading" id="protobufchannel">
+  ProtobufChannel
+  <a class="anchor" href="#protobufchannel">#</a>
+</h2>
+<p>具体维护一个RPC连接，继承自google::protobuf::RpcChannel::RpcChannel（该类是protobuf自动生成，有纯虚函数CallMethod），以及TDataHandler,内部使用PacketParser来完成RPC协议的读写。</p>
+<p>当写入数据的时候，如果当前还在连接状态，则首先push进入消息队列中，待连接成功了再进行发送，使用者不需要关注这个逻辑。</p>
+<p>另外，还提供了订阅关闭事件的接口，用户可以注册一个callback来订阅这个channel关闭事件。</p>
+<h1 class="heading" id="lock-service">
+  Lock Service
+  <a class="anchor" href="#lock-service">#</a>
+</h1>
+<p>lock service服务，本质上提供针对一个key的读写、加锁、删除、创建操作，当一个key被锁住之后，后续针对该key的请求会被记录到一个等待队列中，在解锁之后再被执行。</p>
+<p>对外暴露以下服务：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>service LockService {
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Read</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Write</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Lock</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Unlock</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Create</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Delete</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>针对每个key，有一个Node结构体与之对应。当有多个请求等待在同一个key的时候，创建一个LockWaitContext信息，LockWaitContext用于缓存向Lockserver请求的信息，等待被唤醒时根据这些信息进行操作。而一个Node的所有LockWaitContext保存在Node的wait_list中。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="lockserver-operation" src="/media/imgs/20190306-work-sanguo/lockserver-operation.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> lockserver-operation </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>有以下场景检查Node的wait_list：</p>
+<ul>
+<li>定时查询，调用CheckWaitingRequest函数查询所有Node的wait list，针对每个Node最终还是调用ProcessNodePendingRequest来检查的。</li>
+<li>当Node被Unlock时，调用ProcessNodePendingRequest检查Node的wait list。</li>
+<li>当删除Node时，调用ProcessNodePendingRequest检查Node的wait list，把pending的请求都关闭。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="node-wait-list" src="/media/imgs/20190306-work-sanguo/node-wait-list.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> node-wait-list </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>ProcessNodePendingRequest的主要逻辑：遍历Node的wait list中的LockWaitContext，做如下操作：</p>
+<ul>
+<li>如果force_clean=true，说明该key已经被删除，返回kLockServerCancel。</li>
+<li>如果超时，返回kLockTimeout。</li>
+<li>检查当前Node的lock_token，如果是kInvalidToken，说明没有被加锁，直接调用对应的Do函数进行操作。否则意味着Node又被加锁了，不做任何操作。</li>
+</ul>
+<p>另外，lock service提供了一个持久化存储的接口，需要的时候可以落盘数据到文件中。</p>
+<h2 class="heading" id="lock-service的缺点">
+  Lock Service的缺点
+  <a class="anchor" href="#lock-service%e7%9a%84%e7%bc%ba%e7%82%b9">#</a>
+</h2>
+<ul>
+<li>单机，没有分布式</li>
+</ul>
+<h1 class="heading" id="domdistributed-object-manager">
+  DOM(Distributed Object Manager)
+  <a class="anchor" href="#domdistributed-object-manager">#</a>
+</h1>
+<p>以库的形式，提供了分布式环境下的actor服务，使用ID定位到对象所在的服务器，然后向对象发送消息。</p>
+<h2 class="heading" id="keychannel">
+  KeyChannel
+  <a class="anchor" href="#keychannel">#</a>
+</h2>
+<p>用于向key发送消息，内部使用lockservice的locker对象封装了lockservice的访问，另外内部还有一个消息队列，用户向某个key发送的消息将首先缓存在这里，由KeyChannel来具体完成发送消息的工作，而用户不需要关注这些信息。</p>
+<p>使用一个变量来保存当前KeyChannel的状态，如果是初始状态，那么需要首先使用locker.ReadKey来读取这个key所在的服务器信息，然后再进行消息发送。也就是说，向lock service读取一个key的value，就是这个key所在的服务器地址。</p>
+<p>每次key的location，都对应一个版本号，收到应答包的时候会对比一下这个版本号，如果不对应的情况下将出错。</p>
+<p>另外，如果key的value发生了变化，也就是说该key所在的服务器发生了变化，返回值中的错误码将带上location mismatch的错误。在这种情况下，key channel的操作就是：</p>
+<ul>
+<li>递增版本号，这样回来的包版本不一致就会出错。</li>
+<li>重置消息队列的队列头，这样消息队列中的消息将重新开始发送。</li>
+<li>调用KeyChannel::RetrySend进行重新发送：
+<ul>
+<li>递增重试次数，如果重试次数超过阈值将出错返回。</li>
+<li>根据当前重试次数，生成一个定时器，在超时之后调用ReadLocationThenSendRequest函数。这个函数的逻辑是：调用locker.ReadKey读取key的最新位置，然后在回调函数判断如果拿到了最新的值也就是key的location，将发送请求。重新发送时，最开始窗口大小为1，只有在发送成功之后才变大多发送一些数据。</li>
+</ul>
+</li>
+</ul>
+<p>总而言之，KeyChannel使用locker封装了对lock service的访问，通过它在一个分布式环境里对key发送消息。</p>
+<h2 class="heading" id="keychannelmanager">
+  KeyChannelManager
+  <a class="anchor" href="#keychannelmanager">#</a>
+</h2>
+<p>管理KeyChannel的，根据key或者guid来查询对应的KeyChannel对象，不存在就创建新的出来。</p>
+<h2 class="heading" id="dom">
+  DOM
+  <a class="anchor" href="#dom">#</a>
+</h2>
+<p>对外暴露分布式对象的处理接口，包括：</p>
+<ul>
+<li>CreateKey：创建一个key</li>
+<li>ReadKey：读取一个key的值</li>
+<li>WriteKey：写入一个key的值</li>
+<li>SendMessageToKey：向key发送消息</li>
+<li>SendRawMessageToKey：向key发送原始消息</li>
+<li>Transfer：将一个key转移到另一个地址去。</li>
+</ul>
+<p>DOM内部实现封装了locker的使用，如：</p>
+<ul>
+<li>CreateKey：调用locker_-&gt;CreateKey实现。</li>
+<li>DeleteKey：调用locker_-&gt;DeleteKey实现。</li>
+<li>WriteKey：调用locker_-&gt;WriteKey实现。</li>
+<li>SendMessageToKey：首先根据key查询到key channel，然后调用key_channel-&gt;SendMessage。</li>
+<li>Transfer：分为以下几步：
+<ul>
+<li>locker_-&gt;LockKey：锁住key，让后面的操作暂停。</li>
+<li>LockKey的回调函数LockKey_Callback中：根据目的地址查询key channel，然后key_channel-&gt;Transfer。</li>
+<li>Transfer的回调函数Transfer_Callback中：调用locker_-&gt;UnlockAndUpdateValue，请求中传入的flag为kUpdateValue，即更新key的新地址。</li>
+</ul>
+</li>
+</ul>
+<p>简单理解Transfer做的事情就是：锁住key，然后transfer到新的地址上，然后解锁的时候写入key的value为新的地址。可以看到，简单的向一个key发送消息，直接调用locker接口就好了；而Transfer操作需要先锁住key才行。</p>
+<h2 class="heading" id="domserviceimpl">
+  DOMServiceImpl
+  <a class="anchor" href="#domserviceimpl">#</a>
+</h2>
+<p>具体实现了DomService的接口。</p>
+<p>其实就是实现了Invoke和Transfer两个接口，两个接口都是根据某个消息，找到该消息的处理函数，然后把传过来的消息调用处理函数来处理。</p>
+<p>区别在于：两者都会首先查询一下这个key是不是在当前的key table中，而Invoke接口在查询key失败的情况下将返回kDOM_LocationMisMatch，表示这个key不在该服务器中，这样客户端收到这个错误码的时候；而Transfer在查询key失败的情况下会插入一条新的记录，表示这个key迁移到了这里。</p>
+<h1 class="heading" id="游戏服务">
+  游戏服务
+  <a class="anchor" href="#%e6%b8%b8%e6%88%8f%e6%9c%8d%e5%8a%a1">#</a>
+</h1>
+<h2 class="heading" id="整体架构">
+  整体架构
+  <a class="anchor" href="#%e6%95%b4%e4%bd%93%e6%9e%b6%e6%9e%84">#</a>
+</h2>
+<h2 class="heading" id="login_server">
+  login_server
+  <a class="anchor" href="#login_server">#</a>
+</h2>
+<p>login server负责以下工作：</p>
+<ul>
+<li>验证客户端请求。</li>
+<li>返回realm服务器地址列表给客户端。</li>
+</ul>
+<p>相关模块：</p>
+<ul>
+<li>ClientPacketParser：用于解析客户端协议，内部有该连接对应的socket对象。</li>
+<li>LoginSession：继承自TSession，处理客户端协议请求内部有ClientPacketParser用于解析客户端协议。</li>
+<li>RealmConnector：负责与realm进行RPC通信。</li>
+</ul>
+<h2 class="heading" id="realm">
+  realm
+  <a class="anchor" href="#realm">#</a>
+</h2>
+<p>返回gate服务给客户端？</p>
+<p>配置文件中配置gate的地址，内部使用了DOM。</p>
+<h2 class="heading" id="gate">
+  gate
+  <a class="anchor" href="#gate">#</a>
+</h2>
+<h1 class="heading" id="遗留问题">
+  遗留问题
+  <a class="anchor" href="#%e9%81%97%e7%95%99%e9%97%ae%e9%a2%98">#</a>
+</h1>
+<ul>
+<li>login server与客户端进行验证的协议，srp6？</li>
+</ul>
+
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

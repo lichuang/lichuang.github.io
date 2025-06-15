@@ -1,314 +1,211 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>B树、B&#43;树索引算法原理（上） - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="B树、B&#43;树索引算法原理（上）"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="B树、B&#43;树索引算法原理（上）">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"B树、B+树索引算法原理（上）",
-      "item":"https://www.codedump.info/post/20200609-btree-1/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20200609-btree-1/"
-    },
-    "headline": "B树、B\u002b树索引算法原理（上） - codedump的网络日志","datePublished": "2020-06-09T18:40:46+08:00",
-    "dateModified": "2020-06-09T18:40:46+08:00",
-    "wordCount":  4667 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "B树、B\u002b树索引算法原理（上）"
-}
-</script><meta property="og:title" content="B树、B&#43;树索引算法原理（上） - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20200609-btree-1/" />
-
-
-
-<meta property="og:description" content="B树、B&#43;树索引算法原理（上）" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2020-06-09T18:40:46&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2020-06-09T18:40:46&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="存储" />
-
-<meta property="article:tag" content="存储引擎" />
-
-<meta property="article:tag" content="算法与数据结构" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20190215-leveldb/" />
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    B树、B&#43;树索引算法原理（上） | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">B树、B&#43;树索引算法原理（上）</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20200609-btree-1/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2020-06-09</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>10分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20200609-btree-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="B树、B&#43;树索引算法原理（上）">
+  <meta property="og:description" content="B树、B&#43;树索引算法原理（上）">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-06-09T18:40:46+08:00">
+    <meta property="article:modified_time" content="2020-06-09T18:40:46+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="算法与数据结构">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8/" class="hover:text-eureka"
-          >存储</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
+
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E7%AE%97%E6%B3%95%E4%B8%8E%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/" class="hover:text-eureka"
-          >算法与数据结构</a
-        >
+        
       
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
 
-  
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20200609-btree-1/">B树、B&#43;树索引算法原理（上）</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">B树、B&#43;树索引算法原理（上）</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-06-09T18:40:46&#43;08:00">2020年6月9日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <blockquote>
-<p>这一段时间由于在阅读boltdb代码的缘故，找机会学习了B树及B+树的算法原理，这个系列会花两个篇幅分别介绍这两种数据结构的实现，其用于数据库索引中的基本原理。</p>
-</blockquote>
-<h1 id="b树数据库索引原理">B树数据库索引原理</h1>
+  
+
+  
+
+  <div class="single-content">
+    <blockquote>
+<p>这一段时间由于在阅读boltdb代码的缘故，找机会学习了B树及B+树的算法原理，这个系列会花两个篇幅分别介绍这两种数据结构的实现，其用于数据库索引中的基本原理。</p></blockquote>
+<h1 class="heading" id="b树数据库索引原理">
+  B树数据库索引原理
+  <a class="anchor" href="#b%e6%a0%91%e6%95%b0%e6%8d%ae%e5%ba%93%e7%b4%a2%e5%bc%95%e5%8e%9f%e7%90%86">#</a>
+</h1>
 <p>在一堆数据中查找一个数据时，常用的数据结构有二叉查找树（binary search tree，简称BST）、哈希桶等。以BST为例，常见的实现有AVT、红黑树等，由于这类型的树是平衡的，每次比较操作都会去掉当前数据量一半的数据，因此查找的时间复杂度为<code>O(log2n)</code>。</p>
-<p><img src="/media/imgs/20200609-btree-1/bst-example.png" alt="bst-example" title="bst-example"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="bst-example" src="/media/imgs/20200609-btree-1/bst-example.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> bst-example </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>但是这类型数据结构的问题在于，由于每个节点只能容纳一个数据，导致树的高度很高，逻辑上挨着的节点数据可能离的很远。如果是在内存中操作数据的话，这样问题并不大。</p>
 <p>考虑在磁盘中存储数据的情况，与内存相比，读写磁盘有以下不同点：</p>
 <ul>
@@ -318,7 +215,31 @@
 <p>因为读写磁盘的这个特点，因此对应的数据结构应该尽量的满足“局部性原理”：“当一个数据被用到时，其附近的数据也通常会马上被使用”，为了满足局部性原理，应该：<strong>将逻辑上相邻的数据在物理上也尽量存储在一起</strong>。这样才能减少读写磁盘的数量。</p>
 <p>所以，对比起一个节点只能存储一个数据的BST类数据结构来，要求这种数据结构在形状上更“胖”、更加“扁平”，即：每个节点能容纳更多的数据，这样就能降低树的高度，同时让逻辑上相邻的数据都能尽量的存储在物理上也相邻的硬盘空间上，减少磁盘读写。</p>
 <p>以下图为例：</p>
-<p><img src="/media/imgs/20200609-btree-1/disk-ds.png" alt="disk-ds" title="disk-ds"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="disk-ds" src="/media/imgs/20200609-btree-1/disk-ds.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> disk-ds </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>图中从根节点出发，查找数据14的过程中，经过的第二个节点中有键值<code>[3,7,13]</code>，这三个值在“逻辑”上是相邻的，如果它们在磁盘上的存储也能做到在“物理”上相邻，那么只需要一次读操作就能把这个节点的数据从磁盘上加载到内存中进行数据比较，这样整个查找过程就只需要两次磁盘读操作。</p>
 <p>在这里，一个节点越“胖”，意味着扇出（fanout）越大，同时高度越低，这两个性质决定了：</p>
 <ul>
@@ -326,9 +247,36 @@
 <li>低高度：遍历期间的寻道次数更少。</li>
 </ul>
 <p>可以证明，查找数据的次数（searchnum）与degree、以及数据总量有以下关系：</p>
-<p><img src="/media/imgs/20200609-btree-1/btree-num.png" alt="btree-num" title="btree-num"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btree-num" src="/media/imgs/20200609-btree-1/btree-num.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btree-num </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>B树和B+树就是两种利用磁盘局部性原理进行优化的树结构，B+树基于B树做了一些改进，这里首先将介绍B树的原理。本系列将用两篇文章讲解这两种数据结构的原理，并且提供Python实现代码。</p>
-<h1 id="b树的定义及性质">B树的定义及性质</h1>
+<h1 class="heading" id="b树的定义及性质">
+  B树的定义及性质
+  <a class="anchor" href="#b%e6%a0%91%e7%9a%84%e5%ae%9a%e4%b9%89%e5%8f%8a%e6%80%a7%e8%b4%a8">#</a>
+</h1>
 <p>在B树中，分为两种节点：</p>
 <ul>
 <li>内部节点（internal node）：存储了数据以及指向其子节点的指针。</li>
@@ -345,16 +293,46 @@
 <li>无论是内部节点还是叶子节点，其存储的键值数量在<code>[t-1,2t-1]</code>之间，如果数量不满足此条件，需要做重平衡操作。如果少于<code>t-1</code>，需要借用或合并数据；反之，如果数据量大于<code>2t-1</code>，则需要分裂成两个节点。</li>
 </ul>
 <p>我们来看下面的图示，该图中的B树，t参数的值为2（<strong>需要特别说明的是，一棵树中每个存储数据的地方，应该既有键值（key）也有数据（value），本文中为了简单起见，存储的数据只有键值。</strong>）：</p>
-<p><img src="/media/imgs/20200609-btree-1/btree-example.png" alt="btree-example" title="btree-example"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btree-example" src="/media/imgs/20200609-btree-1/btree-example.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btree-example </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中：</p>
 <ul>
 <li>由于<code>t=2</code>，所有所有节点的键值数量在<code>[1,3]</code>之间。</li>
 <li>所有叶子节点的高度相同。</li>
 <li>以左边的内部节点为例，其第一个键值为3，即该节点的<code>keys[0]=3</code>，而该键值的左边子树的键值为<code>[1,2]</code>，都小于3，即<code>keys[0]&gt;max(child[0]的所有键值)</code>；而其右边子树的键值为<code>[4,5,6]</code>，都不小于3，即<code>keys[0]&lt;=min(child[1]的所有键值)</code>。</li>
 </ul>
-<h1 id="b树算法原理">B树算法原理</h1>
+<h1 class="heading" id="b树算法原理">
+  B树算法原理
+  <a class="anchor" href="#b%e6%a0%91%e7%ae%97%e6%b3%95%e5%8e%9f%e7%90%86">#</a>
+</h1>
 <p>了解了B树的性质，下面讨论B树中的两个核心操作：插入及删除。这两个操作的核心，都是在操作如果破坏了B树的平衡性之后，进行重新平衡以满足B树的性质。</p>
-<h2 id="插入数据">插入数据</h2>
+<h2 class="heading" id="插入数据">
+  插入数据
+  <a class="anchor" href="#%e6%8f%92%e5%85%a5%e6%95%b0%e6%8d%ae">#</a>
+</h2>
 <p>向B树中插入一个数据，可能会导致节点的数据变满，即不满足上面提到的节点数据数量在<code>[t,2t-1]</code>这个性质。此时需要对节点进行分裂节点操作：</p>
 <ul>
 <li>将数据变满（即节点数据量为<code>2t</code>）的节点，分为左右两个数据量分别为<code>t-1</code>的节点，同时将中间的数据提升到父节点的合适位置上。</li>
@@ -362,7 +340,31 @@
 <li>沿着树向上一直执行该操作，直到不再变满为止。</li>
 </ul>
 <p>分裂操作的示意图如下：</p>
-<p><img src="/media/imgs/20200609-btree-1/btree-split.png" alt="btree-split" title="btree-split"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btree-split" src="/media/imgs/20200609-btree-1/btree-split.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btree-split </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图中，由于插入数据，导致节点<code>[P,Q,R,S,T,U,V]</code>数据量不满足平衡性要求，这时将其分裂为两个节点，同时将中间的节点S提升到父节点中形成<code>[N,S,W]</code>，同时修改子树指针。</p>
 <p>因此，向B树中插入一个数据的大体流程如下：</p>
 <pre tabindex="0"><code>向B树中插入数据：
@@ -373,77 +375,368 @@
   否则：
     插入数据
 </code></pre><p>由于《算法导论》中详细给出了插入流程的伪代码，这里就不再一并列出。</p>
-<h2 id="删除数据">删除数据</h2>
+<h2 class="heading" id="删除数据">
+  删除数据
+  <a class="anchor" href="#%e5%88%a0%e9%99%a4%e6%95%b0%e6%8d%ae">#</a>
+</h2>
 <p>与插入操作相同，删除操作也可能会破坏B树的性质，需要进行重新平衡操作。</p>
 <p>B树的删除算法，在沿着树向下查找待删除节点的流程中，依次看沿路的节点是否不满足至少有<code>t</code>个节点的条件，如果不满足这个条件就首先对这个节点进行平衡操作。由于在一开始就让沿路节点都至少有<code>t</code>个节点，这样在删除数据之后也至少能有<code>t-1</code>个数据满足平衡条件，这样就不用在删除之后还要回溯到祖先节点进行重平衡操作了。</p>
 <p>我认为这是B树删除算法最核心的地方：<strong>如果已知一个回溯操作不可避免，又无法预测到底在哪里发生，就在路上提前解决掉可能需要进行回溯操作的节点。</strong></p>
 <p>下面将在B树中删除一个数据分为以下几种情况进行讨论。</p>
-<h3 id="情况1数据存在于叶子节点">情况1：数据存在于叶子节点</h3>
+<h3 class="heading" id="情况1数据存在于叶子节点">
+  情况1：数据存在于叶子节点
+  <a class="anchor" href="#%e6%83%85%e5%86%b51%e6%95%b0%e6%8d%ae%e5%ad%98%e5%9c%a8%e4%ba%8e%e5%8f%b6%e5%ad%90%e8%8a%82%e7%82%b9">#</a>
+</h3>
 <p>在这种情况下，只需简单的从叶子节点中删除数据即可，如下图中，从节点<code>[4,5,6]</code>中删除数据6，最开始的图如下：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase1.png" alt="btreeCase1" title="btreeCase1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase1" src="/media/imgs/20200609-btree-1/btreeCase1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>下图演示了删除数据6之后的情况：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase1step1.png" alt="btreeCase1step1" title="btreeCase1step1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase1step1" src="/media/imgs/20200609-btree-1/btreeCase1step1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase1step1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>上图只是最简单的情况，因为<code>[4,5,6]</code>节点数据量即使在删除一个数据之后仍然满足平衡条件，不满足平衡条件的将在下面展开说明。</p>
-<h3 id="情况2数据存在于内部节点">情况2：数据存在于内部节点</h3>
+<h3 class="heading" id="情况2数据存在于内部节点">
+  情况2：数据存在于内部节点
+  <a class="anchor" href="#%e6%83%85%e5%86%b52%e6%95%b0%e6%8d%ae%e5%ad%98%e5%9c%a8%e4%ba%8e%e5%86%85%e9%83%a8%e8%8a%82%e7%82%b9">#</a>
+</h3>
 <p>这种情况下，如果该内部节点的数据数量不大于<code>t</code>，则需要做重新平衡操作，这里区分成两种情况：</p>
 <ul>
 <li>如果左右子树节点中有一个数据量至少有<code>t</code>，则可以从相邻子树中借用数据。</li>
 <li>否则，如果左右两边相邻的子树节点数据也都不够，则进行合并操作。</li>
 </ul>
 <p>下面分这两种情况进行演示。</p>
-<h4 id="情况2-a借用相邻左右子树节点">情况2-a：借用相邻左右子树节点</h4>
+<h4 class="heading" id="情况2-a借用相邻左右子树节点">
+  情况2-a：借用相邻左右子树节点
+  <a class="anchor" href="#%e6%83%85%e5%86%b52-a%e5%80%9f%e7%94%a8%e7%9b%b8%e9%82%bb%e5%b7%a6%e5%8f%b3%e5%ad%90%e6%a0%91%e8%8a%82%e7%82%b9">#</a>
+</h4>
 <p>首先演示从兄弟节点中借用数据的情况，这是从<code>[3,7,13]</code>的节点在删除13之前的示意图：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase2step1.png" alt="btreeCase2step1" title="btreeCase2step1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase2step1" src="/media/imgs/20200609-btree-1/btreeCase2step1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase2step1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>含有键值<code>[3,7,13]</code>的节点在删除13之后，由于其相邻子树<code>[10,11,12]</code>有足够的数据数量，因此可以从旁边的子树抽调了数据12，提升到该节点中替换了13，于是变成了<code>[3,7,12]</code>，而子树的数据也从<code>[10,11,12]</code>变成了<code>[10,11]</code>：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase2step2.png" alt="btreeCase2step2" title="btreeCase2step2"></p>
-<h4 id="情况2-b合并左右相邻子树节点">情况2-b：合并左右相邻子树节点</h4>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase2step2" src="/media/imgs/20200609-btree-1/btreeCase2step2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase2step2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h4 class="heading" id="情况2-b合并左右相邻子树节点">
+  情况2-b：合并左右相邻子树节点
+  <a class="anchor" href="#%e6%83%85%e5%86%b52-b%e5%90%88%e5%b9%b6%e5%b7%a6%e5%8f%b3%e7%9b%b8%e9%82%bb%e5%ad%90%e6%a0%91%e8%8a%82%e7%82%b9">#</a>
+</h4>
 <p>除了上面两种从旁边子树借用数据的操作之外，如果左右两边的子树数据量都不满足不少于<code>t</code>的情况，那么只能将两者进行合并了，如下图所示。</p>
 <p>在从节点<code>[3,7,12]</code>中删除键值7之前的图示如下图，这时该节点的左右两边的子树<code>[4,5]</code>和<code>[10,11]</code>都不满足借用条件：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase2step3.png" alt="btreeCase2step3" title="btreeCase2step3"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase2step3" src="/media/imgs/20200609-btree-1/btreeCase2step3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase2step3 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>在上图的基础上，从节点<code>[3,7,12]</code>中删除键值7，由于该键值左右两个子树<code>[4,5]</code>和]<code>[10,11]</code>都不满足数据量不少于<code>t</code>的条件，所以只能将两者合并成一个节点：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase2step4.png" alt="btreeCase2step4" title="btreeCase2step4"></p>
-<h3 id="情况3数据不直接存在于某个内部节点的情况">情况3：数据不直接存在于某个内部节点的情况</h3>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase2step4" src="/media/imgs/20200609-btree-1/btreeCase2step4.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase2step4 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h3 class="heading" id="情况3数据不直接存在于某个内部节点的情况">
+  情况3：数据不直接存在于某个内部节点的情况
+  <a class="anchor" href="#%e6%83%85%e5%86%b53%e6%95%b0%e6%8d%ae%e4%b8%8d%e7%9b%b4%e6%8e%a5%e5%ad%98%e5%9c%a8%e4%ba%8e%e6%9f%90%e4%b8%aa%e5%86%85%e9%83%a8%e8%8a%82%e7%82%b9%e7%9a%84%e6%83%85%e5%86%b5">#</a>
+</h3>
 <p>上面两种情况，是键值直接存在于特定（叶子、内部）节点时的操作，最后一种情况则是针对它们的父节点进行操作。</p>
 <p>在这种情况中，如果待删除数据并不存在于节点X中，那么找到必然包含该数据的X的子节点X.child[i]（假设为节点Y），如果这时候Y节点数据数量不满足t这个条件，则需要用下面两种方式进行重平衡。</p>
 <p>需要特别注意的是，这里的节点X、Y并不是<strong>直接</strong>包含待删除数据的节点，可能是待删除节点的父节点或者祖先节点，第三种情况要做的是：在查找待删除数据的路径上，发现哪些不满足数据量是<code>t</code>的节点，就地进行重平衡操作，而不用等待回溯。</p>
-<h4 id="情况3-a借用兄弟节点">情况3-a：借用兄弟节点</h4>
+<h4 class="heading" id="情况3-a借用兄弟节点">
+  情况3-a：借用兄弟节点
+  <a class="anchor" href="#%e6%83%85%e5%86%b53-a%e5%80%9f%e7%94%a8%e5%85%84%e5%bc%9f%e8%8a%82%e7%82%b9">#</a>
+</h4>
 <p>在这种情况中，如果Y节点其键值数量不满足不少于<code>t</code>的条件，同时其兄弟节点够数量借用给它，那么：</p>
 <ul>
 <li>从父节点X中下降一个数据到Y中。</li>
 <li>提升兄弟节点的一个数据到父节点X中。</li>
 </ul>
 <p>假设删除数据2之前的图示如下：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase3bstep1.png" alt="btreeCase3bstep1" title="btreeCase3bstep1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase3bstep1" src="/media/imgs/20200609-btree-1/btreeCase3bstep1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase3bstep1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>因为节点<code>[1,2]</code>在删除数据2之后不满足平衡条件，所以需要重平衡。其兄弟节点<code>[5,10,11]</code>够数量，因此可以父节点对应的数据3下降去填补删除2之后的空缺，而将数据5提升到父节点。</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase3bstep2.png" alt="btreeCase3bstep2" title="btreeCase3bstep2"></p>
-<h4 id="情况3-b与兄弟节点合并数据">情况3-b：与兄弟节点合并数据</h4>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase3bstep2" src="/media/imgs/20200609-btree-1/btreeCase3bstep2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase3bstep2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h4 class="heading" id="情况3-b与兄弟节点合并数据">
+  情况3-b：与兄弟节点合并数据
+  <a class="anchor" href="#%e6%83%85%e5%86%b53-b%e4%b8%8e%e5%85%84%e5%bc%9f%e8%8a%82%e7%82%b9%e5%90%88%e5%b9%b6%e6%95%b0%e6%8d%ae">#</a>
+</h4>
 <p>在这种情况下，如果节点Y和其兄弟节点的数据量都只有<code>t-1</code>，那么将进行合并操作。</p>
 <p>在删除数据4之前如下图所示：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase3step1.png" alt="btreeCase3step1" title="btreeCase3step1"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase3step1" src="/media/imgs/20200609-btree-1/btreeCase3step1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase3step1 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>包含数据4的节点<code>[4,5,10,11]</code>，其父节点<code>[3,12]</code>只有2个数据，因此需要做重平衡操作。但是其兄弟节点<code>[20,23]</code>也是只有2个数据，因此只能将两者进行合并：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase3step2.png" alt="btreeCase3step2" title="btreeCase3step2"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase3step2" src="/media/imgs/20200609-btree-1/btreeCase3step2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase3step2 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>由于合并数据，导致了树的高度缩减，因此需要修改根节点，从<code>[16]</code>这个节点修改为<code>[3,12,16,2023]</code>：</p>
-<p><img src="/media/imgs/20200609-btree-1/btreeCase3step3.png" alt="btreeCase3step3" title="btreeCase3step3"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btreeCase3step3" src="/media/imgs/20200609-btree-1/btreeCase3step3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btreeCase3step3 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>情况2和情况3有一些类似，以至于初学的时候会发生混淆，这里将我学习总结的区别列举一下：</p>
 <ul>
 <li>情况2操作针对的是<strong>直接</strong>包含数据的节点，而情况3操作针对的是它们的祖先节点。</li>
 <li>情况2的重平衡操作对象，都是对其相邻左右子树节点进行的。</li>
 <li>情况3的重平衡操作对象，都是对其相邻左右节点进行的，而并不是和其子树节点进行合并和借用。</li>
 </ul>
-<h3 id="b树删除伪代码">B树删除伪代码</h3>
+<h3 class="heading" id="b树删除伪代码">
+  B树删除伪代码
+  <a class="anchor" href="#b%e6%a0%91%e5%88%a0%e9%99%a4%e4%bc%aa%e4%bb%a3%e7%a0%81">#</a>
+</h3>
 <p>在《算法导论》中，B树的删除代码并没有直接给出，而是作为章后的问题留给了学习者，这里贴出来，可以对比上面几种情况的分析，或者结合最后给出的可运行的Python代码进行阅读加深理解，出自<a href="https://scanftree.com/Data_Structure/deletion-in-b-tree">Deletion in B-Tree</a>：</p>
 <pre tabindex="0"><code>1. B-Tree-Delete-Key(x, k) 
 2. 	if not leaf[x] then 
 3.		y ← Preceding-Child(x) 
 4.		z ← Successor-Child(x) 
 5.		if n[y] &gt; t − 1 then 
-6.			k' ← Find-Predecessor-Key(k, x) 
-7.			Move-Key(k', y, x) 
+6.			k&#39; ← Find-Predecessor-Key(k, x) 
+7.			Move-Key(k&#39;, y, x) 
 8.			Move-Key(k, x, z) 
 9.			B-Tree-Delete-Key(k, z) 
 10.		else if n[z] &gt; t − 1 then 
-11.			k' ← Find-Successor-Key(k, x) 
-12.			Move-Key(k', z, x) 
+11.			k&#39; ← Find-Successor-Key(k, x) 
+12.			Move-Key(k&#39;, z, x) 
 13.			Move-Key(k, x, y) 
 14.			B-Tree-Delete-Key(k, y) 
 15.		else 
@@ -457,28 +750,31 @@
 23.		 v ← RootKey(x) 
 24.			if n[x] &gt; t − 1 then Remove-Key(k, x) 
 25.			else if n[y] &gt; t − 1 then 
-26.				k' ← Find-Predecessor-Key(w, v) 
-27.				Move-Key(k', y,w) 
-28.				k' ← Find-Successor-Key(w, v) 
-29.				Move-Key(k',w, x) 
+26.				k&#39; ← Find-Predecessor-Key(w, v) 
+27.				Move-Key(k&#39;, y,w) 
+28.				k&#39; ← Find-Successor-Key(w, v) 
+29.				Move-Key(k&#39;,w, x) 
 30.				B-Tree-Delete-Key(k, x) 
 31.			else if n[w] &gt; t − 1 then 
-32.				k' ← Find-Successor-Key(w, v) 
-33.				Move-Key(k', z,w) 
-34.				k' ← Find-Predecessor-Key(w, v) 
-35.				Move-Key(k',w, x) 
+32.				k&#39; ← Find-Successor-Key(w, v) 
+33.				Move-Key(k&#39;, z,w) 
+34.				k&#39; ← Find-Predecessor-Key(w, v) 
+35.				Move-Key(k&#39;,w, x) 
 36.				B-Tree-Delete-Key(k, x) 
 37.			else 
 38.				s ← Find-Sibling(w) 
-39.				w' ← root(w) 
-40.					if n[w'] = t − 1 then 
-41.						Merge-Nodes(w',w) 
+39.				w&#39; ← root(w) 
+40.					if n[w&#39;] = t − 1 then 
+41.						Merge-Nodes(w&#39;,w) 
 42.						Merge-Nodes(w, s) 
 43.						B-Tree-Delete-Key(k, x)
 44.					else
 45.						Move-Key(v,w, x)
 46.						B-Tree-Delete-Key(k, x)
-</code></pre><h3 id="中序遍历">中序遍历</h3>
+</code></pre><h3 class="heading" id="中序遍历">
+  中序遍历
+  <a class="anchor" href="#%e4%b8%ad%e5%ba%8f%e9%81%8d%e5%8e%86">#</a>
+</h3>
 <p>根据B树的特点，对一颗B树进行中序遍历时，即：</p>
 <pre tabindex="0"><code>in-order-visit-tree(node):
   # 中序遍历左子树
@@ -488,9 +784,15 @@
   # 中序遍历右子树
   in-order-visit-tree(node.right)
 </code></pre><p>其输出应该是一个递增的序列，我的Python演示代码就是用该特征来对操作之后的B树进行测试。</p>
-<h2 id="python演示代码">Python演示代码</h2>
+<h2 class="heading" id="python演示代码">
+  Python演示代码
+  <a class="anchor" href="#python%e6%bc%94%e7%a4%ba%e4%bb%a3%e7%a0%81">#</a>
+</h2>
 <p>我将B树的算法，使用Python写了一个简单的实现，附带测试用例，如果不满足于上述伪代码，想手写B树算法的，可以参考：<a href="https://github.com/lichuang/algorithm_notes/blob/master/btree/btree.py">btree.py</a></p>
-<h1 id="参考资料">参考资料</h1>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
 <ul>
 <li>《算法导论》</li>
 <li><a href="https://scanftree.com/Data_Structure/deletion-in-b-tree">Deletion in B-Tree</a></li>
@@ -498,192 +800,92 @@
 <li><a href="https://www.cs.usfca.edu/~galles/visualization/BTree.html">B树算法演示动画</a></li>
 </ul>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-    <a href="https://www.codedump.info/tags/%E7%AE%97%E6%B3%95%E4%B8%8E%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#算法与数据结构</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20200615-btree-2/" class="block">B树、B&#43;树索引算法原理（下）</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20200605-how-to-read-code-v2020/" class="block">如何阅读一份源代码？（2020年版）</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#b树数据库索引原理">B树数据库索引原理</a></li>
-    <li><a href="#b树的定义及性质">B树的定义及性质</a></li>
-    <li><a href="#b树算法原理">B树算法原理</a>
-      <ul>
-        <li><a href="#插入数据">插入数据</a></li>
-        <li><a href="#删除数据">删除数据</a>
-          <ul>
-            <li><a href="#情况1数据存在于叶子节点">情况1：数据存在于叶子节点</a></li>
-            <li><a href="#情况2数据存在于内部节点">情况2：数据存在于内部节点</a>
-              <ul>
-                <li><a href="#情况2-a借用相邻左右子树节点">情况2-a：借用相邻左右子树节点</a></li>
-                <li><a href="#情况2-b合并左右相邻子树节点">情况2-b：合并左右相邻子树节点</a></li>
-              </ul>
-            </li>
-            <li><a href="#情况3数据不直接存在于某个内部节点的情况">情况3：数据不直接存在于某个内部节点的情况</a>
-              <ul>
-                <li><a href="#情况3-a借用兄弟节点">情况3-a：借用兄弟节点</a></li>
-                <li><a href="#情况3-b与兄弟节点合并数据">情况3-b：与兄弟节点合并数据</a></li>
-              </ul>
-            </li>
-            <li><a href="#b树删除伪代码">B树删除伪代码</a></li>
-            <li><a href="#中序遍历">中序遍历</a></li>
-          </ul>
-        </li>
-        <li><a href="#python演示代码">Python演示代码</a></li>
-      </ul>
-    </li>
-    <li><a href="#参考资料">参考资料</a></li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20190215-leveldb/" class="no-underline">Leveldb代码阅读笔记</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

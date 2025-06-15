@@ -1,405 +1,217 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>周刊（第9期）：Mozilla rr使用简介 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="周刊（第9期）：Mozilla rr使用简介"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="周刊（第9期）：Mozilla rr使用简介">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"周刊（第9期）：Mozilla rr使用简介",
-      "item":"https://www.codedump.info/post/20220313-weekly-9/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220313-weekly-9/"
-    },
-    "headline": "周刊（第9期）：Mozilla rr使用简介 - codedump的网络日志","datePublished": "2022-03-13T11:20:59+08:00",
-    "dateModified": "2022-03-13T11:20:59+08:00",
-    "wordCount":  2722 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "周刊（第9期）：Mozilla rr使用简介"
-}
-</script><meta property="og:title" content="周刊（第9期）：Mozilla rr使用简介 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220313-weekly-9/" />
-
-
-
-<meta property="og:description" content="周刊（第9期）：Mozilla rr使用简介" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-03-13T11:20:59&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-03-13T11:20:59&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="周刊" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220904-weekly-24/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220807-weekly-23/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220710-weekly-22/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220703-weekly-21/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220410-weekly-12/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    周刊（第9期）：Mozilla rr使用简介 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
+<link rel="canonical" href="https://www.codedump.info/post/20220313-weekly-9/"/>
+
+<meta property="og:url" content="https://www.codedump.info/post/20220313-weekly-9/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第9期）：Mozilla rr使用简介">
+  <meta property="og:description" content="周刊（第9期）：Mozilla rr使用简介">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-03-13T11:20:59+08:00">
+    <meta property="article:modified_time" content="2022-03-13T11:20:59+08:00">
+    <meta property="article:tag" content="周刊">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
 </div>
+
     </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">周刊（第9期）：Mozilla rr使用简介</h1>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-03-13</span
-    >
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220313-weekly-9/">周刊（第9期）：Mozilla rr使用简介</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第9期）：Mozilla rr使用简介</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-03-13T11:20:59&#43;08:00">2022年3月13日</time>
+      
+
+      
+    </p>
+
   </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>6分钟阅读时长</span>
-  </div>
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
-      
-        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >周刊</a
-        >
-      
-    </div>
   
 
   
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
-      
-        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >2022周刊</a
-        >
-      
-    </div>
-  
-</div>
-
 
   
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#deterministically">deterministically</a></li>
+    <li><a href="#record-and-replay">record and replay</a></li>
+    <li><a href="#高级用法">高级用法</a>
+      <ul>
+        <li><a href="#事件">事件</a></li>
+        <li><a href="#反向执行reverse-execution">反向执行（Reverse execution）</a></li>
+      </ul>
+    </li>
+    <li><a href="#缺点">缺点</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#rr使用的wiki">rr使用的wiki</a></li>
+    <li><a href="#rr视频教程">rr视频教程</a></li>
+    <li><a href="#其它文档">其它文档</a></li>
+    <li><a href="#gdb相关文档">GDB相关文档</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#如何在开源项目中做重构">《如何在开源项目中做重构？》</a></li>
+    <li><a href="#linux-containers-in-500-lines-of-code">《Linux containers in 500 lines of code》</a></li>
+    <li><a href="#收集整理远程工作相关的资料">收集整理远程工作相关的资料</a></li>
+  </ul>
+</nav>
+  </aside>
   
 
-  <hr>
+  
+
+  <div class="single-content">
+    <hr>
 <p>引言：在之前的<a href="https://www.codedump.info/post/20220227-weekly-7/">周刊（第7期）：一个C系程序员的Rust初体验</a>中，简单提到过Mozilla rr这款调试工具，由于这个工具并不是太为人所知，所以本文对该工具做一个简介。</p>
 <hr>
-<h1 id="mozilla-rr使用简介">Mozilla rr使用简介</h1>
+<h1 class="heading" id="mozilla-rr使用简介">
+  Mozilla rr使用简介
+  <a class="anchor" href="#mozilla-rr%e4%bd%bf%e7%94%a8%e7%ae%80%e4%bb%8b">#</a>
+</h1>
 <p><a href="https://rr-project.org/">rr</a>是由Mozilla出品的一款调试工具，用官网的话来说：</p>
 <blockquote>
-<p>rr aspires to be your primary C/C++ debugging tool for Linux, replacing — well, enhancing — gdb. You record a failure once, then debug the recording, deterministically, as many times as you want. The same execution is replayed every time.</p>
-</blockquote>
+<p>rr aspires to be your primary C/C++ debugging tool for Linux, replacing — well, enhancing — gdb. You record a failure once, then debug the recording, deterministically, as many times as you want. The same execution is replayed every time.</p></blockquote>
 <p>即它的特点是：可以记录下来程序运行时的上下文环境，包括线程、堆栈、寄存器等等，这样的好处有两个：</p>
 <ul>
 <li>“deterministically”：很多问题问题的产生，都与特定的环境相关，如：
@@ -411,24 +223,27 @@
 <li>replay：记录下来程序执行的环境之后，rr除了支持gdb方式的调试之后，还能利用环境来不停的重放程序，甚至反向来执行程序。</li>
 </ul>
 <p>以下对<code>rr</code>的使用做一些简单的介绍。</p>
-<h2 id="deterministically">deterministically</h2>
+<h2 class="heading" id="deterministically">
+  deterministically
+  <a class="anchor" href="#deterministically">#</a>
+</h2>
 <p>以下面一个最简单的多线程程序来解释何为<code>deterministically</code>：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cp">#include</span> <span class="cpf">&lt;pthread.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
-</span><span class="cp"></span>
-<span class="kt">void</span> <span class="o">*</span> <span class="nf">doPrint</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-    <span class="n">pthread_t</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pid</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">doPrint</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
-    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid = %lu</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">pid</span><span class="p">);</span>
-
-    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>这个程序很简单：创建一个线程之后，打印线程的pid。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;pthread.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdio.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> * <span style="color:#666;font-weight:bold;font-style:italic">doPrint</span>(<span style="font-weight:bold;text-decoration:underline">void</span> *arg)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>() {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">pthread_t</span> pid;
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">pthread_create</span>(&amp;pid, <span style="font-weight:bold;font-style:italic">NULL</span>, doPrint, <span style="font-weight:bold;font-style:italic">NULL</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;pid = %lu</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>, pid);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这个程序很简单：创建一个线程之后，打印线程的pid。</p>
 <p>如果多次执行，会发现每次打印出来的pid并不一样：</p>
 <pre tabindex="0"><code>$ ./a.out
 pid = 140301410010880
@@ -438,7 +253,10 @@ pid = 139804250023680
 </code></pre><p>这个原因自不必多说：每次程序执行的时候，执行环境是有变化的。</p>
 <p>这个简单的结论，对应到bug出现的场景上，有的代码可能正常的情况下没有异常，但是会出现在特定的场景下：特定的输入参数、特定的线程执行顺序，等等。换言之，问题并不是必现的，即<code>un-deterministically</code>。</p>
 <p><code>rr</code>的一大功能，就是要解决这个<code>deterministically</code>问题，即在问题发现的时候，能有一个确定的环境，可以反复重现问题。</p>
-<h2 id="record-and-replay">record and replay</h2>
+<h2 class="heading" id="record-and-replay">
+  record and replay
+  <a class="anchor" href="#record-and-replay">#</a>
+</h2>
 <p><code>rr</code>这个名字里的两个r，意指<code>record and replay</code>，即“记录及回放”，它的使用也很简单，就是这两步：</p>
 <ul>
 <li>record：<code>rr record /your/application --args</code> 记录下来程序的执行环境。</li>
@@ -451,9 +269,9 @@ pid = 139804250023680
 <pre tabindex="0"><code>$ rr record ./a.out
 Freezing performance counters on SMIs should be turned on for maximum rr
 reliability on Comet Lake and later CPUs. Consider putting
-'w /sys/devices/cpu/freeze_on_smi - - - - 1' in /etc/tmpfiles.d/10-rr.conf
-See 'man 5 sysfs', 'man 5 tmpfiles.d' (systemd systems)
-rr: Saving execution to trace directory `/home/codedump/.local/share/rr/a.out-0'.
+&#39;w /sys/devices/cpu/freeze_on_smi - - - - 1&#39; in /etc/tmpfiles.d/10-rr.conf
+See &#39;man 5 sysfs&#39;, &#39;man 5 tmpfiles.d&#39; (systemd systems)
+rr: Saving execution to trace directory `/home/codedump/.local/share/rr/a.out-0&#39;.
 pid = 139837942626048
 </code></pre><p>可以看到记录执行的时候，打印出来的<code>pid</code>是<code>139837942626048</code>。</p>
 <ul>
@@ -482,34 +300,40 @@ Continuing.
 pid = 139837942626048
 </code></pre><p>可以看到，前后两次重放执行，打印的<code>pid</code>都是之前记录的值<code>139837942626048</code>。</p>
 <p>这就意味着：record下来的程序执行环境，后面可以不停的回放。因为重现问题的场景很重要，有时候还不好复现，那么类似<code>rr</code>这样能记录下来执行环境并且重放的能力，对于查找问题就特别重要了。</p>
-<h2 id="高级用法">高级用法</h2>
+<h2 class="heading" id="高级用法">
+  高级用法
+  <a class="anchor" href="#%e9%ab%98%e7%ba%a7%e7%94%a8%e6%b3%95">#</a>
+</h2>
 <p>前面提到过，使用<code>rr replay</code>来重放记录时，实际会进入类似gdb那样的一个调试环境，在这个环境里，常用的gdb命令都可以使用，所以这些不会展开讨论，只说一下<code>rr</code>在这里具备的一些其他更高级的调试能力。</p>
-<h3 id="事件">事件</h3>
+<h3 class="heading" id="事件">
+  事件
+  <a class="anchor" href="#%e4%ba%8b%e4%bb%b6">#</a>
+</h3>
 <p>为了能够更加精准的跟进某个问题，<code>rr</code>提供了事件（event）的概念，每个事件有与之相关的两个值：</p>
 <ul>
 <li>进程pid。</li>
 <li>事件编号。</li>
 </ul>
 <p><code>rr</code>在replay的时候，可以带上<code>-M</code>参数打印出来事件编号，比如前面的实例程序改成这样：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="cp">#include</span> <span class="cpf">&lt;pthread.h&gt;</span><span class="cp">
-</span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
-</span><span class="cp"></span>
-<span class="kt">void</span> <span class="o">*</span> <span class="nf">doPrint</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span> <span class="p">{</span>
-  <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="o">*</span><span class="p">((</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="n">arg</span><span class="p">);</span>
-  <span class="n">printf</span><span class="p">(</span><span class="s">&#34;in thread %d</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">i</span><span class="p">);</span>
-  <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-  <span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
-  <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">;</span> <span class="o">++</span><span class="n">i</span><span class="p">)</span> <span class="p">{</span>
-    <span class="n">pthread_t</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pid</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">doPrint</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">i</span><span class="p">);</span>
-    <span class="n">printf</span><span class="p">(</span><span class="s">&#34;pid = %lu</span><span class="se">\n</span><span class="s">&#34;</span><span class="p">,</span> <span class="n">pid</span><span class="p">);</span>
-  <span class="p">}</span>
-  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</code></pre></div><p>这里创建了10个线程，线程中分别打印循环变量，如果使用<code>-M</code>在输出时就能看到如下的信息：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;pthread.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#include</span> <span style="color:#888;font-weight:bold">&lt;stdio.h&gt;</span><span style="color:#888;font-weight:bold">
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">void</span> * <span style="color:#666;font-weight:bold;font-style:italic">doPrint</span>(<span style="font-weight:bold;text-decoration:underline">void</span> *arg) {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> i = *((<span style="font-weight:bold;text-decoration:underline">int</span>*)arg);
+</span></span><span style="display:flex;"><span>  <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;in thread %d</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>, i);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;font-style:italic">NULL</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">main</span>() {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">int</span> i = 0;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span> (i = 0; i &lt; 10; ++i) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">pthread_t</span> pid;
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">pthread_create</span>(&amp;pid, <span style="font-weight:bold;font-style:italic">NULL</span>, doPrint, &amp;i);
+</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">printf</span>(<span style="color:#666;font-style:italic">&#34;pid = %lu</span><span style="color:#666;font-style:italic">\n</span><span style="color:#666;font-style:italic">&#34;</span>, pid);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">return</span> 0;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这里创建了10个线程，线程中分别打印循环变量，如果使用<code>-M</code>在输出时就能看到如下的信息：</p>
 <pre tabindex="0"><code>(rr) c
 Continuing.
 [rr 4450 288]pid = 140096584951552
@@ -540,10 +364,16 @@ rr -M replay -p pid
 </code></pre></blockquote>
 <p>让程序replay的时候迅速到达指定事件发生的场景下。比如上面的例子中，如果使用<code>rr -M replay -g 354</code>就能马上重放到<code>[rr 4450 354]in thread 3</code>这一处。</p>
 <p>这种基于事件的调试方式，调试那种代码相同，但是由于输入参数不同导致的问题时，特别管用，因为可以直达问题发生的环境。</p>
-<h3 id="反向执行reverse-execution">反向执行（Reverse execution）</h3>
+<h3 class="heading" id="反向执行reverse-execution">
+  反向执行（Reverse execution）
+  <a class="anchor" href="#%e5%8f%8d%e5%90%91%e6%89%a7%e8%a1%8creverse-execution">#</a>
+</h3>
 <p>有了记录的能力之后，<code>rr</code>除了能正向执行程序，还能反向来执行程序，这点在那种看到程序的环境发生了变化，但是不知道怎么发生，想重试一下的情况下特别管用。</p>
 <p>单向调试执行程序时，用的是<code>step</code>、<code>next</code>、<code>continue</code>、<code>finish</code>等命令，反向执行就在这些命令前面加上<code>reverse-</code>前缀，如<code>reverse-cont</code>（后面的可以简写）。</p>
-<h2 id="缺点">缺点</h2>
+<h2 class="heading" id="缺点">
+  缺点
+  <a class="anchor" href="#%e7%bc%ba%e7%82%b9">#</a>
+</h2>
 <p>前面介绍了<code>rr</code>要解决的问题，最后聊一下它的缺陷。</p>
 <ul>
 <li><code>rr</code>最开始是由Mozilla开发的工具，看来Mozilla对这类运行时问题也是深恶痛绝，发明了很多工具试图提高效率，Rust是另外一个重要的工具，可以参见之前<a href="https://www.codedump.info/post/20220227-weekly-7/">周刊（第7期）：一个C系程序员的Rust初体验</a>中我对Rust的使用体验。</li>
@@ -551,231 +381,147 @@ rr -M replay -p pid
 <li>由于<code>rr</code>在记录时，需要记录大量的数据来保存程序运行时的场景，这样一来会给程序带来卡顿，二来会有大量的记录数据，所以并不适合直接在生产环境上使用这个工具。更适合的场景是：已经找到了重现问题的办法，此时可以搭建一个环境开启<code>rr</code>记录下来重现时的环境，即并不适合漫无目的的就打开这个工具使用。</li>
 <li>以上<code>rr</code>的缺陷，归根到底还是之前提到的：查找运行时的问题太难了，尽量在编译时屏蔽可能出现的问题，真等问题到了运行时再解决的时候，时间、精力、场景复现等等都是不可控的。</li>
 </ul>
-<h1 id="番外篇">番外篇</h1>
-<h2 id="rr使用的wiki">rr使用的wiki</h2>
+<h1 class="heading" id="番外篇">
+  番外篇
+  <a class="anchor" href="#%e7%95%aa%e5%a4%96%e7%af%87">#</a>
+</h1>
+<h2 class="heading" id="rr使用的wiki">
+  rr使用的wiki
+  <a class="anchor" href="#rr%e4%bd%bf%e7%94%a8%e7%9a%84wiki">#</a>
+</h2>
 <p><code>rr</code>的github上，有一篇更为详细一些的介绍使用的<a href="https://github.com/rr-debugger/rr/wiki/Usage">Usage · rr-debugger/rr Wiki</a>。</p>
-<h2 id="rr视频教程">rr视频教程</h2>
+<h2 class="heading" id="rr视频教程">
+  rr视频教程
+  <a class="anchor" href="#rr%e8%a7%86%e9%a2%91%e6%95%99%e7%a8%8b">#</a>
+</h2>
 <p>油管上有几个视频教程，见：</p>
 <ul>
 <li><a href="https://www.youtube.com/watch?v=hYsLBcTX00I">Quick rr Demo - YouTube</a></li>
 <li><a href="https://www.youtube.com/watch?v=61kD3x4Pu8I">rr 1.2 basic demo - YouTube</a></li>
 <li><a href="https://www.youtube.com/watch?v=H4iNuufAe_8">Robert O&rsquo;Callahan - Corporation Taming Nondeterminism - YouTube</a></li>
 </ul>
-<h2 id="其它文档">其它文档</h2>
+<h2 class="heading" id="其它文档">
+  其它文档
+  <a class="anchor" href="#%e5%85%b6%e5%ae%83%e6%96%87%e6%a1%a3">#</a>
+</h2>
 <ul>
 <li>介绍了<code>rr</code>是如何实现的：<a href="https://arxiv.org/pdf/1705.05937.pdf">Engineering Record And Replay For Deployability Extended Technical Report</a></li>
 </ul>
-<h2 id="gdb相关文档">GDB相关文档</h2>
+<h2 class="heading" id="gdb相关文档">
+  GDB相关文档
+  <a class="anchor" href="#gdb%e7%9b%b8%e5%85%b3%e6%96%87%e6%a1%a3">#</a>
+</h2>
 <ul>
 <li><a href="https://wizardforcel.gitbooks.io/100-gdb-tips/content/index.html">介绍 | 100个gdb小技巧</a></li>
 <li><a href="https://gist.github.com/rkubik/b96c23bd8ed58333de37f2b8cd052c30">GDB cheat sheet</a></li>
 <li><a href="https://segmentfault.com/a/1190000022499197">gdb深入学习手册 - SegmentFault 思否</a></li>
 </ul>
-<h1 id="其他推荐">其他推荐</h1>
-<h2 id="如何在开源项目中做重构">《如何在开源项目中做重构？》</h2>
+<h1 class="heading" id="其他推荐">
+  其他推荐
+  <a class="anchor" href="#%e5%85%b6%e4%bb%96%e6%8e%a8%e8%8d%90">#</a>
+</h1>
+<h2 class="heading" id="如何在开源项目中做重构">
+  《如何在开源项目中做重构？》
+  <a class="anchor" href="#%e5%a6%82%e4%bd%95%e5%9c%a8%e5%bc%80%e6%ba%90%e9%a1%b9%e7%9b%ae%e4%b8%ad%e5%81%9a%e9%87%8d%e6%9e%84">#</a>
+</h2>
 <p><a href="https://mp.weixin.qq.com/s/JrxNyDKNg9MseQZ7PlG2VQ">《如何在开源项目中做重构？》</a>，总结了维护一个开源项目重构的经验。</p>
-<h2 id="linux-containers-in-500-lines-of-code">《Linux containers in 500 lines of code》</h2>
+<h2 class="heading" id="linux-containers-in-500-lines-of-code">
+  《Linux containers in 500 lines of code》
+  <a class="anchor" href="#linux-containers-in-500-lines-of-code">#</a>
+</h2>
 <p><a href="https://blog.lizzie.io/linux-containers-in-500-loc.html">Linux containers in 500 lines of code</a>，讲解Linux容器原理的文章。</p>
-<h2 id="收集整理远程工作相关的资料">收集整理远程工作相关的资料</h2>
+<h2 class="heading" id="收集整理远程工作相关的资料">
+  收集整理远程工作相关的资料
+  <a class="anchor" href="#%e6%94%b6%e9%9b%86%e6%95%b4%e7%90%86%e8%bf%9c%e7%a8%8b%e5%b7%a5%e4%bd%9c%e7%9b%b8%e5%85%b3%e7%9a%84%e8%b5%84%e6%96%99">#</a>
+</h2>
 <p><a href="https://github.com/greatghoul/remote-working">greatghoul/remote-working: 收集整理远程工作相关的资料</a>，但是貌似已经不更新了。</p>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20220319-weekly-10/" class="block">周刊（第10期）：“忘记目标，专注于体系”</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220304-weekly-8/" class="block">周刊（第8期）：技术配图的一些心得</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#mozilla-rr使用简介">Mozilla rr使用简介</a>
-      <ul>
-        <li><a href="#deterministically">deterministically</a></li>
-        <li><a href="#record-and-replay">record and replay</a></li>
-        <li><a href="#高级用法">高级用法</a>
-          <ul>
-            <li><a href="#事件">事件</a></li>
-            <li><a href="#反向执行reverse-execution">反向执行（Reverse execution）</a></li>
-          </ul>
-        </li>
-        <li><a href="#缺点">缺点</a></li>
-      </ul>
-    </li>
-    <li><a href="#番外篇">番外篇</a>
-      <ul>
-        <li><a href="#rr使用的wiki">rr使用的wiki</a></li>
-        <li><a href="#rr视频教程">rr视频教程</a></li>
-        <li><a href="#其它文档">其它文档</a></li>
-        <li><a href="#gdb相关文档">GDB相关文档</a></li>
-      </ul>
-    </li>
-    <li><a href="#其他推荐">其他推荐</a>
-      <ul>
-        <li><a href="#如何在开源项目中做重构">《如何在开源项目中做重构？》</a></li>
-        <li><a href="#linux-containers-in-500-lines-of-code">《Linux containers in 500 lines of code》</a></li>
-        <li><a href="#收集整理远程工作相关的资料">收集整理远程工作相关的资料</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20220304-weekly-8/" class="no-underline">周刊（第8期）：技术配图的一些心得</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220227-weekly-7/" class="no-underline">周刊（第7期）：一个C系程序员的Rust初体验</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220220-weekly-6/" class="no-underline">周刊（第6期）：《sqlite 3.36 btree实现解析》番外篇</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220211-weekly-5/" class="no-underline">周刊（第5期）：从存储模型聊一聊时序数据库的应用场景</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220204-weekly-4/" class="no-underline">周刊（第4期）：为什么我还在看中国足球</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220129-weekly-3/" class="no-underline">周刊（第3期）：一个前游戏开发者眼中的游戏后端技术</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>

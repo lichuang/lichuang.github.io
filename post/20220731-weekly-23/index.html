@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content="周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记"/>
+
+
+
+<title>
+    
+    周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20220731-weekly-23/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20220731-weekly-23/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记">
+  <meta property="og:description" content="周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-07-31T10:03:43+08:00">
+    <meta property="article:modified_time" content="2022-07-31T10:03:43+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Btree">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220731-weekly-23/">周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第23期）：《Concurrency of Operations on B-Trees》论文笔记</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-07-31T10:03:43&#43;08:00">2022年7月31日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#b-trees定义">B*-trees定义</a></li>
+    <li><a href="#操作">操作</a>
+      <ul>
+        <li><a href="#方案一">方案一</a></li>
+        <li><a href="#方案二">方案二</a></li>
+        <li><a href="#方案三">方案三</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <hr>
+<p>引言：《Concurrency of Operations on B-Trees》论文中提供了一些并发访问B-Tree的优化算法，本文对这篇论文进行分析。</p>
+<hr>
+<h1 class="heading" id="concurrency-of-operations-on-b-trees">
+  Concurrency of Operations on B-Trees
+  <a class="anchor" href="#concurrency-of-operations-on-b-trees">#</a>
+</h1>
+<p>本文将假设读者对B-Tree有一定的了解，如果还不了解可以先看看之前的文章：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上） - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下） - codedump的网络日志</a></li>
+</ul>
+<h2 class="heading" id="b-trees定义">
+  B*-trees定义
+  <a class="anchor" href="#b-trees%e5%ae%9a%e4%b9%89">#</a>
+</h2>
+<p>论文中首先对B*-trees的结构属性下了如下的定义：</p>
+<ul>
+<li>所有数据都存储在叶子节点，每个叶子节点有μ个entry。（和B+Tree一样在叶子节点中存储数据）</li>
+<li>从根节点到所有叶子节点的路径长度都一样。（即所有叶子节点都在同一层次）</li>
+<li>所有内部节点（internal node）包含${p_0}$，${r_0}$，&hellip; ${p_μ}$，${r_μ}$ 元素，其中${p_i}$ 指向直接后代节点，而${r_i}$是可以进行比较的key，用于分隔后代节点，${p_i}$指向的子树的key都小于${r_i}$。</li>
+<li>除了根节点之外，所有节点都满足k&lt;=μ&lt;=2k，而根节点则是1&lt;=μ&lt;=2k。</li>
+</ul>
+<p>在类B-tree类结构中，当插入、删除数据之后，可能会导致节点的数据量不满足条件，对应的就需要进行分隔（split）以及合并（merge）节点操作，于是就有了<code>safe</code>和<code>unsafe</code>节点的定义：</p>
+<ul>
+<li>safe节点：
+<ul>
+<li>在insert时，如果μ &lt; 2k，这意味着即便插入数据完成也不会违反上面的节点数据量条件，这样就不需要分隔节点。</li>
+<li>在delete时，如果μ &gt; k，这意味着即便删除数据完成也不会违反上面的节点数据量条件，这样就不需要合并节点。</li>
+</ul>
+</li>
+<li>除了上面这两个条件之外，其他所有的更新数据操作都会导致节点变成<code>unsafe</code>节点。</li>
+</ul>
+<p>论文中的并行操作优化，就围绕着<code>unsafe</code>节点展开。</p>
+<h2 class="heading" id="操作">
+  操作
+  <a class="anchor" href="#%e6%93%8d%e4%bd%9c">#</a>
+</h2>
+<p>论文中以并发度从弱到强，依次提供了三种优化的方案。</p>
+<h3 class="heading" id="方案一">
+  方案一
+  <a class="anchor" href="#%e6%96%b9%e6%a1%88%e4%b8%80">#</a>
+</h3>
+<p>在展开方案一之前，论文中首先引入了两种锁：</p>
+<ul>
+<li>p-lock ，读锁（read lock）。</li>
+<li>ξ-lock ，排它锁（exclusive lock）。</li>
+</ul>
+<p>两者的兼容性不需要多说：读锁可以和读锁兼容，反之排它锁与其他所有锁都不兼容。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="lock" src="/media/imgs/20220731-weekly-23/lock.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> lock </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>有了锁类型的解释之后，下面开始操作算法的解释，每种算法都分为读和更新两类算法。先来看读算法的伪代码：</p>
+<pre tabindex="0"><code>首先对根节点加P锁
+标记根节点为当前节点
+主循环（一直到查询到对应节点或者遍历节点完毕时循环终止）：
+	对查找路径上当前节点的子节点加P锁
+	释放给当前节点加的P锁
+	拿到子节点设置为下一次循环查找时的当前节点
+</code></pre><p>可以看到，读算法就是在查找路径上依次对节点加P锁操作，同时每次给子节点加了P锁成功之后都会对应释放父节点的P锁，也就是整个过程中只会对一个节点加P锁。</p>
+<p>再来看更新算法的伪代码：</p>
+<pre tabindex="0"><code>首先对根节点加ξ锁
+标记根节点为当前节点
+主循环（一直到查询到对应节点或者遍历节点完毕时循环终止）：
+	对查找路径上当前节点的子节点加ξ锁
+	拿到子节点设置为下一次循环查找时的当前节点
+	如果当前节点是safe的：
+		释放路径上祖先节点已经加上的ξ锁
+		
+对前面循环中查找到的叶子节点进行更新操作
+</code></pre><p>与读算法类似的是，更新算法也是在查找路径上依次对节点加锁，只不过加的是ξ锁。但不同的是，并不一定会释放给父节点加上的锁，这取决于判断这个节点在更新之后是否还能保持safe属性。换言之，更新算法中，整个过程里可能不止有一个ξ锁。</p>
+<p>这个更新算法的问题是：太过悲观。每次操作都会首先对根节点加上ξ锁，由于这类锁的排它属性，这将导致在释放之前其他的读、更新操作都被阻塞，这就导致并行度大幅下降。</p>
+<p>于是在方案二中，换了另一种更为乐观的做法。</p>
+<h3 class="heading" id="方案二">
+  方案二
+  <a class="anchor" href="#%e6%96%b9%e6%a1%88%e4%ba%8c">#</a>
+</h3>
+<p>方案二的读算法与方案一相同，区别在于更新算法，来看看其伪代码：</p>
+<pre tabindex="0"><code>首先对根节点加P锁
+标记根节点为当前节点
+主循环（一直到查询到对应节点或者遍历节点完毕时循环终止）：
+	如果子节点不是叶子结点：
+		给子节点加P锁
+	否则：
+		给子节点加ξ锁
+	
+	释放当前节点的锁
+	设置子节点为当前节点
+
+如果叶子结点是安全的：
+	正常进行更新操作
+否则：
+	释放前面加的所有锁，按照方案一的更新算法重做一遍
+</code></pre><p>方案二的更新算法的主要优化是，不再悲观的每次都加排它锁才进行操作，而是把排它锁放到最后的叶子节点上，如果叶子节点是安全节点那就喜大普奔正常进行更新操作；否则就得老老实实回到方案一的悲观做法重来一次。</p>
+<p>由于在路径上大部分时候加的都是P锁，提高了读写操作的并发程度</p>
+<h3 class="heading" id="方案三">
+  方案三
+  <a class="anchor" href="#%e6%96%b9%e6%a1%88%e4%b8%89">#</a>
+</h3>
+<p>方案三引入了一种新的锁α-lock，α-lock可以转换为ξ-lock，它们之间的转换关系如下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="lock-2" src="/media/imgs/20220731-weekly-23/lock-2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> lock-2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>上图中需要注意几个问题：</p>
+<ul>
+<li>
+<p>P锁可以和α锁兼容。</p>
+</li>
+<li>
+<p>虚线表示α-lock可以转换为ξ-lock。</p>
+</li>
+<li>
+<p>当α锁要转换为ξ锁时，如果被加锁对象被P锁加锁了，需要等待P锁释放才能加锁成功。</p>
+</li>
+</ul>
+<p>读算法同样和方案一一样，不同的是更新算法，来看看伪代码：</p>
+<pre tabindex="0"><code>首先对根节点加α锁
+标记根节点为当前节点
+主循环（一直到查询到对应节点或者遍历节点完毕时循环终止）：
+	给路径上下一步的子节点加α锁	
+	设置子节点为当前节点
+	如果当前节点是安全的：
+		释放当前节点所有祖先节点上加上的锁
+
+如果叶子结点是安全的：
+	正常进行更新操作
+否则：
+	释放前面加的所有锁，按照方案一的更新算法重做一遍
+</code></pre>
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

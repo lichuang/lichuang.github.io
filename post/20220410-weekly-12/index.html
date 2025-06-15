@@ -1,410 +1,207 @@
 <!DOCTYPE html>
-<html
-  lang="zh"
-  dir="ltr"
-  
-><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh"
+  dir="ltr">
 
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
 
-<title>周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构 - codedump的网络日志</title>
 
-<meta name="generator" content="Hugo Eureka 0.9.1" />
-<link rel="stylesheet" href="https://www.codedump.info/css/eureka.min.9cec6350e37e534b0338fa9a085bf06855de3b0f2dcf857e792e5e97b07ea905d4d5513db554cbc26a9c3da622bae92d.css">
-<script defer src="https://www.codedump.info/js/eureka.min.dca6aee3d946cd994aa01d07eb82704da838affe2ddf0085a90fefe4a57fb4be6e3d98fec1465bccf45b19e269301a44.js"></script>
 
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
+<meta name="description" content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构"/>
 
 
 
-
-
-
-
-
-
-
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload"
-  href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&amp;family=Noto&#43;Serif&#43;SC:wght@400;600;700&amp;display=swap"
-  as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/styles/base16/solarized-light.min.css"
-   media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/highlight.min.js"
-   crossorigin></script>
-  <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.4.0/build/languages/dart.min.js"
-     crossorigin></script>
-<link rel="stylesheet" href="https://www.codedump.info/css/highlightjs.min.2958991528e43eb6fc9b8c4f2b8e052f79c4010718e1d1e888a777620e9ee63021c2c57ec7417a3108019bb8c41943e6.css" media="print" onload="this.media='all';this.onload=null">
-
-
-<script defer type="text/javascript" src="https://www.codedump.info/js/fontawesome.min.99528f92b28b4907b92da13a4e1aed7b955f2233b5ebd0bcad3f677237b7bde76eb543e279d164e2d6e27dee22470ad4.js"></script>
-
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.css"
-   integrity="sha384-MlJdn/WNKDGXveldHDdyRP1R4CTHr3FeuDNfhsLPYrq2t0UBkUdK2jyTnXPEK1NQ"  media="print"
-  onload="this.media='all';this.onload=null" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/katex.min.js" 
-  integrity="sha384-VQ8d8WVFw0yHhCk5E8I86oOhv48xLpnDZx5T9GogA/Y84DcCKWXDmSDfn13bzFZY"  crossorigin></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.15.2/dist/contrib/auto-render.min.js"
-   integrity="sha384-&#43;XBljXPPiv&#43;OzfbB3cVmLHf4hdUFHlWNZN5spNQ7rmHTXpd7WvJum6fIACpNNfIR"  crossorigin></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    renderMathInElement(document.body, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "\\[", right: "\\]", display: true }
-      ],
-    });
-  });
-</script>
-
-
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js" 
-  integrity="sha384-atOyb0FxAgN9LyAc6PEf9BjgwLISyansgdH8/VXQH8p2o5vfrRgmGIJ2Sg22L0A0"  crossorigin></script>
-<link rel="preconnect" href="https://www.google-analytics.com" crossorigin>
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-126255685-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'UA-126255685-1');
-</script>
-
-
-<link rel="icon" type="image/png" href="/images/C.png" sizes="64x64">
-
-<meta name="description"
-  content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [{
-      "@type": "ListItem",
-      "position": 1 ,
-      "name":"Posts",
-      "item":"https://www.codedump.info/post/"},{
-      "@type": "ListItem",
-      "position": 2 ,
-      "name":"周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构",
-      "item":"https://www.codedump.info/post/20220410-weekly-12/"}]
-}
-</script>
-
-
-
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://www.codedump.info/post/20220410-weekly-12/"
-    },
-    "headline": "周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构 - codedump的网络日志","datePublished": "2022-04-10T11:38:16+08:00",
-    "dateModified": "2022-04-10T11:38:16+08:00",
-    "wordCount":  3119 ,
-    "publisher": {
-        "@type": "Person",
-        "name": "lichuang",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "https://www.codedump.info/images/C.png"
-        }
-        },
-    "description": "周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构"
-}
-</script><meta property="og:title" content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构 - codedump的网络日志" />
-<meta property="og:type" content="article" />
-
-
-<meta property="og:image" content="https://www.codedump.info/images/C.png">
-
-
-<meta property="og:url" content="https://www.codedump.info/post/20220410-weekly-12/" />
-
-
-
-<meta property="og:description" content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构" />
-
-
-
-<meta property="og:locale" content="zh" />
-
-
-
-
-<meta property="og:site_name" content="codedump的网络日志" />
-
-
-
-
-
-
-<meta property="article:published_time" content="2022-04-10T11:38:16&#43;08:00" />
-
-
-<meta property="article:modified_time" content="2022-04-10T11:38:16&#43;08:00" />
-
-
-
-<meta property="article:section" content="post" />
-
-
-<meta property="article:tag" content="周刊" />
-
-<meta property="article:tag" content="存储引擎" />
-
-
-
-
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220904-weekly-24/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220807-weekly-23/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220710-weekly-22/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220703-weekly-21/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220625-weekly-20/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220619-weekly-19/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220612-weekly-18/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220528-weekly-17/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220521-weekly-16/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220514-weekly-15/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220507-weekly-14/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220417-weekly-13/" />
-
-
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220327-weekly-11/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220319-weekly-10/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220313-weekly-9/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220304-weekly-8/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220227-weekly-7/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220220-weekly-6/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220211-weekly-5/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220204-weekly-4/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220129-weekly-3/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220123-weekly-2/" />
-
-
-
-<meta property="og:see_also" content="https://www.codedump.info/post/20220116-weekly-1/" />
-
-
-
-
-
-
-  <body class="flex min-h-screen flex-col">
-    <header
-      class="min-h-16 pl-scrollbar bg-secondary-bg fixed z-50 flex w-full items-center shadow-sm"
-    >
-      <div class="mx-auto w-full max-w-screen-xl"><script>
-    let storageColorScheme = localStorage.getItem("lightDarkMode")
-    if (((storageColorScheme == 'Auto' || storageColorScheme == null) && window.matchMedia("(prefers-color-scheme: dark)").matches) || storageColorScheme == "Dark") {
-        document.getElementsByTagName('html')[0].classList.add('dark')
-    }
-</script>
-<nav class="flex items-center justify-between flex-wrap px-4 py-4 md:py-0">
-    <a href="/" class="me-6 text-primary-text text-xl font-bold">codedump的网络日志</a>
-    <button id="navbar-btn" class="md:hidden flex items-center px-3 py-2" aria-label="Open Navbar">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <div id="target"
-        class="hidden block md:flex md:grow md:justify-between md:items-center w-full md:w-auto text-primary-text z-20">
-        <div class="md:flex md:h-16 text-sm md:grow pb-4 md:pb-0 border-b md:border-b-0">
-            <a href="/#about" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">关于</a>
-            <a href="/post/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  selected-menu-item  me-4">文章</a>
-            <a href="/categories/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">分类</a>
-            <a href="/tags/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">标签</a>
-            <a href="/series/" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">系列</a>
-            <a href="/index.xml" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">RSS</a>
-            <a href="https://www.getrevue.co/profile/lichuang" class="block mt-4 md:inline-block md:mt-0 md:h-(16-4px) md:leading-(16-4px) box-border md:border-t-2 md:border-b-2  border-transparent  me-4">邮件订阅</a>
-        </div>
-
-        <div class="flex">
-            <div class="relative pt-4 md:pt-0">
-                <div class="cursor-pointer hover:text-eureka" id="lightDarkMode">
-                    <i class="fas fa-adjust"></i>
-                </div>
-                <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-30" id="is-open">
-                </div>
-                <div class="absolute flex flex-col start-0 md:start-auto end-auto md:end-0 hidden bg-secondary-bg w-48 rounded py-2 border border-tertiary-bg cursor-pointer z-40"
-                    id='lightDarkOptions'>
-                    <span class="px-4 py-1 hover:text-eureka" name="Light">浅色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Dark">深色</span>
-                    <span class="px-4 py-1 hover:text-eureka" name="Auto">自动</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed hidden inset-0 opacity-0 h-full w-full cursor-default z-0" id="is-open-mobile">
-    </div>
-
-</nav>
-<script>
+<title>
     
-    let element = document.getElementById('lightDarkMode')
-    if (storageColorScheme == null || storageColorScheme == 'Auto') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', switchDarkMode)
-        })
-    } else if (storageColorScheme == "Light") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'sun')
-        element.firstElementChild.classList.add('fa-sun')
-    } else if (storageColorScheme == "Dark") {
-        element.firstElementChild.classList.remove('fa-adjust')
-        element.firstElementChild.setAttribute("data-icon", 'moon')
-        element.firstElementChild.classList.add('fa-moon')
-    }
+    周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构 | codedump notes
+    
+</title>
 
-    document.addEventListener('DOMContentLoaded', () => {
-        getcolorscheme();
-        switchBurger();
-    });
-</script>
-</div>
-    </header>
-    <main class="grow pt-16">
-        <div class="pl-scrollbar">
-          <div class="mx-auto w-full max-w-screen-xl lg:px-4 xl:px-8">
-  
-  
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-8 lg:pt-12">
-    <div
-      class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-    >
-      <article class="prose">
-  <h1 class="mb-4">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</h1>
+<link rel="canonical" href="https://www.codedump.info/post/20220410-weekly-12/"/>
 
-  <div
-  class="text-tertiary-text not-prose mt-2 flex flex-row flex-wrap items-center"
->
-  <div class="me-6 my-2">
-    <i class="fas fa-calendar me-1"></i>
-    <span
-      >2022-04-10</span
-    >
-  </div>
-  <div class="me-6 my-2">
-    <i class="fas fa-clock me-1"></i>
-    <span>7分钟阅读时长</span>
-  </div>
+<meta property="og:url" content="https://www.codedump.info/post/20220410-weekly-12/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构">
+  <meta property="og:description" content="周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-04-10T11:38:16+08:00">
+    <meta property="article:modified_time" content="2022-04-10T11:38:16+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="存储引擎">
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-folder me-1"></i>
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
       
-        <a href="https://www.codedump.info/categories/%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >周刊</a
-        >
-      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
         
-          <span>, </span>
-        <a href="https://www.codedump.info/categories/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="hover:text-eureka"
-          >存储引擎</a
-        >
-      
-    </div>
-  
 
-  
-    <div class="me-6 my-2">
-      <i class="fas fa-th-list me-1"></i>
+        
+        
       
-        <a href="https://www.codedump.info/series/2022%E5%91%A8%E5%88%8A/" class="hover:text-eureka"
-          >2022周刊</a
-        >
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
       
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
     </div>
-  
+
+    
+
 </div>
 
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20220410-weekly-12/">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第12期）：Page oriented类存储引擎里可能同时存在多种结构</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-04-10T11:38:16&#43;08:00">2022年4月10日</time>
+      
+
+      
+    </p>
+
+  </div>
 
   
+
   
 
-  <hr>
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#存储引擎的分类">存储引擎的分类</a></li>
+    <li><a href="#page-oriented存储引擎的结构">Page oriented存储引擎的结构</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#git的第一版">Git的第一版</a></li>
+    <li><a href="#使用rust编写grpc服务的初学者指南">使用Rust编写gRPC服务的初学者指南</a></li>
+    <li><a href="#在大公司工作的吐槽">在大公司工作的吐槽</a></li>
+    <li><a href="#关于威尔史密斯打人一位台湾老师的社会课引导思考">《关于威尔史密斯打人，一位台湾老师的社会课引导思考》</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <hr>
 <p>引言：本期聊一聊Page oriented类存储引擎内的数据结构组织。在满足“向磁盘读写的基本单位是物理页面”这个大前提下，这类存储引擎的可能同时存在多种结构。</p>
 <hr>
-<h1 id="page-oriented类存储引擎里可能同时存在多种树形结构">page oriented类存储引擎里可能同时存在多种树形结构</h1>
-<h2 id="存储引擎的分类">存储引擎的分类</h2>
+<h1 class="heading" id="page-oriented类存储引擎里可能同时存在多种树形结构">
+  page oriented类存储引擎里可能同时存在多种树形结构
+  <a class="anchor" href="#page-oriented%e7%b1%bb%e5%ad%98%e5%82%a8%e5%bc%95%e6%93%8e%e9%87%8c%e5%8f%af%e8%83%bd%e5%90%8c%e6%97%b6%e5%ad%98%e5%9c%a8%e5%a4%9a%e7%a7%8d%e6%a0%91%e5%bd%a2%e7%bb%93%e6%9e%84">#</a>
+</h1>
+<h2 class="heading" id="存储引擎的分类">
+  存储引擎的分类
+  <a class="anchor" href="#%e5%ad%98%e5%82%a8%e5%bc%95%e6%93%8e%e7%9a%84%e5%88%86%e7%b1%bb">#</a>
+</h2>
 <p>目前接触到的存储引擎，以向磁盘读写方式来分类的话，大体可以分为两类：</p>
 <ul>
 <li>LSM-Tree结构。</li>
@@ -416,14 +213,65 @@
 <li>内存中的数据写满之后，将落盘到所谓的sstable中。</li>
 <li>sstable分为多层，随着写入进行，不同层次的sstable数据将进行合并。</li>
 </ul>
-<p><img src="/media/imgs/20220410-weekly-12/LSM.jpeg" alt="LSM" title="LSM"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="LSM" src="/media/imgs/20220410-weekly-12/LSM.jpeg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> LSM </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>（图片引用自<a href="https://zhuanlan.zhihu.com/p/181498475">LSM树详解 - 知乎</a>)</p>
 <p>从上面简单的写入LSM的流程可以看到：无论是写入内存还是磁盘，这类存储引擎在写入新数据时（不是合并sstable流程），磁盘操作的单位是一条记录。而一条记录的长度，是不定长的。</p>
 <p>与LSM-Tree类的结构不同的是，Page oriented类的存储引擎，向磁盘发起读写操作的基本单位是页面（page），一个页面通常的大小是2的次方，最小一般是1024字节，比如sqlite的存储，其页面大小为4K（可以修改编译选项配置页面大小）。</p>
 <p>以一个物理页面为读写磁盘的基本单位，这也是这一类存储引擎之所以被称为”Page oriented类存储引擎“的原因。本文重点是介绍Page oriented类存储引擎的结构。</p>
-<h2 id="page-oriented存储引擎的结构">Page oriented存储引擎的结构</h2>
+<h2 class="heading" id="page-oriented存储引擎的结构">
+  Page oriented存储引擎的结构
+  <a class="anchor" href="#page-oriented%e5%ad%98%e5%82%a8%e5%bc%95%e6%93%8e%e7%9a%84%e7%bb%93%e6%9e%84">#</a>
+</h2>
 <p>还是以之前介绍过的sqlite的架构图来开头：</p>
-<p><img src="/media/imgs/20211217-sqlite-btree-0/btree-arch.png" alt="btree架构" title="btree架构"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btree架构" src="/media/imgs/20211217-sqlite-btree-0/btree-arch.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btree架构 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>这个架构由下往上依次是：</p>
 <ul>
 <li>系统层：提供不同系统级API的封装，比如文件读写、加解锁操作等。</li>
@@ -435,7 +283,31 @@
 <li>物理页面管理相当于是磁盘文件的”原材料供应商“，负责对它的客户也就是各种不同结构的实现提供物理页面这一”原材料“的读写、缓存管理，而它对这些材料被客户拿去做成了什么，一无所知。</li>
 <li>树形结构的实现，从页面管理器拿到了”物理页面“这个原材料之后，可以按照自己的算法和数据结构任意塑造成任何合理的结构。</li>
 </ul>
-<p><img src="/media/imgs/20220201-sqlite-btree-5-btree/database-file.png" alt="数据库文件的物理页面组织和逻辑页面结构" title="数据库文件的物理页面组织和逻辑页面结构"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="数据库文件的物理页面组织和逻辑页面结构" src="/media/imgs/20220201-sqlite-btree-5-btree/database-file.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 数据库文件的物理页面组织和逻辑页面结构 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>可以看到，Page oriented存储引擎，在满足“向磁盘读写的基本单位是物理页面”这个大前提下，这类存储引擎的可能同时存在多种结构：可能只有B-Tree，也可能只有B+Tree。还有另一种情况是：这类存储引擎内部同时存在多种结构。</p>
 <p>以sqlite为例，内部其实就存在两种结构：</p>
 <ul>
@@ -443,37 +315,64 @@
 <li>存储数据的table tree：结构为B+Tree，键为<code>rowid</code>，值为一行数据。</li>
 </ul>
 <p>这两类存储引擎，由于同属于“Page oriented类存储引擎”，因此可以共用同一个物理页面管理器。</p>
-<p><img src="/media/imgs/20220201-sqlite-btree-5-btree/btree-rowid.png" alt="数据库文件的rowid全量数据表和索引表" title="数据库文件的rowid全量数据表和索引表"></p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="数据库文件的rowid全量数据表和索引表" src="/media/imgs/20220201-sqlite-btree-5-btree/btree-rowid.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 数据库文件的rowid全量数据表和索引表 </figcaption>
+    </div>
+    
+</figure>
+</p>
 <p>下面，以sqlite中的一个表为例来解释上面这个流程。</p>
 <p>首先，创建一个表以及索引：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="o">//</span><span class="w"> </span><span class="err">创建数据库</span><span class="n">COMPANY</span><span class="w">
-</span><span class="w"></span><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">COMPANY</span><span class="p">(</span><span class="w">
-</span><span class="w">   </span><span class="n">ID</span><span class="w">             </span><span class="nb">INT</span><span class="w">      </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
-</span><span class="w">   </span><span class="n">NAME</span><span class="w">           </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
-</span><span class="w">   </span><span class="n">AGE</span><span class="w">            </span><span class="nb">INT</span><span class="w">     </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">
-</span><span class="w"></span><span class="p">);</span><span class="w">
-</span><span class="w"></span><span class="o">//</span><span class="w"> </span><span class="err">创建索引</span><span class="w">
-</span><span class="w"></span><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">id_index</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">);</span><span class="w">
-</span></code></pre></div><p>上面这个建表以及创建索引之后，对应的在这个数据文件中就有了两个树形结构：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span>// <span style="">创建数据库</span>COMPANY
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">CREATE</span> <span style="font-weight:bold;text-decoration:underline">TABLE</span> COMPANY(
+</span></span><span style="display:flex;"><span>   ID             <span style="font-weight:bold;font-style:italic">INT</span>      <span style="font-weight:bold;text-decoration:underline">NOT</span> <span style="font-weight:bold;text-decoration:underline">NULL</span>,
+</span></span><span style="display:flex;"><span>   NAME           <span style="font-weight:bold;font-style:italic">TEXT</span>    <span style="font-weight:bold;text-decoration:underline">NOT</span> <span style="font-weight:bold;text-decoration:underline">NULL</span>,
+</span></span><span style="display:flex;"><span>   AGE            <span style="font-weight:bold;font-style:italic">INT</span>     <span style="font-weight:bold;text-decoration:underline">NOT</span> <span style="font-weight:bold;text-decoration:underline">NULL</span>,
+</span></span><span style="display:flex;"><span>);
+</span></span><span style="display:flex;"><span>// <span style="">创建索引</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">CREATE</span> <span style="font-weight:bold;text-decoration:underline">INDEX</span> id_index <span style="font-weight:bold;text-decoration:underline">ON</span> COMPANY (id);
+</span></span></code></pre></div><p>上面这个建表以及创建索引之后，对应的在这个数据文件中就有了两个树形结构：</p>
 <ul>
 <li>存储<code>COMPANY</code>表数据的table-tree。</li>
 <li>存储索引<code>id</code>到<code>rowid</code>关系的index-tree。</li>
 </ul>
 <p>如果向这个表插入数据，比如：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="p">(</span><span class="n">ID</span><span class="p">,</span><span class="n">NAME</span><span class="p">,</span><span class="n">AGE</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Paul&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="w"> </span><span class="p">);</span><span class="w">
-</span></code></pre></div><p>那么，这个插入操作背后实际对应了向这两棵树的插入操作：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">INSERT</span> <span style="font-weight:bold;text-decoration:underline">INTO</span> COMPANY (ID,NAME,AGE) <span style="font-weight:bold;text-decoration:underline">VALUES</span> (1, <span style="color:#666;font-style:italic">&#39;Paul&#39;</span>, 32 );
+</span></span></code></pre></div><p>那么，这个插入操作背后实际对应了向这两棵树的插入操作：</p>
 <ul>
 <li>首先，将这一行数据插入到table-tree中，同时得到<code>rowid</code>以及插入时候的<code>id</code>。</li>
 <li>再将第一步得到的<code>rowid</code>以及<code>id</code>插入到index-tree中。</li>
 </ul>
 <p>如果使用<code>id_index</code>索引来查询<code>COMPANY</code>表，比如：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="k">select</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="n">COMPANY</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">
-</span></code></pre></div><p>这个查询操作也实际上经过了上面这两个表：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">select</span> * <span style="font-weight:bold;text-decoration:underline">from</span> COMPANY <span style="font-weight:bold;text-decoration:underline">where</span> id = 1;
+</span></span></code></pre></div><p>这个查询操作也实际上经过了上面这两个表：</p>
 <ul>
 <li>首先，通过存储<code>id_index</code>到<code>rowid</code>关系的index-tree，找到<code>id=1</code>对应的<code>rowid</code>。</li>
 <li>然后，再根据第一步得到的<code>rowid</code>到table-tree中查询到这一行数据。</li>
 </ul>
-<h2 id="总结">总结</h2>
+<h2 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h2>
 <ul>
 <li>存储引擎，按照对磁盘读写方式的不同，大体可以分为以下两类：
 <ul>
@@ -490,209 +389,123 @@
 </ul>
 </li>
 </ul>
-<h1 id="其他推荐">其他推荐</h1>
-<h2 id="git的第一版">Git的第一版</h2>
+<h1 class="heading" id="其他推荐">
+  其他推荐
+  <a class="anchor" href="#%e5%85%b6%e4%bb%96%e6%8e%a8%e8%8d%90">#</a>
+</h1>
+<h2 class="heading" id="git的第一版">
+  Git的第一版
+  <a class="anchor" href="#git%e7%9a%84%e7%ac%ac%e4%b8%80%e7%89%88">#</a>
+</h2>
 <p>2005年4月6日，Git发布了第一版。Git无疑是最伟大的开源软件之一，它的出现极大改变了开源软件的协作、开发方式。</p>
 <p>根据这里的“史料”（ <a href="https://www.ithome.com.tw/news/95088">Git十歲了！Git之父Linus Torvalds說古，大談Git開發秘辛 | iThome</a> ）记载：Linus最初只花了10天就写出了第一版可以跑的Git了。</p>
-<h2 id="使用rust编写grpc服务的初学者指南">使用Rust编写gRPC服务的初学者指南</h2>
+<h2 class="heading" id="使用rust编写grpc服务的初学者指南">
+  使用Rust编写gRPC服务的初学者指南
+  <a class="anchor" href="#%e4%bd%bf%e7%94%a8rust%e7%bc%96%e5%86%99grpc%e6%9c%8d%e5%8a%a1%e7%9a%84%e5%88%9d%e5%ad%a6%e8%80%85%e6%8c%87%e5%8d%97">#</a>
+</h2>
 <p>最近在使用Rust编写gRPC服务，这篇教程讲解了这部分内容，包括一应一答模式、单向stream模式、双向stream模式都有对应的代码例子，见：<a href="https://dev.to/anshulgoyal15/a-beginners-guide-to-grpc-with-rust-3c7o">Rust gRPC: A beginners guide to gRPC with Rust</a>。</p>
-<h2 id="在大公司工作的吐槽">在大公司工作的吐槽</h2>
+<h2 class="heading" id="在大公司工作的吐槽">
+  在大公司工作的吐槽
+  <a class="anchor" href="#%e5%9c%a8%e5%a4%a7%e5%85%ac%e5%8f%b8%e5%b7%a5%e4%bd%9c%e7%9a%84%e5%90%90%e6%a7%bd">#</a>
+</h2>
 <p>一位在美国工作的工程师写的国外大公司（文中是亚马逊）晋升的一些槽点，看起来和国内大公司也差不多，见：<a href="https://yorotoo.medium.com/%E5%85%B3%E4%BA%8E%E5%8D%87%E8%81%8C-55dbe62ebaf">关于升职 - Yang Letu - Medium</a></p>
 <p>另外文中还推荐了一个推特上的吐槽：</p>
 <p><a href="https://twitter.com/kantrn/status/1511791378497384454">Noah Kantrowitz on Twitter: &ldquo;FAANG promo committees are killing Kubernetes: A Short Thread 🧵&rdquo; / Twitter</a></p>
-<h2 id="关于威尔史密斯打人一位台湾老师的社会课引导思考">《关于威尔史密斯打人，一位台湾老师的社会课引导思考》</h2>
+<h2 class="heading" id="关于威尔史密斯打人一位台湾老师的社会课引导思考">
+  《关于威尔史密斯打人，一位台湾老师的社会课引导思考》
+  <a class="anchor" href="#%e5%85%b3%e4%ba%8e%e5%a8%81%e5%b0%94%e5%8f%b2%e5%af%86%e6%96%af%e6%89%93%e4%ba%ba%e4%b8%80%e4%bd%8d%e5%8f%b0%e6%b9%be%e8%80%81%e5%b8%88%e7%9a%84%e7%a4%be%e4%bc%9a%e8%af%be%e5%bc%95%e5%af%bc%e6%80%9d%e8%80%83">#</a>
+</h2>
 <p>关于威尔史密斯打人，一位台湾老师的社会课引导思考，见：https://www.facebook.com/hhsleo/posts/5543635368999794</p>
 <p>（上面的文章可能需要FB权限才能打开，也可以看这篇微信公众号的转发：<a href="https://mp.weixin.qq.com/s/lGJpnq89gxTPxj_KUA2ZCg">关于威尔史密斯打人，一位台湾老师的社会课引导思考</a>）</p>
 <blockquote>
-<p>“我告訴學生，我今天扮演的角色，就像是政治人物或媒體，我蓄意餵養你片面的、我想要你知道的資訊，而有超過7成的人，在這個過程中，被我操弄了，你因為我每次餵養的資訊不同，而產生立場反覆的狀況！明明政治人物應該考慮的是公益，媒體應該報導的是真相，但我若故意要操弄輿論，我只要給你我要你知道的訊息就好，對我不利的，我一概不提。慢慢的，我就可以透過這種愚弄的手法，讓民眾變成對我死忠而深信不疑的禁臠而不自知，我要你膜拜你就膜拜，我要你打砸殺你就打砸殺，我要你剷除異己你就剷除異己，我要你上刀山下油鍋，你還會爭先恐後想要身先士卒。而這樣的現象，正在世界各地上演”</p>
-</blockquote>
+<p>“我告訴學生，我今天扮演的角色，就像是政治人物或媒體，我蓄意餵養你片面的、我想要你知道的資訊，而有超過7成的人，在這個過程中，被我操弄了，你因為我每次餵養的資訊不同，而產生立場反覆的狀況！明明政治人物應該考慮的是公益，媒體應該報導的是真相，但我若故意要操弄輿論，我只要給你我要你知道的訊息就好，對我不利的，我一概不提。慢慢的，我就可以透過這種愚弄的手法，讓民眾變成對我死忠而深信不疑的禁臠而不自知，我要你膜拜你就膜拜，我要你打砸殺你就打砸殺，我要你剷除異己你就剷除異己，我要你上刀山下油鍋，你還會爭先恐後想要身先士卒。而這樣的現象，正在世界各地上演”</p></blockquote>
 
-</article>
-
-
-      
-        <div class="my-4">
     
-    <a href="https://www.codedump.info/tags/%E5%91%A8%E5%88%8A/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#周刊</a>
-    
-    <a href="https://www.codedump.info/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/" class="inline-block text-sm rounded px-3 py-1 my-1 me-2 hover:text-eureka">#存储引擎</a>
-    
-</div>
-      
-
-
-
-      
-
-
-
-      
-
-      
-  <div
-    class="-mx-2 mt-4 flex flex-col border-t px-2 pt-4 md:flex-row md:justify-between"
-  >
-    <div>
-      
-        <span class="text-primary-text block font-bold"
-          >上一页</span
-        >
-        <a href="https://www.codedump.info/post/20220417-weekly-13/" class="block">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a>
-      
-    </div>
-    <div class="mt-4 md:mt-0 md:text-right">
-      
-        <span class="text-primary-text block font-bold">下一页</span>
-        <a href="https://www.codedump.info/post/20220327-weekly-11/" class="block">周刊（第11期）：mmap适用于存储引擎吗？</a>
-      
-    </div>
   </div>
-
-
-    </div>
-    
-      <div class="col-span-2">
-
-        
-          <div
-  class="
-    bg-primary-bg
-   prose sticky top-16 z-10 hidden px-6 py-4 lg:block"
->
-  <h3>本页目录</h3>
-</div>
-<div
-  class="sticky-toc  hidden px-6 pb-6 lg:block"
->
-  <nav id="TableOfContents">
-  <ul>
-    <li><a href="#page-oriented类存储引擎里可能同时存在多种树形结构">page oriented类存储引擎里可能同时存在多种树形结构</a>
-      <ul>
-        <li><a href="#存储引擎的分类">存储引擎的分类</a></li>
-        <li><a href="#page-oriented存储引擎的结构">Page oriented存储引擎的结构</a></li>
-        <li><a href="#总结">总结</a></li>
-      </ul>
-    </li>
-    <li><a href="#其他推荐">其他推荐</a>
-      <ul>
-        <li><a href="#git的第一版">Git的第一版</a></li>
-        <li><a href="#使用rust编写grpc服务的初学者指南">使用Rust编写gRPC服务的初学者指南</a></li>
-        <li><a href="#在大公司工作的吐槽">在大公司工作的吐槽</a></li>
-        <li><a href="#关于威尔史密斯打人一位台湾老师的社会课引导思考">《关于威尔史密斯打人，一位台湾老师的社会课引导思考》</a></li>
-      </ul>
-    </li>
-  </ul>
-</nav>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", () => {
-    enableStickyToc();
-  });
-</script>
-
-        
-      </div>
-    
-
-    
-    
-      <div
-        class=" bg-secondary-bg prose col-span-2 rounded p-6 lg:col-span-6"
-      >
-        <h3>相关</h3>
-        
-          <a href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/" class="no-underline">sqlite3.36版本 btree实现（五）- Btree的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/" class="no-underline">sqlite3.36版本 btree实现（四）- WAL的实现</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/" class="no-underline">sqlite3.36版本 btree实现（三）- journal文件备份机制</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/" class="no-underline">sqlite3.36版本 btree实现（二）- 并发控制框架</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/" class="no-underline">sqlite3.36版本 btree实现（一）- 管理页面缓存</a>
-          <br />
-        
-          <a href="https://www.codedump.info/post/20211217-sqlite-btree-0/" class="no-underline">sqlite3.36版本 btree实现（零）- 起步及概述</a>
-          <br />
-        
-      </div>
-    
-
-    <div
-    class=" bg-secondary-bg col-span-2 rounded px-6 py-8 lg:col-span-6"
-  >      
-      
-
-
-
-  <script src="https://utteranc.es/client.js"
-  repo="lichuang/lichuang.github.io"
-  issue-term="pathname"
-  theme="github-light"
-  crossorigin="anonymous"
-  async>
-</script>
-
-<script>
-    if (storageColorScheme == "Light") {
-      document.getElementById('utterances').setAttribute('theme', 'github-light')
-    } else if (storageColorScheme == "Dark") {
-      document.getElementById('utterances').setAttribute('theme', 'github-dark')
-    }
-</script>
-
-    </div>
-  </div>
-
 
   
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        hljs.highlightAll();
-      });
-    </script>
 
-          </div>
-        </div>
-      
-    </main>
-    <footer class="pl-scrollbar">
-      <div class="mx-auto w-full max-w-screen-xl"><div class="text-center">
-      <a href="https://github.com/lichuang" class="me-2" target="_blank" title="github">
-        <i class="fab fa-github"></i>
-      </a>
-      <a href="https://www.zhihu.com/people/codedump" class="me-2" target="_blank" title="zhihu">
-        <i class="fab fa-zhihu"></i>
-      </a>
-      <a href="https://weibo.com/lichuang" class="me-2" target="_blank" title="weibo">
-        <i class="fab fa-weibo"></i>
-      </a>
-      <a href="https://twitter.com/lichuang" class="me-2" target="_blank" title="twitter">
-        <i class="fab fa-twitter"></i>
-      </a>
+  
 
+  
 
-  <a href="https://www.codedump.info/index.xml" type="application/rss+xml" class="me-2" target="_blank" title="rss">
-      <i class="fas fa-rss"></i> 
-    </a>
+  
+
+  
+
 </div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
 
 
 <div class="text-center">
-    <p class="text-sm text-tertiary-text">&copy; 2018 <a href="https://www.codedump.info/">codedump</a>   
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a>
-</span>
- &middot; 
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/wangchucheng/hugo-eureka" rel="noopener" target="_blank">Eureka</a>
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
 </div>
 
 </div>
-    </footer>
-  </body>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
 </html>
