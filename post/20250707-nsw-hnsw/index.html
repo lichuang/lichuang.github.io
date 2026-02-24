@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="http://localhost:1313//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
+
+<meta name="description" content="解析向量搜索的nsw和hnsw算法原理"/>
+
+
+
+<title>
+    
+    基于图的向量搜索算法：从nsw到hnsw | codedump notes
+    
+</title>
+
+<link rel="canonical" href="http://localhost:1313/post/20250707-nsw-hnsw/"/>
+
+<meta property="og:url" content="http://localhost:1313/post/20250707-nsw-hnsw/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="基于图的向量搜索算法：从nsw到hnsw">
+  <meta property="og:description" content="解析向量搜索的nsw和hnsw算法原理">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2025-07-07T20:58:41+08:00">
+    <meta property="article:modified_time" content="2025-07-07T20:58:41+08:00">
+    <meta property="article:tag" content="向量数据库">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.1356e1c8842105762b945263595323c16a5ce093eb9455a22e7910868b90a5c5.css" media="all">
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="http://localhost:1313/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/">Home</a><span class="breadcrumbs-separator">/</span><a href="/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/post/20250707-nsw-hnsw/">基于图的向量搜索算法：从nsw到hnsw</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">基于图的向量搜索算法：从nsw到hnsw</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2025-07-07T20:58:41&#43;08:00">2025年7月7日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<h1 class="heading" id="基于图的贪心算法向量搜索">
+  基于图的贪心算法向量搜索
+  <a class="anchor" href="#%e5%9f%ba%e4%ba%8e%e5%9b%be%e7%9a%84%e8%b4%aa%e5%bf%83%e7%ae%97%e6%b3%95%e5%90%91%e9%87%8f%e6%90%9c%e7%b4%a2">#</a>
+</h1>
+<p>如果把向量看成空间中的一个点，向量搜索就是在空间中寻找相近的点。</p>
+<pre tabindex="0"><code>// 在空间中贪心算法搜索距离目标节点最近的节点返回
+function search(target, space):
+  // 随机选择空间中的一个点做为起始点start_node
+  entry_point = select_random_point_from_space(space)
+  // 集合保存已经访问过的节点集合
+  visited = {}
+  // 保存当前要遍历的节点
+  candidates = {entry_point}
+
+  while candidate:
+    // 取出当前节点
+    current = candidates.pop()
+    // 得到当前节点的邻居节点集合
+    neighbor_nodes = get_neighbor_nodes(current)
+    // 邻居节点集合要排除已经被访问过的节点
+    neighbor_nodes -= visited
+    
+    // 将当前节点保存到visited集合中，避免重复访问
+    visited.append(current)
+    
+    // 当前节点和邻居节点组成一个节点集合
+    nodes = {current} + neighbor_nodes
+    
+    // 求集合中距离目标节点距离最小的节点
+    min_distance_node = min_distance_node_to_target(nodes, target)
+
+    if min_distance_node == current:
+      // 如果最小距离节点就是当前节点，返回
+      return current
+    else:
+      // 否则，以最小距离节点继续搜索
+      candidates += {min_distance_node}
+</code></pre><p>我们考虑这样一个贪心算法去查找空间中距离一个点最近的点：</p>
+<ul>
+<li>随机从空间中选出一个点；</li>
+<li>计算该点和与它相邻的点与待搜索点的距离，如果该点与搜索点的距离比它的邻居都更小，就认为这个点是最近的点，返回；</li>
+<li>否则，选出相邻点集合中距离最近的点，重复以上查找步骤。</li>
+</ul>
+<p>以下图为例讲解以上的流程，待查找的点为图中的红点，黑点为空间中当前已经存在的点：</p>
+<ul>
+<li>假设第一步随机选出来的起始点是I。</li>
+<li>对比I和I的邻居节点[B,C]，点B距离红点的距离最近，以B点开始下一轮的搜索。</li>
+<li>B的邻居节点为[I,A,H,E]，这里要去掉已经遍历过的点I，对比B和去掉点I之后的邻居节点集合[A,H,E]，E点的距离更近，以E点开始下一轮的搜索。</li>
+<li>E的邻居节点为[G,J,D]（去掉了已经遍历过的节点B），E距离待搜索点的距离比邻居节点更近，不再继续搜索，返回E点。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="贪心算法在空间中查找与某点距离最近的点" src="/media/imgs/20250707-nsw-hnsw/1.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 贪心算法在空间中查找与某点距离最近的点 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>以上的算法看起来工作很良好，但是有几个问题：</p>
+<ol>
+<li>找到的并不是最优结果，图中的点L比点E距离红点更近。</li>
+<li>图中的点K是一个孤立节点，如果随机的起始节点是K，将得到一个更差的结果。</li>
+<li>这里的问题只要求返回一个距离最近的点，如果要求返回大于2个，而图中的L和E并没有直接连接，将增加迭代的次数。</li>
+</ol>
+<p>我们来逐个看上面提出的问题：</p>
+<ol>
+<li>如果要解决问题1，保证每一次返回的都一定是最近的节点，要求整个图是一个连通图，插入新节点时的时间复杂度以及数据存储的空间复杂度就上来了。</li>
+<li>如果不要求这么极端的考虑（即要求空间中所有点都互通），那么是否可以退而求其次：将空间划分为一个一个的子空间，即要求空间中：</li>
+</ol>
+<ul>
+<li>绝对不能出现孤立点，每个点都必须和其它点有连接，解决问题2。</li>
+<li>不要求所有点和空间中其它点都有连接，但是可以要求子空间中的点有连接，这样可以降低问题1出现的概率，同时也能解决问题2。</li>
+</ul>
+<p>以上的思想就是NSW（Navigable Small World graphs）算法的核心思路：NSW将空间划分为小的子空间（所谓的“Small World graphs”），接下来看这个算法的具体实现。</p>
+<h1 class="heading" id="nsw算法">
+  NSW算法
+  <a class="anchor" href="#nsw%e7%ae%97%e6%b3%95">#</a>
+</h1>
+<p>构建NSW算法所需的图时，有参数控制子空间中点的数量（假设为m），我们来看新增节点时的流程：</p>
+<ul>
+<li>按照前面给出的贪心算法，在空间中寻找m个和新增节点最近的点做为新增节点的邻居节点。</li>
+<li>连接新增节点和邻居节点。</li>
+</ul>
+<p>下图为构造NSW图的示例流程图，其中m=2。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="构造NSW图流程" src="/media/imgs/20250707-nsw-hnsw/2.webp" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 构造NSW图流程 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="hnsw算法">
+  HNSW算法
+  <a class="anchor" href="#hnsw%e7%ae%97%e6%b3%95">#</a>
+</h1>
+<p>理解了NSW算法之后，理解HNSW算法并不困难，HNSW算法可以认为是“NSW算法的跳表（skiplist）版本”。</p>
+<p>我们首先简单回顾一下跳表的思想，如下图所示是跳表的结构：</p>
+<ul>
+<li>最下面的层次0存储了所有数据，数据之间是有序排列好的；</li>
+<li>0层以上的数据是指针，每一个指针指向一个比本节点更大的数字。</li>
+</ul>
+<p>使用跳表搜索数据时，从最高层开始，对比指针和带搜索的数据：</p>
+<ul>
+<li>如果待搜索的数据更大，就到指针指向的位置继续搜索；</li>
+<li>否则，说明指针所在的数据范围已经包含了待搜索数据，那么将移动到下一层继续按照上面的流程搜索。</li>
+</ul>
+<p>以图中为例，待搜索的数据是20，流程为：</p>
+<ul>
+<li>第3层指针指向的下一个数据是7，7 &lt; 20，说明不在这个范围内，于是到达7所在的层次继续搜索；</li>
+<li>7所在的第3层指针是15，15 &lt; 20，说明不在这个范围内，于是到达15所在的层次继续搜索；</li>
+<li>15所在的第2层指针是20，找到数据，返回查找结果。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="跳表" src="/media/imgs/20250707-nsw-hnsw/skiplist.webp" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 跳表 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可见，跳表的精髓是：以空间换时间，牺牲一些空间存储指针，通过指针的数据判断，跳过一些数据的对比，减少比较的次数。</p>
+<p>HNSW本质上就是多层次的NSW，因此被称为HNSW（Hierarchcal Navigable Small World graphs），把它理解为把空间分为多个层次，每层上运行的还是NSW算法。</p>
+<p>如下图所示是HNSW图的构造：</p>
+<ul>
+<li>每一层数据都是一个NSW图结构。</li>
+<li>层次越高，数据越稀疏；反之，层次越低，数据越密集。和跳表一样，第0层存储了所有数据。</li>
+<li>查找数据时，和跳表一样，也是从最高层开始找：
+<ul>
+<li>从最高的第n层开始，使用NSW的贪心算法，找到距离待查找节点的最近节点。</li>
+<li>找到第n层的最近节点，顺着这个节点到下一层第n - 1层，继续上面的流程。</li>
+<li>以上的流程一直到第0层，找到距离节点最近的节点。</li>
+</ul>
+</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="hnsw" src="/media/imgs/20250707-nsw-hnsw/hnsw.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> hnsw </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
+<ul>
+<li><a href="https://mp.weixin.qq.com/s/N2pL34OV94TAegVmh8UE3A">大白话理解HNSW</a></li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
