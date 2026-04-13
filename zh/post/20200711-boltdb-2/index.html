@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="boltdb 1.3.0实现分析"/>
+
+
+
+<title>
+    
+    boltdb 1.3.0实现分析（二） | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20200711-boltdb-2/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20200711-boltdb-2/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="boltdb 1.3.0实现分析（二）">
+  <meta property="og:description" content="boltdb 1.3.0实现分析">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-07-11T09:33:06+08:00">
+    <meta property="article:modified_time" content="2020-07-11T09:33:06+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20200711-boltdb-2/">boltdb 1.3.0实现分析（二）</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">boltdb 1.3.0实现分析（二）</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-07-11T09:33:06&#43;08:00">2020年7月11日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <blockquote>
+<p>本文基于boltdb 1.3.0对其实现进行分析。boltdb是etcd系统存储数据使用的KV嵌入式DB，使用Go编码实现，内部是一个B+树结构体。关于etcd、raft协议以及B+树，可以参考之前的文章：</p></blockquote>
+<blockquote>
+<ul>
+<li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
+<li><a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a></li>
+<li><a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a></li>
+<li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上）</a></li>
+<li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下）</a></li>
+</ul></blockquote>
+<blockquote>
+<p>本文的写作，主要参考了<a href="https://www.jianshu.com/p/b86a69892990">《区块的持久化之BoltDB》系列文章</a>以及<a href="https://youjiali1995.github.io/storage/boltdb">boltdb 源码分析</a></p></blockquote>
+<p>在<a href="https://www.codedump.info/post/20200625-boltdb-1/">上一节</a>里面，系统的介绍了Boltdb中几种类型页面的格式，有了这些基础，本节开始介绍boltdb中的Bucket结构。</p>
+<h1 class="heading" id="bucket">
+  Bucket
+  <a class="anchor" href="#bucket">#</a>
+</h1>
+<h2 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h2>
+<p>在上一节中，Bucket类比于mysql中的table，在boltdb中，<code>meta</code>页面中有一个成员<code>bucket</code>，其存储了整个数据库根bucket的信息，而一个数据库中存储的其他table的信息，则作为子bucket存储到Bucket中。这几个数据结构的关系如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> DB <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...</span>
+</span></span><span style="display:flex;"><span>	meta0    *meta
+</span></span><span style="display:flex;"><span>	meta1    *meta  
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> meta <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...</span>
+</span></span><span style="display:flex;"><span>	root     bucket	<span style="color:#888;font-style:italic">// 根bucket的信息</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> Bucket <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	*bucket
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...</span>
+</span></span><span style="display:flex;"><span>  buckets  <span style="font-weight:bold;font-style:italic;text-decoration:underline">map</span>[<span style="font-weight:bold;text-decoration:underline">string</span>]*Bucket <span style="color:#888;font-style:italic">// 存储子bucket的对应关系</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> bucket <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 根节点的page id</span>
+</span></span><span style="display:flex;"><span>	root pgid <span style="color:#888;font-style:italic">// page id of the bucket&#39;s root-level page</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 单调递增的序列号</span>
+</span></span><span style="display:flex;"><span>	sequence <span style="font-weight:bold;text-decoration:underline">uint64</span> <span style="color:#888;font-style:italic">// monotonically incrementing, used by NextSequence()</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>在<code>bucket</code>数据结构中，两个成员的作用是：</p>
+<ul>
+<li>root：该bucket的根节点的page id。</li>
+<li>sequence：该bucket当前的序列号，单调递增，在函数<code>NextSequence</code>中使用。</li>
+</ul>
+<p>每个<code>Bucket</code>数据结构，都继承自<code>bucket</code>，同时其中的<code>buckets</code>存储了该<code>Bucket</code>中子Bucket名字的对应关系。</p>
+<p>最后，<code>meta</code>页面的<code>root</code>成员，存储的就是这个db的根<code>bucket</code>页面信息。这几个数据结构之间的关系如下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="buckets" src="/media/imgs/20200711-boltdb-2/buckets.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> buckets </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>在上图中：</p>
+<ul>
+<li><code>DB</code>结构体是表示整一个boltdb数据库的结构体，其中有<code>meta0</code>和<code>meta1</code>两个<code>meta</code>类型的成员，用于保存<code>meta</code>页面信息。</li>
+<li><code>meta</code>页面中，其中的<code>root</code>是一个<code>bucket</code>类型成员，保存了根bucket的页面信息。</li>
+<li>根据<code>bucket</code>中的页面信息，就能找到DB的根<code>Bucket</code>信息，其中的<code>buckets</code>成员保存了该数据库中所有子<code>bucket</code>名字与实体之间的映射关系。</li>
+</ul>
+<h2 class="heading" id="bucket结构体定义">
+  Bucket结构体定义
+  <a class="anchor" href="#bucket%e7%bb%93%e6%9e%84%e4%bd%93%e5%ae%9a%e4%b9%89">#</a>
+</h2>
+<p>接下来介绍<code>Bucket</code>结构体成员，其定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> Bucket <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	*bucket
+</span></span><span style="display:flex;"><span>	tx       *Tx                <span style="color:#888;font-style:italic">// the associated transaction</span>
+</span></span><span style="display:flex;"><span>	buckets  <span style="font-weight:bold;font-style:italic;text-decoration:underline">map</span>[<span style="font-weight:bold;text-decoration:underline">string</span>]*Bucket <span style="color:#888;font-style:italic">// subbucket cache</span>
+</span></span><span style="display:flex;"><span>	page     *page              <span style="color:#888;font-style:italic">// inline page reference</span>
+</span></span><span style="display:flex;"><span>	rootNode *node              <span style="color:#888;font-style:italic">// materialized node for the root page.</span>
+</span></span><span style="display:flex;"><span>	nodes    <span style="font-weight:bold;font-style:italic;text-decoration:underline">map</span>[pgid]*node     <span style="color:#888;font-style:italic">// node cache</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Sets the threshold for filling nodes when they split. By default,</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// the bucket will fill to 50% but it can be useful to increase this</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// amount if you know that your write workloads are mostly append-only.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">//</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// This is non-persisted across transactions so it must be set in every Tx.</span>
+</span></span><span style="display:flex;"><span>	FillPercent <span style="font-weight:bold;text-decoration:underline">float64</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中：</p>
+<ul>
+<li>bucket：存储该<code>Bucket</code>所在页面ID，以及当前序列号。</li>
+<li>tx：当前Bucket关联的事务。</li>
+<li>buckets：前面已经介绍过，维护子<code>bucket</code>的映射关系。</li>
+<li>page：存储inline页面信息。</li>
+<li>rootNode：该Bucket的B+树根节点指针。</li>
+<li>nodes：缓存已经读入内存的<code>page</code>对应的<code>node</code>信息。</li>
+<li>FillPercent：这是一个阈值，每个节点的数据量超过该阈值时进行分裂操作，默认值为DefaultFillPercent=0.5。至于B+树分裂操作的流程，可以参考文章最开始的B+树原理链接。</li>
+</ul>
+<h2 class="heading" id="子bucket">
+  子Bucket
+  <a class="anchor" href="#%e5%ad%90bucket">#</a>
+</h2>
+<p>按照上面的分析，一个bolt的DB存在一个唯一的根Bucket，而DB中不同的table就是该根Bucket的子Bucket，其对应关系存储在<code>Bucket.buckets</code>成员中。那么，子Bucket信息保存在哪里呢？</p>
+<p>答案是保存在叶子节点，也就是<code>leafPageElement</code>中，回顾一下这个数据结构的定义：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// leafPageElement represents a node on a leaf page.</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> leafPageElement <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	flags <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	pos   <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	ksize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>	vsize <span style="font-weight:bold;text-decoration:underline">uint32</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其中的<code>flags</code>成员，含义如下：</p>
+<ul>
+<li>0：表示就是普通的叶子节点。</li>
+<li>1：表示是子bucket。</li>
+</ul>
+<p>即在boltdb中，子Bucket的信息，是做为一种特殊的叶子节点信息存储下来的。boltdb使用了常量来表示这种类型的叶子节点标志位：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">const</span> (
+</span></span><span style="display:flex;"><span>	bucketLeafFlag = 0x01
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><p>即：</p>
+<ul>
+<li>对于一个标志位为0的叶子页面：其内容就是B+树叶子页面的内容，存储的是数据的键值，boltdb中叶子页面的格式示意图在<a href="https://www.codedump.info/post/20200625-boltdb-1/#leaf%E9%A1%B5%E9%9D%A2">上一节中</a>已经给出。</li>
+<li>对于一个标志位为1的叶子页面：其内存存储的是Bucket结构体的信息。</li>
+</ul>
+<p>有了以上的介绍，理解起来返回一个子Bucket的相关代码就不难了：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (b *Bucket) <span style="color:#666;font-weight:bold;font-style:italic">Bucket</span>(name []<span style="font-weight:bold;text-decoration:underline">byte</span>) *Bucket {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Move cursor to key.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 否则创建一个Cursor查询</span>
+</span></span><span style="display:flex;"><span>	c := b.<span style="color:#666;font-weight:bold;font-style:italic">Cursor</span>()
+</span></span><span style="display:flex;"><span>	k, v, flags := c.<span style="color:#666;font-weight:bold;font-style:italic">seek</span>(name)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Return nil if the key doesn&#39;t exist or it is not a bucket.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 查询不到，或者不是子bucket节点，都返回nil</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> !bytes.<span style="color:#666;font-weight:bold;font-style:italic">Equal</span>(name, k) || (flags&amp;bucketLeafFlag) == 0 {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Otherwise create a bucket and cache it.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 打开这个bucket并且cache到buckets map中</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> child = b.<span style="color:#666;font-weight:bold;font-style:italic">openBucket</span>(v)
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> b.buckets != <span style="font-weight:bold;text-decoration:underline">nil</span> {
+</span></span><span style="display:flex;"><span>		b.buckets[<span style="font-weight:bold;font-style:italic">string</span>(name)] = child
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> child
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (b *Bucket) <span style="color:#666;font-weight:bold;font-style:italic">openBucket</span>(value []<span style="font-weight:bold;text-decoration:underline">byte</span>) *Bucket {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 创建一个bucket</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> child = <span style="color:#666;font-weight:bold;font-style:italic">newBucket</span>(b.tx)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// If this is a writable transaction then we need to copy the bucket entry.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Read-only transactions can point directly at the mmap entry.</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> b.tx.writable {
+</span></span><span style="display:flex;"><span>		child.bucket = &amp;bucket{}
+</span></span><span style="display:flex;"><span>		*child.bucket = *(*bucket)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;value[0]))
+</span></span><span style="display:flex;"><span>	} <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>		child.bucket = (*bucket)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;value[0]))
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Save a reference to the inline page if the bucket is inline.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// inline bucket</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> child.root == 0 {
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// bucket的page</span>
+</span></span><span style="display:flex;"><span>		child.page = (*page)(unsafe.<span style="color:#666;font-weight:bold;font-style:italic">Pointer</span>(&amp;value[bucketHeaderSize]))
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> &amp;child
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>Bucket.Bucket</code>用于根据名字返回一个子Bucket的指针，其流程如下：</p>
+<ul>
+<li>首先根据子Bucket名字查找到叶子页面的数据、标志位，如果查找失败，说明不存在该子Bucket；或者其标志位不是<code>bucketLeafFlag</code>，说明这个名字已经被普通数据占用，即：boltdb中不允许子Bucket与其父Bucket中写入的键同名。</li>
+<li>以上查找成功，就以该叶子页面的数据为参数，调用<code>Bucket.openBucket</code>函数，根据<code>Bucket</code>结构体格式，反序列化出来<code>Bucket</code>结构体信息返回。</li>
+</ul>
+<h2 class="heading" id="inline-page">
+  inline page
+  <a class="anchor" href="#inline-page">#</a>
+</h2>
+<p>从上面的分析可以看到，子Bucket的信息是独占一个叶子页面来存储的，该页面大部分的内容都是冗余的。如果子Bucket中的数据量很少，就会造成磁盘空间的浪费。为了针对这类型Bucket进行优化，boltdb提供了<code>inline page</code>这个特殊的页面，将小的子Bucket数据存放在这里。</p>
+<p>这类型的子Bucket需要满足以下两个条件：</p>
+<ul>
+<li>该子Bucket再没有嵌套的子Bucket了。</li>
+<li>整个子Bucket的大小不能超过page size/4。</li>
+</ul>
+<p><code>Bucket.inlineable</code>函数就是用来做<code>inline</code>操作的判断的：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// inlineable returns true if a bucket is small enough to be written inline</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// and if it contains no subbuckets. Otherwise returns false.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 返回这个bucket是否能够inline操作</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (b *Bucket) <span style="color:#666;font-weight:bold;font-style:italic">inlineable</span>() <span style="font-weight:bold;text-decoration:underline">bool</span> {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> n = b.rootNode
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Bucket must only contain a single leaf node.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 如果没有根节点，或者根节点不是叶子节点的不能进行inline操作</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> n == <span style="font-weight:bold;text-decoration:underline">nil</span> || !n.isLeaf {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">false</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Bucket is not inlineable if it contains subbuckets or if it goes beyond</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// our threshold for inline bucket size.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 有子bucket，或者大小超过maxInlineBucketSize阈值的，都不能进行inline操作</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> size = pageHeaderSize
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">for</span> _, inode := <span style="font-weight:bold;text-decoration:underline">range</span> n.inodes {
+</span></span><span style="display:flex;"><span>		size += leafPageElementSize + <span style="font-weight:bold;font-style:italic">len</span>(inode.key) + <span style="font-weight:bold;font-style:italic">len</span>(inode.value)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> inode.flags&amp;bucketLeafFlag != 0 {
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">false</span>
+</span></span><span style="display:flex;"><span>		} <span style="font-weight:bold;text-decoration:underline">else</span> <span style="font-weight:bold;text-decoration:underline">if</span> size &gt; b.<span style="color:#666;font-weight:bold;font-style:italic">maxInlineBucketSize</span>() {
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">false</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// Returns the maximum total size of a bucket to make it a candidate for inlining.</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (b *Bucket) <span style="color:#666;font-weight:bold;font-style:italic">maxInlineBucketSize</span>() <span style="font-weight:bold;text-decoration:underline">int</span> {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> b.tx.db.pageSize / 4
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 class="heading" id="cursor">
+  Cursor
+  <a class="anchor" href="#cursor">#</a>
+</h1>
+<p>以上已经大体了解<code>Bucket</code>的结构，在boltdb查找数据流程中，还是使用了<code>Cursor</code>结构体来做为游标（iterator），保存查找流程中的中间数据，下面也来简单了解一下。</p>
+<p><code>Cursor</code>结构体的定义如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> Cursor <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	bucket *Bucket		<span style="color:#888;font-style:italic">// 对应的bucket</span>
+</span></span><span style="display:flex;"><span>	stack  []elemRef	<span style="color:#888;font-style:italic">// 存储递归遍历时中间过程的栈，由于栈是先进后出结构，所以遍历的过程中层次高的在栈的低端。</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 光标移动过程中，中间过程的信息</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> elemRef <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	page  *page	<span style="color:#888;font-style:italic">// 页面</span>
+</span></span><span style="display:flex;"><span>	node  *node	<span style="color:#888;font-style:italic">// 内存中的页面信息</span>
+</span></span><span style="display:flex;"><span>	index <span style="font-weight:bold;text-decoration:underline">int</span>		<span style="color:#888;font-style:italic">// 保存在当前page、node遍历到了哪个节点</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>Cursor</code>有以下成员：</p>
+<ul>
+<li>bucket：游标操作所对应的<code>Bucket</code>指针。</li>
+<li>stack：存储递归遍历过程中的栈，由于栈是先进后出结构，所以遍历的过程中层次高的节点在栈的低端。</li>
+</ul>
+<p>每个stack成员类型是<code>elemRef</code>，其成员如下：</p>
+<ul>
+<li>page：页面指针。</li>
+<li>node：内存中的页面信息。</li>
+<li>index：保存遍历到当前页面的索引位置。</li>
+</ul>
+<p>由于<code>node</code>是<code>page</code>在内存中的表示，所以实际上在<code>elemRef</code>结构体中，<code>page</code>和<code>node</code>成员同时只会有一个成员不为NULL。</p>
+<p><code>Cursor</code>结构体做为一个迭代器，对外提供的就是常规迭代器所支持的操作：</p>
+<ul>
+<li>First：返回当前Bucket的第一个数据。</li>
+<li>Last：返回当前Bucket的最后一个数据。</li>
+<li>Next：返回当前游标位置的下一个数据。</li>
+<li>Prev：返回当前游标位置的上一个数据。</li>
+<li>Seek：查找到对应的叶子节点返回其键、值。</li>
+<li>keyValue：返回当前游标位置的键、值、标志位。</li>
+<li>Delete：删除当前游标位置的数据。</li>
+</ul>
+<p>在这里，不打算讨论其中的所有实现，如果读者对B+树的实现并不了解，可以看最开始介绍B+树原理的连接。</p>
+<p>这里以<code>First</code>函数为例简单的讲解其实现，由于B+树是中序遍历的树结构，因此<code>First</code>元素一定是最左边叶子节点的左边第一个元素。带注释的代码实现如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Go" data-lang="Go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 移动到bucket的第一个元素上，返回其key value数据</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (c *Cursor) <span style="color:#666;font-weight:bold;font-style:italic">First</span>() (key []<span style="font-weight:bold;text-decoration:underline">byte</span>, value []<span style="font-weight:bold;text-decoration:underline">byte</span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">_assert</span>(c.bucket.tx.db != <span style="font-weight:bold;text-decoration:underline">nil</span>, <span style="color:#666;font-style:italic">&#34;tx closed&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 修改stack只保存第一个stack，及栈底部</span>
+</span></span><span style="display:flex;"><span>	c.stack = c.stack[:0]
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 返回root节点的page、node</span>
+</span></span><span style="display:flex;"><span>	p, n := c.bucket.<span style="color:#666;font-weight:bold;font-style:italic">pageNode</span>(c.bucket.root)
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 将root节点所在的page、node信息放到栈顶，index为0，表示从第一个子节点开始遍历</span>
+</span></span><span style="display:flex;"><span>	c.stack = <span style="font-weight:bold;font-style:italic">append</span>(c.stack, elemRef{page: p, node: n, index: 0})
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 移动到当前的第一个元素</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// first函数做的事情：从树顶端开始，从最左边一直往下遍历到叶子节点为止</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 因为B树是中序遍历的，所以最左边的节点数据最小</span>
+</span></span><span style="display:flex;"><span>	c.<span style="color:#666;font-weight:bold;font-style:italic">first</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// If we land on an empty page then move to the next value.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// https://github.com/boltdb/bolt/issues/450</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 如果没有元素，就移动到下一个元素</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> c.stack[<span style="font-weight:bold;font-style:italic">len</span>(c.stack)-1].<span style="color:#666;font-weight:bold;font-style:italic">count</span>() == 0 {
+</span></span><span style="display:flex;"><span>		c.<span style="color:#666;font-weight:bold;font-style:italic">next</span>()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 拿到k、v、flags</span>
+</span></span><span style="display:flex;"><span>	k, v, flags := c.<span style="color:#666;font-weight:bold;font-style:italic">keyValue</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 如果是子bucket，就返回k以及nil</span>
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> (flags &amp; <span style="font-weight:bold;font-style:italic">uint32</span>(bucketLeafFlag)) != 0 {
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">return</span> k, <span style="font-weight:bold;text-decoration:underline">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span> k, v
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// first moves the cursor to the first leaf element under the last page in the stack.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 找到stack最后一个页面中的第一个叶子节点</span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (c *Cursor) <span style="color:#666;font-weight:bold;font-style:italic">first</span>() {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">for</span> {	<span style="color:#888;font-style:italic">// 找到最左边第一个叶子节点</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// Exit when we hit a leaf page.</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 每次循环取出最后一个元素</span>
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> ref = &amp;c.stack[<span style="font-weight:bold;font-style:italic">len</span>(c.stack)-1]
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> ref.<span style="color:#666;font-weight:bold;font-style:italic">isLeaf</span>() {	<span style="color:#888;font-style:italic">// 如果是叶子节点就退出循环，即这个循环终止的条件是向下一直找到叶子节点为止</span>
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">break</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// Keep adding pages pointing to the first element to the stack.</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 根据ref.index拿到pgid</span>
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> pgid pgid
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> ref.node != <span style="font-weight:bold;text-decoration:underline">nil</span> {
+</span></span><span style="display:flex;"><span>			pgid = ref.node.inodes[ref.index].pgid
+</span></span><span style="display:flex;"><span>		} <span style="font-weight:bold;text-decoration:underline">else</span> {
+</span></span><span style="display:flex;"><span>			pgid = ref.page.<span style="color:#666;font-weight:bold;font-style:italic">branchPageElement</span>(<span style="font-weight:bold;font-style:italic">uint16</span>(ref.index)).pgid
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 拿到对应的page、node</span>
+</span></span><span style="display:flex;"><span>		p, n := c.bucket.<span style="color:#666;font-weight:bold;font-style:italic">pageNode</span>(pgid)
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 放到栈顶，注意这里的index是0</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 即向下查找的时候取的都是最左边的节点</span>
+</span></span><span style="display:flex;"><span>		c.stack = <span style="font-weight:bold;font-style:italic">append</span>(c.stack, elemRef{page: p, node: n, index: 0})
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

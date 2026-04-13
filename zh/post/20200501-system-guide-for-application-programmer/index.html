@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    《面向应用开发者的系统指南》导论 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20200501-system-guide-for-application-programmer/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20200501-system-guide-for-application-programmer/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《面向应用开发者的系统指南》导论">
+  <meta property="og:description" content="导论 # 我想整理这份文档很久了。
+做为一个主要工作在应用层、用户态的开发者，我看了不少的所谓“内核资料”。我身边不少与我相似工作背景的人，也在不停的看“内核”、写各种内核代码分析。另一方面，在遇到很多系统方面的知识时，并没有太多能够系统解答这部分内容的地方，比如如下几个问题：
+free命令中的buffer和cache分别是什么？ uptime命令中显示的数据来源是什么？ 用户态进程的CPU时间，都由哪些部分组成？ … 这就是这两个维度层面的断档：内核资料大部分是写给在内核态工作的人看的，并没有从用户态的角度去解释一些系统相关的概念，导致了用户态开发者看各种内核文档时云里雾里，最后并没有给自己理解和解决系统问题带来太多的帮助。
+所以，我想从应用开发者的角度，抽出系统中最重要的那些概念，结合一些不那么复杂的内核代码解读（毕竟复杂的我也不会）、相关命令指标的数据来源（比如前面的free命令）、systemtap脚本等等手段，帮助工作在Linux上的应用开发者来更好的理解系统。
+如果打一个可能不是很恰当的比方，内核文档在我看来就是写给数学系的《数学分析》，但是工科学生并不需要了解的过于深入，他们需要的是一本面向工科生、实际解决他们遇到的问题的《高等数学》即可。
+这份文档就想能够写一本给应用开发者的“《高等数学》”，最后完成时，不一定能尽善尽美，但是希望能打开一扇窗户：应用开发者不应该在过多的内核细节中深入，而是应该从自己遇到的问题出发，带着问题抽丝剥茧在内核中去掉不重要的细节，寻找自己问题的答案。
+这份文档将逐渐更新（希望最后不会太监），将主要分为CPU篇、内存篇、IO篇，本来还应该有个网络篇，不过我还是先完成前面这个小目标再继续吧。
+本文档基于Ubuntu16、内核版本4.15进行讲解，但是其中大部分的概念、内容应该都不会随着版本有太大的变动。
+今后的文档，将更新到下面这个目录中。
+目录 # 基础篇 # 因为后续会使用systemtap脚本来理解内核的一些行为，所以systemtap的相关的原理和使用放在基础篇中
+通过实例快速入门Systemtap Systemtap中内核trace事件的实现 CPU篇 # 进程 进程调度 使用systemtap分析进程的行为 系统调用 软中断 内存篇 # IO篇 #">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-05-01T21:43:43+08:00">
+    <meta property="article:modified_time" content="2020-05-01T21:43:43+08:00">
+    <meta property="article:tag" content="Linux系统">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《面向应用开发者的系统指南》导论</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-05-01T21:43:43&#43;08:00">2020年5月1日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="导论">
+  导论
+  <a class="anchor" href="#%e5%af%bc%e8%ae%ba">#</a>
+</h1>
+<p>我想整理这份文档很久了。</p>
+<p>做为一个主要工作在应用层、用户态的开发者，我看了不少的所谓“内核资料”。我身边不少与我相似工作背景的人，也在不停的看“内核”、写各种内核代码分析。另一方面，在遇到很多系统方面的知识时，并没有太多能够系统解答这部分内容的地方，比如如下几个问题：</p>
+<ul>
+<li><code>free</code>命令中的<code>buffer</code>和<code>cache</code>分别是什么？</li>
+<li><code>uptime</code>命令中显示的数据来源是什么？</li>
+<li>用户态进程的CPU时间，都由哪些部分组成？</li>
+<li>&hellip;</li>
+</ul>
+<p>这就是这两个维度层面的断档：内核资料大部分是写给在内核态工作的人看的，并没有从用户态的角度去解释一些系统相关的概念，导致了用户态开发者看各种内核文档时云里雾里，最后并没有给自己理解和解决系统问题带来太多的帮助。</p>
+<p>所以，我想从应用开发者的角度，抽出系统中最重要的那些概念，结合一些不那么复杂的内核代码解读（毕竟复杂的我也不会）、相关命令指标的数据来源（比如前面的<code>free</code>命令）、<code>systemtap</code>脚本等等手段，帮助工作在Linux上的应用开发者来更好的理解系统。</p>
+<p>如果打一个可能不是很恰当的比方，内核文档在我看来就是写给数学系的《数学分析》，但是工科学生并不需要了解的过于深入，他们需要的是一本面向工科生、实际解决他们遇到的问题的《高等数学》即可。</p>
+<p>这份文档就想能够写一本给应用开发者的“《高等数学》”，最后完成时，不一定能尽善尽美，但是希望能打开一扇窗户：应用开发者不应该在过多的内核细节中深入，而是应该从自己遇到的问题出发，带着问题抽丝剥茧在内核中去掉不重要的细节，寻找自己问题的答案。</p>
+<p>这份文档将逐渐更新（希望最后不会太监），将主要分为CPU篇、内存篇、IO篇，本来还应该有个网络篇，不过我还是先完成前面这个小目标再继续吧。</p>
+<p>本文档基于Ubuntu16、内核版本4.15进行讲解，但是其中大部分的概念、内容应该都不会随着版本有太大的变动。</p>
+<p>今后的文档，将更新到下面这个目录中。</p>
+<h1 class="heading" id="目录">
+  目录
+  <a class="anchor" href="#%e7%9b%ae%e5%bd%95">#</a>
+</h1>
+<h2 class="heading" id="基础篇">
+  基础篇
+  <a class="anchor" href="#%e5%9f%ba%e7%a1%80%e7%af%87">#</a>
+</h2>
+<p>因为后续会使用<code>systemtap</code>脚本来理解内核的一些行为，所以<code>systemtap</code>的相关的原理和使用放在基础篇中</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20200128-systemtap-by-example/">通过实例快速入门Systemtap</a></li>
+<li><a href="https://www.codedump.info/post/20200218-linux-traceevent/">Systemtap中内核trace事件的实现</a></li>
+</ul>
+<h2 class="heading" id="cpu篇">
+  CPU篇
+  <a class="anchor" href="#cpu%e7%af%87">#</a>
+</h2>
+<ul>
+<li><a href="https://www.codedump.info/post/20200502-sgfap-process/">进程</a></li>
+<li><a href="https://www.codedump.info/post/20200503-sgfap-process-schedule/">进程调度</a></li>
+<li><a href="https://www.codedump.info/post/20200503-sgfap-process-systemtap/">使用systemtap分析进程的行为</a></li>
+<li><a href="https://www.codedump.info/post/20200516-sgfap-syscall/">系统调用</a></li>
+<li><a href="https://www.codedump.info/post/20200522-sgfap-softirq/">软中断</a></li>
+</ul>
+<h2 class="heading" id="内存篇">
+  内存篇
+  <a class="anchor" href="#%e5%86%85%e5%ad%98%e7%af%87">#</a>
+</h2>
+<h2 class="heading" id="io篇">
+  IO篇
+  <a class="anchor" href="#io%e7%af%87">#</a>
+</h2>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

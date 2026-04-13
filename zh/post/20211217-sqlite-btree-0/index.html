@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="sqlite3.36版本 btree实现（零）- 起步及概述"/>
+
+
+
+<title>
+    
+    sqlite3.36版本 btree实现（零）- 起步及概述 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20211217-sqlite-btree-0/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20211217-sqlite-btree-0/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="sqlite3.36版本 btree实现（零）- 起步及概述">
+  <meta property="og:description" content="sqlite3.36版本 btree实现（零）- 起步及概述">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-12-17T10:19:05+08:00">
+    <meta property="article:modified_time" content="2021-12-17T10:19:05+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Sqlite">
+    <meta property="article:tag" content="Btree">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">sqlite3.36版本 btree实现（零）- 起步及概述</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-12-17T10:19:05&#43;08:00">2021年12月17日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <p>《sqlite3.36版本 btree实现》系列文章：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20211217-sqlite-btree-0/">sqlite3.36版本 btree实现（零）- 起步及概述 - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20211217-sqlite-btree-1-pagecache/">sqlite3.36版本 btree实现（一）- 管理页面缓存 - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20211218-sqlite-btree-2-concurrency-control/">sqlite3.36版本 btree实现（二）- 并发控制框架 - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20211222-sqlite-btree-3-journal/">sqlite3.36版本 btree实现（三）- journal文件备份机制 - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20220106-sqlite-btree-4-wal/">sqlite3.36版本 btree实现（四）- WAL的实现 - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20220201-sqlite-btree-5-btree/">sqlite3.36版本 btree实现（五）- Btree的实现 - codedump的网络日志</a></li>
+</ul>
+<h1 class="heading" id="起步">
+  起步
+  <a class="anchor" href="#%e8%b5%b7%e6%ad%a5">#</a>
+</h1>
+<p>在去年大体把btree以及b+tree算法流程研究了之后，我写了两篇博客：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20200609-btree-1/">B树、B+树索引算法原理（上） - codedump的网络日志</a></li>
+<li><a href="https://www.codedump.info/post/20200615-btree-2/">B树、B+树索引算法原理（下） - codedump的网络日志</a></li>
+</ul>
+<p>（鉴于b+tree只是btree的一个特例，下面描述将仅使用“btree”，不再严格区分两者。）</p>
+<p>但是，这两篇文章仅仅只是让我懂得了最基本的原理。懂得原理，只是能做出toy级别的实现，拿btree类的存储引擎来说，要做到生产级产品，至少还有以下几个问题我当时不知道怎么做的：</p>
+<ul>
+<li>如何处理不同大小的数据的存储？</li>
+<li>删除一个数据之后，如何复用其留下的空间？</li>
+<li>错误、崩溃恢复怎么做？</li>
+<li>跟磁盘文件是如何交互的？</li>
+<li>页面缓存模块如何实现？</li>
+</ul>
+<p>等等等等，还有太多我还没有弄清楚的实现细节。</p>
+<p>（我甚至还在微博上发问，得到了两个质量很高的回答，见本文最后的<a href="https://www.codedump.info/post/20211217-sqlite-btree-0/#%E5%BD%A9%E8%9B%8B">彩蛋部分</a>。）</p>
+<p>对LSM类存储引擎有了解的人都知道，Leveldb这个项目在LSM领域属于入门级别的生产级实现，即这个领域最精简、但是又能放心在某些要求不高的场景下用于生产的项目。在这之后，我一直在找那种btree领域的“leveldb”，很遗憾一直都没有找到，我分别看了目前WiredTiger、innodb、sqlite的对应实现，都太复杂了，看不下去。</p>
+<p>直到有一天，无意间发现了这个项目：<a href="https://github.com/madushadhanushka/simple-sqlite">madushadhanushka/simple-sqlite: Code reading for sqlite backend</a>，看介绍，作者把sqlite2.5里b-tree相关的部分代码抽取出来了，我编译运行了一下用例都能正常跑，代码量不过几千行，我只花了几天就看完了。</p>
+<p>虽然按照<a href="https://www.sqlite.org/changes.html">Release History Of SQLite</a>上的记载，sqlite 2.5版本是2002年的版本了，但是这个版本还是某种程度回答了我在上面的疑问。</p>
+<p>趁热打铁，我又找来更新一些的sqlite 3.6.10代码继续看这部分的实现，这次花了更多的时间才看完，但是又增强了我的信心。由于这个版本的sqlite，还未实现btree的wal，还只是用了journal文件来做崩溃恢复（无论wal还是journal，都会在后面文章展开详细讨论），所以在有足够的信心之后，我接下来又继续看当时（2021.10月份）最新的sqlite 3.36版本的实现，这部分的实现对比3.6.10来说，在btree部分最大的变化就是多了wal的实现，在已经清楚3.6.10的前提下，再增加了解这部分的实现，也并不是什么难事了。</p>
+<p>以上，简单描述了我探索一个生产级btree实现的初过程，btree类存储引擎的实现博大精深，更复杂者还有很多（WiredTiger、innodb、tokudb&hellip;），但是无疑从低版本sqlite开始的探索流程，终于让我打开了走上这条路的一扇大门。</p>
+<p>本系列文章就sqlite 3.36版本的btree实现展开描述，希望对那些和我一样对“生产级btree类存储引擎实现”有好奇心的人有一点帮助。</p>
+<p>当然，如果你还是觉得吃力，可以先从<a href="https://github.com/madushadhanushka/simple-sqlite">madushadhanushka/simple-sqlite: Code reading for sqlite backend</a>这里看起。这里并不建议对btree原理没有了解的人直接上手sqlite的实现，如果需要了解原理请参考相关文章或者我上面给出的我写的两篇博客。这系列文章中，将不再对btree原理做过多描述，将假设读者已经了解这部分内容。</p>
+<h1 class="heading" id="sqlite的btree架构概述">
+  sqlite的btree架构概述
+  <a class="anchor" href="#sqlite%e7%9a%84btree%e6%9e%b6%e6%9e%84%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>下面简单描述一下sqlite的btree架构，从高往低大体分为以下几个部分：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="btree架构" src="/media/imgs/20211217-sqlite-btree-0/btree-arch.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> btree架构 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>这三部分架构，由下往上依次是：</p>
+<ul>
+<li>
+<p>系统级API的实现：因为sqlite是一个可以在多个平台编译运行的数据库，所以系统级API这一层，需要解决平台相关的文件IO、锁等问题。这部分实现，将不在这系列文章中介绍，因为并不属于数据库实现时的核心问题。</p>
+</li>
+<li>
+<p>页面管理模块：btree存储引擎，其操作文件的最基本单位就是页面。页面管理模块解决以下的问题：对上层的btree模块，暴露针对页面读、写的接口，内部会缓存页面的内容，何时将修改的页面（所谓脏页面，dirty page）落盘到磁盘，是否需要sync修改，崩溃或者重启时的数据恢复，这些都不需要上层的btree模块关心。为了达到这些效果，内部还有几个子模块：</p>
+<ul>
+<li>
+<p>页面缓存模块：用于缓存页面的内存有限，何时淘汰缓存中的页面、何时将缓存中的脏页面落盘，等等都由这个模块负责。</p>
+</li>
+<li>
+<p>页面备份：从上面的描述可以看到，因为页面的修改并不一定马上落盘，而是可能只是修改了缓存中的页面，这样在系统发生崩溃的时候，需要做恢复操作，一些没有完成的事务需要回滚，等等。这部分页面管理模块由两种不同的实现：</p>
+<ul>
+<li>journal文件：这是早期，但是效率并不高的实现。</li>
+<li>WAL文件：这是从3.7之后引入的更高效的方式。</li>
+</ul>
+</li>
+<li>
+<p>事务：事务处理也放在了页面管理中。</p>
+</li>
+</ul>
+</li>
+<li>
+<p>btree：基于页面管理模块之上，实现了可以存储可变数据的btree模块。</p>
+</li>
+</ul>
+<p>可以这样来简单区别理解“页面管理”模块和btree模块的功能：</p>
+<ul>
+<li>
+<p>页面管理：顾名思义，页面管理模块的最基本单位是”页面“，页面的读、写、缓存、落盘、恢复、回滚等，都由页面模块负责。上一层依赖页面管理模块的btree模块，不需要关心一个页面何时缓存、何时落盘等细节。即：<strong>页面模块负责页面的物理级别的操作</strong>。</p>
+</li>
+<li>
+<p>btree：</p>
+<ul>
+<li>负责按照btree算法，来组织页面，即负责的是页面之间逻辑关系维护。</li>
+<li>除此以外，一个页面内部的数据的物理、逻辑组织，也是btree模块来负责的。</li>
+</ul>
+<p>即：<strong>btree负责维护页面间的逻辑关系，以及一个页面内数据的组织。</strong></p>
+</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="以页面物理、逻辑关系的维护看模块划分" src="/media/imgs/20211217-sqlite-btree-0/page-module.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 以页面物理、逻辑关系的维护看模块划分 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>从上面的分析可以看出来，“页面管理模块”无疑是这里最大最复杂的部分，Andy Pavlo在CMU 15445课程中提到过：任何用<code>mmap</code>来做页面管理的做法都是很糟糕的做法（如boltdb、LMDB等）。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="mmap" src="/media/imgs/20211217-sqlite-btree-0/mmap.jpeg" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> mmap </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>这系列的文章，也将按照这个顺序，从下往上逐层分析sqlite的3.36版本的btree实现。</p>
+<h1 class="heading" id="彩蛋">
+  彩蛋
+  <a class="anchor" href="#%e5%bd%a9%e8%9b%8b">#</a>
+</h1>
+<p>2021年9月5日，我在微博上就处理崩溃恢复的实现，提了一个问题：</p>
+<blockquote>
+<p>那些很成熟的存储引擎，都是怎么处理崩溃恢复问题的呢，比如写数据落盘到一半，进程崩了，该如何恢复呢？求资料和指点。 ​</p></blockquote>
+<p>（见：<a href="https://weibo.com/1642628345/KwKqNgScT">那些很成熟的存储引擎&hellip; - @玩家老C的微博 - 微博</a>）</p>
+<p>得到了两个很不错的指点回复：</p>
+<h2 class="heading" id="ba0tiao的回复">
+  ba0tiao的回复
+  <a class="anchor" href="#ba0tiao%e7%9a%84%e5%9b%9e%e5%a4%8d">#</a>
+</h2>
+<blockquote>
+<p>做InnoDB 这块挺久了, 我试试说说 InnoDB 是怎么做的吧..</p>
+<p>其实你这里应该细分成两个问题</p>
+<ol>
+<li>16kb 的page 写入的原子性该如何保证</li>
+<li>Btree 结构的完整性如何保证, 也就是你说的修改了n个页面以后如果修改了父子, 兄弟关系以后, 如果解决中间的crash 的问题</li>
+</ol>
+<p>问题1 是通过double write buffer 来解决的, 因为InnoDB 的page 大小是16kb, 很多文件系统只能保证4kb 大小写入的原子性, 因此需要写入前先将page 的内容写入到double write buffer 来保证, 如果写入失败也不会将原有page 的内容覆盖.</p>
+<p>问题2 是通过redo log + mtr(mini transaction) 进行保证.</p>
+<p>InnoDB 里面的redo log 是由mtr 组成, mtr 是修改btree 的最小单位. 每次写入redo log 的时候必须是一个完整的mtr 的内容, 具体实现方式是mtr 会有MULTI_REC_END 标记, 在crash recovery 的时候, 如果读取到mtr 的内容没有MULTI_REC_END 标记, 那么则会认为这个mtr 不完整, 就会把这段mtr 抛弃.</p>
+<p>那么是不是一次insert 操作产生的redo log 都包含在一个mtr 里面呢?</p>
+<p>不是的.</p>
+<p>我们知道在btree 里面对page 的修改都需要对page 加锁, 从fsp 模块分配一个new page 也需要对root page 进行加锁等等. 所以InnoDB 的mtr 里面自然就包含对锁的操作, 因此要修改某一个page 的时候, mtr begin 的时候会对该page 加锁, 然后写入修改的内容, 然后mtr commit 的时候, 对于修改的page 的锁就可以释放了.</p>
+<p>如果整个insert 的过程都放在一个mtr 里面做, 那也是可以的, 也就是对于所有page 的latch 都是一开始持有, 最后的时候在释放, 就算后续这个page 已经不再修改了, 也依然要一直持有. 很容易理解这样并发自然就降低下来的, 因此在InnoDB 设计里面, mtr 的粒度是尽可能小的. 修改完page 就应该尽快的commit, 然后将page lock 释放. 但是又需要保证每一次的mtr 操作前和操作后btree 的完整性.</p>
+<p>体现具体的例子就是, InnoDB里面对于一个简单的insert 操作, 其实是有非常多个mtr 组成, 尽可能减少持有锁的时间.</p>
+<p>但是在做btree 分裂操作的时候, 分配新的page, 将之前page一半的数据迁移到new page 是在一个mtr 里面完成, 但是后续具体的insert 操作是在另外一个mtr 里面完成的. 那么如果在做分裂操作过程中crash, 那么这个分裂操作是不会完成的, 如果在分裂操作完成以后, insert 之前crash, 那么btree 是已经分裂过的, 只是数据没有插入了.</p>
+<p>当然这里会有你说的更复杂的设计的父节点 and 父节点的父节点的分裂, 那么自然持有锁的时间就更长了, 但是在我们在这里是做的一些优化.</p>
+<p>还有一些比如InnoDB redo log 是&quot;physical to a page, logical within a page&quot; 就是解决我们上面说的如果分裂操作成功了, 但是这个事务要回滚, 这个时候该如何处理等等..</p>
+<p>具体的内容其实这些文章里面都有</p>
+<ol>
+<li>C. Mohan, Don Handerle. ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging.</li>
+<li>C. Mohan, Frank Levine. ARIES/lM: An Efficient and High Concurrency index Management Method Using Write-Ahead Logging.</li>
+<li>Goetz Graefe. A Survey of B-Tree Logging and Recovery Techniques.</li>
+<li>Goetz Graefe. A Survey of B-Tree Locking Techniques.</li>
+</ol>
+<p>对了Goetz Graefe 号称Btree 守护神</p></blockquote>
+<p>（见：<a href="https://weibo.com/1832563813/KwRpIxunM">做InnoDB 这块&hellip; - @ba0tiao的微博 - 微博</a>）</p>
+<p>注：</p>
+<ul>
+<li><code>ba0tiao</code>应该是阿里云负责PolarDB开发的资深开发。</li>
+<li>他的博客是：<a href="http://baotiao.github.io/">baotiao</a></li>
+<li>知乎专栏：<a href="https://www.zhihu.com/column/360infra">MySQL内核揭秘 - 知乎</a></li>
+</ul>
+<h2 class="heading" id="bohutang的回复">
+  BohuTANG的回复
+  <a class="anchor" href="#bohutang%e7%9a%84%e5%9b%9e%e5%a4%8d">#</a>
+</h2>
+<blockquote>
+<p>可以深入一点：如果每次写的log都在，怎么做到基于这些log做回放的问题？其实就是redo-log +checkpoint+ LSM的机制。redo解决数据不丢，checkpoint解决recovery的时候扫描的redo尽量少，LSM解决每次写入后新的page不会覆盖老的数据，这类实现是比较简单可行，也是目前的主流做法</p></blockquote>
+<p>（见：<a href="https://weibo.com/1691468715/KwT2GdDfu">可以深入一点：如果每&hellip; - @BohuTANG的微博 - 微博</a>）</p>
+<p>以及：</p>
+<blockquote>
+<p>目前大部分理论都参考于这篇 ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging – Mohan et al. 1992</p></blockquote>
+<p>（见：<a href="https://weibo.com/1691468715/Kx3yAhFKj">目前大部分理论都参考&hellip; - @BohuTANG的微博 - 微博</a>）</p>
+<p>注：</p>
+<ul>
+<li>BohuTANG已经在数据库领域沉浸多年，前阿里云数据库内核组早期成员、前青云数据库团队负责人。现在数据库领域创业，公司的项目是：<a href="https://github.com/datafuselabs/databend">datafuselabs/databend</a>，欢迎围观。</li>
+<li>博客地址：<a href="https://bohutang.me/">[ 虎哥的博客 ]</a></li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="Etcd Raft库的日志存储"/>
+
+
+
+<title>
+    
+    Etcd Raft库的日志存储 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20210628-etcd-wal/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20210628-etcd-wal/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Etcd Raft库的日志存储">
+  <meta property="og:description" content="Etcd Raft库的日志存储">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2021-06-28T17:01:53+08:00">
+    <meta property="article:modified_time" content="2021-06-28T17:01:53+08:00">
+    <meta property="article:tag" content="Etcd">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20210628-etcd-wal/">Etcd Raft库的日志存储</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Etcd Raft库的日志存储</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2021-06-28T17:01:53&#43;08:00">2021年6月28日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>之前看etcd raft实现的时候，由于wal以及日志的落盘存储部分，没有放在raft模块中，对这部分没有扣的特别细致。而且，以前我的观点认为etcd raft把WAL这部分留给了上层的应用去实现，自身通过<code>Ready</code>结构体来通知应用层落盘的数据，这个观点也有失偏颇，etcd只是没有把这部分代码放在raft模块中，属于代码组织的范畴问题，并不是需要应用层自己来实现。</p>
+<p>于是，决定专门写一篇文章把这部分内容给讲解一下，主要涉及以下内容：</p>
+<ul>
+<li>日志（包括快照）文件的格式。</li>
+<li>日志（包括快照）内容的落盘、恢复。</li>
+</ul>
+<p>以前的系列文章可以在下面的链接中找到，本文不打算过多重复原理性的内容：</p>
+<ul>
+<li><a href="https://www.codedump.info/post/20180921-raft/">Raft算法原理</a></li>
+<li><a href="https://www.codedump.info/post/20180922-etcd-raft/">etcd Raft库解析</a></li>
+<li><a href="https://www.codedump.info/post/20181125-etcd-server/">Etcd存储的实现</a></li>
+<li><a href="https://www.codedump.info/post/20210515-raft/">Etcd Raft库的工程化实现 - codedump的网络日志</a></li>
+</ul>
+<h1 class="heading" id="wal及快照文件格式">
+  WAL及快照文件格式
+  <a class="anchor" href="#wal%e5%8f%8a%e5%bf%ab%e7%85%a7%e6%96%87%e4%bb%b6%e6%a0%bc%e5%bc%8f">#</a>
+</h1>
+<p>首先来讲解这两种文件的格式，了解了格式才能继续展开下面的讲述。</p>
+<h2 class="heading" id="wal文件格式">
+  WAL文件格式
+  <a class="anchor" href="#wal%e6%96%87%e4%bb%b6%e6%a0%bc%e5%bc%8f">#</a>
+</h2>
+<p>wal文件的文件名格式为：seq-index.wal（见函数<code>walName</code>）。其中：</p>
+<ul>
+<li>seq：序列号，从0开始递增。</li>
+<li>index：该wal文件存储的第一条日志数据的索引。</li>
+</ul>
+<p>因此，如果将一个目录下的所有wal文件按照名称排序之后，给定一个日志索引，很快就能知道该索引的日志落在哪个wal文件之中的。</p>
+<p>WAL文件中每条记录的格式如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Record</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">int64</span> type  = 1 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint32</span> crc  = 2 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">bytes</span> data  = 3;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><ul>
+<li>type：记录的类型，下面解释。</li>
+<li>crc：后面data部分数据的crc32校验值。</li>
+<li>data：数据部分，根据类型的不同有不同格式的数据。</li>
+</ul>
+<p>记录数据的类型如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">const</span> (
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 以下是WAL存放的数据类型</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 元数据</span>
+</span></span><span style="display:flex;"><span>	metadataType <span style="font-weight:bold;text-decoration:underline">int64</span> = <span style="font-weight:bold;text-decoration:underline">iota</span> + 1
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 日志数据</span>
+</span></span><span style="display:flex;"><span>	entryType
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 状态数据</span>
+</span></span><span style="display:flex;"><span>	stateType
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 校验初始值</span>
+</span></span><span style="display:flex;"><span>	crcType
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 快照数据</span>
+</span></span><span style="display:flex;"><span>	snapshotType
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><p>下面展开解释。</p>
+<h3 class="heading" id="元数据">
+  元数据
+  <a class="anchor" href="#%e5%85%83%e6%95%b0%e6%8d%ae">#</a>
+</h3>
+<p>元数据就是应用层自定义的数据，需要注意的是，一个服务中如果有多个wal文件，且这些文件中有多份元数据，那么这些元数据都必须一致，否则报错。</p>
+<p>对于etcd这个服务而言，存储的元数据就是节点ID以及集群ID：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span>	metadata := pbutil.<span style="color:#666;font-weight:bold;font-style:italic">MustMarshal</span>(
+</span></span><span style="display:flex;"><span>		&amp;pb.Metadata{
+</span></span><span style="display:flex;"><span>			NodeID:    <span style="font-weight:bold;font-style:italic">uint64</span>(member.ID),
+</span></span><span style="display:flex;"><span>			ClusterID: <span style="font-weight:bold;font-style:italic">uint64</span>(cl.<span style="color:#666;font-weight:bold;font-style:italic">ID</span>()),
+</span></span><span style="display:flex;"><span>		},
+</span></span><span style="display:flex;"><span>	)
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> w, err = wal.<span style="color:#666;font-weight:bold;font-style:italic">Create</span>(cfg.<span style="color:#666;font-weight:bold;font-style:italic">WALDir</span>(), metadata); err != <span style="font-weight:bold;text-decoration:underline">nil</span> {
+</span></span><span style="display:flex;"><span>		plog.<span style="color:#666;font-weight:bold;font-style:italic">Fatalf</span>(<span style="color:#666;font-style:italic">&#34;create wal error: %v&#34;</span>, err)
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><h3 class="heading" id="日志数据">
+  日志数据
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e6%95%b0%e6%8d%ae">#</a>
+</h3>
+<p>日志数据的格式，就是<code>raft.proto</code>中<code>Entry</code>的格式：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Entry</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span>     Term  = 2 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>]; <span style="color:#888;font-style:italic">// must be 64-bit aligned for atomic operations
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span>     Index = 3 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>]; <span style="color:#888;font-style:italic">// must be 64-bit aligned for atomic operations
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> EntryType  Type  = 1 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">bytes</span>      Data  = 4;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><h3 class="heading" id="状态数据">
+  状态数据
+  <a class="anchor" href="#%e7%8a%b6%e6%80%81%e6%95%b0%e6%8d%ae">#</a>
+</h3>
+<p>保存当前“硬状态（HardState）”的记录，HardState包括：当前任期号、当前给哪个节点ID投票、当前提交的最大日志索引。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">HardState</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> term   = 1 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> vote   = 2 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> commit = 3 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><h3 class="heading" id="校验初始值">
+  校验初始值
+  <a class="anchor" href="#%e6%a0%a1%e9%aa%8c%e5%88%9d%e5%a7%8b%e5%80%bc">#</a>
+</h3>
+<p>校验数据这一块，挺有意思的，可以展开好好说一下。</p>
+<p>使用CRC算法来计算数据的校验值，除了需要原始数据之外，还需要一个校验初始值（即校验种子seed），在每个wal文件中，类型为<code>校验初始值</code>的记录就用于存储这个值。其值和使用方式有以下几点需要注意：</p>
+<ul>
+<li>每个wal文件必须有<code>校验初始值</code>类型的数据，后续所有写入该wal文件的记录，都使用该初始值来计算CRC校验值。</li>
+<li>第一个wal文件，即序列号为0的wal文件，其校验初始值为0（见wal.go的Create函数）。</li>
+<li>当生成下一个wal文件时，以上一个wal文件的最后一条日志数据的CRC校验码来做为该文件的校验初始值，这样就要求类型为<code>校验初始值</code>的记录，必须存储在同一个wal文件中第一条日志数据的前面，否则计算出来该日志数据的crc校验码就不准。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="wal文件的校验初始值" src="/media/imgs/20210628-etcd-wal/wal-crc.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> wal文件的校验初始值 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可以看到，通过这个机制，将多个连续的wal文件“串联”了起来：使用上一个wal文件的最后一个日志数据的crc校验值，来做为下一个wal文件的校验初始值，可以有效的校验同一个项目中wal文件的正确性。</p>
+<h3 class="heading" id="快照数据">
+  快照数据
+  <a class="anchor" href="#%e5%bf%ab%e7%85%a7%e6%95%b0%e6%8d%ae">#</a>
+</h3>
+<p>在wal文件中存储的快照数据类型的记录，其中仅存储了当前快照的索引和任期号，而快照的详细数据都放到快照数据文件中存储，下面讲到数据恢复时再展开讨论这部分内容：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Snapshot</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> index = 1 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> term  = 2 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><h2 class="heading" id="快照文件格式">
+  快照文件格式
+  <a class="anchor" href="#%e5%bf%ab%e7%85%a7%e6%96%87%e4%bb%b6%e6%a0%bc%e5%bc%8f">#</a>
+</h2>
+<p>快照文件的文件名格式为：任期号-索引号.snap（见函数<code>Snapshotter::save</code>）。每次来一个快照数据，都新建一个快照文件，文件中存储快照数据的格式为：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">snapshot</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">uint32</span> crc  = 1 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">bytes</span> data  = 2;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><p>即：只存储快照数据及其校验值，数据的具体格式由存储快照数据的使用方来解释。在etcd这个服务里，这份快照数据的格式就是：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Snapshot</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> <span style="font-weight:bold;text-decoration:underline">bytes</span>            data     = 1;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>	<span style="font-weight:bold;text-decoration:underline">optional</span> SnapshotMetadata metadata = 2 [(gogoproto.nullable) = <span style="font-weight:bold;text-decoration:underline">false</span>];<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><h1 class="heading" id="数据恢复流程">
+  数据恢复流程
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e6%81%a2%e5%a4%8d%e6%b5%81%e7%a8%8b">#</a>
+</h1>
+<p>日志、快照数据的落盘，都是为了重启时恢复数据，了解了上面wal以及快照文件的格式，可以来看看数据的恢复流程。</p>
+<p>其大体流程如下:</p>
+<ul>
+<li>到快照目录中取出最新的一份无错的快照文件，首先取出这个文件中存储的快照数据。（见函数<code>Snapshotter::Load</code>）</li>
+<li>此时，从快照数据中可以反序列化出：快照数据、对应的任期号、索引号。</li>
+<li>根据第二步拿到的快照数据，到wal目录中拿到日志索引号在快照数据索引号之后的日志，遍历满足条件的记录进行数据恢复。（见函数<code>WAL::ReadAll</code>）。</li>
+</ul>
+<p>下面具体来看每种wal记录格式数据在进行数据恢复时的流程：</p>
+<ul>
+<li>日志数据：由于还可能存在一小部分小于快照索引的日志，所以恢复时会忽略掉这部分数据。</li>
+<li>状态数据：每一条状态数据都会反序列化出来，以最后一条状态数据为准。</li>
+<li>元数据：前面提到过，同一个服务的元数据必须一致，所以这里会校验元数据前后是否一致，不一致将报错退出数据恢复流程。</li>
+<li>校验初始值数据：可以参见前面关于该类型数据的讲解。</li>
+<li>快照数据：下面详细解释。</li>
+</ul>
+<p>举一个例子来描述前面根据快照文件和WAL文件恢复数据的流程：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL与快照文件关系" src="/media/imgs/20210628-etcd-wal/wal-snap.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL与快照文件关系 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>如上图中：</p>
+<ul>
+<li>快照文件集合为<code>[1-50.snap,1-150.snap]</code>，取最新的快照文件，即<code>1-150.snap</code>，而<code>1-50.snap</code>文件的数据为过期数据。</li>
+<li>由于快照文件中存储的日志索引到150，即在此之前的日志已经全部被压缩到了快照文件中，因此wal文件集合中：
+<ul>
+<li><code>0-100.wal</code>中的数据已经全部被压缩。</li>
+<li><code>1-200.wal</code>中的数据部分被压缩，恢复数据时要忽略日志索引小于150的日志数据。</li>
+<li><code>3-300.wal</code>中的数据都没有被压缩，恢复数据时要如实全部重放该文件的数据。</li>
+</ul>
+</li>
+</ul>
+<p>前面分析快照数据类型的时候，提到过这个类型的数据在wal文件中的记录，只会存储：</p>
+<ul>
+<li>当前快照时对应的任期号。</li>
+<li>当前快照时对应的索引号。</li>
+<li>而具体的快照数据内容存储在快照文件中。</li>
+</ul>
+<p>也就是说，当生成一份新的快照数据时，将会把这份快照数据相关的以上三部分内容存储到wal和快照文件中。</p>
+<p>所以当恢复数据的时候，此时已经反序列化出快照数据了，这时拿着快照数据读wal文件时，如果读到了快照类型的数据，就会去对比起任期号和索引号是否一致，不一致报错停止恢复流程：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">case</span> snapshotType: <span style="color:#888;font-style:italic">// 快照数据</span>
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;font-style:italic;text-decoration:underline">var</span> snap walpb.Snapshot
+</span></span><span style="display:flex;"><span>			pbutil.<span style="color:#666;font-weight:bold;font-style:italic">MustUnmarshal</span>(&amp;snap, rec.Data)
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">if</span> snap.Index == w.start.Index { <span style="color:#888;font-style:italic">// 两者的索引相同</span>
+</span></span><span style="display:flex;"><span>				<span style="font-weight:bold;text-decoration:underline">if</span> snap.Term != w.start.Term { <span style="color:#888;font-style:italic">// 但是任期号不同</span>
+</span></span><span style="display:flex;"><span>					state.<span style="color:#666;font-weight:bold;font-style:italic">Reset</span>()
+</span></span><span style="display:flex;"><span>					<span style="color:#888;font-style:italic">// 返回ErrSnapshotMismatch错误</span>
+</span></span><span style="display:flex;"><span>					<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">nil</span>, state, <span style="font-weight:bold;text-decoration:underline">nil</span>, ErrSnapshotMismatch
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>				<span style="color:#888;font-style:italic">// 保存快照数据匹配的标志位</span>
+</span></span><span style="display:flex;"><span>				match = <span style="font-weight:bold;text-decoration:underline">true</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span></code></pre></div><p>以上，解释清楚了wal、快照文件的格式，以及数据恢复的流程。</p>
+<p>因为wal文件和快照文件的读写，都与磁盘读写相关，所以在etcd服务中，将这两个结构体，统一到<code>etcdserver/storage.go</code>的<code>storage</code>结构体中：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> storage <span style="font-weight:bold;font-style:italic;text-decoration:underline">struct</span> {
+</span></span><span style="display:flex;"><span>	*wal.WAL
+</span></span><span style="display:flex;"><span>	*snap.Snapshotter
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>由<code>storage</code>结构体统一对外提供wal、快照文件的读写接口：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">type</span> Storage <span style="font-weight:bold;font-style:italic;text-decoration:underline">interface</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Save function saves ents and state to the underlying stable storage.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Save MUST block until st and ents are on stable storage.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">Save</span>(st raftpb.HardState, ents []raftpb.Entry) <span style="font-weight:bold;text-decoration:underline">error</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// SaveSnap function saves snapshot to the underlying stable storage.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">SaveSnap</span>(snap raftpb.Snapshot) <span style="font-weight:bold;text-decoration:underline">error</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// DBFilePath returns the file path of database snapshot saved with given</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// id.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">DBFilePath</span>(id <span style="font-weight:bold;text-decoration:underline">uint64</span>) (<span style="font-weight:bold;text-decoration:underline">string</span>, <span style="font-weight:bold;text-decoration:underline">error</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// Close closes the Storage and performs finalization.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#666;font-weight:bold;font-style:italic">Close</span>() <span style="font-weight:bold;text-decoration:underline">error</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>下面，解释一下写wal文件中需要注意的一些细节。</p>
+<h1 class="heading" id="写优化问题">
+  写优化问题
+  <a class="anchor" href="#%e5%86%99%e4%bc%98%e5%8c%96%e9%97%ae%e9%a2%98">#</a>
+</h1>
+<h2 class="heading" id="数据对齐">
+  数据对齐
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e5%af%b9%e9%bd%90">#</a>
+</h2>
+<p>每条写入wal的记录，都会将其大小向上8字节对齐，多出来的部分填零：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> <span style="color:#666;font-weight:bold;font-style:italic">encodeFrameSize</span>(dataBytes <span style="font-weight:bold;text-decoration:underline">int</span>) (lenField <span style="font-weight:bold;text-decoration:underline">uint64</span>, padBytes <span style="font-weight:bold;text-decoration:underline">int</span>) {
+</span></span><span style="display:flex;"><span>	lenField = <span style="font-weight:bold;font-style:italic">uint64</span>(dataBytes)
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// force 8 byte alignment so length never gets a torn write</span>
+</span></span><span style="display:flex;"><span>	padBytes = (8 - (dataBytes % 8)) % 8
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">if</span> padBytes != 0 {
+</span></span><span style="display:flex;"><span>		lenField |= <span style="font-weight:bold;font-style:italic">uint64</span>(0x80|padBytes) &lt;&lt; 56
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">return</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL记录数据需8字节对齐" src="/media/imgs/20210628-etcd-wal/record.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL记录数据需8字节对齐 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="写缓冲区">
+  写缓冲区
+  <a class="anchor" href="#%e5%86%99%e7%bc%93%e5%86%b2%e5%8c%ba">#</a>
+</h2>
+<p>另外，为了缓解写文件的IO负担，etcd做了一个写优化：落盘的数据首先写到一个内存缓冲区中，只有每次填满了一个page的数据才会进行落盘操作。</p>
+<p>etcd中定义了几个常量：</p>
+<ul>
+<li>const minSectorSize = 512</li>
+<li>const walPageBytes = 8 * minSectorSize</li>
+</ul>
+<p>其中：<code>minSectorSize</code>表示一个sector的大小，而<code>walPageBytes</code>必须为<code>minSectorSize</code>的整数倍。</p>
+<p>etcd中定义了一个<code>PageWriter</code>结构体，用于实现写入日志的操作，内部定义了一个循环缓冲区，只有填满一个<code>walPageBytes</code>大小的数据才会进行落盘。</p>
+<p>下图是写入数据落盘后循环缓冲区的变化的示意图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="写入数据落盘后循环缓冲区的变化" src="/media/imgs/20210628-etcd-wal/cyclic-buffer.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 写入数据落盘后循环缓冲区的变化 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<ul>
+<li>黄色方块表示一个page的空闲空间，绿色方块表示待写入数据，红色方块表示当前已经写入数据的缓冲区。</li>
+<li>刚开始，第一个page已经有部分数据写入，还剩余一部分空闲空间。因此，当写入数据时，只会把写入数据凑齐一个页面大小来落盘。</li>
+<li>落盘完毕之后，第一个page重新变成黄色，即空闲页面，而第二个页面存储了写入数据中没有落盘的部分。</li>
+</ul>
+<p>代码流程见函数<code>PageWriter::Write</code>。</p>
+<p>从上面的写入落盘流程可以看到，一次写入的数据可能会有一部分落盘，一部分还在内存中，这样当系统发生宕机这部分数据就是被损坏（corruption）的数据。</p>
+<p>因此，etcd中还需要有办法来识别和恢复数据。</p>
+<h2 class="heading" id="识别部分写入partial-write数据">
+  识别部分写入（partial write）数据
+  <a class="anchor" href="#%e8%af%86%e5%88%ab%e9%83%a8%e5%88%86%e5%86%99%e5%85%a5partial-write%e6%95%b0%e6%8d%ae">#</a>
+</h2>
+<p>函数<code>decoder::isTornEntry</code>用于判断一条记录是否为部分写的损坏数据。</p>
+<p>其原理是：</p>
+<ul>
+<li>每次新创建用于写入记录的wal文件，都会将剩余文件清零。</li>
+<li>读入记录的数据之后，将数据根据不大于每个chunk为<code>minSectorSize</code>大小的方式，存入chunk数组中。</li>
+<li>遍历这些chunk，如果有一个chunk的数据全部是零，则认为这块数据是部分写入的损坏数据。</li>
+</ul>
+<p>这个地方要跟前面落盘流程来对照看：因为每次落盘都是以一个page为单位落盘，而page大小又是<code>minSectorSize</code>的整数倍，因此以<code>minSectorSize</code>为一个chunk的大小来判断是否损坏。</p>
+<h2 class="heading" id="修复wal文件流程">
+  修复wal文件流程
+  <a class="anchor" href="#%e4%bf%ae%e5%a4%8dwal%e6%96%87%e4%bb%b6%e6%b5%81%e7%a8%8b">#</a>
+</h2>
+<p>当进行数据恢复时，可能会出现前面的部分写导致数据损坏问题，etcd会进行如下的修复操作：</p>
+<ul>
+<li>部分写导致数据损坏都只会出现在最后一个wal文件，因此打开最后一个wal文件进行处理（见函数<code>openLast</code>）。</li>
+<li>出现部分写导致损坏的记录，解析过程中都会返回<code>ErrUnexpectedEOF</code>错误，对于这样的文件：
+<ul>
+<li>将损坏的文件重命名为<code>原文件名.broken</code>。</li>
+<li>记录下来最后一个无损记录的偏移量，将损坏之后的数据都截断（Truncate）。</li>
+</ul>
+</li>
+</ul>
+<h2 class="heading" id="只读和只写文件的区别">
+  只读和只写文件的区别
+  <a class="anchor" href="#%e5%8f%aa%e8%af%bb%e5%92%8c%e5%8f%aa%e5%86%99%e6%96%87%e4%bb%b6%e7%9a%84%e5%8c%ba%e5%88%ab">#</a>
+</h2>
+<p>在etcd中，wal文件有两种并不能同时共存的模式：对于同一个wal文件而言，要么处于只读模式，要么处于append写模式，这两种模式不能同时存在。见<code>WAL</code>结构体的注释：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// WAL is a logical representation of the stable storage.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// WAL is either in read mode or append mode but not both.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// A newly created WAL is in append mode, and ready for appending records.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// A just opened WAL is in read mode, and ready for reading records.</span>
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// The WAL will be ready for appending after reading out all the previous records.</span>
+</span></span></code></pre></div><p>根据上面可能使用缓冲区优化写操作可知，两种模式下在读记录时能容忍的错误级别也不一样：</p>
+<ul>
+<li>读模式：读模式下可能读到部分写的数据，所以可以容忍这种错误。</li>
+<li>写模式：写模式下，不能容忍读到部分写的数据。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">switch</span> w.<span style="color:#666;font-weight:bold;font-style:italic">tail</span>() {
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">case</span> <span style="font-weight:bold;text-decoration:underline">nil</span>:
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// We do not have to read out all entries in read mode.</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// The last record maybe a partial written one, so</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// ErrunexpectedEOF might be returned.</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 在只读模式下，可能没有读完全部的记录。最后一条记录可能是只写了一部分，此时就会返回ErrunexpectedEOF错误</span>
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> err != io.EOF &amp;&amp; err != io.ErrUnexpectedEOF { <span style="color:#888;font-style:italic">// 如果不是EOF以及ErrunexpectedEOF错误的情况就返回错误</span>
+</span></span><span style="display:flex;"><span>			state.<span style="color:#666;font-weight:bold;font-style:italic">Reset</span>()
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">nil</span>, state, <span style="font-weight:bold;text-decoration:underline">nil</span>, err
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	<span style="font-weight:bold;text-decoration:underline">default</span>:
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// 写模式下必须读完全部的记录</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#888;font-style:italic">// We must read all of the entries if WAL is opened in write mode.</span>
+</span></span><span style="display:flex;"><span>		<span style="font-weight:bold;text-decoration:underline">if</span> err != io.EOF { <span style="color:#888;font-style:italic">// 如果不是EOF错误，说明没有读完数据就报错了，这种情况也是返回错误</span>
+</span></span><span style="display:flex;"><span>			state.<span style="color:#666;font-weight:bold;font-style:italic">Reset</span>()
+</span></span><span style="display:flex;"><span>			<span style="font-weight:bold;text-decoration:underline">return</span> <span style="font-weight:bold;text-decoration:underline">nil</span>, state, <span style="font-weight:bold;text-decoration:underline">nil</span>, err
+</span></span><span style="display:flex;"><span>		}
+</span></span></code></pre></div><h1 class="heading" id="数据落盘的全流程">
+  数据落盘的全流程
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e8%90%bd%e7%9b%98%e7%9a%84%e5%85%a8%e6%b5%81%e7%a8%8b">#</a>
+</h1>
+<p>以上了解了wal、快照文件的格式，以及写入流程，这里把之前写的不够好的数据落盘流程重新梳理一下。</p>
+<p>在 <a href="https://www.codedump.info/post/20180922-etcd-raft/#%E8%BE%93%E5%85%A5%E5%8F%8A%E8%BE%93%E5%87%BA">etcd Raft库解析 - codedump的网络日志</a>中，曾经指出etcd raft库是通过<code>Ready</code>结构体，来通知应用层的当前的数据的，不清楚的话可以回看一下之前的内容。在这里，只解释该结构体中与数据落盘相关的几个成员的数据走向流程，即日志数据（成员<code>Entries</code>）、快照数据（<code>Snapshot</code>）、已提交日志（<code>CommittedEntries</code>）。</p>
+<h2 class="heading" id="日志数据-1">
+  日志数据
+  <a class="anchor" href="#%e6%97%a5%e5%bf%97%e6%95%b0%e6%8d%ae-1">#</a>
+</h2>
+<p>日志数据从客户端提交到落盘的走向是这样的：</p>
+<ul>
+<li>由客户端提交给服务器（注：只有leader节点才能接收客户端提交的日志数据，其他节点需转发给leader）。</li>
+<li>服务器收到之后，首先调用<code>raftLog.append</code>函数保存到<code>unstable_log</code>中，此时日志还是在内存中的，并未落地。</li>
+<li>通过<code>newReady</code>函数构建<code>Ready</code>结构体时，将上一步保存下来的日志数据保存到<code>Ready</code>结构体的<code>Entries</code>。</li>
+<li>应用层收到<code>Ready</code>结构体之后，调用wal的<code>WAL.Save</code>接口保存日志数据。这一步做完之后，可以认为日志数据已经落盘了。</li>
+<li>由于数据已经落盘到WAL日志中，所以在应用层通过<code>Node.Advance</code>接口回调通知raft库时，暂存在<code>unstable_log</code>中的日志就可以通过函数<code>raftLog.stableTo</code>删除了。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="日志数据从提交到落盘的走向" src="/media/imgs/20210628-etcd-wal/log-flow.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 日志数据从提交到落盘的走向 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="已提交日志">
+  已提交日志
+  <a class="anchor" href="#%e5%b7%b2%e6%8f%90%e4%ba%a4%e6%97%a5%e5%bf%97">#</a>
+</h2>
+<p>raft日志中，需要保存两个日志索引：</p>
+<ul>
+<li>appliedIndex：通知到应用层目前为止最大的日志索引；</li>
+<li>commitIndex：当前已提交日志的最大索引。</li>
+</ul>
+<p>在这里，总有<code>appliedIndex &lt;= commitIndex</code>条件成立，即日志总是先被提交成功（即达成一致），才会通知给应用层。</p>
+<p>通知应用层已提交日志的流程如下：</p>
+<ul>
+<li>调用<code>raftLog.nextEnts()</code>函数获得当前满足<code>appliedIndex &lt;= commitIndex</code>条件的日志，存入到<code>Ready.CommittedEntries</code>通知应用层。</li>
+<li>应用层处理这部分已提交日志。</li>
+<li>调用<code>raftLog.appliedTo()</code>函数，这里会修改<code>appliedIndex = commitIndex</code>，即所有日志都已通知应用层。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="通知应用层已提交日志流程" src="/media/imgs/20210628-etcd-wal/appliedIndex.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 通知应用层已提交日志流程 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h2 class="heading" id="快照数据-1">
+  快照数据
+  <a class="anchor" href="#%e5%bf%ab%e7%85%a7%e6%95%b0%e6%8d%ae-1">#</a>
+</h2>
+<p>快照数据由应用层生成，然后将生成的快照数据、当前appliedIndex、配置状态一起交给存储层，保存之后就可以把在该快照之前的数据给删除了：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">func</span> (rc *raftNode) <span style="color:#666;font-weight:bold;font-style:italic">maybeTriggerSnapshot</span>() {
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 生成快照数据</span>
+</span></span><span style="display:flex;"><span>	data, err := rc.<span style="color:#666;font-weight:bold;font-style:italic">getSnapshot</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 通知存储层快照数据</span>
+</span></span><span style="display:flex;"><span>	rc.raftStorage.<span style="color:#666;font-weight:bold;font-style:italic">CreateSnapshot</span>(rc.appliedIndex, &amp;rc.confState, data)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 保存快照数据</span>
+</span></span><span style="display:flex;"><span>	rc.<span style="color:#666;font-weight:bold;font-style:italic">saveSnap</span>(snap)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 将快照之前的数据压缩</span>
+</span></span><span style="display:flex;"><span>	compactIndex := <span style="font-weight:bold;font-style:italic">uint64</span>(1)
+</span></span><span style="display:flex;"><span>	rc.raftStorage.<span style="color:#666;font-weight:bold;font-style:italic">Compact</span>(compactIndex)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// 更新快照数据索引，以便下一次生成新的快照数据</span>
+</span></span><span style="display:flex;"><span>	rc.snapshotIndex = rc.appliedIndex
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 class="heading" id="数据的修复">
+  数据的修复
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e7%9a%84%e4%bf%ae%e5%a4%8d">#</a>
+</h2>
+<p>从上面的分析中可以看到，日志数据是在客户端提交之后，就马上落盘到WAL文件中的，不会等到日志在集群中达成一致。</p>
+<p>这样会带来一个问题，比如：</p>
+<ul>
+<li>节点A认为自己还是集群的leader节点，此时收到客户端日志之后，将数据落盘到WAL文件中。</li>
+<li>落盘之后，节点A将日志同步给集群的其它节点，但是发现自己已经不再是集群的leader节点了。</li>
+</ul>
+<p>在这种情况下，显然第一步已经落盘的日志是无效的，需要进行修复，这时候是怎么操作的呢？</p>
+<p>etcd raft的做法是不回退日志，继续走正常的流程，用新的、正确的日志添加在错误的日志后面，这样回放数据的时候恢复数据。</p>
+<p>继续以上面的例子为例：</p>
+<ul>
+<li>节点A在认为自己是leader的情况下落盘日志到本地WAL中，落盘完毕之后同步给集群内其他节点。</li>
+<li>同步到集群其他节点的过程中，才发现节点A已经不是集群的leader，此时节点A降级为follower节点，并开始从正确的集群节点那里同步日志。</li>
+<li>同步日志的流程中，节点A将收到来自leader节点的正确日志，这些日志也将落盘到节点A的WAL中。</li>
+</ul>
+<p>第二步中同步日志的流程可以参见 <a href="https://www.codedump.info/post/20180921-raft/#%E6%96%B0leader%E4%B8%8Efollower%E5%90%8C%E6%AD%A5%E6%95%B0%E6%8D%AE">Raft算法原理 - codedump的网络日志</a>，这里不再阐述。</p>
+<p>上面的流程之后，节点A的WAL中将存在：</p>
+<ul>
+<li>认为自己是leader时已落盘的日志；</li>
+<li>集群leader纠正节点A同步过来的日志。</li>
+</ul>
+<p>这样，当重启恢复时，会一并将这些日志重放，应用层只要按顺序回放日志即可。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="WAL日志的纠错机制" src="/media/imgs/20210628-etcd-wal/wal-failback.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> WAL日志的纠错机制 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>如上图中：</p>
+<ul>
+<li>节点认为自己是leader节点时，落盘到WAL文件中的日志是<code>[(1,10),(1,11)]</code>，列表中的二元组数据中，第一个元素是任期号，第二个元素是日志索引号。</li>
+<li>在落盘日志之后，节点将数据广播到集群，才发现自己已经不是集群的leader节点，此时集群的leader节点发现从日志10开始，该节点的数据就是不对的，开始同步正确的日志给节点，于是把正确的日志<code>[(2,10),(2,11)]</code>同步给了节点，这部分日志会添加到前面错误的日志之后。</li>
+<li>假设节点重启恢复，那么会依次重放前面这四条日志，其中前两条日志是错误的日志，但是由于有后面的两条正确日志，最终节点的状态还是会恢复正确状态。</li>
+<li>随着后面日志数据压缩成快照文件，冗余的错误日志的磁盘占用将被解决。</li>
+</ul>
+<p><strong>读者不妨在这里就着这个流程多思考一个问题：做为follower的节点，是什么时候将日志落盘到WAL文件中，是在收到leader节点同步过来的日志时，还是在leader节点通知某个日志已经在集群达成一致？为什么以及流程是怎样的？</strong></p>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
+<ul>
+<li>etcd的wal模块，虽然并没有和raft模块放在一起，但并不是说这一部分就需要应用者来自己实现，这两部分其实是一起打包做为整个etcd raft算法库提供给使用者的。可以认为raft模块提供算法，wal和快照模块提供日志存储读写的接口。</li>
+<li>日志落盘部分，包括wal文件以及快照文件读写这两部分内容，etcd将这两部分统一到<code>Storage</code>接口统一对外服务。</li>
+<li>raft算法是在收到客户端日志之后就理解落盘日志到wal文件中保存的，如果后面发现出错，就走正常的同步正确日志的流程，将正确的日志添加到后面，这样恢复时重放整个日志，最终节点达成一致的正确状态。</li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

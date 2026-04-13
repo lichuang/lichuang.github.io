@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇"/>
+
+
+
+<title>
+    
+    周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20220417-weekly-13/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20220417-weekly-13/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇">
+  <meta property="og:description" content="周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2022-04-17T15:16:30+08:00">
+    <meta property="article:modified_time" content="2022-04-17T15:16:30+08:00">
+    <meta property="article:tag" content="周刊">
+    <meta property="article:tag" content="Raft">
+    <meta property="article:tag" content="分布式">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20220417-weekly-13/">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">周刊（第13期）：重读Raft论文中的集群成员变更算法（一）：理论篇</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2022-04-17T15:16:30&#43;08:00">2022年4月17日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#安全性">安全性</a></li>
+    <li><a href="#一次变更单个节点">一次变更单个节点</a></li>
+    <li><a href="#一次变更多个节点">一次变更多个节点</a>
+      <ul>
+        <li><a href="#failover">Failover</a></li>
+      </ul>
+    </li>
+    <li><a href="#集群变更何时生效">集群变更何时生效？</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <hr>
+<p>引言：以前阅读Raft大论文的时候，对“集群变更”这部分内容似懂非懂。于是最近又重读了大论文这部分的内容，以下是重读时做的一些记录。这部分内容打算分为两篇文章，上篇讲解成员变更流程的理论基础，下篇讲解实践中存在的问题。</p>
+<hr>
+<h1 class="heading" id="重读raft论文中的集群成员变更算法一理论篇">
+  重读Raft论文中的集群成员变更算法（一）：理论篇
+  <a class="anchor" href="#%e9%87%8d%e8%af%bbraft%e8%ae%ba%e6%96%87%e4%b8%ad%e7%9a%84%e9%9b%86%e7%be%a4%e6%88%90%e5%91%98%e5%8f%98%e6%9b%b4%e7%ae%97%e6%b3%95%e4%b8%80%e7%90%86%e8%ae%ba%e7%af%87">#</a>
+</h1>
+<p>“集群成员变更（cluster membership change）”意指一个集群内节点的增、删操作，这在一个分布式系统中是必不可少的操作，因为并不能保证一个集群的所有节点都一直能工作的很好。Raft大论文《<a href="https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf">Consensus: Bridging Theory and Practice</a>》中有专门的一节来讲解这部分内容。</p>
+<h2 class="heading" id="安全性">
+  安全性
+  <a class="anchor" href="#%e5%ae%89%e5%85%a8%e6%80%a7">#</a>
+</h2>
+<p>首先，Raft算法中要求所有操作都需要保证安全性（safety），即：任何时候都不能在集群中同时存在两个leader节点。“集群成员变更”算法也必须保证安全性这个大前提不能被破坏，于是论文中阐述了为什么直接变更多个节点是不被允许的：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="4.2" src="/media/imgs/20220417-weekly-13/4.2.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 4.2 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>在上图的图示中：</p>
+<ul>
+<li>旧集群有1、2、3这三个节点，而需要将这个三节点的集群新增节点4、5变更到5节点集群去。</li>
+<li>如果直接如图中这样变更，由于每个节点的时间窗口并不一致，可能就会出现这种情况：
+<ul>
+<li>在某一时刻，节点1、2还使用的是旧集群（只含有{1,2,3}）的成员配置，而3、4、5已经是新集群（含有{1,2,3,4,5}）的成员配置了。</li>
+<li>这样就可能出现还使用旧集群节点配置的1、2选出了一个leader，以及已经使用了新集群配置的节点3、4、5选出了另一个leader的情况，于是违反了上面阐述的“安全性”要求。</li>
+</ul>
+</li>
+</ul>
+<p>需要说明的是，在上面这个错误的示例中，是由于有两类行为同时出现才导致的错误：</p>
+<ul>
+<li>一次性变更多个节点。在例子中，就是一次性把4、5两个节点加入到集群中。</li>
+<li>直接（directly）变更。直接变更由于集群中不同节点的步子不一样，而不一样的节点如果出现了两个不同的集群，那么就可能导致选出两个不同的leader。</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="cluster-membership-change" src="/media/imgs/20220417-weekly-13/cluster-membership-change.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> cluster-membership-change </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>于是，由于这两个错误操作是一起发生才会导致错误，论文中给出了两种方案：</p>
+<ul>
+<li>要么一次性严格限制只变更一个节点。</li>
+<li>如果实在想一次变更多个节点，那就不能直接变更，需要经过一个中间状态的过渡之后才能完成同时变更多个节点的操作。</li>
+</ul>
+<p>以下分别来阐述这两种不同的实现。</p>
+<h2 class="heading" id="一次变更单个节点">
+  一次变更单个节点
+  <a class="anchor" href="#%e4%b8%80%e6%ac%a1%e5%8f%98%e6%9b%b4%e5%8d%95%e4%b8%aa%e8%8a%82%e7%82%b9">#</a>
+</h2>
+<p>如果限制每次只变更一个节点，那么就能保证“新、旧集合的quorum集合是有重合的”，由于有重合，这样就能保证新旧两个集群的集合不会选出不同的leader，就能间接保证安全性。</p>
+<p>论文中以下面几个例子来说明这样操作的正确性：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="4.3" src="/media/imgs/20220417-weekly-13/4.3.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 4.3 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>这几个图，是在两个维度上做示范的：</p>
+<ul>
+<li>增、删操作。</li>
+<li>原集群节点数量是奇数还是偶数。</li>
+</ul>
+<p>两个维度的组合一共就是上面的4中情况，但是无论哪一种情况，由于都保证了“新、旧集合的quorum集合是有重合的”这个条件，于是不会选出不一样的leader来。</p>
+<h2 class="heading" id="一次变更多个节点">
+  一次变更多个节点
+  <a class="anchor" href="#%e4%b8%80%e6%ac%a1%e5%8f%98%e6%9b%b4%e5%a4%9a%e4%b8%aa%e8%8a%82%e7%82%b9">#</a>
+</h2>
+<p>从上面的例子中可以看到：只要能保证一次只变更一个节点，是可以直接（directly）变更的。即：无需中间状态，直接从A集合变更到A+1集合，因为这两个集合的quorum肯定有重合。</p>
+<p>但是，在一次需要变更多个节点的情况下，就不能这样直接变更，因为会出现最开始示例的那样同时选出两个leader的情况。于是，为了解决这个问题，需要引入一个中间状态：</p>
+<ul>
+<li>假设原先的集群节点集合为C_Old，新的集群节点集合为C_New，那么首先变更配置到{C_Old,C_New}，也就是新旧集群节点集合的并集。</li>
+<li>上面这次变更提交之后，再向集群变更配置到C_New。在这次变更提交之后，那些不在C_New节点集合中的节点，收到这个变更时，自动下线退出集群。</li>
+</ul>
+<p>可以证明：上面两个步骤中，都不会出现“同时存在两个leader”的情况。</p>
+<p>从本质上来说，这种变更算法，属于一种两阶段的成员变更算法，Raft大论文中称之为“Joint Consensus（联合共识）”算法。下图中演示了Joint Consensus算法这两个阶段的流程：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="4.8" src="/media/imgs/20220417-weekly-13/4.8.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> 4.8 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<h3 class="heading" id="failover">
+  Failover
+  <a class="anchor" href="#failover">#</a>
+</h3>
+<p>我们来看看Joint Consensus算法，在变更过程中如果出错，是如何failover选出新leader的。</p>
+<p>第一阶段，这时候选出来的leader只有可能有两种情况，还是旧的C_Old节点集合，或者已经收到了{C_Old,C_New}节点集合：</p>
+<ul>
+<li>只有C_Old节点集合的节点：由于这时候这个leader并没有第一阶段提交的{C_Old,C_New}节点集合变更，因此那些已有{C_Old,C_New}节点集合的follower这部分的日志将被截断，成员变更失败，回退回C_Old集合。</li>
+<li>有{C_Old,C_New}节点集合的节点：这意味这个leader已经有第一阶段提交的{C_Old,C_New}节点集合变更，可以继续将未完成的成员变更流程走完。</li>
+</ul>
+<p>类似的，也可以去推导一下在第二阶段出现leader宕机时，选出来的leader只可能具备两种情况，但是这两种情况都不可能选出多个leader。</p>
+<h2 class="heading" id="集群变更何时生效">
+  集群变更何时生效？
+  <a class="anchor" href="#%e9%9b%86%e7%be%a4%e5%8f%98%e6%9b%b4%e4%bd%95%e6%97%b6%e7%94%9f%e6%95%88">#</a>
+</h2>
+<p>以上讲解完毕两种不同的集群变更方式，下面来聊一聊集群变更何时生效。</p>
+<p>在Raft、Paxos这类状态机模型的一致性算法中，将任何变更操作都认为是一个命令（Command），命令的处理流程是这样的：</p>
+<ul>
+<li>状态机收到命令，首先在自己本地将命令持久化。</li>
+<li>然后广播给集群中的其他节点。</li>
+<li>当收到集群半数以上节点的应答时，认为命令是可以被提交（commit）的，于是可以生效将这些已经被提交的日志传给应用层的状态机使用了。</li>
+</ul>
+<p>以上流程可以看到：一条命令，只有在“提交（commit）”之后才能“生效（apply）”。</p>
+<p>在Raft中，“成员变更”这个操作，也是一类命令，即：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">Command</span> {
+</span></span><span style="display:flex;"><span>	LogEntry,
+</span></span><span style="display:flex;"><span>	MembershipChange,
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>这样设计的好处在于：处理成员变更操作，和一般的日志并没有区别，于是不存在一个特定的时间被称为“处理成员变更的时间”，在这个时间里停止响应一般的命令。</p>
+<p>但是与一般命令不同的是，“成员变更”操作并不需要等到多数通过才能生效。注意，对于一般命令而言，要“生效”必须首先“提交”，而集群变更类命令的生效没有这个依赖关系。</p>
+<p>即，在Raft的成员变更流程中，节点在收到一个新集群节点配置之后，是马上生效的，无需等待半数以上通过。</p>
+<p>这是在阅读Raft论文这一部分内容时，经常被忽略的部分。为什么集群变更类指令，可以这么做，以及这样做会不会出问题？</p>
+<p>为了安全性，Raft在进行集群变更操作时，无论是“单次变更一个节点”还是“一次变更多个节点”，在不同的阶段都不能有重叠（overlap）的情况出现，因为重叠意味着可能违反前面提到的安全性。比如将一个集群节点集合从{1,2,3}变更为{1,4,5}，如果使用这两种方式，步骤分别是：</p>
+<ul>
+<li>单次变更一个节点：{1,2,3}-&gt;{1,2,3,4} （增加节点4）-&gt;{1,2,3,4,5} （增加节点5）-&gt;{1,3,4,5} （删除节点2）-&gt; {1,4,5} （删除节点3）。</li>
+<li>单次变更多个节点：{1,2,3}（C_Old）-&gt; {1,2,3,4,5}（{C_Old,C_New}）-&gt; {1,4,5}（C_Old,C_New）。</li>
+</ul>
+<p>可以看到，无论采用哪一种方式，都会有多个步骤。由leader来决定当前的步骤，其判断的标准是：前一步修改的日志，是否已经被提交（半数以上同意）。所以，如果成员变更类的日志在提交之后才生效的话，leader就需要再多一个步骤：</p>
+<ul>
+<li>首先确认日志已经被提交到半数以上节点。</li>
+<li>在这之后，再确认这个成员变更已经在节点上生效。</li>
+</ul>
+<p>而后面的这个确认，是可以避免的。因为根据前面<code>failover</code>部分的分析，无论哪一种情况出现，即便在变更的过程中leader宕机，也不会出现选出多个leader的情况。</p>
+<p>于是，对于成员变更类的日志来说，Raft的规则是：</p>
+<ul>
+<li>多次提交不能重叠（overlap），即如果当前已经有还未提交的成员变更日志，在它提交之前不允许提交新的成员变更修改。</li>
+<li>成员变更的生效，无需等待提交，每个节点在收到这类日志的时候，就能马上修改本节点上的成员为最新的这个配置。</li>
+</ul>
+<h2 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h2>
+<ul>
+<li>Raft算法要求任何时候都要保证安全性（safety）：不能在同一时间在集群中存在两个不同的leader节点。</li>
+<li>如果以下两个操作同时发生，就有可能违反安全性：
+<ul>
+<li>一次变更多个节点。</li>
+<li>直接变更集群的节点集合。</li>
+</ul>
+</li>
+<li>由这两个限制出发，分别有以下两种实现成员变更的算法：
+<ul>
+<li>限制每次只变更一个节点，这种情况下可以直接变更成员。</li>
+<li>每次可以变更任意数量的节点，但是必须通过两阶段提交完成才能生效：第一次从C_Old变成{C_Old,C_New}节点集合，第二次从{C_Old,C_New}变成C_New。</li>
+</ul>
+</li>
+<li>“成员变更”类命令，在Raft算法看来也是一条日志。但是与普通日志命令不同的是，成员变更类日志的生效，无需等待这条日志提交了才能生效，可以在收到之后马上生效。</li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

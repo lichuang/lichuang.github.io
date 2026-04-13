@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    《面向应用开发者的系统指南》CPU篇之Linux系统平均负载 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20200620-sgfap-loadavg/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20200620-sgfap-loadavg/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="《面向应用开发者的系统指南》CPU篇之Linux系统平均负载">
+  <meta property="og:description" content="本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见《面向应用开发者的系统指南》导论。
+概述 # Linux中可以使用uptime、top等命令来查看系统的平均负载情况，比如：
+$ uptime 10:54:37 up 29 days, 1:35, 2 users, load average: 0.81, 0.65, 0.64 其中的load average: 0.81, 0.65, 0.64数据，给出了系统在最近1分钟、5分钟、15分钟的系统平均负载情况。
+这一节讲解系统平均负载这个数据的来源，内容包括以下几方面：
+系统平均负载值来源于哪里？ 平均负载包括了哪些指标？ 内核是如何计算平均负载值的？ 平均负载的意义是什么？ 平均负载值的来源 # 通过uptime命令可以看到系统最近1分钟、5分钟以及15分钟的平均负载值，所以要知道这个值的来源，最简单的方式就是了解uptime命令是从哪里获取到这些数据的，一方面可以看uptime命令的代码实现，但是直觉告诉我们一般这类命令都是通过读取/proc文件系统来获取系统的一些指标，所以更简单的方式是strace一下uptime命令，看看都去读取了哪些/proc文件系统的文件，果然看到了如下一行：
+openat(AT_FDCWD, &#34;/proc/loadavg&#34;, O_RDONLY) = 4 lseek(4, 0, SEEK_SET) = 0 read(4, &#34;0.42 0.20 0.07 3/137 1322\n&#34;, 8191) = 26 fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 0), ...}) = 0 可以看到读取了/proc/loadavg文件，通过man proc命令来看看关于这个文件的说明：
+/proc/loadavg The first three fields in this file are load average figures giving the number of jobs in the run queue (state R) or wait‐ ing for disk I/O (state D) averaged over 1, 5, and 15 minutes. They are the same as the load average numbers given by uptime(1) and other programs. The fourth field consists of two numbers separated by a slash (/). The first of these is the number of currently runnable kernel scheduling entities (processes, threads). The value after the slash is the number of kernel scheduling entities that currently exist on the system. The fifth field is the PID of the process that was most recently created on the system. 以上文档中说明了，系统负载的统计数据源，包括：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2020-06-20T12:19:08+08:00">
+    <meta property="article:modified_time" content="2020-06-20T12:19:08+08:00">
+    <meta property="article:tag" content="Linux系统">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20200620-sgfap-loadavg/">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">《面向应用开发者的系统指南》CPU篇之Linux系统平均负载</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2020-06-20T12:19:08&#43;08:00">2020年6月20日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <blockquote>
+<p>本文是《面向应用开发者的系统指南》文档其中的一篇，完整的目录见<a href="https://www.codedump.info/post/20200501-system-guide-for-application-programmer/">《面向应用开发者的系统指南》导论</a>。</p></blockquote>
+<h1 class="heading" id="概述">
+  概述
+  <a class="anchor" href="#%e6%a6%82%e8%bf%b0">#</a>
+</h1>
+<p>Linux中可以使用uptime、top等命令来查看系统的平均负载情况，比如：</p>
+<pre tabindex="0"><code>$ uptime
+ 10:54:37 up 29 days,  1:35,  2 users,  load average: 0.81, 0.65, 0.64
+</code></pre><p>其中的<code>load average: 0.81, 0.65, 0.64</code>数据，给出了系统在最近1分钟、5分钟、15分钟的系统平均负载情况。</p>
+<p>这一节讲解系统平均负载这个数据的来源，内容包括以下几方面：</p>
+<ul>
+<li>系统平均负载值来源于哪里？</li>
+<li>平均负载包括了哪些指标？</li>
+<li>内核是如何计算平均负载值的？</li>
+<li>平均负载的意义是什么？</li>
+</ul>
+<h1 class="heading" id="平均负载值的来源">
+  平均负载值的来源
+  <a class="anchor" href="#%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd%e5%80%bc%e7%9a%84%e6%9d%a5%e6%ba%90">#</a>
+</h1>
+<p>通过uptime命令可以看到系统最近1分钟、5分钟以及15分钟的平均负载值，所以要知道这个值的来源，最简单的方式就是了解uptime命令是从哪里获取到这些数据的，一方面可以看uptime命令的代码实现，但是直觉告诉我们一般这类命令都是通过读取/proc文件系统来获取系统的一些指标，所以更简单的方式是strace一下uptime命令，看看都去读取了哪些/proc文件系统的文件，果然看到了如下一行：</p>
+<pre tabindex="0"><code>openat(AT_FDCWD, &#34;/proc/loadavg&#34;, O_RDONLY) = 4
+lseek(4, 0, SEEK_SET)                   = 0
+read(4, &#34;0.42 0.20 0.07 3/137 1322\n&#34;, 8191) = 26
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 0), ...}) = 0
+</code></pre><p>可以看到读取了<code>/proc/loadavg</code>文件，通过<code>man proc</code>命令来看看关于这个文件的说明：</p>
+<pre tabindex="0"><code>/proc/loadavg
+		The first three fields in this file are load average figures giving the number of jobs in the run queue (state R) or  wait‐
+		ing  for  disk  I/O  (state  D) averaged over 1, 5, and 15 minutes.  They are the same as the load average numbers given by
+		uptime(1) and other programs.  The fourth field consists of two numbers separated by a slash (/).  The first  of  these  is
+		the  number of currently runnable kernel scheduling entities (processes, threads).  The value after the slash is the number
+		of kernel scheduling entities that currently exist on the system.  The fifth field is the PID of the process that was  most
+		recently created on the system.
+</code></pre><p>以上文档中说明了，系统负载的统计数据源，包括：</p>
+<ul>
+<li>系统当前就绪队列中的进程（处于就绪状态即R状态）；</li>
+<li>以及处于等待IO的不可被信号中断（即D状态）的进程。</li>
+</ul>
+<p><code>/proc/loadavg</code>文件的前三个字段，正是uptime命令用于输出系统平均负载的数据来源，可以cat该文件内容来看看：</p>
+<pre tabindex="0"><code>➜  ~ cat /proc/loadavg
+0.03 0.01 0.00 1/135 1735
+</code></pre><p>于是，这里的第一个疑问解决了：<code>uptime</code>等命令行工具是通过读取<code>/proc/loadavg</code>文件获取当前系统在最近1分钟、5分钟、15分钟的平均负载值。</p>
+<h2 class="heading" id="负载进程来源">
+  负载进程来源
+  <a class="anchor" href="#%e8%b4%9f%e8%bd%bd%e8%bf%9b%e7%a8%8b%e6%9d%a5%e6%ba%90">#</a>
+</h2>
+<p>在前面的描述中，提到了参与计算平均负载的进程包括：</p>
+<ul>
+<li>系统当前就绪队列中的进程（处于就绪状态即R状态）；</li>
+<li>以及处于等待IO的不可被信号中断（即D状态）的进程。</li>
+</ul>
+<p>处于R状态的进程被算入其中符合预期，因为系统负载本来就是对CPU这一项资源的度量，但是处于等待I/O并未占用CPU资源的D状态进程也被算入其中就让人有些意外了。</p>
+<p>在<a href="http://www.brendangregg.com/blog/2017-08-08/linux-load-averages.html">Linux Load Averages: Solving the Mystery</a>一文中，<code>Brendan Gregg</code>详细探究了Linux系统这么做的原因，有兴趣的读者可以点开链接看看这篇文章。简单的把结论放在这里：</p>
+<ul>
+<li>在Linux系统中，平均负载就是<code>system load avg</code>，包括了正在工作和在等待工作（磁盘IO、锁等）的进程。与此等价的说法是，在Linux系统中平均负载反映的是系统中所有非idle的进程。</li>
+<li>而在非Linux系统中，平均负载只包括运行已经就绪准备运行的进程。</li>
+</ul>
+<p>由以上可知，在Linux系统中，通过<code>uptime</code>等命令查看出来的平均负载如果突然变高，并不见得就是系统一定出现了问题，不能简单的把负载数量除以CPU资源数量，因为其中可能包括了在等待磁盘I/O的D状态进程。在上文中，提到了如果发现系统负载突然升高，还可以配合以下手段进一步查验：</p>
+<ul>
+<li>每CPU利用率: mpstat -P ALL 1</li>
+<li>每进程的CPU利用率：top, pidstat 1</li>
+<li>每线程的run queue调度延迟：/proc/PID/schedstats, delaystats, perf sched</li>
+<li>CPU run queue延迟：/proc/schedstat, perf sched, runqlat, bcc工具</li>
+<li>CPU run queue队列长度：vmstat 1的<code>r</code>列，runqlen bcc工具</li>
+</ul>
+<p>前两个是利用率指标，可用来识别工作负载的特征；后三个是饱和度指标，可用来进行性能分析。除了CPU量化，还可以对磁盘I/O进行量化。这些命令具体的使用后续章节会给出。</p>
+<p>以上，解决了系统负载数据的来源问题，接着又有了下一个疑问：<code>/proc</code>文件系统是内核用于输出一些系统状态的文件系统，内核又是如何计算系统的平均负载值的？</p>
+<h1 class="heading" id="内核如何计算平均负载">
+  内核如何计算平均负载
+  <a class="anchor" href="#%e5%86%85%e6%a0%b8%e5%a6%82%e4%bd%95%e8%ae%a1%e7%ae%97%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd">#</a>
+</h1>
+<h2 class="heading" id="指数平滑法">
+  指数平滑法
+  <a class="anchor" href="#%e6%8c%87%e6%95%b0%e5%b9%b3%e6%bb%91%e6%b3%95">#</a>
+</h2>
+<p>内核不可能一直监控着内核中的进程数量，更现实的做法是隔一段时间采集一组数据，再与前面的数据一起来预测当前的系统负载。如果将过去和现在的数据都同等对待，给予同样的权重，那么计算公式就是简单的使用过去的数据加上现在的数据来求平均值。</p>
+<p>然而如果这样的话，过去的数据就和现在的数据一样重要。很显然，在使用数据来预测未来时，还是更近的数据权重更高更有说服力。</p>
+<p>在这部分，内核采用的方式是所谓的指数平滑法（Exponential smoothing），其思想在于：给当前采集的数据，以及上一次采集周期的数据分别以权重值，通过把两部分加成起来计算平滑均值，公式如下：</p>
+$$ load_t = α * x_{t- 1} + n * (1 - α) * load_{t-1} $$<p>其中：</p>
+<ul>
+<li>$load_t$：时间t的平滑平均值。</li>
+<li>$x_{t-1}$：时间t-1的实际值。</li>
+<li>$s_{t-1}$：时间t-1的平滑平均值。</li>
+<li>α：平滑常数（平滑因子），范围在[0,1]之间。</li>
+<li>n：当前时间的活跃进程数（状态为是RUNNABLE状态和TASK_UNINTERRUPTIBLE状态的进程数）。</li>
+</ul>
+<p>注意，这里的平滑常数α，如果趋近于1，则$s_{t-1}$对$s_t$的影响越小。</p>
+<p>内核就是通过这个算法来计算最近5分钟，10分钟，十五分钟的平滑均值。</p>
+<p>其中的平滑常数，Linux内核是这样来选择的：</p>
+$$ α = e^{-5/(60*m)} $$<p>其中:
+5：表示5s，作分子。
+60：表示60s。
+m: 表示分钟，1, 5, 15。 60 * m作为分母。</p>
+<p>把m带入到公式计算，分别能计算出α为0.920044415，0.983471454，0.994459848</p>
+<h2 class="heading" id="定点运算fixed-point-arithmetic">
+  定点运算（Fixed-point arithmetic）
+  <a class="anchor" href="#%e5%ae%9a%e7%82%b9%e8%bf%90%e7%ae%97fixed-point-arithmetic">#</a>
+</h2>
+<p>然而即便是这样，内核也不能直接计算系统的平均负载，因为内核并不能直接进行浮点计算。</p>
+<p>因此，需要首先把浮点数运算转换成定点数运算，采用的办法就是将浮点数乘以相应进制的n次方，其中n为保留的小数点的位数。比如3.1415926，如果要转换成只保留3位小数的定点数运算，就需要乘以1000，也就是得到3141，后面的926丢弃。</p>
+<p>在这里，Linux内核将上面的平滑常数α转换成2进制的定点数，其中保留的精度为11位，因此：</p>
+$$ 0.920044415 * 2^{11} = 1884 $$$$ 0.983471454 * 2^{11} = 2014 $$$$ 0.994459848 * 2^{11} = 2037 $$<h2 class="heading" id="linux内核的实现代码">
+  Linux内核的实现代码
+  <a class="anchor" href="#linux%e5%86%85%e6%a0%b8%e7%9a%84%e5%ae%9e%e7%8e%b0%e4%bb%a3%e7%a0%81">#</a>
+</h2>
+<p>有了前面的分析，可以看到通过“指数退避算法”，并不需要详细的保存过去1分钟、5分钟、15分钟的所有负载值来做计算，而是在每次计算的时候，拿到当前的值以及上一次保存的值，套用到前面的公式计算即可，这样做的好处是只需要保持一份上一次的数据即可。同时，由于需要拿到就绪状态以及不可中断中断状态的进程数量之和，也是通过采样的方式去定时获取这个值，默认是5秒采样一次。</p>
+<p>与平均负载计算相关的几个宏列举如下：</p>
+<pre tabindex="0"><code>（linux/sched.h）
+#define FSHIFT		11		/* nr of bits of precision */
+#define FIXED_1		(1&lt;&lt;FSHIFT)	/* 1.0 as fixed-point */
+#define LOAD_FREQ	(5*HZ+1)	/* 5 sec intervals */
+#define EXP_1		1884		/* 1/exp(5sec/1min) as fixed-point */
+#define EXP_5		2014		/* 1/exp(5sec/5min) */
+#define EXP_15		2037		/* 1/exp(5sec/15min) */
+</code></pre><p>其中：</p>
+<ul>
+<li>FSHIFT：计算精度，可以看到是11位精度。</li>
+<li>FIXED_1：2进程11位精度下的1.0。</li>
+<li>LOAD_FREQ：计算间隔，5秒计算一次平均负载。</li>
+<li>EXP_1、EXP_5、EXP_15：1分钟、5分钟、15分钟平滑时间常数的2进程11位精度定点数，也就是前面定点计算部分介绍的预计算出来的几个常量。</li>
+</ul>
+<p>内核中根据“指数退避算法”计算平均负载的工作由函数<code>calc_load</code>完成：</p>
+<pre tabindex="0"><code>(sched/proc.c)
+
+/*
+ * a1 = a0 * e + a * (1 - e)
+ */
+static unsigned long
+calc_load(unsigned long load, unsigned long exp, unsigned long active)
+{
+	load *= exp;
+	load += active * (FIXED_1 - exp);
+	load += 1UL &lt;&lt; (FSHIFT - 1);
+	return load &gt;&gt; FSHIFT;
+}
+</code></pre><p>可以看到，该函数的内容，就是通过前面列举出来的宏，套用指数退避算法的公式计算即可。</p>
+<p>内核中使用数组<code>avenrun</code>来保存上一次计算得到的1分钟、5分钟、15分钟的平均负载，每一次的计算结果保存在这个数组之中，下一次再计算的时候将上次保存的结果拿出来做为这一次计算的参数就好。</p>
+<p>有了算法、数据，最后就是介绍计算的触发点以及入口函数了，这个函数是内核中的<code>calc_global_load</code>函数：</p>
+<pre tabindex="0"><code>/*
+ * calc_load - update the avenrun load estimates 10 ticks after the
+ * CPUs have updated calc_load_tasks.
+ */
+void calc_global_load(unsigned long ticks)
+{
+	long active, delta;
+
+	if (time_before(jiffies, calc_load_update + 10))
+		return;
+
+	/*
+	 * Fold the &#39;old&#39; idle-delta to include all NO_HZ cpus.
+	 */
+	delta = calc_load_fold_idle();
+	if (delta)
+		atomic_long_add(delta, &amp;calc_load_tasks);
+
+	active = atomic_long_read(&amp;calc_load_tasks);
+	active = active &gt; 0 ? active * FIXED_1 : 0;
+
+	avenrun[0] = calc_load(avenrun[0], EXP_1, active);
+	avenrun[1] = calc_load(avenrun[1], EXP_5, active);
+	avenrun[2] = calc_load(avenrun[2], EXP_15, active);
+
+	calc_load_update += LOAD_FREQ;
+
+	/*
+	 * In case we idled for multiple LOAD_FREQ intervals, catch up in bulk.
+	 */
+	calc_global_nohz();
+}
+</code></pre><h1 class="heading" id="系统平均负载的意义">
+  系统平均负载的意义
+  <a class="anchor" href="#%e7%b3%bb%e7%bb%9f%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd%e7%9a%84%e6%84%8f%e4%b9%89">#</a>
+</h1>
+<p>从以上的分析，可以看出来，“系统平均负载”值反映的是系统在过去一段时间中，“就绪状态进程数量”加上“不可被中断进程数量”之和的一种趋势，只是进程状态的一些统计信息，和CPU的使用率并没有直接关系。</p>
+<p>因为“系统平均负载”统计了这两类进程的总和，所以如果仔细区分起来，与CPU使用率可能存在以下几种关系：</p>
+<ul>
+<li>系统中有大量CPU密集型的进程，比如大量进程都在进行计算，此时的系统平均负载与CPU使用率的关联就很大。</li>
+<li>系统中有大量IO密集型进程，这些进程中有很多时间都在等待IO完成，此时系统平均负载高但是CPU使用率并不见得就高。</li>
+<li>就绪队列中有大量处于就绪状态等待CPU资源的进程，这种情况下会导致系统平均负载升高，而且CPU使用率也变高。</li>
+</ul>
+<p>因此，当发现系统平均负载升高时，还需要其他工具来查看究竟是上面的哪种情况。</p>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
+<ul>
+<li>uptime等查看当前CPU负载的命令，通过读取/proc/loadavg文件获取最近1分钟、5分钟、15分钟系统的平均负载。</li>
+<li>Linux计算平均负载时包括了R状态进程和D状态进程，Linux系统中平均负载反映的是系统中所有非idle的进程。在发现Linux系统平均负载升高时需要配合其他工具一起查证。</li>
+<li>内核使用指数平滑法来计算系统的平均负载。</li>
+<li>最近1分钟、5分钟、15分钟系统的平均负载反映的是系统负载的趋势走向，而不是一个精准的值。</li>
+<li>内核在计算平均负载时，将相应的参数转换为定点数进行计算，保留的数据精度是11位，计算间隔是5秒一次。</li>
+</ul>
+<h1 class="heading" id="参考资料">
+  参考资料
+  <a class="anchor" href="#%e5%8f%82%e8%80%83%e8%b5%84%e6%96%99">#</a>
+</h1>
+<ul>
+<li><a href="http://www.brendangregg.com/blog/2017-08-08/linux-load-averages.html">Linux Load Averages: Solving the Mystery</a></li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

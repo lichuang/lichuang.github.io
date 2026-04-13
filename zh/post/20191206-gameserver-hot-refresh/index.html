@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="对比脚本型和编译型游戏服务器的热更新方案"/>
+
+
+
+<title>
+    
+    对比脚本型和编译型游戏服务器的热更新方案 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20191206-gameserver-hot-refresh/"/>
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20191206-gameserver-hot-refresh/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="对比脚本型和编译型游戏服务器的热更新方案">
+  <meta property="og:description" content="对比脚本型和编译型游戏服务器的热更新方案">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2019-12-06T22:40:49+08:00">
+    <meta property="article:modified_time" content="2019-12-06T22:40:49+08:00">
+    <meta property="article:tag" content="系统设计">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.21aed2efd8705189dafa5d6c67617fae14f07c15415149aa39dfb48d230cd1b5.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20191206-gameserver-hot-refresh/">对比脚本型和编译型游戏服务器的热更新方案</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">对比脚本型和编译型游戏服务器的热更新方案</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2019-12-06T22:40:49&#43;08:00">2019年12月6日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  <div class="single-content">
+    <p>本文对比游戏服务器中C++搭配脚本语言（Lua、Python）以及纯编译型语言（C++、Golang）来进行开发时，进行线上服务器热更新的方案。</p>
+<h1 class="heading" id="游戏开发模式">
+  游戏开发模式
+  <a class="anchor" href="#%e6%b8%b8%e6%88%8f%e5%bc%80%e5%8f%91%e6%a8%a1%e5%bc%8f">#</a>
+</h1>
+<p>在开始下文之前，有必要简单描述一下游戏服务与web服务的区别。</p>
+<h2 class="heading" id="长连接-vs-短连接">
+  长连接 VS 短连接
+  <a class="anchor" href="#%e9%95%bf%e8%bf%9e%e6%8e%a5-vs-%e7%9f%ad%e8%bf%9e%e6%8e%a5">#</a>
+</h2>
+<p>游戏服务对外与客户端之间的链接多是长连接形式，而web服务多是短连接。</p>
+<h2 class="heading" id="有状态服务-vs-无状态服务">
+  有状态服务 VS 无状态服务
+  <a class="anchor" href="#%e6%9c%89%e7%8a%b6%e6%80%81%e6%9c%8d%e5%8a%a1-vs-%e6%97%a0%e7%8a%b6%e6%80%81%e6%9c%8d%e5%8a%a1">#</a>
+</h2>
+<p>游戏服务内，需要维持着玩家的状态数据，如玩家属性、位置等，web请求多是无状态服务。</p>
+<h2 class="heading" id="启动时间">
+  启动时间
+  <a class="anchor" href="#%e5%90%af%e5%8a%a8%e6%97%b6%e9%97%b4">#</a>
+</h2>
+<p>由于前面提到的游戏服务是有状态服务，因此游戏服务器启动的时候，需要从持久化存储中将数据加载到内存中，这意味着游戏服务器的启动时间会很长，一般一次需要几分钟，web服务器相对轻量很多，因为需要访问的持久化数据在另外的存储服务器上。</p>
+<h2 class="heading" id="开发周期">
+  开发周期
+  <a class="anchor" href="#%e5%bc%80%e5%8f%91%e5%91%a8%e6%9c%9f">#</a>
+</h2>
+<p>游戏服务的开发周期短，有一些游戏一周就需要进行一次维护，这意味着在这一周内策划（对应互联网中的产品经理）提出的需求都要完成上线。</p>
+<p>从以上对比可以看到，游戏业务的特点是更新频繁，而启动一个服务器的时间又比较长。在进行开发的过程中，如果使用纯编译型语言进行开发，那么流程就是如下所示：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="cpp-dev" src="/media/imgs/20191206-gameserver-hot-refresh/cpp-dev.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> cpp-dev </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可以看到，上面是一个比较长的开发功能流程，而如果还考虑到开发周期短这个特点，显然是不能匹配游戏开发这种业务的特征的，此时就需要“热更新”功能才能提高开发效率。</p>
+<p>以下就脚本语言与编译型语言如何实现“热更新”展开讨论。</p>
+<h1 class="heading" id="c搭配脚本语言">
+  C++搭配脚本语言
+  <a class="anchor" href="#c%e6%90%ad%e9%85%8d%e8%84%9a%e6%9c%ac%e8%af%ad%e8%a8%80">#</a>
+</h1>
+<p>这种方案是笔者见过的方案，其一般的做法是：C++来实现底层的框架（网络、与数据库通信等），接收到数据包之后，将数据传递给脚本层，由脚本来处理具体的业务逻辑。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="script-level" src="/media/imgs/20191206-gameserver-hot-refresh/script-level.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> script-level </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>这种也是软件设计中常见的分层方案：底层的模块为上层的模块服务，同时底层模块也变动的较少。</p>
+<p>由于嵌入到进程里面的脚本语言引擎，本质上是将脚本语言代码翻译成内存中的Opcode来执行，因此这类型游戏服务器实现“热更新”方案很简单：将新的脚本同步到服务器上，然后给服务器发出一个信号，重新读取脚本代码到内存中即可。</p>
+<p>有了这个架构之后，原先的开发模式就变成了下图：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="script-dev" src="/media/imgs/20191206-gameserver-hot-refresh/script-dev.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> script-dev </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>可以看到，前面编译型语言中编译和重启服务器这两部最消耗时间的步骤，变成了热更新脚本，这样就不需要重启服务器来验证功能，开发效率提高了很多。</p>
+<h1 class="heading" id="编译型语言实现热更新">
+  编译型语言实现热更新
+  <a class="anchor" href="#%e7%bc%96%e8%af%91%e5%9e%8b%e8%af%ad%e8%a8%80%e5%ae%9e%e7%8e%b0%e7%83%ad%e6%9b%b4%e6%96%b0">#</a>
+</h1>
+<p>从上面的分析可以看到，因为编译型语言存在需要重启服务器的步骤，导致了以下两个问题：</p>
+<ul>
+<li>客户端连接需要断开，因为游戏服务是长连接。</li>
+<li>重启服务器时需要耗费大量的时间将持久化存储的数据加载到内存中，这样启停过程中的客户端请求就会丢失。</li>
+</ul>
+<p>下面依次看看如何解决这两个问题。</p>
+<p>维护客户端连接，可以再引入一个网关组件，由网关来维护连接，这样服务器重启流程中客户端对内部游戏服务器的启停并无感知。</p>
+<p>为了在启动新版本服务器的过程中继续服务客户端请求，并且新版本服务器上线之后能接着当前的玩家属性继续操作，可以考虑将数据存入共享内存中，这样即便进程退出共享内存还存在。这样做的思路是“代码与数据分离”。</p>
+<p>如果要实现这个方案，又要做到以下两点：</p>
+<ul>
+<li>设计一套面向共享内存的数据结构，至少应该能支持常见的链表、数组、字典等类型。</li>
+<li>数据结构的设计需要考虑可扩展性以及前后兼容性，因为可能出现两个前后版本中，有一些字段不存在或者有一些字段新增的情况。</li>
+</ul>
+<p>有了以上的介绍，下图中就是为了支持热更新的编译型语言的架构方案：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="cpp-hotrefresh" src="/media/imgs/20191206-gameserver-hot-refresh/cpp-hotrefresh.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> cpp-hotrefresh </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>其中：</p>
+<ul>
+<li>网关负责维护与客户端的连接，同时也知道当前访问的是哪个游戏服务器。当新版本服务器启动完毕之后，向网关发送一个指令，让网关在收到这个指令之后的所有客户端请求，都转发到新的游戏服务器上，这样就完成了一个看似没有重启的“热更新”。</li>
+<li>数据保存在共享内存中，这样即使在启动新版本服务器的时候也能继续服务客户端的请求。另外需要注意的是，启动的时候服务器需要判断一下是否已经有一个进程存在，如果存在进程且有共享内存数据的情况下，不需要再从持久化存储中加载数据到内存中。</li>
+</ul>
+<h1 class="heading" id="方案对比">
+  方案对比
+  <a class="anchor" href="#%e6%96%b9%e6%a1%88%e5%af%b9%e6%af%94">#</a>
+</h1>
+<p>以下来对比一下两种技术方案的优缺点。</p>
+<table>
+  <thead>
+      <tr>
+          <th>特性</th>
+          <th>脚本型游戏服务器</th>
+          <th>编译型游戏服务器</th>
+          <th>备注</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>开发效率</td>
+          <td>高</td>
+          <td>低</td>
+          <td>脚本语言没有编译步骤</td>
+      </tr>
+      <tr>
+          <td>性能</td>
+          <td>低</td>
+          <td>高</td>
+          <td>脚本语言执行性能不如编译型语言</td>
+      </tr>
+      <tr>
+          <td>架构难度</td>
+          <td>低</td>
+          <td>高</td>
+          <td>编译型语言为了实现热更新，需要解决：网关维护连接，代码数据分离，数据存入共享内存等，而脚本型语言只需要实现热更新脚本即可</td>
+      </tr>
+      <tr>
+          <td>重构难度</td>
+          <td>高</td>
+          <td>低</td>
+          <td>“脚本语言一时爽，代码重构火葬场”</td>
+      </tr>
+  </tbody>
+</table>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
