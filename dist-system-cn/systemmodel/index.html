@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
 
-<meta name="description" content=""/>
+<meta name="description" content="第二章：分布式系统模型，从两军问题、拜占庭将军问题出发，建立通信模型、故障模型与时序模型。"/>
 
 
 
@@ -30,29 +30,17 @@
 
 <link rel="canonical" href="https://www.codedump.info/dist-system-cn/systemmodel/"/>
 
+
+
+<link rel="alternate" hreflang="en" href="https://www.codedump.info/dist-system-en/systemmodel/"/>
+
+<link rel="alternate" hreflang="x-default" href="https://www.codedump.info/dist-system-cn/systemmodel/"/>
+
+
 <meta property="og:url" content="https://www.codedump.info/dist-system-cn/systemmodel/">
   <meta property="og:site_name" content="codedump notes">
   <meta property="og:title" content="第二章：分布式系统模型">
-  <meta property="og:description" content="在第一章中，我们对比过单机系统和分布式系统的区别，单机系统通过共享内存进行通信、有全局唯一的时钟，在出错时有确定的表现，在单机系统上编程是相对容易的。相较而言，分布式系统由多个节点组成，节点之间通过消息进行通信，这导致了分布式系统更加复杂。因此在开始设计分布式系统之前，需要一套描述系统运行模型的理论框架，开发者需要在设计时就明确系统的运行环境所满足的各种条件，不同的条件系统的实现难度不同。分布式系统模型就是用于描述和分析分布式系统行为、属性和设计的理论框架。它们为研究分布式系统的通信、计算、故障、同步等特性提供了一种抽象方式，帮助设计者和研究者在复杂环境中理解系统行为并解决实际问题。
-在本章中，我们从两个著名的分布式实验两将军问题和拜占庭将军问题开始，展开对分布式系统模型的讨论。
-两将军问题 # 两将军问题（Two Generals’ Problem）1是分布式领域里的一个思想实验，旨在说明：试图通过不可靠的连接来进行通信，协调分布式系统中的多节点之间的操作，会遇到的陷阱和挑战。
-实验中假设有两支军队，分别由一位将领负责给军队发号施令，两支军队准备进攻一座城市。这座城市的防守很坚固，需要两支军队一起行动才能胜利，而任何一方单独行动都将失败。两位将领需要协调一个共同发起攻击的时间。两支军队驻扎在城市的两处，中间有一个山谷将两支军队分开，他们之间通信的唯一方式就是派遣信使穿越山谷。然而，山谷被城市的守军控制，途经该山谷传递的消息有可能被俘。
-虽然两位将军已经就进攻城市达成了共识，但是并没有就进攻时间达成共识。两位将军必须同时让自己的军队一起发起进攻才能取胜。因此，他们之间必须沟通协调一个发起进攻的时间。如果一位将军以为协调了一个进攻时间，而另一位将军却并不知情，导致只有一个军队发起进攻，那么这将是一个灾难性的失败，如下表所示：
-军队A1 军队A2 结果 不进攻 不进攻 无事发生 进攻 不进攻 军队A1失败 不进攻 进攻 军队A2失败 进攻 进攻 攻下城市 表：发起进攻的可能结果
-在这个实验中，“将军&#34;就是分布式系统中的节点，它们之间通信的信使就是节点之间通信的连接，可以看到这个连接并不可靠：消息可能会被丢失。我们来看一下在这种不可靠连接的通信下，两个将军是否能达成一个关于进攻时间的共识。
-假如A1将军向A2将军传递消息&#34;8月4日早上09:00发起进攻”，由于信使可能会被俘获，所以A1将军也并不确定消息可以被A2将军收到。这种不确定性导致A1犹豫不决，因为如果只有他发起进攻会导致失败。
-为了消除这种不确定性，A1和A2约定：收到消息后，要对应发出一个确认消息，让发送方确认消息已经被成功接收。然而，确认消息也同样可能被俘获，也不确定是否能到达接收方。这种不确定性导致A2犹豫不决，因为如果只有他发起进攻会导致失败。
-问题到了这里，进入了一个死胡同：因为无论发送多少确认消息，都没有办法保证两位将军有足够的自信，保证自己的信使没有被敌军俘获。
-从以上两个场景中可以看到，两将军问题中面临以下的难题：
-消息传递的不确定性：将军A1发送消息给将军A2，告知进攻时间，但无法确认A2是否收到。即便A2收到并回复确认，A1也无法确认回复是否送达。这种确认过程可能无限循环，因为每次确认都需要进一步确认。 无限确认问题：为了确保双方都同意进攻时间，A1需要A2的确认，A2需要A1确认收到A2的确认，以此类推。由于通信不可靠，每次确认都可能丢失，导致无法达成确定的共识。 两将军问题最早由E.A.Akkoyunlu, K.Ekanadham和R.V.Huber在1975年发表的论文《SOME CONSTRAINTS AND TRADEOFFS IN THE DESIGN OF NETWORK COMMUNICATIONS》中提出，就在这篇文章的第73页中，描述两个黑帮之间的通信，同时论文也给出了这类问题无解的证明。1978年，在Jim Gray的《Notes on Data Base Operating Systems》一书中，被命名为*“两将军悖论（Two Generals Paradox）&#34;*。
-两将军问题说明，在不可靠通信环境下，无法通过有限次消息交换达成绝对的共识。
-严格来说，两将军问题在理论上是无法完全绕过的，然而，在实际工程中，可以通过以下方法缓解或规避两将军问题的限制，使系统在实际场景中可行：
-以数量赢得概率：这种方案的思路是，同一时间同时发送多个确认消息，如果接收方收到了其中的部分消息，就认为可以发起行动。例如在两将军问题中，任意一方不再是派出一名信使来传递消息，而是同时派出多名信使，例如同时派出100名信使，如果接收方能收到其中的10条消息（即1/10的概率），就认为收到消息。然而，从工程上而言，这样的做法性能不友好。 引入超时和超时后的默认动作：接收方可以设定一个默认接收消息时间，在这个时间仍然收不到对方的消息，就采取一个默认的安全动作。例如在两将军问题中，发出开始进攻的军队约好在早上九点发起进攻，但是如果在9点十分之前都没有收到进攻信号，就默认放弃进攻。这样的默认行为，虽然无法攻下城市，但是却不用冒单方面进攻导致失败的风险。在分布式系统的设计中，也有不少超时之后采用默认行为的设计，例如在Raft算法中，Follower节点在选举超时之前没有收到来自Leader节点的消息，就默认Leader节点出现故障，这时会采取发起新一轮的选举流程。 考虑现实中两台计算机需要进行通信的场景。在这种情况下，通信的挑战仍然是不可靠的通信信道，所以这也是两将军问题的现实场景之一，而TCP（Transmission Control Protocol）2协议可以认为是两将军问题的（部分）工程解。
-本书中并不打算完整阐述TCP协议的实现原理，感兴趣的可以参考相关书籍，这里重点阐述TCP如何在一个不可靠的通信信道上进行通信，以达到部分解决两将军问题的目标。
-TCP协议中，每个数据包都有唯一的*序列号（Sequence Number）*与之对应，接收端收到数据包之后，通过发送确认包文（Acknowledgment, ACK）来应答收到数据包。通过这个机制，TCP协议解决了数据包乱序到达的问题。考虑如下的场景：如果发送端向接收端分别发送了序列号为4和5的数据包，但是接收端首先收到的是序列号为5的数据包，如果马上向应用层投递seq=5的数据包，将导致数据乱序问题。为了避免乱序投递数据，内核会首先判断该数据包前面的所有数据包是否都已经被投递给应用层，只有在该数据包是当前最早的未投递数据包的情况下才会被投递。在这个场景中，seq=4的数据包还未收到，于是内核会首先将seq=5的数据包缓存起来，等待收到seq=4的数据包到来再一起投递。
-备注
-在 TCP 协议栈的具体实现中，上述&#34;缓存乱序数据&#34;的行为并非无限进行的，而是受到*接收窗口（Receive Window, 简称rwnd）*的严格限制。
-TCP 接收端维护着一个滑动窗口结构。当收到乱序报文（如 seq=5）时，内核会检查该报文的序列号是否落在当前允许的接收窗口范围内：">
+  <meta property="og:description" content="第二章：分布式系统模型，从两军问题、拜占庭将军问题出发，建立通信模型、故障模型与时序模型。">
   <meta property="og:locale" content="zh">
   <meta property="og:type" content="article">
     <meta property="article:section" content="dist-system-cn">
@@ -73,7 +61,10 @@ TCP 接收端维护着一个滑动窗口结构。当收到乱序报文（如 seq
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.5f99960acc05c9eede062b8a249075b00e5b6400f4e5175ae7b7196266c2d781.css" media="all">
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.99914016ce910a88b4305a6f339795f894012ffe1bea3a59c8e22f19fc2f55d7.css" media="all">
 
 
 
@@ -840,6 +831,9 @@ TCP 接收端维护着一个滑动窗口结构。当收到乱序报文（如 seq
 
   
 
+
+  
+
   
 
   
@@ -906,6 +900,11 @@ TCP 接收端维护着一个滑动窗口结构。当收到乱序报文（如 seq
 
 <div class="text-center">
     <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+Also translated in 
+    
+     <a href="/dist-system-en/systemmodel/">English </a>
+    
 
 </div>
 
