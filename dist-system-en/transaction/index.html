@@ -1,0 +1,1971 @@
+<!DOCTYPE html>
+<html lang="en"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Transactions | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/dist-system-en/transaction/"/>
+
+<meta property="og:url" content="https://www.codedump.info/dist-system-en/transaction/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Transactions">
+  <meta property="og:description" content="So far, we have introduced replication and partitioning. Replication (including the consensus algorithms) improves system fault tolerance, while partitioning improves system scalability; these two techniques address the physical problems of data. In addition, data access in distributed systems often faces “logical problems”, which are solved by the transaction technology introduced in this chapter:
+Replication: The main goal is high availability and data redundancy. By storing identical copies of data on different nodes, when one node fails, the system can continue to provide service from other replicas. It answers the question: “Will my data be lost or inaccessible because one machine goes down?” Partitioning (Sharding): The main goal is scalability. When a single node’s storage or computing capacity cannot handle all the data and requests, we horizontally split the data across multiple nodes. It answers the question: “How does my system handle ever-growing data volumes and access pressure?” Transaction: The main goal is the correctness of data operations. It packages a series of operations into an indivisible logical unit, ensuring that these operations either all succeed or all fail, and that they do not interfere with each other when executed concurrently. It answers the question: “How can I ensure that a series of related operations maintain data correctness under any circumstances (concurrency, failures)?” Why are replication and partitioning alone not enough? Let us look at a few typical scenarios:">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="dist-system-en">
+    <meta property="article:published_time" content="2026-06-26T00:00:00+00:00">
+    <meta property="article:modified_time" content="2026-06-26T00:00:00+00:00">
+    <meta property="article:tag" content="Distributed Systems">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.5f99960acc05c9eede062b8a249075b00e5b6400f4e5175ae7b7196266c2d781.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/page/about" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/en/">Home</a><span class="breadcrumbs-separator">/</span><a href="/dist-system-en/">Distributed System Illustrated</a><span class="breadcrumbs-separator">/</span>
+        <a href="/dist-system-en/transaction/">Transactions</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Transactions</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-06-26T00:00:00&#43;00:00">June 26, 2026</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#understanding-acid-in-depth">Understanding ACID in Depth</a>
+      <ul>
+        <li><a href="#atomicity-and-durability">Atomicity and Durability</a></li>
+        <li><a href="#isolation">Isolation</a></li>
+        <li><a href="#consistency">Consistency</a></li>
+      </ul>
+    </li>
+    <li><a href="#concurrency-control">Concurrency Control</a>
+      <ul>
+        <li><a href="#two-phase-locking">Two-Phase Locking</a></li>
+        <li><a href="#optimistic-concurrency-control">Optimistic Concurrency Control</a></li>
+        <li><a href="#multi-version-concurrency-control">Multi-Version Concurrency Control</a></li>
+      </ul>
+    </li>
+    <li><a href="#distributed-transactions">Distributed Transactions</a>
+      <ul>
+        <li><a href="#two-phase-commit">Two-Phase Commit</a></li>
+        <li><a href="#three-phase-commit">Three-Phase Commit</a></li>
+        <li><a href="#google-spanner">Google Spanner</a></li>
+        <li><a href="#tcc-transactions">TCC Transactions</a></li>
+        <li><a href="#saga-transactions">SAGA Transactions</a></li>
+      </ul>
+    </li>
+    <li><a href="#chapter-summary">Chapter Summary</a></li>
+    <li><a href="#references">References</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <p>So far, we have introduced replication and partitioning. Replication (including the consensus algorithms) improves system fault tolerance, while partitioning improves system scalability; these two techniques address the <em>physical problems</em> of data. In addition, data access in distributed systems often faces <em>&ldquo;logical problems&rdquo;</em>, which are solved by the <em>transaction</em> technology introduced in this chapter:</p>
+<ul>
+<li><strong>Replication</strong>: The main goal is <em>high availability and data redundancy</em>. By storing identical copies of data on different nodes, when one node fails, the system can continue to provide service from other replicas. It answers the question: &ldquo;Will my data be lost or inaccessible because one machine goes down?&rdquo;</li>
+<li><strong>Partitioning (Sharding)</strong>: The main goal is <em>scalability</em>. When a single node&rsquo;s storage or computing capacity cannot handle all the data and requests, we horizontally split the data across multiple nodes. It answers the question: &ldquo;How does my system handle ever-growing data volumes and access pressure?&rdquo;</li>
+<li><strong>Transaction</strong>: The main goal is the <em>correctness of data operations</em>. It packages a series of operations into an indivisible logical unit, ensuring that these operations either all succeed or all fail, and that they do not interfere with each other when executed concurrently. It answers the question: &ldquo;How can I ensure that a series of related operations maintain data correctness under any circumstances (concurrency, failures)?&rdquo;</li>
+</ul>
+<p>Why are replication and partitioning alone not enough? Let us look at a few typical scenarios:</p>
+<p><strong>Scenario 1: Bank Transfer (The consequences of lacking atomicity)</strong></p>
+<p>User A wants to transfer 100 to User B. This operation consists of at least two steps:</p>
+<ol>
+<li>Deduct 100 from User A&rsquo;s account.</li>
+<li>Add 100 to User B&rsquo;s account.</li>
+</ol>
+<p>In a distributed system lacking transaction technology, the following problems may occur:</p>
+<ul>
+<li><strong>Failure</strong>: The system crashes after completing step 1 (for example, the database node goes down). At this point, A&rsquo;s money has been deducted, but B has not received it. The money has &ldquo;vanished into thin air.&rdquo; Even if the data has multiple replicas (replication technology), all replicas record this erroneous &ldquo;intermediate state.&rdquo;</li>
+<li><strong>Cross-partition operation</strong>: Suppose User A&rsquo;s data is in partition 1 and User B&rsquo;s data is in partition 2. This transfer operation requires a coordinator to notify the two partitions to execute the operation separately. If partition 1 successfully deducts the amount, but partition 2 fails to receive it due to network issues or its own failure, data inconsistency will also result.</li>
+</ul>
+<p>However, if transaction technology is used, the <em>atomicity</em> of the transaction guarantees that this series of operations is an &ldquo;all-or-nothing&rdquo; atomic unit. The system ensures that the two steps of &ldquo;deduction&rdquo; and &ldquo;deposit&rdquo; either both complete, or, if anything goes wrong in the middle, all completed steps are rolled back (Rollback), restoring the system state to what it was before the operation began. This ensures that money never disappears or appears out of nowhere.</p>
+<p><strong>Scenario 2: Concurrent Flash Sales (The chaos of lacking isolation)</strong></p>
+<p>On an e-commerce website, only one item of a certain product remains in stock. At this moment, two users (User C and User D) click the &ldquo;Buy&rdquo; button simultaneously.</p>
+<p>In a distributed system lacking transaction technology, the following problems may occur:</p>
+<ol>
+<li>User C&rsquo;s request arrives; the system reads the stock as 1.</li>
+<li>Before User C&rsquo;s request completes the &ldquo;deduct stock&rdquo; operation, User D&rsquo;s request also arrives; the system still reads the stock as 1.</li>
+<li>User C&rsquo;s request executes &ldquo;deduct stock,&rdquo; and the stock becomes 0.</li>
+<li>User D&rsquo;s request also executes &ldquo;deduct stock,&rdquo; and the stock becomes -1 (overselling).</li>
+<li>The final result: both users believe they have bought the product, while the system stock shows a negative number. This causes a serious business logic error.</li>
+</ol>
+<p>However, if transaction technology is used, the <em>isolation</em> of the transaction ensures that multiple concurrently executing transactions do not interfere with each other, as if they were executed serially. When User C&rsquo;s transaction begins processing the stock, it locks that data. User D&rsquo;s transaction cannot modify the stock data until User C&rsquo;s transaction completes (commits or rolls back); it either waits or reads an old value and then fails. This ensures that only one person can successfully buy the product in the end.</p>
+<p><strong>Scenario 3: Data integrity after a system crash (The risks of lacking durability)</strong></p>
+<p>An order system has just completed the creation of an important order, and all data has been written. At the moment data is flushed from memory to disk, the server loses power.</p>
+<p>In a distributed system lacking transaction technology, if the system relies on the operating system&rsquo;s buffered writes, the order data may be permanently lost. Although you may have received an &ldquo;operation successful&rdquo; response, the data has not actually been persisted.</p>
+<p>The <em>durability</em> of transactions guarantees that once a transaction is committed, its result is permanent. Even if the system crashes, the data can be recovered. This is usually achieved through mechanisms such as Write-Ahead Logging (WAL): before modifying the data itself, the operation is first recorded in a persistent log.</p>
+<p>We can imagine a distributed system as a large, cross-departmental company project:</p>
+<ul>
+<li>Replication technology ensures that every department has backups of core members, or complete copies of project documentation. If a core member takes leave or leaves, a backup personnel can step in to ensure the department&rsquo;s work is not interrupted (high availability).</li>
+<li>Partitioning technology splits the project among different departments (front-end, back-end, database), improving the company&rsquo;s overall processing capacity (scalability).</li>
+<li>Transaction technology is a &ldquo;workflow&rdquo; or &ldquo;process rule&rdquo; in project management. For example, the &ldquo;product launch&rdquo; workflow must include: 1. successful code deployment, 2. successful database migration, 3. successful CDN cache refresh. This workflow stipulates that all three things must be completed before the &ldquo;product launch&rdquo; is considered truly successful. If any step fails, the entire launch process must be rolled back to its initial state (for example, code rollback, database recovery), and it must never stop in an awkward &ldquo;half-deployed&rdquo; state.</li>
+</ul>
+<p>In addition, transactions provide application developers with a simplified programming model. Imagine that without the various guarantees of transactions, application developers would need to:</p>
+<ul>
+<li>Manually handle rollback logic under various failure scenarios.</li>
+<li>Manually acquire locks to avoid concurrent conflicts.</li>
+<li>Write complex compensation code to repair data inconsistencies caused by partial failures.</li>
+</ul>
+<p>This would make business code extremely complex, error-prone, and difficult to maintain. Transactions encapsulate all this complexity and provide developers with a simple abstraction: &ldquo;You can treat a series of operations as an indivisible unit, and the system guarantees its ACID properties.&rdquo; This greatly improves development efficiency and application reliability.</p>
+<p>In this chapter, we start our discussion of transaction ACID properties from single-node database transactions, and then extend to distributed transactions involving multiple services. In distributed systems, because operations may span multiple services (for example, an e-commerce purchase involves order service, inventory service, and payment service), they face greater challenges:</p>
+<ul>
+<li>The network is unreliable, and delays, partitions, and packet loss may occur.</li>
+<li>Nodes may fail; servers may go down, and processes may crash.</li>
+<li>There is a risk of data inconsistency, where some operations succeed and some fail (for example, the order is created successfully, but inventory deduction fails).</li>
+</ul>
+<h2 class="heading" id="understanding-acid-in-depth">
+  Understanding ACID in Depth
+  <a class="anchor" href="#understanding-acid-in-depth">#</a>
+</h2>
+<p>In a single-node database, various failures can occur:</p>
+<ul>
+<li>The database is writing data when the system crashes; after restarting the database, how to recover from the corrupted data.</li>
+<li>Multiple clients write multiple data items simultaneously; for example, in the e-commerce purchase example at the beginning of this chapter.</li>
+</ul>
+<p>To protect application developers from being troubled by these failures, transaction technology has always been the preferred mechanism of database systems. Transaction technology provides application developers with the ACID safety guarantee. Let us first understand these properties. ACID was first proposed in [1] as a precise description of database fault-tolerance mechanisms; it is an acronym of the following four words:</p>
+<ul>
+<li><strong>A (Atomicity)</strong>: Atomicity. A transaction guarantees that modifications to multiple data items either all succeed or all fail.</li>
+<li><strong>C (Consistency)</strong>: Consistency. Before and after executing a transaction, the database must be in a correct state satisfying integrity constraints.</li>
+<li><strong>I (Isolation)</strong>: Isolation. When multiple transactions execute concurrently, the execution of one transaction should not affect the execution of other transactions.</li>
+<li><strong>D (Durability)</strong>: Durability. After a transaction completes, the modifications to data are permanent, even if the system fails.</li>
+</ul>
+<p>Overall, the ACID properties provide a mechanism that makes each transaction act as a unit, complete a set of operations, produce consistent results, be isolated from other transactions, and have updates take effect permanently, thereby ensuring database correctness and consistency.</p>
+<p>The following uses the bank transfer example to illustrate transaction properties. Transactions are usually marked by <code>BEGIN</code> and <code>END</code> to indicate start and end. Suppose the balances of users <em>x</em> and <em>y</em> are both 10, and the following two transactions T1 and T2 execute concurrently:</p>
+<pre tabindex="0"><code>T1:             T2:
+  BEGIN           BEGIN
+    add(x, 1)       x1 = get(x)
+    add(y, -1)      y1 = get(y)
+  END             print x1, y1
+                  END
+</code></pre><h3 class="heading" id="atomicity-and-durability">
+  Atomicity and Durability
+  <a class="anchor" href="#atomicity-and-durability">#</a>
+</h3>
+<p>Atomicity and Durability in ACID are closely related; together they form the cornerstone of transaction reliability. They act on the two complementary scenarios of transaction &ldquo;failure recovery&rdquo; and &ldquo;success persistence&rdquo;, so that the database can maintain a predictable state whether it succeeds or fails. Together, they ensure that the database will neither have incomplete operations nor lose already-confirmed operation results. These two properties together constitute the core of transaction reliability:</p>
+<ul>
+<li><strong>Atomicity</strong> focuses on the logical correctness of transaction execution: either do it all or do none of it, never leaving an intermediate state. If any exception occurs during transaction execution (statement error, deadlock, crash, etc.), atomicity requires that all modifications already made must be undone, and the database returns to the state &ldquo;this transaction never happened.&rdquo;</li>
+<li><strong>Durability</strong> focuses on the physical reliability of transaction results: once successful, the result is never lost, even if power is lost or a crash occurs immediately afterwards.</li>
+</ul>
+<p>In short, atomicity handles failures, while durability secures successes. Only with their cooperation can consistency and recoverability of transactions under arbitrary failure scenarios be achieved. For example, in a bank transfer transaction:</p>
+<ul>
+<li>Atomicity ensures that &ldquo;deducting from account <em>x</em>&rdquo; and &ldquo;depositing into account <em>y</em>&rdquo; either both succeed or both fail.</li>
+<li>Durability ensures that if both operations succeed, even if the system crashes immediately, the transfer result can be recovered.</li>
+</ul>
+<p>Without atomicity, it would be impossible to determine which operations have been successfully executed, and durability could not be correctly applied; without durability, even if a transaction satisfies atomicity, its result could be lost after a system failure. Next, we analyze their principles in detail.</p>
+<p><strong>Atomicity</strong></p>
+<p>Atomicity stipulates that all operations contained within a transaction must be treated as an indivisible whole. The whole ultimately has only two states: <em>all operations succeed</em> or <em>no operations execute</em>; the system never allows staying in a &ldquo;half-done&rdquo; intermediate state, so it is also called &ldquo;All or Nothing.&rdquo;</p>
+<ul>
+<li>If all operations succeed, we call it <strong>Commit</strong>.</li>
+<li>If no operations are executed (that is, undo all operations already performed and restore the state before the transaction began), we call it <strong>Rollback</strong>.</li>
+</ul>
+<p>Taking the bank transfer example above, if atomicity is violated (for example, the system crashes after completing step 1), account A has less money, but account B has not increased. This is not only data inconsistency, but also a serious business error that causes the bank&rsquo;s balance sheet to be out of balance.</p>
+<p>Atomicity ensures that no matter what failure occurs (application crash, database downtime, network interruption), the result of this transfer transaction can only be:</p>
+<ul>
+<li><strong>Successful commit</strong>: the balance of <em>x</em> decreases by 1, and the balance of <em>y</em> increases by 1.</li>
+<li><strong>Transaction abort (Rollback)</strong>: the balances of <em>x</em> and <em>y</em> remain unchanged, as if the transfer never happened.</li>
+</ul>
+<p>The implementation of atomicity mainly relies on the database&rsquo;s log mechanism, especially the <em>Undo Log</em>. Its working principle is as follows:</p>
+<ol>
+<li><strong>Transaction start</strong>: The system starts a new transaction.</li>
+<li><strong>Before modifying data, record the &ldquo;reverse operation&rdquo;</strong>: This is the so-called undo log, used to roll back the corresponding operation when the transaction is aborted. In a transaction, when the database wants to modify a piece of data (for example, the balance of <em>x</em> changes from 10 to 9), it does not directly modify the original data. Instead, it first records a &ldquo;reverse operation&rdquo; log in the undo log, such as: &ldquo;Change A&rsquo;s balance from 9 back to 10.&rdquo;</li>
+<li><strong>Execute data modification</strong>: After recording the undo log, the modification is performed on the data page in memory, updating the balance of <em>x</em> to 9.</li>
+<li><strong>If everything is normal, the transaction will commit</strong>: If all operations in the transaction complete successfully, the transaction manager commits the transaction. At this point, the undo log may be marked as discardable.</li>
+<li><strong>If any error occurs during transaction execution, the transaction will roll back (Rollback)</strong>: During rollback, it finds transactions that have not yet committed and uses the corresponding undo logs to execute reverse operations, thereby restoring all modified data to the state before the transaction began. For example, it reads the log &ldquo;Change <em>x</em>&rsquo;s balance from 9 back to 10&rdquo; and executes it to restore account A&rsquo;s data.</li>
+</ol>
+<p>In distributed systems, implementing atomicity is more complex and usually requires Two-Phase Commit (2PC) or its variants (such as 3PC, Paxos, Raft) to coordinate all participating nodes, ensuring that they either commit together or roll back together.</p>
+<p><strong>Durability</strong></p>
+<p>Durability guarantees that as long as a transaction commits successfully, the changes it makes to the database are permanent. Even if any failure occurs afterwards (such as database server power loss, operating system crash), the committed data will never be lost. Durability is the system&rsquo;s ultimate promise of data reliability. Imagine:</p>
+<ul>
+<li>You just placed an order on an e-commerce website, and the system prompts &ldquo;Order placed successfully.&rdquo; If the order data is not persisted, after the server restarts, your order disappears.</li>
+<li>You just stored important files in cloud storage, and the system shows &ldquo;Upload complete.&rdquo; Without durability, a data-center power outage could cause your files to be permanently lost.</li>
+</ul>
+<p>Durability ensures that the &ldquo;success&rdquo; receipt given by the system is authentic and trustworthy.</p>
+<p>The implementation of durability also relies on logs, but unlike atomicity, durability relies on the <em>Redo Log</em>, and the core idea of implementing this mechanism is <em>Write-Ahead Logging (WAL)</em>. The core principle of WAL is: when modifying data, write the log first, then modify the data. The working principle is as follows:</p>
+<ol>
+<li><strong>Data modification generates a write-ahead log</strong>: When a transaction wants to modify data, it first generates a write-ahead log in memory, recording &ldquo;what modification to make,&rdquo; for example: &ldquo;At offset <em>Y</em> of data page <em>X</em>, change the value from <em>A</em> to <em>B</em>.&rdquo;</li>
+<li><strong>Log is written to disk first</strong>: Before modifying the data page in memory, this write-ahead log must be written to the log file on disk and ensure that the flush to disk succeeds (fsync). This is a sequential append operation and is very fast.</li>
+<li><strong>Modify the in-memory data page</strong>: After the log is persisted, the system performs the actual modification on the in-memory data page.</li>
+<li><strong>Return a success response</strong>: Once the write-ahead log has been successfully written to disk, the system can return a &ldquo;transaction commit successful&rdquo; response to the client.</li>
+</ol>
+<p>With the support of write-ahead logging, the modified data pages in memory (called <em>dirty pages</em>) do not need to be written to disk immediately. The database can asynchronously flush these dirty pages to disk according to its own strategy (such as batching, or when the system is idle). This is a random-write operation and is relatively slow.</p>
+<p>With write-ahead logging, how do we recover data after a crash?</p>
+<p>Suppose the database server suddenly loses power between step 4 and step 5. At this point, all modifications in memory are lost, but the Redo Log recorded on disk is intact. When the server restarts, the database performs a recovery process:</p>
+<ol>
+<li>Read the write-ahead log.</li>
+<li>It finds that a certain transaction has committed (because the log contains a commit record), but the corresponding data page may still be old (because it was not flushed to disk in time). The database re-executes the modification operations according to the contents of the write-ahead log (this is the meaning of &ldquo;Redo&rdquo;), restoring the data to the correct state before the crash.</li>
+</ol>
+<p>Because the log is written in advance, any committed transaction modifications can be recovered by replaying the log, thereby guaranteeing durability.</p>
+<p>The table below summarizes the undo and redo log contents corresponding to the two operations in the bank transfer example. The figure below illustrates how these two types of logs resolve transaction abort and crash recovery; the green logs indicate operations to be redone:</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">Operation</th>
+          <th style="text-align: left">Undo Log</th>
+          <th style="text-align: left">Redo Log</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><code>add(x,1)</code></td>
+          <td style="text-align: left">x=10</td>
+          <td style="text-align: left">x=11</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>add(y,-1)</code></td>
+          <td style="text-align: left">y=10</td>
+          <td style="text-align: left">y=9</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li><strong>Transaction abort</strong>: Case 1 in the figure. The transaction successfully executes <code>add(x,1)</code>, but fails when executing <code>add(y,-1)</code>. As a guarantee of transaction atomicity, all operations of the transaction must succeed or fail, so the previously successful operation needs to be rolled back. At this point the values of the two variables are <em>x</em>=11 and <em>y</em>=10; since <code>add(y,-1)</code> was not successfully executed, the abort operation only needs to use the undo operation of <code>add(x,1)</code> (i.e., <em>x</em>=10) to restore the state before transaction execution, <em>x</em>=10 and <em>y</em>=10.</li>
+<li><strong>Crash recovery</strong>: Case 2 in the figure. Both operations of the transaction execute successfully, and the transaction is also committed successfully, but the system crashes at this time. As a durability guarantee, once the transaction commits successfully, the successfully executed transaction state must be preserved even if the system crashes. After the system recovers, it needs to redo all operations of the transaction according to the redo log, finally obtaining the state after successful transaction execution, <em>x</em>=11 and <em>y</em>=9.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Examples of using undo and redo logs to solve transaction abort and crash recovery." src="/media/dist-system-en/transaction/tx-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<h3 class="heading" id="isolation">
+  Isolation
+  <a class="anchor" href="#isolation">#</a>
+</h3>
+<p>Transaction isolation means that concurrently executing transactions must not interfere with each other; that is, the operations and data used inside one transaction are isolated from other concurrently executing transactions. There are different transaction isolation levels; among these, the most classic isolation level is <em>Serializable</em>, which guarantees that the final result of multiple concurrently executing transactions is exactly the same as the result of executing them one after another in some order. It provides each transaction with the illusion that it is the only transaction running in the system throughout its execution, and it cannot see the intermediate states of other transactions.</p>
+<p>The following example illustrates the concept of serializability. Suppose the balances of users <em>x</em> and <em>y</em> are both 10, and the following two transactions T1 and T2 execute concurrently:</p>
+<p>As shown below, the possible serial execution orders are:</p>
+<ul>
+<li>T1 T2: T2 prints &ldquo;11,9&rdquo;, and the final result is <em>x</em>=11, <em>y</em>=9;</li>
+<li>T2 T1: T2 prints &ldquo;10,10&rdquo;, and the final result is <em>x</em>=11, <em>y</em>=9.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Two possible execution orders satisfying serializable isolation." src="/media/dist-system-en/transaction/tx-serializable-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>If the operations in the two transactions are interleaved, serializable isolation is not satisfied. For example, if the operations of transactions T1 and T2 are interleaved as shown below:</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Two concurrently executing transactions with interleaved operations, failing to satisfy serializable isolation requirements." src="/media/dist-system-en/transaction/tx-serializable-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>In this case, the output result is &ldquo;11,10&rdquo;. Although the final result after all operations are completed is also <em>x</em>=11, <em>y</em>=9, this does not conform to the serializability rule.</p>
+<p>From the above, we can see that serializability requires concurrently running transactions to execute one after another, which affects system performance. Fortunately, database transactions have different isolation levels[2]; the serialization method introduced above is the strongest isolation level. In addition, databases provide other isolation levels of varying strength for application developers to choose the most suitable level according to different scenarios.</p>
+<p>In order to better use databases, developers need to understand the various anomalies that may occur during concurrent transaction execution, as well as the isolation levels used to avoid these anomalies. Let us start with the various anomalies.</p>
+<p><strong>Dirty Read</strong></p>
+<p><em>Dirty read</em> refers to a situation in which, when multiple transactions operate on the same data simultaneously, one transaction A reads data that another transaction B has not yet committed. If A ultimately rolls back for some reason, then B has read a piece of &ldquo;dirty&rdquo; data that never really existed, and may make incorrect subsequent operations based on this dirty data, for example:</p>
+<ul>
+<li>When a transaction has multiple update operations, other transactions read partially updated data;</li>
+<li>When a transaction is interrupted and rolled back, other transactions read the rolled-back value and use it as the basis for subsequent operations.</li>
+</ul>
+<p>As shown below, transaction A modifies the value of <em>x</em> to 10. Before this transaction commits, transaction B reads this value and executes an update operation based on it, but transaction A ultimately fails to commit, causing transaction B&rsquo;s modification operation to be invalid.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Example of dirty read: a concurrently executing transaction reads uncommitted data from another transaction." src="/media/dist-system-en/transaction/tx-dirty-read.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p><strong>Non-Repeatable Read</strong></p>
+<p><em>Non-repeatable read</em> refers to the situation in which, during the execution of the same transaction, two reads of the <em>same row</em> of data yield inconsistent results. This is because, between the two reads in the transaction, another transaction committed a modification (UPDATE) or deletion (DELETE) of that data, which destroys the logical consistency within the transaction.</p>
+<p>As shown below, the initial value of <em>x</em> is 1. Transaction A modifies the value of <em>x</em> to 10. Before and after this transaction commits, transaction B reads different values. This phenomenon in which the same data is read multiple times within the same transaction and yields different results is called <em>non-repeatable read</em>, also known as <em>fuzzy read</em>.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Non-repeatable read" src="/media/dist-system-en/transaction/tx-non-repeatable-read.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>The issue with non-repeatable reads is that a transaction may read inconsistent data at different times during its execution. In some scenarios, this is not a serious problem, for example:</p>
+<ul>
+<li><strong>Reading some non-critical data</strong>: For example, some social applications read the same user&rsquo;s preferences, browsing history, and other non-critical information multiple times within the same transaction; such scenarios can generally tolerate data inconsistency before and after within the same transaction.</li>
+<li><strong>Cache update</strong>: For example, e-commerce platforms put product description information into caches; such cache updates have a time window, and changes in product descriptions before and after are acceptable.</li>
+</ul>
+<p>However, there are also many scenarios where non-repeatable reads must be avoided. The characteristic of such problems is that they require ensuring <strong>data integrity</strong> before and after within the same transaction, for example:</p>
+<ul>
+<li><strong>Financial scenarios</strong>: For example, in a transfer between two users, the data-integrity requirement is that the sum of the balances of the two accounts before and after the transfer remains consistent. As shown below, the initial balances of accounts A and B are 10 and 20 respectively, but when user B checks the balances of accounts A and B before and after, the values obtained are 10 and 25, which is inconsistent with the initial total of 30.</li>
+<li><strong>Inventory management</strong>: E-commerce platforms must ensure consistency of inventory data before and after; in this scenario, the data-integrity requirement is that the sum of items for sale and items sold remains consistent before and after.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Non-repeatable read causing the sum of bank account balances to become inconsistent before and after." src="/media/dist-system-en/transaction/tx-non-repeatable-read-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p><strong>Phantom Read</strong></p>
+<p><em>Phantom read</em> refers to the situation in which, during the execution of the same transaction, two queries executed with the same query condition return different <em>numbers of rows</em>.</p>
+<p>Phantom reads and non-repeatable reads look very similar: both involve reading different data before and after within the same transaction. The difference between the two is:</p>
+<ul>
+<li><strong>Non-repeatable read</strong>: the value of a single row of data is modified.</li>
+<li><strong>Phantom read</strong>: the number of rows (or the set itself) of a batch of data has increased or decreased.</li>
+</ul>
+<p>As can be seen, non-repeatable reads focus on the case where the same data is modified, while phantom reads focus on the case where a data set changes.</p>
+<p>As shown below. Transaction A first queries the data with <code>id=5</code> and gets an empty result set; transaction A believes that <code>id=5</code> is not occupied. However, before it writes the data with <code>id=5</code>, transaction B writes the data with <code>id=5</code>, causing transaction A&rsquo;s write to fail.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="The number of rows returned by two queries within the same transaction is inconsistent." src="/media/dist-system-en/transaction/tx-phantom-read.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Having understood the common problem types in concurrent transactions, let us now look at the different isolation levels designed in databases, arranged from weak to strong as follows:</p>
+<p><strong>Read Uncommitted</strong></p>
+<p><em>Read uncommitted</em> is the weakest isolation level, providing no guarantees; dirty reads, non-repeatable reads, phantom reads, and other anomalies can all occur at this isolation level. Therefore, it is rarely used and usually only in scenarios with extremely low data-accuracy requirements.</p>
+<p><strong>Read Committed</strong></p>
+<p><em>Read committed</em> is the default isolation level in most databases. This level stipulates that a transaction can only read data committed by other transactions; therefore, dirty reads are eliminated at this level, but non-repeatable reads and phantom reads may still occur.</p>
+<p><strong>Repeatable Read</strong></p>
+<p><em>Repeatable Read</em> is a stronger isolation level than read committed. This level guarantees that, within the same transaction, multiple reads of the same row of data yield consistent results. At this level, dirty reads and non-repeatable reads are eliminated, but phantom reads may still occur.</p>
+<p>Among all isolation levels, the strongest is <em>Serializable</em>; this level eliminates dirty reads, non-repeatable reads, and phantom reads, but correspondingly, the degree of parallelism of serializability is also the lowest.</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">Isolation Level</th>
+          <th style="text-align: left">Dirty Read</th>
+          <th style="text-align: left">Non-Repeatable Read</th>
+          <th style="text-align: left">Phantom Read</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">Read Uncommitted</td>
+          <td style="text-align: left">✗ Possible</td>
+          <td style="text-align: left">✗ Possible</td>
+          <td style="text-align: left">✗ Possible</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">Read Committed</td>
+          <td style="text-align: left">✓ Avoided</td>
+          <td style="text-align: left">✗ Possible</td>
+          <td style="text-align: left">✗ Possible</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">Repeatable Read</td>
+          <td style="text-align: left">✓ Avoided</td>
+          <td style="text-align: left">✓ Avoided</td>
+          <td style="text-align: left">✗ Possible</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">Serializable</td>
+          <td style="text-align: left">✓ Avoided</td>
+          <td style="text-align: left">✓ Avoided</td>
+          <td style="text-align: left">✓ Avoided</td>
+      </tr>
+  </tbody>
+</table>
+<h3 class="heading" id="consistency">
+  Consistency
+  <a class="anchor" href="#consistency">#</a>
+</h3>
+<p>Above we have interpreted three properties of ACID; now let us analyze the most special and most easily misunderstood member of ACID: C - Consistency. Among the four ACID properties, A (Atomicity), I (Isolation), and D (Durability) are mainly technical guarantees provided by the database system. C (Consistency), on the other hand, is more like a business goal, a final effect achieved jointly by A, I, and D combined with application-layer logic.</p>
+<p>The core idea of consistency in ACID is: <strong>The execution of a transaction must not destroy the integrity of database data and business rules</strong>. In other words, regardless of whether the transaction can commit successfully, before and after the transaction executes, the database must be in a valid state.</p>
+<ul>
+<li>What does a &ldquo;consistent state&rdquo; mean? It means that data must satisfy all preset rules and constraints. These rules can be at the database level or at the application level. These constraints include primary-key constraints, foreign-key constraints, uniqueness constraints, check constraints at the database level, as well as business-rule constraints at the application level.</li>
+<li><strong>Transaction intermediate state</strong>: During transaction execution, data may temporarily be in an inconsistent (invalid) intermediate state. However, because of transaction atomicity and isolation, this intermediate state is invisible to other transactions. When the transaction finally commits, it must ensure that the data has returned to a new, consistent state.</li>
+</ul>
+<p>In previous chapters, we have seen the word &ldquo;consistency&rdquo; in many places:</p>
+<ul>
+<li>In the consistency models section, various consistency models were discussed in detail.</li>
+<li>In the CAP theorem section, the &ldquo;C&rdquo; also stands for consistency, referring to linearizability.</li>
+</ul>
+<p>However, consistency in ACID is very different from consistency in the consistency models discussed earlier:</p>
+<ul>
+<li>Consistency in ACID refers to the data inside a single database node conforming to predefined business rules and constraints (for example, the total amount in bank accounts cannot be negative). It focuses on the logical correctness of data.</li>
+<li>Consistency in CAP theory refers to data replicas among multiple nodes in a distributed system being the same value at any moment. It focuses on the synchronization and visibility of data among different replicas.</li>
+</ul>
+<p>In simple terms, consistency in ACID focuses on &ldquo;whether the business logic is correct,&rdquo; while consistency in CAP focuses on &ldquo;whether the data of each replica is the same.&rdquo;</p>
+<p>The guarantee of consistency in ACID is a layered, collaborative process:</p>
+<ul>
+<li><strong>Database level</strong>: The database enforces some data rules through built-in functions; this is the lowest-level, strongest guarantee. This includes:
+<ul>
+<li>Database built-in constraints; for example, if a primary key is declared, the database will ensure that the primary key is unique and non-null; if a foreign key is declared, the database will ensure that the foreign key points to a real existing primary key, ensuring that the relationship between the two is valid.</li>
+<li>In addition, the A, I, and D properties provided by the database are the cornerstone for achieving consistency.</li>
+</ul>
+</li>
+<li><strong>Application level</strong>: Many complex business rules cannot be understood by the database and must be guaranteed by the application program.
+<ul>
+<li><strong>Business logic</strong>: For example, in a banking system, &ldquo;the total deposits of all current accounts must equal the current deposit total recorded in the bank&rsquo;s general ledger.&rdquo; The database itself cannot verify this rule; the application program must ensure it through calculation in every deposit and withdrawal operation.</li>
+<li><strong>Transaction orchestration</strong>: The application program is responsible for beginning (<code>BEGIN TRANSACTION</code>), committing (<code>COMMIT</code>), or rolling back (<code>ROLLBACK</code>) transactions, packaging a series of operations to ensure they jointly satisfy business consistency requirements.</li>
+</ul>
+</li>
+</ul>
+<p>Still using the bank transfer example above to illustrate how the system guarantees business consistency. The consistency rule for bank transfer business is: at any time, the total assets of all accounts remain unchanged. The process of using a transaction for transfer is as follows:</p>
+<ol>
+<li><strong>Initial state</strong>: The balances of users <em>x</em> and <em>y</em> are both 10; the total assets add up to 20. Whether the transfer ultimately succeeds or not, the business consistency rule that total assets must be 20 must be satisfied.</li>
+<li><strong>Execute transaction</strong>:
+<ol>
+<li>Deduct 1 from user <em>x</em>&rsquo;s account. At this point the internal state of the database is: account <em>x</em> is 9, account <em>y</em> is 10. It can be seen that at this moment the sum of the two account balances is 19, which is a transient, inconsistent intermediate state that does not satisfy the business consistency requirement above. However, because of isolation in ACID, other concurrent transactions cannot see this state; what they see is still the state before the transaction began: both users <em>x</em> and <em>y</em> have balances of 10.</li>
+<li>Add 1 to user <em>y</em>&rsquo;s account. After executing this operation, the requirement that the total account assets be 20 is satisfied, and the data reaches a new state that satisfies the business rules.</li>
+<li>Transaction commit.</li>
+</ol>
+</li>
+<li><strong>Final consistent state</strong>: The final state is account <em>x</em> at 9 and account <em>y</em> at 11, satisfying the consistency rule that total assets are 20.</li>
+</ol>
+<p>If a failure occurs in the middle (for example, a crash after operation 1), atomicity intervenes, rolling back all operations and restoring the database to the initial consistent state <em>x</em>=10, <em>y</em>=10. Durability ensures that once the commit succeeds, the new state <em>x</em>=9, <em>y</em>=11 is permanently saved.</p>
+<p>To summarize, consistency in ACID is the ultimate goal of the system; it requires that data satisfy all preset business rules and integrity constraints before and after a transaction, and it is a business-level correctness that needs to be jointly guaranteed by the database and the application program.</p>
+<h2 class="heading" id="concurrency-control">
+  Concurrency Control
+  <a class="anchor" href="#concurrency-control">#</a>
+</h2>
+<p>Concurrent access mechanisms can be broadly divided into two categories: <em>pessimistic</em> and <em>optimistic</em>. The pessimistic approach assumes that conflicts between transactions occur frequently, so it acquires locks before accessing resources to avoid conflicts; the optimistic approach assumes that conflicts between transactions do not occur frequently, so transactions can access resources without locks and finally determine whether there are conflicts to resolve.</p>
+<p>According to these two divisions, this section introduces several common concurrency control mechanisms:</p>
+<ul>
+<li>Pessimistic approach: Two-Phase Locking;</li>
+<li>Optimistic approach: Optimistic Concurrency Control, Multi-Version Concurrency Control.</li>
+</ul>
+<blockquote>
+<p>Although the optimistic approach can access resources without locks, this does not mean that the optimistic approach is necessarily more performant than the pessimistic approach. As we will see, every optimistic concurrency control mechanism must be paired with a corresponding conflict resolution solution. When resource contention is fierce, the optimistic approach can instead be slower, as a large amount of time is consumed in conflict resolution.</p></blockquote>
+<h3 class="heading" id="two-phase-locking">
+  Two-Phase Locking
+  <a class="anchor" href="#two-phase-locking">#</a>
+</h3>
+<p><em>Two-Phase Locking (2PL)</em>[3] divides the lock-acquisition operations of a transaction into two phases to manage the transaction&rsquo;s access to shared resources. Specifically, there are two types of locks; the compatibility of these two types of locks is shown below:</p>
+<ul>
+<li><strong>Shared Lock</strong>: Allows multiple transactions to <em>read</em> data simultaneously.</li>
+<li><strong>Exclusive Lock</strong>: Allows only one transaction to <em>modify</em> data.</li>
+</ul>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left"></th>
+          <th style="text-align: left">Shared Lock</th>
+          <th style="text-align: left">Exclusive Lock</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">Shared Lock</td>
+          <td style="text-align: left">✓</td>
+          <td style="text-align: left">✗</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">Exclusive Lock</td>
+          <td style="text-align: left">✗</td>
+          <td style="text-align: left">✗</td>
+      </tr>
+  </tbody>
+</table>
+<p>The two-phase locking protocol divides the lock acquisition and release operations of a transaction on shared resources into two distinct phases:</p>
+<ul>
+<li><strong>Growing Phase</strong>: The transaction can acquire locks, but cannot release any locks.</li>
+<li><strong>Shrinking Phase</strong>: The transaction can release locks, but cannot acquire any new locks.</li>
+</ul>
+<p>Once a transaction enters the shrinking phase, it can no longer request new locks until the transaction ends.</p>
+<p>According to this rule, after a transaction enters the shrinking phase, the number of locks can only gradually decrease, as shown below.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Correct two-phase locking: after entering the shrinking phase, the number of locks can only gradually decrease." src="/media/dist-system-en/transaction/tx-2pl-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>As shown below, when a transaction&rsquo;s locks begin to decrease and enter the shrinking phase, if the number of locks subsequently increases, it violates the two-phase locking rule.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="A transaction violates the two-phase locking rule because the number of locks increases after entering the shrinking phase." src="/media/dist-system-en/transaction/tx-2pl-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>When a transaction needs to acquire a lock on a shared resource, if that resource is already locked by another transaction and the two locks are incompatible, it must wait until the other transaction releases the lock before the lock acquisition can succeed. As shown below, transaction A has acquired a write lock on variable <em>x</em>; at this point transaction B must wait for this lock to be released before it can also acquire a lock on variable <em>x</em>.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Example of two-phase locking." src="/media/dist-system-en/transaction/tx-2pl-3.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Two-phase locking works well in most cases, but in some situations it can expose uncommitted data, causing the &ldquo;dirty read&rdquo; problem. As shown below, after transaction B reads the value modified by transaction A when transaction A releases the lock on variable <em>x</em>, transaction A subsequently aborts and rolls back its changes, so transaction B has read dirty data.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Two-phase locking causing the dirty read problem." src="/media/dist-system-en/transaction/tx-2pl-4.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>To solve the dirty read problem caused by two-phase locking, a variant of 2PL called <em>Strong Strict Two-Phase Locking (SS2PL)</em> was introduced. Unlike 2PL, SS2PL only begins to release locks after the transaction ends (abort or commit). As shown below, locks are only released when the transaction ends.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Strong strict two-phase locking." src="/media/dist-system-en/transaction/tx-2pl-5.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>The figure below is an example of Strong Strict Two-Phase Locking; transaction A does not release its locks until commit, avoiding dirty reads.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Example of strong strict two-phase locking: transaction A does not release its locks until commit, avoiding dirty reads." src="/media/dist-system-en/transaction/tx-2pl-7.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Two-phase locking may cause <em>deadlock</em> among concurrent transactions. As shown below, transaction T1 wants to acquire a shared lock on object B, but depends on transaction T2 releasing the exclusive lock on object B; transaction T2 has acquired an exclusive lock on object C, but depends on transaction T3 releasing the shared lock on object C; finally, transaction T3 has acquired an exclusive lock on object A, but depends on transaction T1 releasing the shared lock on object A. In this scenario, the dependency relationships among the three transactions form a directed cycle, thus causing a deadlock.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Deadlock among transactions." src="/media/dist-system-en/transaction/tx-2pl-6.png" >
+    </div>
+
+    
+</figure>
+</p>
+<h3 class="heading" id="optimistic-concurrency-control">
+  Optimistic Concurrency Control
+  <a class="anchor" href="#optimistic-concurrency-control">#</a>
+</h3>
+<p>Two-phase locking is <em>pessimistic</em> in handling possible conflicts in concurrent transactions: it assumes conflicts are frequent, so it prevents them by acquiring locks on resources in advance. The <em>optimistic</em> approach, by contrast, assumes conflicts between transactions do not occur often, so it does not lock resources during transaction execution, and performs conflict detection only when the transaction commits, resolving any conflicts that arise.</p>
+<p>The <em>Optimistic Concurrency Control (OCC)</em>[4] introduced here embodies this idea; it was proposed in 1981 in the paper &ldquo;On Optimistic Methods for Concurrency Control&rdquo;[5].</p>
+<p>As shown below, the execution flow of optimistic concurrency control is divided into three phases:</p>
+<p><strong>Read Phase</strong></p>
+<p>In this phase, the transaction can read data and perform computations, but all modifications occur only in the transaction&rsquo;s local private workspace (for example, a copy in memory), and do not directly modify the database.</p>
+<ul>
+<li><strong>Read data</strong>: When a transaction needs to read a data item, it reads the latest committed version of the data into its own private workspace.</li>
+<li><strong>Make modifications</strong>: The transaction modifies the data in its private workspace. These modifications are completely invisible to other transactions.</li>
+</ul>
+<p>This phase has no locks, so there is no waiting, and read/write efficiency is very high.</p>
+<p><strong>Validation Phase</strong></p>
+<p>When a transaction is ready to commit, it enters the validation phase, which is the core and essence of optimistic concurrency control. The system checks whether, during the execution of this transaction, modifications by other transactions have conflicted with it.</p>
+<p>The essence of validation is to check the serializability order of transactions. A common rule is: all data involved in the read operations of transaction T must not have been modified by any other committed transaction after T began reading and until T completes validation. In other words, the &ldquo;read set&rdquo; of transaction T must be up-to-date. If its read set has been tainted, then the calculations it made based on this read set lose their correct premise.</p>
+<p>In specific implementations, when each transaction starts, the system usually assigns it a unique monotonically increasing timestamp. During validation, the transaction T being validated is checked for conflicts with all other transactions T&rsquo; that started before it but completed validation after it. If it is found that data involved by transaction T already has newer data in the database, this means a conflict has occurred.</p>
+<p><strong>Write Phase</strong></p>
+<p>If the validation phase passes successfully, the transaction enters the write phase. The system atomically writes all modifications in the transaction&rsquo;s private workspace back to the global database, including using the transaction&rsquo;s timestamp to update the latest timestamp of the data, which provides a basis for other transactions to perform conflict validation. After the write is complete, the transaction&rsquo;s modifications become visible to other transactions.</p>
+<p>If the validation phase fails, this means a conflict has occurred. The transaction is completely rolled back (its private workspace is simply discarded). The system can usually choose to abort and report an error, or automatically restart the transaction. After restart, it re-executes based on the new data state.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Three-phase flow of optimistic concurrency control: after reading data from the database, the transaction writes modified data into its private workspace and only writes it to the database after validation finds no conflicts." src="/media/dist-system-en/transaction/tx-occ-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>The key point of optimistic concurrency control is how to verify that the read and write data of two transactions do not conflict. The key is to determine whether, after the transaction began reading and until validation is completed, the data read by the transaction has been modified. The following are two scenarios in which conflicts occur:</p>
+<p><strong>Write-Write Conflict</strong></p>
+<p><em>Write-write (WW)</em> conflict refers to the situation in which, if two transactions both have modification operations on variable <em>x</em>, the modification of one transaction overwrites that of the other.</p>
+<p>As shown below, transactions T1 and T2 modify the same data <em>x</em>. During the start and validation of transaction T2, transaction T1 completes its commit, so validation fails and the transaction needs to be re-executed.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Write-write conflict: the modification of transaction T1 overwrites the modification of transaction T2." src="/media/dist-system-en/transaction/tx-occ-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p><strong>Read-Write Conflict</strong></p>
+<p>As shown below, <em>Read-Write (RW)</em> conflict refers to the situation in which data read by one transaction is modified by another concurrent transaction, which also causes validation to fail.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Write-after-read conflict: transaction T1 reads the value of variable x, which is then modified by transaction T2." src="/media/dist-system-en/transaction/tx-occ-3.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Optimistic concurrency control does not acquire locks during execution; in scenarios with low conflict rates, its performance is much higher than lock-based protocols. Because no locks are requested, deadlocks are fundamentally avoided. However, if transactions frequently conflict, a large amount of rollback and retry will bring huge overhead, and performance may even be worse than simple locking. A long transaction may be repeatedly preempted by short transactions, causing multiple validation failures and rollbacks.</p>
+<p>Optimistic concurrency control&rsquo;s idea of using timestamps to verify data versions can also be applied at the application level. For example, a field <code>version</code> can be added to a data table to indicate the data version. When submitting a modification, the update is performed only if the data version is the version originally read; otherwise, the current latest data is read again and the operation is retried:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> <span style="font-weight:bold;text-decoration:underline">table</span> <span style="font-weight:bold;text-decoration:underline">SET</span> <span style="font-weight:bold;text-decoration:underline">data</span> = new_value, <span style="font-weight:bold;text-decoration:underline">version</span> = 2 <span style="font-weight:bold;text-decoration:underline">WHERE</span> id = 123 <span style="font-weight:bold;text-decoration:underline">AND</span> <span style="font-weight:bold;text-decoration:underline">version</span> = 1;
+</span></span></code></pre></div><p>If the &ldquo;number of affected rows&rdquo; returned by this UPDATE statement is 0, it means that, after it read the data and before it updated it, another transaction has modified the data (version is no longer 1), i.e., validation failed. The application layer can catch this signal and roll back or retry. This is essentially the implementation of optimistic concurrency control at the SQL level.</p>
+<h3 class="heading" id="multi-version-concurrency-control">
+  Multi-Version Concurrency Control
+  <a class="anchor" href="#multi-version-concurrency-control">#</a>
+</h3>
+<p><em>Multi-Version Concurrency Control (MVCC)</em>[6] achieves concurrency control by creating multiple versions of data copies in the database. It was first proposed in the 1978 doctoral dissertation &ldquo;Naming and Synchronization in a Decentralized Computer System&rdquo;[7], and was described in detail and introduced into the field of database concurrency control in the 1981 paper &ldquo;Concurrency Control in Distributed Database Systems&rdquo;[8].</p>
+<p>The basic principle of MVCC is that the database management system maintains multiple <em>physical</em> copies of a single <em>logical</em> object:</p>
+<ul>
+<li>When a transaction writes to an object, the database management system creates a new version of that object.</li>
+<li>When a transaction reads an object, it reads the latest version that existed when the transaction began.</li>
+</ul>
+<p>Concurrently executing transactions operate on physically isolated data, preventing them from interfering with each other. In one sentence: write operations do not block read operations, and read operations do not block write operations (Writers do not block readers, readers do not block writers).</p>
+<p>Different database systems implement MVCC differently; the following briefly explains the basic principles without being limited to a specific database system implementation.</p>
+<p>For each record, in addition to the value of the record, the database also maintains two transaction-related data items: Begin and End, indicating the valid transaction-period range of that version of the data, used to control which transactions can see this version of the data. When End is infinity, it means this version of the data is currently the latest; when End is null, it means this version of the data has not yet been committed by a transaction.</p>
+<p>After versioning is added to records, the transaction execution logic is modified as follows:</p>
+<ul>
+<li>
+<p><strong>Read operation</strong>: When a transaction wants to read a record, it can only read the latest data satisfying the following conditions:</p>
+<ol>
+<li>Begin is less than or equal to the current transaction ID.</li>
+<li>End is greater than the current transaction ID (when End is infinity, this condition is also satisfied).</li>
+</ol>
+<p>These two conditions ensure that the transaction reads the latest data before the transaction began.</p>
+</li>
+<li>
+<p><strong>Write operation</strong>:</p>
+<ol>
+<li>When a transaction modifies a record, it does not directly overwrite the original data, but first copies the latest record.</li>
+<li>It modifies the data on the copied record, and the Begin of this new record is the current transaction ID.</li>
+</ol>
+</li>
+<li>
+<p><strong>Commit transaction</strong>:</p>
+<ol>
+<li>If other transactions with transaction IDs smaller than this transaction are currently executing, it needs to wait for these transactions to commit first.</li>
+<li>Compare the data transaction IDs of the modifications; if they are inconsistent with the transaction IDs originally read, choose to abort or restart the transaction.</li>
+<li>Change the End of the records modified by this transaction to infinity, indicating that it is currently the latest version, and at the same time change the End of the previous last version to this transaction&rsquo;s ID.</li>
+</ol>
+</li>
+</ul>
+<p>Taking the figures below as examples to illustrate the working principle of MVCC, two transactions T1 and T2 execute concurrently and modify the same record:</p>
+<ul>
+<li><strong>(a)</strong>: Transaction T1 begins execution and modifies record A. It will add a new version A1. The Begin time of this record is the timestamp 1 of transaction T1. At the same time, because transaction T1 has begun execution, a status for transaction T1 is also added to the transaction status table.</li>
+<li><strong>(b)</strong>: Transaction T2 begins execution and modifies record A. It will add a new version A2. The Begin time of this record is the timestamp 2 of transaction T2. At the same time, because transaction T2 has begun execution, a status for transaction T2 is also added to the transaction status table.</li>
+<li><strong>(c)</strong>: Transaction T1 commits. It changes the End timestamp of the current latest record A0 to the timestamp 1 of transaction T1, changes the End time of record A1 to ∞, indicating that this record is currently the latest, and finally changes the status of transaction T1 in the transaction status table to &ldquo;committed.&rdquo;</li>
+<li><strong>(d)</strong>: It is worth noting that, if transaction T2 commits and finds in the transaction status table that transaction T1, which has an earlier time than itself, has not yet committed, it needs to wait until transaction T1 commits before it can commit. When committing, it finds that the latest version of data A is 1, not version 0 when transaction T2 began, so transaction T2 chooses to restart the transaction, read the latest data A1, and modify it again. After restarting the transaction, no further conflicts are found, and it can complete the commit. Like transaction T1, it needs to change the End time of the previous latest record to the timestamp 2 of this transaction, change the End time of record A2 to ∞, indicating that it is currently the latest data. After all this is completed, it changes the status of the transaction to &ldquo;committed.&rdquo;</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Two transactions executing concurrently and modifying the same record." src="/media/dist-system-en/transaction/tx-mvcc-ex2-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="(Continued) Two transactions executing concurrently and modifying the same record." src="/media/dist-system-en/transaction/tx-mvcc-ex2-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>From the above flow, we can see that in multi-version concurrency control, different versions of the same data form a linked-list relationship in chronological order; the earliest data is at the head of the linked list. This also provides convenience for implementing <em>time-travel</em> queries. As shown below, three versions of data A form a linked list in chronological order; each node has a pointer to the previous version of the data, and each data item has its own [start timestamp, end timestamp]. If we need to query the data at a certain time, the process is as follows:</p>
+<ul>
+<li>First get the current latest data. If the query time is greater than the start time of the latest data, return the latest data.</li>
+<li>Otherwise, go back to the previous data; if the required query time falls within the time range of that data, return the data; otherwise continue searching forward.</li>
+<li>If no data satisfying the requirement is found all the way to the head of the linked list, i.e., the query time is earlier than the start timestamp of the earliest version, return the data at the head of the linked list.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Multiple versions of the same data form a linked-list relationship in chronological order." src="/media/dist-system-en/transaction/tx-mvcc-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>However, precisely because the same data has multiple versions, a large amount of data redundancy is created. In addition to multiple data versions when transactions succeed, redundant data may also be produced when transactions abort (for example, when a data conflict with another transaction is found at commit time). This uncommitted data is called <em>orphan data</em>. Both types of data need to be cleaned up periodically (this process is usually called <em>vacuum</em>[9]). The logic for finding data to be cleaned up is similar to that of time-travel queries: traverse the data linked list according to a time, find data versions before this time, and clean them up.</p>
+<p>MVCC has become the concurrency control solution of choice for many modern mainstream databases (such as PostgreSQL[10], MySQL InnoDB[11])[12].</p>
+<p><strong>Write Skew</strong></p>
+<p>Although multi-version concurrency control technology can prevent most of the anomalies mentioned earlier, it cannot solve the <em>write skew</em> problem. Write skew is a concurrency anomaly that occurs when multiple transactions concurrently read different parts of the same data set and update different parts of that data set based on what they read, ultimately causing the database state to violate some consistency constraint. Its core characteristics are:</p>
+<ul>
+<li><strong>Non-overlapping read sets</strong>: the data items (rows) read by each transaction are different.</li>
+<li><strong>Non-overlapping write sets</strong>: the data items (rows) updated by each transaction are also different.</li>
+<li><strong>Global constraint exists</strong>: although the read and write rows are different, there is a global, cross-row business-rule constraint among these rows. Executing any single transaction alone can maintain the constraint, but after concurrent execution, the constraint is violated.</li>
+</ul>
+<p>In simple terms, write skew is the database version of &ldquo;the blind men and the elephant&rdquo;[13]: each transaction only sees a part of the data (and that part itself is valid), and makes a locally correct decision based on that partial information, but their decisions combined violate the overall global rule.</p>
+<p>Taking a hospital on-call system as an example to illustrate the write skew problem. The hospital on-call system requires that at least one doctor be on call at any given time. The table below is the doctors&rsquo; on-call schedule; the field <code>oncall</code> indicates whether the doctor is on call. It can be seen that currently two doctors are on call. As shown below, two doctors simultaneously query the number of currently on-call doctors with the condition <code>oncall=true</code>, and both get the result 2, satisfying the condition that more than one doctor is on call. They then set their own status to off-duty (<code>oncall=false</code>). Because the two doctors modify their own data separately, even multi-version concurrency control cannot detect a data conflict, ultimately causing a violation of the on-call rule.</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">Field</th>
+          <th style="text-align: left">name</th>
+          <th style="text-align: left">id</th>
+          <th style="text-align: left">oncall</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">A</td>
+          <td style="text-align: left">1</td>
+          <td style="text-align: left">true</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"></td>
+          <td style="text-align: left">B</td>
+          <td style="text-align: left">2</td>
+          <td style="text-align: left">true</td>
+      </tr>
+  </tbody>
+</table>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Example of write skew: two doctors update their own on-call data respectively, ultimately violating the rule that at least one doctor must be on call." src="/media/dist-system-en/transaction/tx-mvcc-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Unlike &ldquo;lost update,&rdquo; lost update occurs when two transactions modify the same data item, while in write skew transactions usually modify different data items. This anomaly usually occurs under medium isolation levels such as snapshot isolation or repeatable read, because these levels cannot detect this kind of logical conflict.</p>
+<p>It is worth noting that write skew is not an accidental anomaly under MVCC, but a typical problem specific to the <em>Snapshot Isolation (SI)</em>[14] model. Most databases based on MVCC have a default isolation level that is essentially snapshot isolation. Under this level, each transaction seems to have a &ldquo;frozen&rdquo; snapshot of the database at a specific moment; the transaction makes business decisions based on the state in that snapshot (for example, currently only one doctor is on call). The root cause of write skew is that the premise (Premise) on which the transaction based its decision is no longer valid at commit time because of modifications by other concurrent transactions, but the traditional snapshot isolation mechanism cannot perceive this cross-record logical dependency.</p>
+<p>At lower isolation levels (such as read committed or repeatable read), write skew can be prevented by manually acquiring locks. The most common method is <code>SELECT ... FOR UPDATE</code>, which acquires an exclusive lock (or upgrade lock) on the rows read when the transaction reads the data.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Both transactions T1 and T2 execute code similar to the following
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">BEGIN</span>;
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Read and lock all on-call doctor records
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">SELECT</span> * <span style="font-weight:bold;text-decoration:underline">FROM</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">WHERE</span> oncall = <span style="font-weight:bold;text-decoration:underline">true</span> <span style="font-weight:bold;text-decoration:underline">FOR</span> <span style="font-weight:bold;text-decoration:underline">UPDATE</span>;
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Suppose the query returns two rows, A and B, and count &gt; 1
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Application code checks count
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- If allowed to go off duty, update
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">SET</span> oncall = <span style="font-weight:bold;text-decoration:underline">false</span> <span style="font-weight:bold;text-decoration:underline">WHERE</span> name = <span style="color:#666;font-style:italic">&#39;A&#39;</span>; <span style="color:#888;font-style:italic">-- or &#39;B&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">COMMIT</span>;
+</span></span></code></pre></div><p>Its execution principle is: when transaction T1 executes <code>SELECT ... FOR UPDATE</code>, it locks the records of A and B. At this point, when transaction T2 tries to execute the same query, it must wait until T1 commits or rolls back and releases the locks. In this way, concurrent execution becomes serial execution, and write skew will not occur.</p>
+<p>In addition, modern database theory has proposed the more efficient <em>Serializable Snapshot Isolation (SSI)</em> algorithm. SSI is an optimistic concurrency control mechanism that retains the high-performance advantage of MVCC &ldquo;reads do not block writes&rdquo;; by tracking read-write dependency relationships among transactions in the background, it automatically detects and aborts transactions that may cause write skew. Currently, the Serializable level of mainstream databases such as PostgreSQL uses this technology[15], ensuring strict consistency while minimizing performance losses caused by lock contention.</p>
+<h2 class="heading" id="distributed-transactions">
+  Distributed Transactions
+  <a class="anchor" href="#distributed-transactions">#</a>
+</h2>
+<p>So far, we have discussed in depth the relevant technologies of single-node database transactions. However, when evolving from single-node databases to distributed transactions, system complexity grows exponentially. Below, we use the example of a user placing an order on an e-commerce website to illustrate the difference between the two architectures.</p>
+<p>A typical user order-placing process includes three core steps: creating an order, deducting inventory, and finally paying.</p>
+<p>If a single-node database architecture is adopted, the operations on the data tables to be updated in these steps can be placed in the same transaction. In this case, the ACID properties of the single-node database transaction can well satisfy the needs of this business, and all complex technical difficulties such as concurrency control and failure recovery are perfectly handled by the database &ldquo;black box.&rdquo; This is the simplest and most reliable pattern.</p>
+<p>Now the business has grown, and microservice decomposition is needed. The above three operations are split into three different services: order service, inventory service, and payment service, each with its own independent database. At this point, the single-node database transaction can no longer satisfy this architecture. The following briefly lists the complexity and difficulties introduced under the distributed architecture.</p>
+<p><strong>Compromised Atomicity</strong></p>
+<p>Because multiple services are involved, the problem of <em>partial failure</em> may occur, which will destroy the system&rsquo;s atomicity. For example, the order is created successfully and the inventory is deducted, but when calling the payment service, the network times out or the payment service is unavailable.</p>
+<p><strong>Compromised Isolation</strong></p>
+<p>In addition, the system will expose intermediate states during the call process. For example, after the order service and inventory service succeed, but before the payment service is completed, other businesses or users may see this inconsistent state. Suppose user A&rsquo;s order-placing process is in progress, and the inventory has already been deducted. At this point user B comes to query the inventory of this product and sees a reduced (but not yet finalized) inventory quantity. If user A&rsquo;s order ultimately fails and the inventory is rolled back, then what user B saw is &ldquo;dirty&rdquo; data.</p>
+<p>From single-node to distributed, we are actually exchanging huge system complexity (code, architecture, operations) for system scalability, availability, and team independence. This is why a common rule in software architecture is: &ldquo;If a monolith can solve the problem, don&rsquo;t rush into microservices.&rdquo; Because once you step into the distributed domain, problems that the database originally solved transparently for you now all need to be handled manually.</p>
+<p>Just now, through the example of &ldquo;user placing an order,&rdquo; we clearly saw the series of thorny problems faced when migrating from a single-node database to a distributed microservice architecture. This painful reality forces us to think about a fundamental question: in the distributed world, can we still pursue that &ldquo;perfect,&rdquo; textbook-style ACID transaction as in the past?</p>
+<p>The answer is: <strong>usually not, and we should not</strong>. To solve these problems, the industry has developed a whole new set of theories and practices, which are distributed transaction solutions, and the core guiding ideology behind them is exactly the BASE theory.</p>
+<p>The goal of distributed transactions is to guarantee data consistency of a complete business process in a system composed of multiple independent services and multiple independent databases. They are mainly divided into two schools:</p>
+<ul>
+<li><strong>Hard transactions</strong>: Pursue strong consistency of data, trying to simulate ACID properties in a distributed environment to the greatest extent, especially in isolation and atomicity. Representatives include Two-Phase Commit (2PC) and Three-Phase Commit (3PC). These solutions usually achieve consistency by locking resources for a long time, at the cost of low performance, synchronous blocking, and poor availability. In high-concurrency Internet scenarios, this is almost unacceptable.</li>
+<li><strong>Soft transactions</strong>: Abandon strong consistency and accept that data may be inconsistent for a certain period of time. They no longer pursue &ldquo;all operations succeed or fail simultaneously,&rdquo; but instead promise &ldquo;if something goes wrong, I have a way to correct it and make the data eventually consistent.&rdquo; Their advantages are extremely short resource locking time (or even none), high degree of asynchronization, system throughput and availability far exceeding hard transactions. Representatives include SAGA, TCC, etc.</li>
+</ul>
+<p>Today, soft transactions have gradually become the mainstream choice for distributed transactions, and their theoretical cornerstone is the BASE theory. In the CAP theorem, the three constraints are too rigid; as a supplement to the CAP theorem, in 2008 eBay systems architect Dan Pritchett proposed the BASE theory in the paper &ldquo;BASE: An ACID Alternative&rdquo;[16]. It is an acronym of <em>Basically Available</em>, <em>Soft state</em>, and <em>Eventually consistent</em>.</p>
+<p>In the CAP theorem, C adopts linearizability, requiring the entire system to behave like a single replica at any moment, with written data immediately reflected on all nodes in the system. The BASE theory chooses weaker eventual consistency in exchange for overall system availability:</p>
+<ul>
+<li><strong>Basically Available</strong>: In strong-consistency solutions (such as 2PC), a service failure or network blockage can cause the entire transaction process to freeze and the system to become unavailable. BASE theory holds that the core functions of the system should always be available; when some nodes of the system fail, performance degradation or partial non-core function loss is allowed. For example, increased latency, queuing to log in to a game, etc., are common strategies when basic availability is degraded.</li>
+<li><strong>Soft State</strong>: Soft state is relative to the &ldquo;hard state&rdquo; of linearizability required by the CAP theorem. Linearizability requires data modifications to be immediately synchronized to all nodes. Because the same data is stored on multiple nodes and data may take time to propagate to each node, this means the database cannot strongly guarantee data integrity. BASE theory holds that we should acknowledge and accept the existence of this &ldquo;intermediate state&rdquo;; soft state allows intermediate states for transition.</li>
+<li><strong>Eventually Consistent</strong>: BASE theory holds that synchronizing data among nodes takes time, modifications cannot immediately be synchronized to all nodes, and the system is allowed to have temporary inconsistency (soft state), but a mechanism must be designed (for example, compensation operations in Saga mode) to ensure that after the process succeeds or fails, all related data can eventually reach a logically self-consistent, consistent state.</li>
+</ul>
+<p>BASE theory is the result of balancing consistency and availability in the CAP theorem. Its core idea is: abandon strong consistency, and according to the characteristics of each service, adopt appropriate methods to make the system eventually consistent. BASE theory describes a system that makes a best-effort attempt to ensure all queries return results, but the cost is that the returned results may sometimes reflect a slightly stale data version. According to the CAP theorem&rsquo;s three-choose-two classification, a system described by BASE theory is more like an AP system.</p>
+<p>In the paper, Dan Pritchett demonstrated how to ensure soft availability by sacrificing strong consistency. Taking transfer as an example, user A transfers money to user B, and the two accounts are in different banks:</p>
+<ol>
+<li>Create a message table to store operations that need to add money to accounts in the bank.</li>
+<li>In the banking system where user A is located, start a transaction, deduct money from A&rsquo;s account, and at the same time insert a record into the message table indicating that money needs to be added to user B&rsquo;s account.</li>
+<li>In the banking system where user A is located, commit the transaction; if the transaction commit fails, delete the newly added data from the message table.</li>
+<li>Another process periodically polls the message table, executes the operations in it, and only deletes the data from the message table after successful execution.</li>
+</ol>
+<p>In this example, the system is not in a data-consistent state for a period of time (the sum of the balances of users A and B may be inconsistent), but the system will eventually reach consistency, in exchange for improved overall system availability. However, this implementation cannot guarantee data isolation. For example, if other users see user B&rsquo;s account balance before the money has been added, they still see the old account balance; for scenarios with high isolation requirements, other solutions must be chosen, which will be introduced later in this chapter.</p>
+<p>After understanding the CAP theorem and BASE theory, we know that in distributed transactions there are two different solutions: strong consistency and eventual consistency:</p>
+<ul>
+<li><strong>Strong consistency solutions</strong>: Two-Phase Commit, Three-Phase Commit, Google Spanner.</li>
+<li><strong>Eventual consistency solutions</strong>: TCC transactions, SAGA transactions.</li>
+</ul>
+<p>The following sections expand on these different solutions.</p>
+<h3 class="heading" id="two-phase-commit">
+  Two-Phase Commit
+  <a class="anchor" href="#two-phase-commit">#</a>
+</h3>
+<p><strong>Classic Two-Phase Commit Flow</strong></p>
+<p>The first solution for implementing strong-consistency distributed transactions is <em>Two Phase Commit (2PC)</em>[17]. In this solution, there are two types of subsystems:</p>
+<ul>
+<li><strong>Transaction Manager (TM)</strong>: responsible for local transaction concurrency control and failure recovery functions.</li>
+<li><strong>Transaction Coordinator (TC)</strong>: responsible for starting and coordinating distributed transactions, dividing distributed transactions into two phases for TM execution.</li>
+</ul>
+<p>During each distributed transaction execution, there can be only one transaction coordinator, but the transaction coordinator can also be a transaction manager at the same time.</p>
+<p>A typical two-phase commit flow is shown below, divided into the following two steps:</p>
+<ol>
+<li><strong>Prepare Phase</strong>: In this phase, the coordinator sends a Prepare message to all participants of the transaction, asking whether they are ready to commit the transaction.
+<ul>
+<li>If a participant is ready to commit the transaction, it persistently records the content of what the transaction commit will do locally, but does not actually commit. This means that during the prepare phase, after persisting data, the participant also needs to maintain data isolation and cannot release locks to make the data visible externally. If the participant is a database, what needs to be done in the prepare phase is to write the corresponding modifications in the database transaction, but not commit.</li>
+<li>If a participant encounters an error during the prepare phase, it replies with an Abort message to the coordinator, indicating that the transaction should be aborted.</li>
+</ul>
+</li>
+<li><strong>Commit Phase</strong>:
+<ul>
+<li>When the coordinator receives Ready responses from all participants, it considers the distributed transaction ready to commit, and at this point sends a Commit message to all participants; all participants execute the transaction commit operation.</li>
+<li>If any participant replies with Abort, or if not all participants&rsquo; responses are received within the timeout period, the coordinator considers that the transaction needs to be aborted and sends an Abort message to all participants to abort the transaction.</li>
+</ul>
+</li>
+</ol>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Typical 2PC flow." src="/media/dist-system-en/transaction/tx-2pc-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>The two-phase structure allows the coordinator to confirm with all participants during the prepare phase whether the transaction can be committed. In this phase, participants can decide whether to commit the transaction and also have the right to veto and abort the transaction. However, once a participant agrees to commit the transaction, the decision is no longer in the participant&rsquo;s hands. Therefore, the first phase is an irrevocable promise made by the participant to the coordinator. Thus, after the coordinator collects all participants&rsquo; first-phase responses and persists the transaction&rsquo;s Commit or Abort information, the transaction will no longer change.</p>
+<p>The principle of two-phase commit is not complicated, but its implementation has several flaws:</p>
+<ul>
+<li><strong>Single point of failure</strong>: The coordinator in two-phase commit becomes a single point of failure. If a participant crashes, according to the two-phase commit flow described above, the coordinator will abort the transaction if it has not received all participants&rsquo; responses within the timeout. However, if the coordinator crashes, participants will wait indefinitely until the coordinator recovers.</li>
+<li><strong>Synchronous blocking problem</strong>: During two-phase commit, all participants and coordinators work as a unified whole, requiring three data persistences and two remote server calls to complete; the final completion time depends on the last completed operation time in this whole.</li>
+<li><strong>Data consistency problem</strong>: In the commit phase, if some participants do not receive the Commit message from the coordinator due to network failures, this will cause only some participants to execute the commit operation, resulting in system data inconsistency.</li>
+</ul>
+<h3 class="heading" id="three-phase-commit">
+  Three-Phase Commit
+  <a class="anchor" href="#three-phase-commit">#</a>
+</h3>
+<p>To alleviate the single-point and prepare-phase performance problems in two-phase commit, the <em>Three Phase Commit (3PC)</em>[18] protocol was proposed. Building on 2PC, it further divides the prepare phase into two phases, called <em>CanCommit</em> and <em>PreCommit</em>, and renames the commit phase as <em>DoCommit</em>. The working steps of three-phase commit are as follows:</p>
+<ol>
+<li><strong>CanCommit phase</strong>: Also called the inquiry phase. In this phase, the coordinator sends a CanCommit request to all participants, asking whether they are ready to commit the transaction. Participants evaluate whether they can complete the transaction based on their own conditions and reply to the coordinator.</li>
+<li><strong>PreCommit phase</strong>: Also called the prepare phase. If all participants reply that they can commit the transaction, the coordinator sends a PreCommit request to all participants. Participants persist the operations but do not commit, to ensure data isolation, and reply to the coordinator that they are ready to commit the transaction.</li>
+<li><strong>DoCommit phase</strong>: Also called the commit phase. If all participants reply that they are ready to commit the transaction, the coordinator sends a DoCommit request to all participants, notifying them to commit the transaction. In this phase, if a participant does not receive the coordinator&rsquo;s DoCommit message before the timeout expires, the default strategy is to commit the transaction.</li>
+</ol>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Typical 3PC flow." src="/media/dist-system-en/transaction/tx-3pc.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Compared with the 2PC protocol, the 3PC protocol makes the following modifications:</p>
+<ul>
+<li>The Prepare phase of the 2PC protocol is divided into CanCommit and PreCommit phases. The reason for this division is that, in the prepare phase, persisting data by participants is a heavy operation; once another participant replies that it cannot commit the transaction, the previous persistence work of other participants must be rolled back. The new CanCommit phase first asks each participant whether it can commit the transaction, and only after all participants agree does it execute the persistence operation of the prepare phase; the probability of success is much higher.</li>
+<li>In the 2PC protocol, once the coordinator crashes, participants must wait until the coordinator recovers before they can continue working. In the 3PC protocol, after the first two phases pass, the probability of transaction rollback is very small, so if after the PreCommit phase a participant does not receive the coordinator&rsquo;s DoCommit message before the timeout expires, it will commit the transaction by default.</li>
+</ul>
+<p>Although the 3PC protocol improves the single-point and prepare-phase performance problems of the 2PC protocol, in the case where the transaction can commit normally, 3PC has one more inquiry round than 2PC. In addition, the data consistency problem of 3PC has not been solved. For example, if after the PreCommit phase the instruction sent by the coordinator is to abort the transaction, but only some participants receive this instruction, other participants that do not receive this instruction will execute the default commit operation after the timeout, and data inconsistency will still exist.</p>
+<p>As shown below, the transaction coordinator and two transaction managers have completed the inquiry phase and the prepare phase, and reached the commit phase. At this time, transaction manager A is network-partitioned from the coordinator, so it has not received the coordinator&rsquo;s message, and adopts the default timeout behavior: commit the transaction. The coordinator, for some reason, decides the transaction had failed and sends an abort-transaction message to manager B, and manager B rolls back the transaction. The final system state becomes: manager A committed the transaction, while manager B rolled back the transaction; the data of the two is inconsistent.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Data inconsistency in the 3PC flow caused by network partition." src="/media/dist-system-en/transaction/tx-3pc-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>3PC tries to use &ldquo;timeout,&rdquo; a mechanism that relies on time assumptions, to solve distributed problems. As we explained in the time chapter, in asynchronous networks, timeout does not necessarily mean failure; it may just be slow. Making automatic-commit decisions based on timeout is extremely dangerous.</p>
+<h3 class="heading" id="google-spanner">
+  Google Spanner
+  <a class="anchor" href="#google-spanner">#</a>
+</h3>
+<p>Through the previous analysis, we can see that the biggest problems of 2PC are poor performance and single-point failure, and subsequent 3PC has not solved these problems either. In this section, we introduce the implementation of the Google Spanner[19] system, which is an industrial-grade strong-consistency distributed transaction implementation.</p>
+<p>The main features of Spanner are:</p>
+<ul>
+<li><strong>Provides External Consistency</strong>: Spanner provides the highest level of consistency in distributed systems. Thanks to the TrueTime mechanism, Spanner can anchor the commit order of transactions to the physical order of time. This means that if a transaction T1 commits before T2 in physical time, the system can guarantee that all clients observe T1 happening before T2, thus presenting a global view of linearizability.</li>
+<li><strong>Supports Strict Serializability</strong>: Spanner&rsquo;s distributed read-write transactions fully follow ACID properties and provide Serializable isolation level by default. The system eliminates concurrent anomalies such as dirty reads, non-repeatable reads, and phantom reads through the Two-Phase Locking (2PL) mechanism, without requiring application-layer intervention to handle complex concurrency conflicts.</li>
+<li><strong>Global horizontal scaling and cross-shard atomicity</strong>: Spanner automatically splits data into multiple shards (Shards/Tablets) distributed across global data centers. By combining Two-Phase Commit (2PC) with the Paxos protocol, Spanner guarantees strict atomicity for distributed transactions spanning multiple shards: all changes are either fully persisted or fully rolled back, thereby shielding the complexity of the underlying shards.</li>
+</ul>
+<p>In terms of specific implementation, Spanner adopts a layered architecture: the lower layer uses the Paxos consensus algorithm to ensure data replication and high availability across data centers and even continents; the upper layer uses Two-Phase Commit (2PC) and Two-Phase Locking (2PL) protocols, combined with the original Commit Wait mechanism, to implement cross-shard distributed transactions. This design makes Spanner the world&rsquo;s first true &ldquo;global database&rdquo; (the progenitor of NewSQL). It not only frees developers from tedious data sharding and consistency handling, but also provides a theoretical foundation and engineering model for later emerging open-source distributed databases such as CockroachDB and TiDB.</p>
+<p>This section will systematically analyze Spanner&rsquo;s implementation principles, focusing on how it uses physical clocks to define global transaction order, and how TrueTime, Paxos, and distributed lock mechanisms work together at different levels.</p>
+<h4 class="heading" id="overall-architecture">
+  Overall Architecture
+  <a class="anchor" href="#overall-architecture">#</a>
+</h4>
+<p>Spanner&rsquo;s architecture is designed to meet global scalability, high availability, and multi-data-center deployment requirements. As shown below, from a macro perspective, Spanner adopts a layered hierarchical structure, from top to bottom: Universe, Zone, and specific Spanner server nodes.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner system architecture." src="/media/dist-system-en/transaction/tx-spanner-0.png" >
+    </div>
+
+    
+</figure>
+</p>
+<ul>
+<li><strong>Universe</strong>: Spanner&rsquo;s top-level deployment unit is called a Universe. A Universe usually covers an enterprise&rsquo;s global data deployment. Although multiple Universes can theoretically be deployed, in production environments Spanner is designed as a globally unique singleton system, thereby providing a unified namespace and resource management.</li>
+<li><strong>Zone</strong>: Inside a Universe, it is divided into multiple Zones. A Zone is Spanner&rsquo;s physical deployment unit and also the basic physical isolation domain. A Zone contains a cluster of physical servers, usually deployed in a specific data center. A Zone is the basic dimension of data replication and fault isolation: data is replicated to multiple Zones in different data centers to prevent data loss caused by a single point of failure or a single data center outage.</li>
+</ul>
+<p>Within a Zone, the following core components are included:</p>
+<ul>
+<li><strong>Zone Master</strong>: responsible for managing all Spanner servers in the Zone, assigning data shards (Tablets) to specific Spanner servers, and handling load balancing.</li>
+<li><strong>Location Proxy</strong>: acts as the routing layer between clients and Spanner servers, forwarding client requests to the correct Spanner server based on data location information.</li>
+<li><strong>Spanner server</strong>: the core work unit responsible for storing and processing data. It directly responds to client read/write requests.</li>
+</ul>
+<p>In addition, there are two core services:</p>
+<ul>
+<li><strong>Universe Master</strong>: This is a global singleton console, mainly used to monitor the state of the entire Universe and provide an interactive debugging interface for Zone status information.</li>
+<li><strong>Placement Driver</strong>: responsible for cross-Zone data migration and scheduling. This component periodically communicates with Spanner servers in each Zone, monitors load status, and triggers automatic data migration when necessary to meet replication strategies or perform load balancing.</li>
+</ul>
+<p>Spanner server is the core of system operation; each Spanner server is responsible for managing hundreds or thousands of data shards. As shown below, Spanner server mainly contains the following modules from bottom to top:</p>
+<ul>
+<li><strong>Tablet</strong>: The basic data unit managed by Spanner server is called a Tablet. The Tablet concept is similar to the same-name concept in Bigtable; it is a set of key-value pairs in the form <code>(Key: string, Timestamp: int64) -&gt; String</code>. This structure naturally supports Multi-Version Concurrency Control (MVCC), rather than being a simple KV store, which enables Spanner to efficiently support snapshot reads.</li>
+<li><strong>Paxos</strong>: To ensure data consistency, the metadata and logs of each Tablet are synchronized through the Paxos protocol among replicas in different Zones. Each Tablet corresponds to a Paxos Group. In Spanner server, the Paxos state machine is responsible for persisting write-operation logs and coordinating state among replicas.</li>
+<li><strong>Lock Table</strong>: On the Leader replica of a Paxos group, a lock table is maintained. This component is used to implement the Two-Phase Locking (2PL) mechanism, responsible for managing row-level locks or range locks in read-write transactions to ensure transaction isolation. Note that read-only transactions using optimistic concurrency control do not need to access the lock table.</li>
+<li><strong>Transaction Manager</strong>: Each Spanner server runs a transaction manager responsible for coordinating distributed transactions. For transactions involving only a single Paxos Group, this manager can independently act as the coordinator; for transactions spanning multiple Paxos Groups, the multiple Transaction Managers involved work together, one of which is selected as the coordinator and the rest act as participants, jointly executing the Two-Phase Commit (2PC) protocol.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner server technology stack." src="/media/dist-system-en/transaction/tx-spanner-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<h4 class="heading" id="true-time">
+  True Time
+  <a class="anchor" href="#true-time">#</a>
+</h4>
+<p>We explained in the time chapter the limitations of physical clocks as time in distributed systems. In traditional distributed systems, due to clock drift, clocks among nodes are difficult to keep precisely synchronized. Therefore, system design usually relies on logical clocks to establish the causal order of events. However, Spanner does not adopt the logical clock solution, for the following reasons:</p>
+<ul>
+<li>Spanner wants to achieve <em>linearizability</em>, while the essence of logical clocks is capturing only causal relationships within the system; it implements <em>causal consistency</em> and cannot perceive the order of events happening outside the system.</li>
+<li>A core feature of Spanner is supporting efficient, lock-free snapshot reads at any point in time. If logical clocks were used, implementing this feature would face huge performance penalties: when a user requests to &ldquo;read the current latest data,&rdquo; the system cannot immediately determine what &ldquo;current&rdquo; is. To construct a globally consistent snapshot, the system must consult all relevant shards (even the entire network), asking them for their current logical clock progress, to negotiate a global &ldquo;safe snapshot point.&rdquo; This would cause unacceptable communication delays in cross-continental distributed systems.</li>
+<li>Although vector clocks can describe causal relationships more precisely than Lamport clocks, they are not feasible at Spanner&rsquo;s scale. The size of vector clocks is proportional to the number of participating nodes in the system (O(N)). Spanner has thousands of Spanner servers and millions of Tablets. If such huge vector information were carried in the metadata of each transaction, network bandwidth and storage space would be consumed by metadata.</li>
+</ul>
+<p>Logical clocks are theoretically elegant and require no special hardware, but they push the responsibility of &ldquo;ordering&rdquo; to the application layer (requiring the application to pass tokens) or cause read performance to be low. Spanner introduces TrueTime, which uses a combination of software and hardware to compress time uncertainty into a very small physical window, thereby creating an ideal environment with a globally synchronized clock at the software level.</p>
+<p>Spanner does not try to eliminate physical clock error, but through the TrueTime mechanism quantifies this error and explicitly exposes it to upper-layer applications, thereby building a globally unique physical time benchmark in a distributed environment.</p>
+<p>TrueTime&rsquo;s high availability and accuracy are first built on a large and redundant hardware foundation. Google has deployed dedicated <em>Time Master</em> nodes in data centers around the world. To eliminate single points of failure and reduce errors, Time Masters adopt a strategy of mixed deployment of two physical time sources:</p>
+<ul>
+<li><strong>GPS receivers</strong>: Most Master nodes are equipped with GPS receivers that can directly receive atomic clock signals from global positioning system satellites. The advantage of GPS is high long-term accuracy and extremely small error.</li>
+<li><strong>Atomic clocks</strong>: To cope with GPS signal interference or antenna failures, Google deploys atomic clocks on some Master nodes. Although atomic clocks have slight drift, their short-term stability is extremely high, and they can provide a reliable backup time source during calibration by GPS.</li>
+</ul>
+<p>Spanner communicates with Time Master nodes through a Time Daemon running on each Spanner server. It periodically polls time information from multiple Time Masters (including those in the local data center and remote data centers). The Daemon uses a variant of the Marzullo[20] algorithm to filter out anomalous clock sources and calculate the deviation range of the local machine clock relative to the reference time.</p>
+<p>The TrueTime API is fundamentally different from traditional <code>gettimeofday()</code> or <code>System.currentTimeMillis()</code>. It does not return a single, possibly deviated time point, but returns a time interval containing the error range. TrueTime&rsquo;s core interface <code>TT.now()</code> returns a time interval object <code>TTinterval</code>:</p>
+<pre tabindex="0"><code>TT.now() = [earliest, latest]
+</code></pre><p>This interval indicates that, at the time the method is called, the real absolute time <em>t_abs</em> must fall within this interval, i.e., <code>earliest ≤ t_abs ≤ latest</code>. The width of this interval is determined by the error term ε, i.e., <code>[t−ε, t+ε]</code>. The span of this interval is denoted as 2ε, where ε represents the uncertainty half-width of the time. In Google&rsquo;s production network environment, the average value of ε is usually very low, but during network partitions or extremely high system load, ε may increase.</p>
+<p>TrueTime provides the following three core methods:</p>
+<ul>
+<li><code>TT.now()</code>: returns <code>TTinterval: [earliest, latest]</code>.</li>
+<li><code>TT.after(t)</code>: returns true if the current time is determined to be later than timestamp <em>t</em> (i.e., <code>TT.now().earliest &gt; t</code>).</li>
+<li><code>TT.before(t)</code>: returns true if the current time is determined to be earlier than timestamp <em>t</em> (i.e., <code>TT.now().latest &lt; t</code>).</li>
+</ul>
+<p>The ultimate purpose of the TrueTime API is to achieve Spanner&rsquo;s <em>External Consistency</em>, i.e., <em>linearizability</em>. To this end, Spanner introduces the Commit Wait strategy.</p>
+<p>When a transaction <em>T_i</em> tries to commit, Spanner assigns a commit timestamp <em>s_i</em> to that transaction. To guarantee that if transaction <em>T_1</em> completed before transaction <em>T_2</em> began, <em>s_1 &lt; s_2</em> always holds, Spanner must follow the following two rules:</p>
+<ul>
+<li><strong>Timestamp anchoring</strong>: The commit timestamp <em>s_i</em> of transaction <em>T_i</em> must be greater than or equal to the value of <code>TT.now().latest</code> (i.e., <em>s_i</em> ≥ <code>TT.now().latest</code>).</li>
+<li><strong>Commit wait</strong>: Before writing data to persistent storage and externally declaring transaction success, the coordinator must wait until, due to the natural passage of time, the timestamp <em>s_i</em> has definitively become &ldquo;past.&rdquo;</li>
+</ul>
+<p>Specifically, the system must wait until the current <code>TT.now().earliest</code> is greater than the selected timestamp <em>s_i</em>, i.e.:</p>
+<pre tabindex="0"><code>TT.after(s_i) → true
+</code></pre><p>The figure below shows an example of Spanner&rsquo;s transaction commit wait strategy. In the figure, transaction <em>T_1</em> issues a commit request at time <em>t_1</em>, and this time must wait until <em>t_2</em> before the commit is considered complete; the span of these two time intervals is 2ε; transaction <em>T_2</em>, which starts after <em>T_1</em>, must have a start time <em>t_3</em> satisfying <code>t_3.after(t_2) → true</code>.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner transaction commit wait strategy." src="/media/dist-system-en/transaction/tx-spanner-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>This wait duration is usually 2ε. Through this forced wait, Spanner ensures that at the moment the transaction commits, physical time has indeed passed beyond <em>s_i</em>.</p>
+<p>Because of the existence of the Commit Wait mechanism, the lower bound of write-transaction commit latency is strictly locked at 2ε. Therefore, one of Spanner&rsquo;s engineering goals is to compress this uncertainty window as much as possible while ensuring correctness. TrueTime&rsquo;s error mainly consists of two parts: local clock drift and network communication delay.</p>
+<p>Between two synchronizations, the uncertainty of the local machine clock grows linearly with time, presenting a &ldquo;sawtooth&rdquo; pattern. To control the magnitude of this growth, the Time Daemon on Spanner servers polls Time Masters at a very high frequency (usually every 30 seconds, or even higher). The higher the polling frequency, the smaller the drift error accumulated by the local clock between two calibrations, thereby maintaining a low baseline for ε.</p>
+<p>To minimize network communication delay, Spanner has made deep optimizations in physical deployment:</p>
+<ul>
+<li><strong>Proximity deployment of Time Masters</strong>: Although Time Masters are globally distributed, when Spanner servers poll time, they prioritize synchronizing with Time Masters located in the same data center or nearby regions with low-latency communication links.</li>
+<li><strong>Tail-latency elimination</strong>: Jitter occasionally occurs in network communication. When TrueTime&rsquo;s client daemon polls multiple Masters, it uses logic similar to a variant of the Marzullo algorithm to automatically identify and discard Master data with abnormally long response times, using only those time sources with the fastest responses and highest consistency to calculate the current reference time.</li>
+</ul>
+<p>Spanner uses high-performance network infrastructure, high-frequency time synchronization protocols, and strict outlier elimination algorithms to usually keep ε at the millisecond level (about 1ms to 7ms at the time of the paper, averaging about 4ms; in recent years, with hardware upgrades, it has further decreased). This engineering-level extreme compression makes the latency loss caused by Commit Wait acceptable in actual business scenarios, thus achieving a balance between strong consistency and high performance.</p>
+<h4 class="heading" id="distributed-transactions-1">
+  Distributed Transactions
+  <a class="anchor" href="#distributed-transactions-1">#</a>
+</h4>
+<p>With the TrueTime mechanism to guarantee the commit order among transactions, let us look at how Spanner combines TrueTime, the Paxos algorithm, 2PL, 2PC, and other technologies to implement distributed transactions. Spanner supports the following types of transactions: <em>Read-Write Transaction</em>, <em>Read-Only Transaction</em>, and <em>Snapshot Read</em>. These three modes are built on the TrueTime API and Multi-Version Concurrency Control (MVCC), but adopt different strategies in lock mechanism, timestamp assignment, and replica interaction.</p>
+<p><strong>Read-Write Transactions</strong></p>
+<p>Read-write transactions are the only transaction type in Spanner that supports write operations. To ensure ACID properties, Spanner combines the following key technologies:</p>
+<ul>
+<li>Two-Phase Commit (2PC) is used to ensure atomicity across shards.</li>
+<li>Paxos is used to ensure single-shard high availability and durability.</li>
+<li>TrueTime ensures global temporal consistency.</li>
+</ul>
+<p>Before diving into the flow, we must first clarify Spanner&rsquo;s basic data unit. As shown below, Spanner splits data into Tablets; the data of each Tablet is maintained by a Paxos Group. This Group contains multiple geographically distributed replicas, which elect a Leader through the Paxos protocol.</p>
+<ul>
+<li>All write operations must be processed by the Paxos Leader.</li>
+<li>All lock management (Lock Table) is maintained in the Leader&rsquo;s memory.</li>
+<li>Transaction durability relies on writing log entries to the majority of the Paxos Group.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner splits data into Tablets; the data of each Tablet is maintained by a Paxos Group." src="/media/dist-system-en/transaction/tx-spanner-4.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>When a transaction involves multiple Tablets, it involves multiple Paxos Groups, and Two-Phase Commit (2PC) needs to step in.</p>
+<p>Suppose a transaction <em>T</em> needs to modify data on Paxos Group A and Group B; Spanner will automatically select one of the Groups (for example, Group A) to act as the Coordinator, while the other participating Groups (such as Group B) are called Participants.</p>
+<p>The whole process follows the standard 2PC protocol, but is strengthened by TrueTime at key steps. The core flow is as follows:</p>
+<ol>
+<li>
+<p><strong>Read phase and pessimistic locking</strong>: When a transaction performs read operations, it must first obtain read locks (Read Locks) on the relevant data. If data is distributed across multiple Paxos Groups, the transaction will apply for locks from the Leaders of each group separately. This pessimistic locking mechanism ensures data isolation during transaction execution. Importantly, all write operations are cached at the client before transaction commit and do not immediately interact with the server.</p>
+</li>
+<li>
+<p><strong>Commit phase</strong>: When the client initiates a commit request, a transaction involving multiple Paxos Groups will start the Two-Phase Commit (2PC) protocol.</p>
+<ul>
+<li><strong>Coordinator election</strong>: one of the Paxos Groups is selected as the Coordinator.</li>
+<li><strong>Timestamp anchoring</strong>: The coordinator is responsible for assigning a globally unique commit timestamp <em>S_commit</em> to the entire transaction. According to the characteristics of TrueTime, the coordinator must ensure that <em>S_commit</em> satisfies two conditions:
+<ul>
+<li><strong>Monotonicity</strong>: <em>S_commit</em> is greater than all timestamps recorded by participants during the Prepare phase.</li>
+<li><strong>Timeliness</strong>: <em>S_commit</em> must be greater than <code>TT.now().latest</code> when the coordinator received the commit request.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Commit wait</strong>: This is the key to Spanner&rsquo;s linearizability guarantee. Before <em>S_commit</em> is truly applied and externally declared successful, the coordinator must perform &ldquo;commit wait.&rdquo; It continuously checks TrueTime until the following condition is satisfied:</p>
+<pre tabindex="0"><code>TT.now().earliest &gt; S_commit
+</code></pre><p>This wait ensures that on the physical timeline, the effective moment <em>S_commit</em> of the transaction has become a determined past. Therefore, any new transaction that begins after the transaction commits (i.e., physically later than the commit completion moment) will obtain a timestamp definitely later than <em>S_commit</em>.</p>
+</li>
+</ol>
+<p>The following uses the classic bank transfer as an example to illustrate Spanner&rsquo;s read-write transaction flow:</p>
+<pre tabindex="0"><code>Write(A, A - 50)
+Write(B, B + 50)
+</code></pre><p>The sequence diagrams of the flow are shown in the figures below. The figure has the following roles:</p>
+<ul>
+<li><strong>Client</strong>: the business side that initiates the transaction.</li>
+<li><strong>Paxos Group 1 Leader (Participant Leader)</strong>: the shard-group Leader holding data A, only responsible for handling the locks and writes of its own data.</li>
+<li><strong>Paxos Group 2 Leader (Coordinator Leader)</strong>: the shard-group Leader holding data B, in addition to handling data B, also responsible for directing the entire transaction submission process (deciding timestamp, executing wait).</li>
+</ul>
+<p>It should be noted that the figure omits the process in which the two Paxos Groups use the Paxos algorithm to replicate data to other replicas within the group, and assumes that in this transaction, Paxos Group 1 acts as the participant and Paxos Group 2 acts as the coordinator.</p>
+<p>The main steps in the figure are as follows:</p>
+<ol>
+<li><strong>Phase 1 (steps 1-6)</strong>: The client sends read requests for data A and B to the Leaders of the two Paxos Groups respectively, obtaining shared locks. After obtaining the data for A and B, the client does not immediately send requests, but first computes locally and buffers write operations.</li>
+<li><strong>Phase 2 (steps 7-13)</strong>: The Prepare phase of Two-Phase Commit. When the client decides to commit, the system enters the first phase of 2PC. The client distributes the buffered write operations to all relevant Participant Leaders and the preselected Coordinator Leader.</li>
+<li><strong>Phase 3 (steps 14-16)</strong>: Timestamp arbitration and commit wait phase. The coordinator will select a globally unique commit timestamp <em>S_commit</em>. To ensure external consistency, this timestamp must be strictly greater than all preparation times suggested by participants, and must be greater than the possible upper bound of the current moment (<code>TT.now().latest</code>). This step binds the logical transaction to physical time.</li>
+<li><strong>Phase 4 (steps 17-23)</strong>: Once the waiting period ends, the coordinator writes the Commit record within the Paxos group and immediately informs the client that the transaction is successful. To improve response speed, the coordinator usually asynchronously notifies other participants to commit. Because participants have previously recorded the Prepare state in persistent logs, they only need to apply updates with the determined <em>S_commit</em> as the version number and release locks after receiving the instruction.</li>
+</ol>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner read-write transaction execution flow for bank transfer: phases one and two." src="/media/dist-system-en/transaction/spanner-1.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="(Continued) Spanner read-write transaction execution flow for bank transfer: phases three and four." src="/media/dist-system-en/transaction/spanner-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p><strong>Snapshot Reads and Read-Only Transactions</strong></p>
+<p>In traditional strongly consistent databases, read operations often need to acquire locks (S-Lock) to prevent conflicts with write operations, which significantly reduces system throughput in high-concurrency scenarios. A major technical breakthrough of Google Spanner is that it uses Multi-Version Concurrency Control (MVCC) and the TrueTime API to implement lock-free read-only transactions.</p>
+<p>Spanner&rsquo;s read-only transactions have the following key characteristics:</p>
+<ul>
+<li><strong>Lock-free mechanism</strong>: Read operations never block write operations, and vice versa.</li>
+<li><strong>External consistency</strong>: By default, read-only transactions guarantee reading all data committed before the transaction began (i.e., strong consistency).</li>
+<li><strong>Globally consistent snapshot</strong>: Even if data is distributed across global data centers, the transaction can see a consistent view of the entire database at a specific point in time T.</li>
+</ul>
+<p>The foundation of read-only transactions is snapshot reads. Because every write operation in Spanner is stamped with a timestamp based on TrueTime, the database actually stores multiple versions of data. When executing a snapshot read, Spanner first determines a read timestamp <em>T_read</em>. The system guarantees: for any transaction committed before <em>T_read</em> (≤ <em>T_read</em>), its result is visible to this read; for any transaction committed after <em>T_read</em> (&gt; <em>T_read</em>), its result is completely invisible to this read.</p>
+<p>The execution of read-only transactions can be divided into two main phases: <em>timestamp selection</em> and <em>safe read</em>.</p>
+<p>Timestamp selection is the key step in determining the consistency level. To guarantee linearizability, i.e., &ldquo;see all writes that just happened,&rdquo; Spanner must choose a sufficiently new timestamp.</p>
+<ul>
+<li><strong>Strategy</strong>: Spanner sets <em>T_read</em> to the upper bound of the current moment, i.e., <em>T_read</em> = <code>TT.now().latest</code>.</li>
+<li><strong>Principle</strong>: Combined with the Commit Wait mechanism in write transactions, any write transaction that has received a &ldquo;commit successful&rdquo; response must have a commit timestamp <em>S_commit</em> smaller than the current moment. Therefore, using <code>TT.now().latest</code> as the read time point will inevitably cover all committed history.</li>
+</ul>
+<p>After determining <em>T_read</em>, the client can send read requests to any replica containing the target data, not just the Leader, which makes Spanner&rsquo;s read performance scale linearly with the number of replicas.</p>
+<p>However, how to ensure that the selected replica (possibly a follower) already has data at time <em>T_read</em>? Here the concept of <em>Safe Time</em> (<em>t_safe</em>) is introduced.</p>
+<p>Each replica maintains a <em>t_safe</em> value. It indicates that the replica has synchronized all logs with timestamps less than or equal to <em>t_safe</em> through the Paxos protocol. In other words, the replica is certain that all transactions before <em>t_safe</em> have been synchronized to it locally.</p>
+<p>When a replica receives a read request with timestamp <em>T_read</em>, it performs the following judgment:</p>
+<ul>
+<li>If <em>T_read</em> ≤ <em>t_safe</em>: This means the replica&rsquo;s data is new enough, and it can execute the read and return the result immediately. This is the most ideal situation, completely non-blocking.</li>
+<li>If <em>T_read</em> &gt; <em>t_safe</em>: This means the replica&rsquo;s data is lagging and has not yet synchronized to the state at time <em>T_read</em>. At this point, the replica must wait until it synchronizes new logs through Paxos and <em>t_safe</em> advances past <em>T_read</em>.</li>
+</ul>
+<p>The figure below is a sequence diagram of Spanner&rsquo;s read-only transaction execution flow.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Spanner read-only transaction execution flow." src="/media/dist-system-en/transaction/spanner-3.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>If a read-only transaction needs to read data A and B located in different Paxos Groups (different shards), the flow is as follows:</p>
+<ol>
+<li><strong>Determine global timestamp</strong>: The client or coordinator node determines a unified <em>T_read</em> at the start of the transaction (for example, <code>TT.now().latest</code>).</li>
+<li><strong>Concurrent dispatch</strong>: The client carries this same <em>T_read</em> and concurrently sends read requests to the replica holding A and the replica holding B.</li>
+<li><strong>Independent execution</strong>: The A replica and B replica process requests independently according to their own <em>t_safe</em>.</li>
+<li><strong>Result aggregation</strong>: The client receives all results.</li>
+</ol>
+<h4 class="heading" id="summary">
+  Summary
+  <a class="anchor" href="#summary">#</a>
+</h4>
+<p>Traditional 2PC algorithms have two major problems: single-point failure and poor performance. Spanner introduces TrueTime and Paxos on top of 2PC to solve these two problems:</p>
+<ul>
+<li><strong>Single-point failure</strong>: In traditional 2PC, if a node crashes, the transaction gets stuck. In Spanner&rsquo;s architecture, every participant and coordinator in 2PC is not a single node, but a Paxos group; even if a node within it crashes, the transaction can continue to run and complete, avoiding the single-point failure problem. 2PC solves the atomicity problem across shards. That is: how to make different data succeed or fail together. Paxos solves the high-availability problem. That is: how to keep multiple replicas of the same data consistent.</li>
+<li><strong>Read/write performance</strong>: Another pain point of traditional 2PC is performance, especially because read operations are also locked. Under strong consistency requirements, read operations must wait for write operations to complete (lock conflict), or read operations must ask the Leader (network latency). Aiming at the &ldquo;read-more-write-less&rdquo; characteristic of Internet applications, Spanner uses MVCC (Multi-Version Concurrency Control) to implement near-perfect read-only transactions. Through the Safe Time mechanism, Spanner allows clients to perform strongly consistent reads on any replica (including non-Leader replicas). This &ldquo;lock-free read&rdquo; not only greatly improves the system&rsquo;s parallel processing capability, but also disperses traffic to edge nodes around the world, significantly reducing user access latency.</li>
+</ul>
+<h3 class="heading" id="tcc-transactions">
+  TCC Transactions
+  <a class="anchor" href="#tcc-transactions">#</a>
+</h3>
+<p>In the transfer example given when explaining BASE, the system does not satisfy isolation requirements; before final consistency is reached, the sum of the balances of the two accounts in the system may be inconsistent. In some business scenarios with isolation requirements, this is unacceptable. For example, in an e-commerce shopping scenario, if the customer receives a payment success response before inventory is deducted, overselling may occur.</p>
+<p>The TCC introduced in this subsection is another common mechanism for implementing distributed transactions. It was originally proposed by Pat Helland in 2007[21]. TCC is the acronym of <em>Try-Confirm-Cancel</em>. TCC is a compensating distributed transaction solution that ensures eventual consistency through business-logic splitting and compensation mechanisms.</p>
+<p>The core idea of TCC transactions is &ldquo;Resource Reservation.&rdquo; It is a variant and optimization of two-phase commit. Unlike traditional two-phase commit protocols, TCC transactions do not lock database resources for a long time, but elevate the granularity of locks from the &ldquo;database&rdquo; level to the &ldquo;business&rdquo; level, controlled by the application (code) itself.</p>
+<p>TCC transactions decompose a complete business operation into two phases:</p>
+<p><strong>Phase 1: Try (Attempt/Reserve)</strong></p>
+<p>In the first phase, all resources required by the business are checked and reserved. This is not the real execution of the business, but a preparatory operation. For example, instead of directly deducting inventory, &ldquo;freeze&rdquo; the inventory; instead of directly deducting payment, &ldquo;freeze&rdquo; the corresponding amount in the user&rsquo;s account. All operations in the first phase must be reversible, i.e., they have corresponding undo operations.</p>
+<p><strong>Phase 2: Execute Confirm or Cancel Based on Try Phase Results</strong></p>
+<p>If all participants&rsquo; Try operations succeed, the Confirm operation will be executed, which truly executes the business and completes the final change of resources. The Confirm operation uses the resources reserved in the Try phase to complete the operation. For example, the &ldquo;frozen&rdquo; inventory becomes &ldquo;deducted&rdquo;; the &ldquo;frozen&rdquo; amount is actually transferred from the user&rsquo;s account. The Confirm operation must be idempotent, because retries may occur due to network failures.</p>
+<p>If any participant&rsquo;s Try operation fails, the Cancel operation will be executed, which cancels all reservations made in the Try phase and releases resources, restoring data to the state before the transaction began. For example, unfreeze the previously frozen inventory; unfreeze the amount in the user&rsquo;s account. The Cancel operation must also be idempotent.</p>
+<p>Because the three-phase interfaces are implemented by the business, the following matters need attention:</p>
+<ul>
+<li>TCC&rsquo;s Confirm phase and Cancel phase may be called multiple times due to network retries, etc., so they must be implemented as idempotent interfaces supporting repeated calls.</li>
+<li>It is necessary to handle cases where messages from different phases may arrive out of order, such as the Cancel phase arriving before the Try phase in the same transaction.</li>
+<li>Because TCC transactions provide three-phase interfaces by services, isolation also needs to be provided by the business. For example, resources locked in the Try phase must not be visible or modifiable by other transactions.</li>
+</ul>
+<p>Taking cross-bank transfer as an example, suppose user A (bank 1) wants to transfer 100 to user B (bank 2). The three-phase flow to be designed is shown below:</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">Service</th>
+          <th style="text-align: left">Try</th>
+          <th style="text-align: left">Confirm</th>
+          <th style="text-align: left">Cancel</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">Bank 1 (payer)</td>
+          <td style="text-align: left">1. Check whether A&rsquo;s balance is greater than 100. 2. Freeze 100 in A&rsquo;s account.</td>
+          <td style="text-align: left">Deduct the &ldquo;frozen&rdquo; 100 from A&rsquo;s account.</td>
+          <td style="text-align: left">Unfreeze the &ldquo;frozen&rdquo; 100 in A&rsquo;s account.</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">Bank 2 (payee)</td>
+          <td style="text-align: left">Check whether B&rsquo;s account is valid and in normal status.</td>
+          <td style="text-align: left">Add 100 to B&rsquo;s account.</td>
+          <td style="text-align: left">Do nothing</td>
+      </tr>
+  </tbody>
+</table>
+<p>TCC transactions usually require a coordinator responsible for interacting with the various services involved in the transaction. The figures below demonstrate the success and failure flows of cross-bank transfer.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="TCC transaction flow for cross-bank transfer: Try-Confirm flow." src="/media/dist-system-en/transaction/tx-tcc.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="TCC transaction flow for cross-bank transfer: Try-Cancel flow." src="/media/dist-system-en/transaction/tx-tcc-2.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>As can be seen, the TCC transaction process is very similar to two-phase commit, but has the following differences:</p>
+<ul>
+<li>2PC acts at the resource layer, while the three interfaces of TCC transactions are provided by the business; this also means that TCC transactions have stronger intrusion into the business and higher business transformation costs.</li>
+<li>In the Prepare phase of 2PC, all participants vote on whether to prepare; in the Try phase of TCC transactions, there is no preparation vote, but resources are frozen.</li>
+<li>The business needs to implement different rollback strategies according to different failure reasons, and also needs to ensure the idempotency of Confirm and Cancel interfaces.</li>
+</ul>
+<h3 class="heading" id="saga-transactions">
+  SAGA Transactions
+  <a class="anchor" href="#saga-transactions">#</a>
+</h3>
+<p>TCC transactions have strong intrusion into the business, requiring the business to implement TCC&rsquo;s three-phase interfaces. For some business scenarios with long processes, many steps, and the need to call third-party company services, it is difficult to require these external services to cooperate with TCC transaction interfaces. For example, in some e-commerce scenarios, it is necessary to call external banking systems&rsquo; deduction services, and it is difficult to require these third-party services to follow TCC transaction interface specifications.</p>
+<p>For such business scenarios, the SAGA distributed transaction pattern was first proposed in 1987[22] to improve the efficiency of <em>Long Lived Transactions</em>, and is more suitable for business scenarios with long processes, many steps, and difficulty implementing TCC transaction three-phase interfaces. In this sequence, each local transaction completes its own business operation within its service and commits immediately. If a certain step in the entire SAGA process fails, the system will call a series of <em>Compensating Transactions</em> to undo all previously successful local transactions, thereby bringing the entire system back to a consistent state. Simply put, SAGA&rsquo;s philosophy is: allow moving forward, but ensure there is a way back.</p>
+<p>Specifically, a SAGA distributed transaction consists of the following two parts:</p>
+<ul>
+<li><strong>Local transactions</strong>: SAGA splits a large distributed transaction into <em>n</em> small subtransactions, named <em>T_1</em>, <em>T_2</em> &hellip; <em>T_n</em>. These subtransactions will be executed sequentially, and each subtransaction should be considered an atomic operation. For example, in a purchase action, it can be divided into deduction, inventory deduction, and shipment subtransactions. If each subtransaction can correctly commit in execution order, the effect is equivalent to the successful commit of the large distributed transaction.</li>
+<li><strong>Compensating transactions</strong>: For each subtransaction, design the corresponding compensation operation, such as &ldquo;cancel order,&rdquo; &ldquo;return inventory,&rdquo; etc., named <em>C_1</em>, <em>C_2</em> &hellip; <em>C_{n-1}</em>, used when a certain subtransaction execution fails to execute reverse compensation operations for previously successful subtransactions.</li>
+</ul>
+<p>Taking a banking system deduction operation as an example, if in a TCC transaction the banking system needs to implement the Try interface of the TCC transaction, in this interface it freezes the corresponding amount in the account and ensures that the frozen amount is not visible to other transactions before the transaction commits or rolls back; in addition to implementing the account freezing operation, the banking system also needs to implement an undo freeze operation for rollback calls. If SAGA transactions are used, the banking system does not need to implement extra interfaces, because the compensation operation corresponding to the deduction operation only needs to add the corresponding amount back to the account; this interface is already implemented by the banking system, and is controlled by the distributed transaction initiator to execute.</p>
+<p>As can be seen, compared with TCC transactions, SAGA distributed transactions have less intrusion into the business and smaller transformation scope, and are especially suitable for businesses that need to call third-party services or legacy services.</p>
+<p>When a SAGA transaction execution fails, there are two recovery modes, as shown below:</p>
+<ul>
+<li><strong>Forward Recovery</strong>: If a certain subtransaction <em>T_i</em> fails, in this mode it will keep retrying until it succeeds. For example, in an e-commerce shopping scenario, if deduction succeeds, shipment must be guaranteed to succeed, otherwise it will keep retrying.</li>
+<li><strong>Backward Recovery</strong>: If a certain subtransaction <em>T_i</em> fails, the compensation operations of the subtransactions that have already successfully executed before it will be called in turn to complete the transaction rollback. After subtransaction <em>T_i</em> fails, compensation operations will start from <em>C_{i-1}</em>.</li>
+</ul>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" alt="Two recovery modes of SAGA transactions." src="/media/dist-system-en/transaction/tx-saga.png" >
+    </div>
+
+    
+</figure>
+</p>
+<p>Taking an airplane ticket purchase system as an example, explain the forward and reverse flows in SAGA:</p>
+<ul>
+<li><strong>Forward flow</strong>:
+<ol>
+<li>Create an airline ticket order, reserving 15 minutes.</li>
+<li>Lock the seat on the corresponding flight; within the reservation time, no one else is allowed to book it.</li>
+<li>Initiate a payment order request to the user.</li>
+<li>If the user pays successfully, confirm the order purchase success and send a notification to the user.</li>
+</ol>
+</li>
+<li><strong>Reverse flow</strong>: If the user does not complete payment within the reserved 15 minutes (for whatever reason), the corresponding compensation operations are: unlock the seat on the corresponding flight and cancel the order.</li>
+</ul>
+<p>Because SAGA transactions divide a distributed transaction into multiple subtransactions for execution, each subtransaction is an atomic operation, and data isolation cannot be guaranteed between subtransactions. This means that when a SAGA transaction is not yet complete, other transactions can see the intermediate state. For example, after the user&rsquo;s bank account has been deducted but before inventory has been deducted, the user&rsquo;s bank account data has been deducted, but the inventory quantity in the product service has not yet changed. It can be seen that SAGA transactions have weak data isolation, so SAGA transaction business scenarios require subtransactions to be relatively independent and have low isolation requirements. Therefore, services using SAGA transactions must be designed to handle this &ldquo;dirty read&rdquo; scenario. For example, order status can be designed as Pending rather than directly Completed.</p>
+<p>SAGA transactions guarantee eventual consistency, not strong consistency. After a subtransaction fails, the system will be in an inconsistent state for a short time (for example, inventory is deducted, but the order is ultimately cancelled), and the business state can only be restored after compensation is completed.</p>
+<p>In addition, compensation operations in SAGA transactions must satisfy <em>idempotency</em>, because compensation operations may be retried (for example, due to network failure), and executing once must produce the same result as executing multiple times. In the case of compensation operation failure, the situation may be very complex. For example, in an e-commerce service, if final payment fails and inventory compensation is needed, what if this step also fails? If it keeps failing, this scenario may require manual intervention based on logs.</p>
+<p>Finally, not all types of operations can be compensated. For example, if an operation is &ldquo;send an email&rdquo; or &ldquo;ship a product,&rdquo; this type of operation cannot truly be &ldquo;undone,&rdquo; so not all business types are suitable for SAGA transactions.</p>
+<p>In addition to the differences in business intrusion and applicable scenarios, TCC and SAGA also have essential differences in concurrency control and isolation mechanisms. This difference directly determines their resistance to problems such as &ldquo;overselling&rdquo; and &ldquo;dirty reads&rdquo; in high-concurrency scenarios.</p>
+<ul>
+<li><strong>TCC&rsquo;s resource reservation mechanism (strong isolation)</strong>: TCC&rsquo;s core advantage lies in the resource locking of the Try phase. By explicitly freezing resources at the business level (for example, changing inventory from &ldquo;available&rdquo; to &ldquo;frozen&rdquo;), TCC actually implements an application-layer &ldquo;pessimistic lock.&rdquo; This mechanism ensures that resources are absolutely available when the Confirm phase is executed. Therefore, TCC performs excellently in dealing with resource competition under high concurrency (such as flash sales); it can effectively prevent overselling and logically guarantees better isolation, avoiding other transactions reading unavailable resources.</li>
+<li><strong>SAGA&rsquo;s lack of isolation (weak isolation)</strong>: In contrast, SAGA sacrifices isolation for the execution efficiency of long processes. In SAGA mode, every subtransaction (Local Transaction) is directly committed to the database, which means data changes are immediately visible to other concurrent transactions. SAGA lacks a resource reservation phase similar to TCC, which causes it to naturally face the challenge of lack of isolation.</li>
+</ul>
+<p>This characteristic causes two serious problems in concurrent scenarios:</p>
+<ul>
+<li><strong>Dirty reads and cascading rollback risk</strong>: If a subtransaction of transaction A modifies data, and transaction B then reads that data and performs subsequent operations based on it; once transaction A subsequently fails and triggers compensation (rollback), the data held by transaction B becomes invalid &ldquo;dirty data,&rdquo; and may even cause transaction B to also have to perform complex cascading rollbacks.</li>
+<li><strong>Non-commutativity</strong>: If concurrent SAGA transactions involve modifications to the same resource, and the operation does not satisfy commutativity (for example, calculating interest or non-additive numerical updates), the randomness of execution order may cause the final result to be incorrect due to the lack of a locking mechanism.</li>
+</ul>
+<p>Therefore, SAGA is more suitable for long-process scenarios with low concurrency conflicts or where business operations satisfy commutativity (Commutative, such as simple addition and subtraction operations). In high-concurrency financial/e-commerce core links where overselling must be strictly prevented or intermediate-state visibility is sensitive, TCC is often a safer choice.</p>
+<h2 class="heading" id="chapter-summary">
+  Chapter Summary
+  <a class="anchor" href="#chapter-summary">#</a>
+</h2>
+<p>In this chapter, starting from the logical correctness of data operations, we systematically explored transaction technology in distributed systems. As a cornerstone of building reliable systems, transaction technology shields the complexity brought by underlying hardware failures, concurrency conflicts, and network uncertainty, providing the upper-layer application with an &ldquo;all-or-nothing&rdquo; atomicity promise.</p>
+<p>First, we based ourselves on single-node databases and deeply analyzed the implementation principles of ACID properties. We learned that atomicity (A) and durability (D) do not come out of thin air, but rely on the log mechanism of Undo Log and Redo Log (WAL) to respectively implement failure rollback and crash recovery. In the field of concurrency control, we discussed the evolution from pessimistic Two-Phase Locking (2PL) to optimistic MVCC (Multi-Version Concurrency Control). Especially MVCC, by maintaining multi-version history of data, achieves a highly efficient concurrency mode of &ldquo;reads and writes never block each other,&rdquo; and has become the standard implementation of modern mainstream databases. However, we also pointed out that even under MVCC, anomalies such as write skew still exist, and need to be avoided through reasonable selection of isolation levels.</p>
+<p>Subsequently, we expanded our view to distributed systems. In scenarios spanning networks and nodes, facing severe challenges of partial failure and communication delay, traditional ACID properties are constrained by the CAP theorem. In response, this chapter presented two completely different technical evolution routes:</p>
+<ul>
+<li><strong>Hard transactions pursuing strong consistency</strong>: Represented by 2PC (Two-Phase Commit), although it provides strict atomicity guarantees, it also introduces synchronous blocking and single-point failure risks. As the pinnacle of this field, we focused on deconstructing the architectural design of Google Spanner. Spanner creatively combines TrueTime atomic-clock technology, the Paxos consensus algorithm, and 2PL, achieving External Consistency on a global cross-continental scale, breaking the traditional belief that &ldquo;strong consistency cannot scale horizontally,&rdquo; and pointing the direction for NewSQL databases.</li>
+<li><strong>Soft transactions pursuing high availability</strong>: Based on the BASE theory, we abandon immediate strong consistency and instead pursue eventual consistency at the business level. We introduced in detail the TCC (Try-Confirm-Cancel) mode, which achieves finer-grained control through business resource reservation; and the SAGA mode, which solves the efficiency problem of Long Lived Transactions through the orchestration of forward operations and compensation operations. Although these two types of solutions have strong intrusion into business code, they provide excellent system availability in high-concurrency Internet scenarios.</li>
+</ul>
+<p>In summary, there is no &ldquo;silver bullet&rdquo; for distributed transactions. From single-node ACID to distributed 2PC/3PC, to Spanner&rsquo;s TrueTime innovation, and the business compromises of TCC/SAGA, the essence is to find the best balance point among data consistency, system availability, and performance. As system designers, understanding the principles and costs behind these technologies and making appropriate trade-offs according to specific business scenarios is the essence of mastering distributed transactions.</p>
+<hr>
+<h2 class="heading" id="references">
+  References
+  <a class="anchor" href="#references">#</a>
+</h2>
+<ol>
+<li>Andreas Reuter and Theo Härder. &ldquo;A Transaction Model.&rdquo; <em>ACM Transactions on Database Systems</em>, 1983.</li>
+<li>Wikipedia. Isolation (database systems). <a href="https://en.wikipedia.org/wiki/Isolation_%28database_systems%29">https://en.wikipedia.org/wiki/Isolation_(database_systems)</a></li>
+<li>Wikipedia. Two-phase locking. <a href="https://en.wikipedia.org/wiki/Two-phase_locking">https://en.wikipedia.org/wiki/Two-phase_locking</a></li>
+<li>Wikipedia. Optimistic concurrency control. <a href="https://en.wikipedia.org/wiki/Optimistic_concurrency_control">https://en.wikipedia.org/wiki/Optimistic_concurrency_control</a></li>
+<li>H.T. Kung and John T. Robinson. &ldquo;On Optimistic Methods for Concurrency Control.&rdquo; <em>ACM Transactions on Database Systems</em>, 1981.</li>
+<li>Wikipedia. Multiversion concurrency control. <a href="https://en.wikipedia.org/wiki/Multiversion_concurrency_control">https://en.wikipedia.org/wiki/Multiversion_concurrency_control</a></li>
+<li>David P. Reed. &ldquo;Naming and Synchronization in a Decentralized Computer System.&rdquo; <em>PhD Dissertation, Massachusetts Institute of Technology</em>, 1978.</li>
+<li>Philip A. Bernstein and Nathan Goodman. &ldquo;Concurrency Control in Distributed Database Systems.&rdquo; <em>ACM Computing Surveys</em>, 1981.</li>
+<li>PostgreSQL. VACUUM. <a href="https://www.postgresql.org/docs/current/sql-vacuum.html">https://www.postgresql.org/docs/current/sql-vacuum.html</a></li>
+<li>PostgreSQL. Introduction to MVCC. <a href="https://www.postgresql.org/docs/7.1/mvcc.html">https://www.postgresql.org/docs/7.1/mvcc.html</a></li>
+<li>MySQL. InnoDB Multi-Versioning. <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html">https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html</a></li>
+<li>Wikipedia. List of databases using MVCC. <a href="https://en.wikipedia.org/wiki/List_of_databases_using_MVCC">https://en.wikipedia.org/wiki/List_of_databases_using_MVCC</a></li>
+<li>A fable in which each blind man touches a different part of an elephant and draws a different conclusion.</li>
+<li>Wikipedia. Snapshot isolation. <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">https://en.wikipedia.org/wiki/Snapshot_isolation</a></li>
+<li>Michael J. Cahill et al. &ldquo;Serializable Isolation for Snapshot Databases.&rdquo; <em>ACM Transactions on Database Systems</em>, 2008.</li>
+<li>Dan Pritchett. &ldquo;BASE: An ACID Alternative.&rdquo; <em>ACM Queue</em>, 2008.</li>
+<li>Wikipedia. Two-phase commit protocol. <a href="https://en.wikipedia.org/wiki/Two-phase_commit_protocol">https://en.wikipedia.org/wiki/Two-phase_commit_protocol</a></li>
+<li>Wikipedia. Three-phase commit protocol. <a href="https://en.wikipedia.org/wiki/Three-phase_commit_protocol">https://en.wikipedia.org/wiki/Three-phase_commit_protocol</a></li>
+<li>James C. Corbett et al. &ldquo;Spanner: Google&rsquo;s Globally-Distributed Database.&rdquo; <em>Proceedings of the 10th USENIX Symposium on Operating Systems Design and Implementation (OSDI)</em>, 2012.</li>
+<li>Keith Marzullo. &ldquo;Maintaining the Time in a Distributed System.&rdquo; <em>ACM Symposium on Principles of Distributed Computing</em>, 1983.</li>
+<li>Pat Helland. &ldquo;Life beyond Distributed Transactions: An Apostate&rsquo;s Opinion.&rdquo; <em>CIDR</em>, 2007.</li>
+<li>Hector Garcia-Molina and Kenneth Salem. &ldquo;Sagas.&rdquo; <em>Proceedings of the 1987 ACM SIGMOD International Conference on Management of Data</em>, 1987.</li>
+</ol>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>My book</h2>
+  <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="Distributed System Illustrated"
+         width="320"
+         height="414">
+  </a>
+  <p>My book,
+    <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+      <em>Distributed System Illustrated</em>
+    </a>,
+    explains distributed systems through clear diagrams — from clocks and CAP to Paxos, Raft, and distributed transactions.
+  </p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
