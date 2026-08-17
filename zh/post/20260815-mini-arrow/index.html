@@ -40,13 +40,14 @@
 <meta property="og:url" content="https://www.codedump.info/zh/post/20260815-mini-arrow/">
   <meta property="og:site_name" content="codedump notes">
   <meta property="og:title" content="Mini-Arrow：迷你Arrow的Rust实现">
-  <meta property="og:description" content="本文介绍 mini-arrow 项目，它是一个Rust编写的迷你Apache Arrow项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了Build a Typed Database Expression Engine in Rust。
+  <meta property="og:description" content="本文介绍 mini-arrow 项目，它是一个Rust编写的迷你Apache Arrow项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了Type Exercise in Rust。
 在展开讲解之前，我们先了解Arrow项目：
 Arrow 要解决什么问题 # Arrow 是一个列式内存格式项目，它要解决以下几个核心问题：
 行式 vs 列式 # 传统数据库（如 MySQL）按行存储数据：一条记录的所有字段连续放在一起。
 行式存储： [id=1, name=&#34;Alice&#34;, age=30] [id=2, name=&#34;Bob&#34;, age=25] [id=3, ...] 而列式存储（如 Arrow、ClickHouse）按列存储：同一列的所有值连续放在一起。
 列式存储： id: [1, 2, 3, ...] name: [&#34;Alice&#34;, &#34;Bob&#34;, ...] age: [30, 25, ...] 为什么列式更好？ 分析型查询（如 SELECT AVG(age) FROM users）只关心 age 一列。列式存储能：
-只读需要的列，跳过无关数据，减少 I/O； 缓存局部性好——同一列的值在内存里连续，扫描时命中率高； 支持向量化——对连续内存做 SIMD 批量运算，比逐行解释快几个数量级。 列式存储的难点 # 把数据按列存放，会立刻遇到几个棘手问题：">
+只读需要的列，跳过无关数据，减少 I/O； 缓存局部性好——同一列的值在内存里连续，扫描时命中率高； 支持向量化——对连续内存做 SIMD 批量运算，比逐行解释快几个数量级。 列式存储的难点 # 把数据按列存放，会立刻遇到几个棘手问题：
+难点一：定长 vs 变长。 i32 可以放进 Vec&lt;i32&gt;，但 String 长度不定，不能直接放进一个定长数组。需要额外的布局来管理变长数据。">
   <meta property="og:locale" content="zh">
   <meta property="og:type" content="article">
     <meta property="article:section" content="post">
@@ -269,7 +270,7 @@ Arrow 要解决什么问题 # Arrow 是一个列式内存格式项目，它要�
   
 
   <div class="single-content">
-    <p>本文介绍 <a href="https://github.com/lichuang/mini-arrow">mini-arrow</a> 项目，它是一个Rust编写的迷你<a href="https://arrow.apache.org/">Apache Arrow</a>项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了<a href="https://skyzh.github.io/type-exercise-in-rust/">Build a Typed Database Expression Engine in Rust</a>。</p>
+    <p>本文介绍 <a href="https://github.com/lichuang/mini-arrow">mini-arrow</a> 项目，它是一个Rust编写的迷你<a href="https://arrow.apache.org/">Apache Arrow</a>项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了<a href="https://skyzh.github.io/type-exercise-in-rust/">Type Exercise in Rust</a>。</p>
 <p>在展开讲解之前，我们先了解Arrow项目：</p>
 <h1 class="heading" id="arrow-要解决什么问题">
   Arrow 要解决什么问题
