@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Mini-Arrow: A Minimal Arrow Rust Implementation | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/en/post/20260815-mini-arrow/"/>
+
+
+
+<link rel="alternate" hreflang="zh" href="https://www.codedump.info/zh/post/20260815-mini-arrow/"/>
+
+<link rel="alternate" hreflang="x-default" href="https://www.codedump.info/en/post/20260815-mini-arrow/"/>
+
+
+<meta property="og:url" content="https://www.codedump.info/en/post/20260815-mini-arrow/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Mini-Arrow: A Minimal Arrow Rust Implementation">
+  <meta property="og:description" content="This article introduces the mini-arrow project, a minimal Apache Arrow implementation written in Rust. With just 1600 lines of Rust code, it demonstrates the design and solutions to several of Arrow’s most core problems. The project is inspired by Build a Typed Database Expression Engine in Rust.
+Before diving into the details, let’s first understand the Arrow project:
+What Problems Does Arrow Solve # Arrow is a columnar in-memory format project that addresses the following core problems:">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2026-08-15T21:40:35+08:00">
+    <meta property="article:modified_time" content="2026-08-15T21:40:35+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.d2e2f08285a1451785129b382caf7d25915ad9c538e57a2515acedd64c4b4cbc.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en/page/about-en/" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/en/">Home</a><span class="breadcrumbs-separator">/</span><a href="/en/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/en/post/20260815-mini-arrow/">Mini-Arrow: A Minimal Arrow Rust Implementation</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Mini-Arrow: A Minimal Arrow Rust Implementation</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-08-15T21:40:35&#43;08:00">August 15, 2026</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#row-oriented-vs-column-oriented">Row-Oriented vs Column-Oriented</a></li>
+    <li><a href="#the-difficulties-of-columnar-storage">The Difficulties of Columnar Storage</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#1-types-defining-the-boundary-of-primitive-types">1. <code>types</code>: Defining the Boundary of &ldquo;Primitive Types&rdquo;</a></li>
+    <li><a href="#2-scalar-owned-values-and-zero-copy-references">2. scalar: Owned Values and Zero-Copy References</a>
+      <ul>
+        <li><a href="#problem-to-solve">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way">Why design it this way</a></li>
+      </ul>
+    </li>
+    <li><a href="#3-array-columnar-storage-and-null-values">3. array: Columnar Storage and Null Values</a>
+      <ul>
+        <li><a href="#problem-to-solve-1">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way-1">Why design it this way</a></li>
+      </ul>
+    </li>
+    <li><a href="#4-builder-incremental-construction-of-immutable-arrays">4. builder: Incremental Construction of Immutable Arrays</a>
+      <ul>
+        <li><a href="#problem-to-solve-2">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way-2">Why design it this way</a></li>
+      </ul>
+    </li>
+    <li><a href="#5-type-erasure-crossing-the-runtime-boundary">5. Type Erasure: Crossing the Runtime Boundary</a>
+      <ul>
+        <li><a href="#problem-to-solve-3">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way-3">Why design it this way</a></li>
+      </ul>
+    </li>
+    <li><a href="#6-expr-moving-decisions-out-of-the-row-loop">6. expr: Moving Decisions Out of the Row Loop</a>
+      <ul>
+        <li><a href="#problem-to-solve-4">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way-4">Why design it this way</a></li>
+      </ul>
+    </li>
+    <li><a href="#7-the-macro-system-making-the-type-family-extensible">7. The Macro System: Making the Type Family Extensible</a>
+      <ul>
+        <li><a href="#problem-to-solve-5">Problem to solve</a></li>
+        <li><a href="#why-design-it-this-way-5">Why design it this way</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#back-to-the-start-how-each-difficulty-is-conquered">Back to the start: how each difficulty is conquered</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <p>This article introduces the <a href="https://github.com/lichuang/mini-arrow">mini-arrow</a> project, a minimal <a href="https://arrow.apache.org/">Apache Arrow</a> implementation written in Rust. With just 1600 lines of Rust code, it demonstrates the design and solutions to several of Arrow&rsquo;s most core problems. The project is inspired by <a href="https://skyzh.github.io/type-exercise-in-rust/">Build a Typed Database Expression Engine in Rust</a>.</p>
+<p>Before diving into the details, let&rsquo;s first understand the Arrow project:</p>
+<h1 class="heading" id="what-problems-does-arrow-solve">
+  What Problems Does Arrow Solve
+  <a class="anchor" href="#what-problems-does-arrow-solve">#</a>
+</h1>
+<p>Arrow is a <strong>columnar in-memory format</strong> project that addresses the following core problems:</p>
+<h2 class="heading" id="row-oriented-vs-column-oriented">
+  Row-Oriented vs Column-Oriented
+  <a class="anchor" href="#row-oriented-vs-column-oriented">#</a>
+</h2>
+<p>Traditional databases (such as MySQL) store data in <strong>rows</strong>: all fields of a record are stored contiguously.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Row-oriented storage:
+</span></span><span style="display:flex;"><span>  [id=1, name=&#34;Alice&#34;, age=30] [id=2, name=&#34;Bob&#34;, age=25] [id=3, ...]
+</span></span></code></pre></div><p>Columnar storage (such as Arrow, ClickHouse) stores data in <strong>columns</strong>: all values of the same column are stored contiguously.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Columnar storage:
+</span></span><span style="display:flex;"><span>  id:    [1, 2, 3, ...]
+</span></span><span style="display:flex;"><span>  name:  [&#34;Alice&#34;, &#34;Bob&#34;, ...]
+</span></span><span style="display:flex;"><span>  age:   [30, 25, ...]
+</span></span></code></pre></div><p><strong>Why is columnar better?</strong> Analytical queries (such as <code>SELECT AVG(age) FROM users</code>) only care about the <code>age</code> column. Columnar storage can:</p>
+<ol>
+<li><strong>Read only the needed columns</strong>, skipping irrelevant data and reducing I/O;</li>
+<li><strong>Better cache locality</strong> — values of the same column are contiguous in memory, so scans have higher hit rates;</li>
+<li><strong>Support vectorization</strong> — SIMD batch operations on contiguous memory are orders of magnitude faster than row-by-row interpretation.</li>
+</ol>
+<h2 class="heading" id="the-difficulties-of-columnar-storage">
+  The Difficulties of Columnar Storage
+  <a class="anchor" href="#the-difficulties-of-columnar-storage">#</a>
+</h2>
+<p>Storing data by column immediately raises several tricky problems:</p>
+<p><strong>Difficulty 1: Fixed-length vs variable-length.</strong>
+<code>i32</code> can go into a <code>Vec&lt;i32&gt;</code>, but <code>String</code> has variable length and cannot be placed directly into a fixed-length array. An additional layout is needed to manage variable-length data.</p>
+<p><strong>Difficulty 2: Null values (NULL).</strong>
+<code>Vec&lt;T&gt;</code> requires contiguous, fixed-length storage and cannot &ldquo;skip&rdquo; a position. How is NULL represented? If we wrap every value in an <code>Option</code>, it breaks the contiguous layout, wastes memory, and prevents vectorization.</p>
+<p><strong>Difficulty 3: Owned values vs zero-copy references.</strong>
+When reading a <code>StringArray</code>, we want to get a <code>&amp;str</code> directly without copying; but when building an array, we need to hold ownership of the <code>String</code>. How can the two forms coexist?</p>
+<p><strong>Difficulty 4: The type is only known at runtime.</strong>
+Rust generics are expanded at compile time, but a database engine only knows a column&rsquo;s type at runtime (parsed from SQL). How can arrays of arbitrary types be uniformly passed, dispatched, and evaluated?</p>
+<p><strong>Difficulty 5: Repeated decisions in expression evaluation.</strong>
+Every binary operation (<code>+</code>, <code>&lt;=</code>, <code>contains</code>) must handle argument count, type checking, length checking, NULL propagation, and output construction. If this logic is hardcoded into every loop, each new function adds another place for duplication and bugs.</p>
+<p><strong>Difficulty 6: Scaling the type family.</strong>
+Every time a type is added (such as <code>f64</code>), the physical variants, scalar variants, array aliases, builders, and conversions must all be repeated&hellip; The more repetition, the more likely drift.</p>
+<p>The four modules of <code>mini-arrow</code> — <code>scalar</code>, <code>array</code>, <code>builder</code>, <code>expr</code> — are designed to tackle these difficulties one by one. Below, starting from &ldquo;a seemingly simple problem&rdquo;, we break down the design rationale of each module.</p>
+<h1 class="heading" id="the-starting-point-a-seemingly-simple-problem">
+  The Starting Point: A Seemingly Simple Problem
+  <a class="anchor" href="#the-starting-point-a-seemingly-simple-problem">#</a>
+</h1>
+<p>Writing a loop for <code>i32 + i32</code> by hand is easy:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">for</span> row <span style="font-weight:bold;text-decoration:underline">in</span> 0..left.len() {
+</span></span><span style="display:flex;"><span>    output.push(<span style="font-weight:bold;text-decoration:underline">match</span> (left.get(row), right.get(row)) {
+</span></span><span style="display:flex;"><span>        (<span style="font-weight:bold;font-style:italic">Some</span>(left), <span style="font-weight:bold;font-style:italic">Some</span>(right)) =&gt; <span style="font-weight:bold;font-style:italic">Some</span>(left.wrapping_add(right)),
+</span></span><span style="display:flex;"><span>        _ =&gt; <span style="font-weight:bold;font-style:italic">None</span>,
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This code works fine for <code>i32</code>. But once you ask for more, it starts to &ldquo;leak&rdquo;:</p>
+<ol>
+<li><strong>What about strings?</strong> If <code>StringArray::get</code> returns a <code>String</code>, it copies every time; we want it to return <code>&amp;str</code>.</li>
+<li><strong>What about NULL?</strong> We can&rsquo;t return <code>Vec&lt;Option&lt;T&gt;&gt;</code>, that would break the columnar layout.</li>
+<li><strong>What about mixed types?</strong> Should <code>i32 &lt;= i64</code> be promoted to <code>i64</code> first, then compared?</li>
+<li><strong>What about types only known at runtime?</strong> The function name parsed from SQL is a string, and it can only be mapped to a concrete implementation at runtime.</li>
+<li><strong>What about rewriting the arity / length / NULL checks every time a function is added?</strong></li>
+</ol>
+<p><code>mini-arrow</code>&rsquo;s solution is to split these problems apart, with each module solving only one problem: <strong>move those decisions out of the row loop</strong>, distilling them into the four modules <code>scalar</code>, <code>array</code>, <code>builder</code>, <code>expr</code>. Each module corresponds to one of the difficulties listed at the start. Let&rsquo;s break them down one by one:</p>
+<h1 class="heading" id="module-breakdown-what-problem-each-module-solves">
+  Module Breakdown: What Problem Each Module Solves
+  <a class="anchor" href="#module-breakdown-what-problem-each-module-solves">#</a>
+</h1>
+<h2 class="heading" id="1-types-defining-the-boundary-of-primitive-types">
+  1. <code>types</code>: Defining the Boundary of &ldquo;Primitive Types&rdquo;
+  <a class="anchor" href="#1-types-defining-the-boundary-of-primitive-types">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> PrimitiveType: <span style="font-weight:bold;font-style:italic">Default</span> + <span style="font-weight:bold;font-style:italic">Copy</span> + Debug + <span style="font-weight:bold;font-style:italic">&#39;static</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">i32</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">i64</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">bool</span> {}
+</span></span></code></pre></div><p><strong>Problem to solve</strong>: Which types can be stored using a &ldquo;fixed-length array&rdquo;?</p>
+<p><code>PrimitiveType</code> is a marker trait. Types that satisfy it can be placed into <code>PrimitiveArray&lt;T&gt;</code> — because they are <code>Default + Copy + Debug + 'static</code>. <code>String</code> is not <code>Copy</code>, so it is excluded and must use the <code>StringArray</code> variable-length layout.</p>
+<pre class="mermaid">graph LR
+    subgraph PrimitiveType boundary
+        PT[PrimitiveType trait] --&gt; |i32, i64, bool| PA[PrimitiveArray&amp;lt;T&amp;gt;]
+        PT -.-&gt;|String does not satisfy Copy| SA[StringArray variable-length layout]
+    end
+</pre>
+
+<hr>
+<h2 class="heading" id="2-scalar-owned-values-and-zero-copy-references">
+  2. scalar: Owned Values and Zero-Copy References
+  <a class="anchor" href="#2-scalar-owned-values-and-zero-copy-references">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve">#</a>
+</h3>
+<p>A &ldquo;value&rdquo; in a database has two forms:</p>
+<ul>
+<li><strong>Owned value</strong>: such as <code>String</code>, which can be freely held and moved.</li>
+<li><strong>Zero-copy reference</strong>: such as <code>&amp;str</code>, which merely borrows the bytes in an array without any allocation.</li>
+</ul>
+<p>If we force everything into one form, problems arise:</p>
+<ul>
+<li>If we use owned everywhere, then <code>StringArray::get</code> would have to <code>to_string()</code> and copy every time — a performance disaster.</li>
+<li>If we use references everywhere, then we can&rsquo;t hold data when building an array.</li>
+</ul>
+<h3 class="heading" id="why-design-it-this-way">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way">#</a>
+</h3>
+<p>Use <strong>two traits</strong> to express these two forms, and connect them with <strong>generic associated types (GAT)</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> Scalar: <span style="font-weight:bold;font-style:italic">&#39;static</span> + <span style="font-weight:bold;font-style:italic">Clone</span> + Debug + TryFrom&lt;ScalarImpl&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ScalarImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;Item = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">RefType</span>&lt;&#39;a&gt;: <span style="color:#666;font-weight:bold;font-style:italic">ScalarRef</span>&lt;&#39;a, ScalarType = <span style="font-weight:bold;font-style:italic">Self</span>, ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>::ArrayType&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">as_scalar_ref</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::RefType&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> ScalarRef&lt;&#39;a&gt;:
+</span></span><span style="display:flex;"><span>  &#39;a + <span style="font-weight:bold;font-style:italic">Clone</span> + <span style="font-weight:bold;font-style:italic">Copy</span> + Debug + TryFrom&lt;ScalarRefImpl&lt;&#39;a&gt;&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ScalarRefImpl&lt;&#39;a&gt;&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;RefItem&lt;&#39;a&gt; = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Scalar</span>&lt;RefType&lt;&#39;a&gt; = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">as_scalar</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::ScalarType;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>These two traits form a set of <strong>reciprocal arrows</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Scalar ──RefType&lt;&#39;a&gt;──&gt; ScalarRef&lt;&#39;a&gt;
+</span></span><span style="display:flex;"><span>  │                         │
+</span></span><span style="display:flex;"><span>ArrayType                ArrayType
+</span></span><span style="display:flex;"><span>  ▼                         ▼
+</span></span><span style="display:flex;"><span>Array ─────Builder─────&gt; ArrayBuilder
+</span></span></code></pre></div><p><strong>Key insight: primitive types are both <code>Scalar</code> and <code>ScalarRef</code>.</strong></p>
+<ul>
+<li><code>i32</code> is <code>Copy</code>, so copying it has no cost; hence <code>RefType&lt;'a&gt; = i32</code> and <code>as_scalar_ref</code> is just <code>*self</code>.</li>
+<li><code>String</code> is different: <code>Scalar</code> is <code>String</code>, <code>ScalarRef</code> is <code>&amp;'a str</code>, and <code>as_scalar_ref</code> returns <code>self.as_str()</code>.</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph Integer i32
+        S1[i32 as Scalar] --&gt;|RefType = i32| SR1[i32 as ScalarRef]
+        SR1 --&gt;|ScalarType = i32| S1
+    end
+
+    subgraph String
+        S2[String as Scalar] --&gt;|RefType = &amp;str| SR2[&amp;str as ScalarRef]
+        SR2 --&gt;|ScalarType = String| S2
+    end
+</pre>
+
+<p><strong>Why do we need a lifetime-indexed associated type?</strong>
+Because the <code>&amp;str</code> returned by <code>StringArray::get</code> must be bound to the lifetime of the array&rsquo;s borrow.
+An ordinary associated type cannot express &ldquo;the return value borrows self&rdquo;; we must use a GAT like <code>RefItem&lt;'a&gt;</code>.
+The <code>for&lt;'a&gt;</code> HRTB bound means &ldquo;the relationship holds for any borrow lifetime chosen by the caller&rdquo; — the integer implementation can ignore it, but the string implementation cannot.</p>
+<h2 class="heading" id="3-array-columnar-storage-and-null-values">
+  3. array: Columnar Storage and Null Values
+  <a class="anchor" href="#3-array-columnar-storage-and-null-values">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve-1">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve-1">#</a>
+</h3>
+<p>The core of columnar storage is <strong>storing the values of the same column contiguously</strong>, to gain cache locality and vectorization. But there are two difficulties:</p>
+<ol>
+<li><strong>Fixed-length vs variable-length</strong>: <code>i32</code> can go into a <code>Vec&lt;i32&gt;</code>, but <code>String</code> has variable length and cannot be placed directly.</li>
+<li><strong>Null values (NULL)</strong>: <code>Vec&lt;T&gt;</code> requires contiguous, fixed-length storage and cannot &ldquo;skip&rdquo; a position.</li>
+</ol>
+<h3 class="heading" id="why-design-it-this-way-1">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way-1">#</a>
+</h3>
+<p>Using the <strong>Arrow standard layout</strong>, <code>mini-arrow</code> fully implements both forms:</p>
+<p><strong>Fixed-length type <code>PrimitiveArray&lt;T&gt;</code></strong> — <code>data + bitmap</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">PrimitiveArray</span>&lt;T: <span style="color:#666;font-weight:bold;font-style:italic">PrimitiveType</span>&gt; {
+</span></span><span style="display:flex;"><span>  data: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;T&gt;,      <span style="color:#888;font-style:italic">// contiguous data
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  bitmap: <span style="color:#666;font-weight:bold;font-style:italic">BitVec</span>,    <span style="color:#888;font-style:italic">// null bitmap
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><ul>
+<li>NULL positions are filled with <code>T::default()</code> as a placeholder, and bit <code>i</code> of the bitmap marks whether the value is valid.</li>
+<li>Reading: <code>if bitmap[i] { Some(data[i]) } else { None }</code>.</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph PrimitiveArray_i32
+        data[&#34;data: 1, 2, 3, 0, 5&#34;]
+        bitmap[&#34;bitmap: 1, 1, 1, 0, 1&#34;]
+    end
+    data --&gt;|row i corresponds to bit i of bitmap| bitmap
+    data --&gt;|bit 3 of bitmap is 0| null[&#34;row 3 is NULL, the 0 in data is just a placeholder&#34;]
+</pre>
+
+<p><strong>Variable-length type <code>StringArray</code></strong> — <code>data + offsets + bitmap</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">StringArray</span> {
+</span></span><span style="display:flex;"><span>  data: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;<span style="font-weight:bold;text-decoration:underline">u8</span>&gt;,       <span style="color:#888;font-style:italic">// all string bytes concatenated
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  offsets: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;<span style="font-weight:bold;text-decoration:underline">usize</span>&gt;, <span style="color:#888;font-style:italic">// starting offset of each string
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  bitmap: <span style="color:#666;font-weight:bold;font-style:italic">BitVec</span>,      <span style="color:#888;font-style:italic">// null bitmap
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><ul>
+<li>The range of the <code>i</code>-th string is <code>offsets[i]..offsets[i+1]</code>, and its length is the difference.</li>
+<li>Reading: <code>&amp;data[offsets[i]..offsets[i+1]]</code>, <strong>zero-copy returns <code>&amp;str</code></strong>.</li>
+<li>The offsets count <strong>UTF-8 bytes</strong>, not characters; empty rows and NULL rows both repeat the previous offset.</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph StringArray
+        data[&#34;data bytes: h e l l o w o r l d&#34;]
+        offsets[&#34;offsets: 0, 5, 10&#34;]
+        bitmap[&#34;bitmap: 1, 1&#34;]
+    end
+    data --&gt;|all bytes stored contiguously| offsets
+    offsets --&gt;|row 0 range 0 to 5| str0[&#34;hello&#34;]
+    offsets --&gt;|row 1 range 5 to 10| str1[&#34;world&#34;]
+    bitmap --&gt;|both rows valid| offsets
+</pre>
+
+<p><strong>Why use a bitmap for NULL instead of <code>Option&lt;T&gt;</code>?</strong>
+Nullability is <strong>value state</strong>, not a type variant. We express it with <code>Option</code> or a validity bitmap, rather than wrapping every value in an <code>Option</code>.
+Because <code>Vec&lt;Option&lt;T&gt;&gt;</code> breaks the contiguous layout, wastes memory, and cannot be vectorized.</p>
+<p><strong>The unified abstraction <code>Array</code> trait</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> Array: <span style="font-weight:bold;font-style:italic">Sized</span> + <span style="font-weight:bold;font-style:italic">&#39;static</span> + TryFrom&lt;ArrayImpl&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ArrayImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Builder</span>: <span style="color:#666;font-weight:bold;font-style:italic">ArrayBuilder</span>&lt;Array = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Item</span>: <span style="color:#666;font-weight:bold;font-style:italic">Scalar</span>&lt;ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">RefItem</span>&lt;&#39;a&gt;: <span style="color:#666;font-weight:bold;font-style:italic">ScalarRef</span>&lt;&#39;a, ScalarType = <span style="font-weight:bold;font-style:italic">Self</span>::Item, ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">get</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>, idx: <span style="font-weight:bold;text-decoration:underline">usize</span>) -&gt; <span style="font-weight:bold;font-style:italic">Option</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">len</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="font-weight:bold;text-decoration:underline">usize</span>;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">iter</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">ArrayIterator</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">from_slice</span>(data: <span style="font-weight:bold;text-decoration:underline">&amp;</span>[<span style="font-weight:bold;font-style:italic">Option</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;]) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>; <span style="color:#888;font-style:italic">// default impl: goes through builder
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><table>
+  <thead>
+      <tr>
+          <th>Array</th>
+          <th><code>Item</code> (owned)</th>
+          <th><code>RefItem</code> (reference)</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>I32Array</code></td>
+          <td><code>i32</code></td>
+          <td><code>i32</code> (Copy, no cost)</td>
+      </tr>
+      <tr>
+          <td><code>StringArray</code></td>
+          <td><code>String</code></td>
+          <td><code>&amp;str</code> (zero-copy)</td>
+      </tr>
+  </tbody>
+</table>
+<p>This way, <strong>one generic contract</strong> can read ordinary, empty, and all-NULL arrays alike, and string reads incur no allocation.</p>
+<h2 class="heading" id="4-builder-incremental-construction-of-immutable-arrays">
+  4. builder: Incremental Construction of Immutable Arrays
+  <a class="anchor" href="#4-builder-incremental-construction-of-immutable-arrays">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve-2">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve-2">#</a>
+</h3>
+<p>Once built, an array is <strong>immutable</strong> (as is typical for columnar storage). But the construction process needs <strong>incremental push</strong>, producing the final result in one go.</p>
+<h3 class="heading" id="why-design-it-this-way-2">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way-2">#</a>
+</h3>
+<p>Abstract construction into the <code>ArrayBuilder</code> trait, mutually linked to <code>Array</code> through associated types:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> ArrayBuilder {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Array</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;Builder = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">with_capacity</span>(capacity: <span style="font-weight:bold;text-decoration:underline">usize</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">push</span>(&amp;<span style="font-weight:bold;text-decoration:underline">mut</span> <span style="font-weight:bold;font-style:italic">self</span>, value: <span style="font-weight:bold;font-style:italic">Option</span>&lt;&lt;<span style="font-weight:bold;font-style:italic">Self</span>::Array <span style="font-weight:bold;text-decoration:underline">as</span> Array&gt;::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">finish</span>(<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::Array;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><strong><code>PrimitiveArrayBuilder&lt;T&gt;</code></strong>: <code>Some(v)</code> pushes data into <code>data</code> and sets the bitmap bit to <code>true</code>; <code>None</code> pushes <code>T::default()</code> as a placeholder and sets the bitmap bit to <code>false</code>.</p>
+<p><strong><code>StringArrayBuilder</code></strong>: <code>Some(s)</code> appends the bytes to <code>data</code> and records the new offset; <code>None</code> leaves the offset unchanged (reusing the previous one) and sets the bitmap bit to <code>false</code>.</p>
+<pre class="mermaid">graph LR
+    subgraph Builder flow
+        WC[with_capacity] --&gt; P1[push Some]
+        P1 --&gt; P2[push None]
+        P2 --&gt; P3[push Some]
+        P3 --&gt; F[finish]
+        F --&gt; A[Array immutable]
+    end
+</pre>
+
+<p><strong>Why are builder and array &ldquo;reciprocal&rdquo;?</strong>
+<code>Array::Builder</code> points to the builder that can construct it, and <code>ArrayBuilder::Array</code> points to the array it produces.
+These two associated types, <code>Array::Builder</code> and <code>ArrayBuilder::Array</code>, point in opposite directions, forming a &ldquo;reciprocal&rdquo; relationship. This is how <code>from_slice</code>&rsquo;s default implementation can be written generically:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> <span style="font-weight:bold;text-decoration:underline">mut</span> builder = <span style="font-weight:bold;font-style:italic">Self</span>::Builder::with_capacity(data.len());
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// ... push
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>builder.finish()
+</span></span></code></pre></div><h2 class="heading" id="5-type-erasure-crossing-the-runtime-boundary">
+  5. Type Erasure: Crossing the Runtime Boundary
+  <a class="anchor" href="#5-type-erasure-crossing-the-runtime-boundary">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve-3">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve-3">#</a>
+</h3>
+<p>Rust generics are expanded at <strong>compile time</strong>, but a database engine only knows a column&rsquo;s type at <strong>runtime</strong> (e.g., parsed from SQL).
+We need a <strong>unified type</strong> so that arrays of any type can be uniformly passed, dispatched, and evaluated.</p>
+<h3 class="heading" id="why-design-it-this-way-3">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way-3">#</a>
+</h3>
+<p>Use three <strong>erased enums</strong> for type erasure:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span> {
+</span></span><span style="display:flex;"><span>  Int32(I32Array), Int64(I64Array), Bool(BoolArray), <span style="font-weight:bold;font-style:italic">String</span>(StringArray),
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarImpl</span> { Int32(<span style="font-weight:bold;text-decoration:underline">i32</span>), Int64(<span style="font-weight:bold;text-decoration:underline">i64</span>), Bool(<span style="font-weight:bold;text-decoration:underline">bool</span>), <span style="font-weight:bold;font-style:italic">String</span>(<span style="font-weight:bold;font-style:italic">String</span>) }
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarRefImpl</span>&lt;&#39;a&gt; { Int32(<span style="font-weight:bold;text-decoration:underline">i32</span>), Int64(<span style="font-weight:bold;text-decoration:underline">i64</span>), Bool(<span style="font-weight:bold;text-decoration:underline">bool</span>), <span style="font-weight:bold;font-style:italic">String</span>(&amp;&#39;a <span style="font-weight:bold;text-decoration:underline">str</span>) }
+</span></span></code></pre></div><p><strong>Upcasting uses <code>From</code>, downcasting uses <code>TryFrom</code>:</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> <span style="font-weight:bold;font-style:italic">From</span>&lt;I32Array&gt; <span style="font-weight:bold;text-decoration:underline">for</span> ArrayImpl {          <span style="color:#888;font-style:italic">// upcast: concrete → enum
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">from</span>(array: <span style="color:#666;font-weight:bold;font-style:italic">I32Array</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span> { ArrayImpl::Int32(array) }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> TryFrom&lt;ArrayImpl&gt; <span style="font-weight:bold;text-decoration:underline">for</span> I32Array {       <span style="color:#888;font-style:italic">// downcast: enum → concrete, errors on type mismatch
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Error</span> = TypeMismatch;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">try_from</span>(array: <span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>) -&gt; <span style="font-weight:bold;font-style:italic">Result</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>, <span style="font-weight:bold;font-style:italic">Self</span>::Error&gt; {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">match</span> array {
+</span></span><span style="display:flex;"><span>      ArrayImpl::Int32(array) =&gt; <span style="font-weight:bold;font-style:italic">Ok</span>(array),
+</span></span><span style="display:flex;"><span>      other =&gt; <span style="font-weight:bold;font-style:italic">Err</span>(TypeMismatch(stringify!(Int32), other.identifier())),
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre class="mermaid">graph LR
+    subgraph Type erasure
+        A1[I32Array] --&gt;|From| E1[ArrayImpl::Int32]
+        S1[i32] --&gt;|From| E2[ScalarImpl::Int32]
+        R1[&amp;str] --&gt;|From| E3[ScalarRefImpl::String]
+    end
+    E1 --&gt;|TryFrom| A1
+    E1 -.-&gt;|type mismatch| Err[Err&amp;lt;TypeMismatch&amp;gt;]
+</pre>
+
+<p><strong>Why is downcasting &ldquo;fallible&rdquo;?</strong>
+Because <code>ArrayImpl</code> is a runtime value; it might hold a <code>StringArray</code> while the caller requests an <code>I32Array</code>.
+The compiler cannot guarantee this, so we must use <code>TryFrom</code> to perform a <strong>checked conversion</strong> at the boundary.
+This is exactly the purpose of the <code>TypeMismatch</code> error — it turns &ldquo;type mismatch&rdquo; into a handleable error rather than a crash.
+<strong>A wrong variant returns <code>Err</code>, not a panic.</strong></p>
+<h2 class="heading" id="6-expr-moving-decisions-out-of-the-row-loop">
+  6. expr: Moving Decisions Out of the Row Loop
+  <a class="anchor" href="#6-expr-moving-decisions-out-of-the-row-loop">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve-4">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve-4">#</a>
+</h3>
+<p>Every binary/unary loop must honor these <strong>five repeated decisions</strong>:</p>
+<ol>
+<li>Check the argument count (arity);</li>
+<li>Check the physical types;</li>
+<li>Check the length of each input;</li>
+<li><strong>Skip the scalar function</strong> when any strict input is NULL;</li>
+<li>Build the associated output array, or return the first row error without producing partial output.</li>
+</ol>
+<p>If these decisions are hardcoded into every loop, each new function adds another place for duplication and bugs.</p>
+<h3 class="heading" id="why-design-it-this-way-4">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way-4">#</a>
+</h3>
+<p>Use a <strong>generic adapter</strong> to separate the &ldquo;row loop&rdquo; from the &ldquo;concrete scalar function&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> BinaryExprFunc&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, O: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval</span>&lt;&#39;a&gt;(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="color:#666;font-weight:bold;font-style:italic">I1</span>::RefItem&lt;&#39;a&gt;, i2: <span style="color:#666;font-weight:bold;font-style:italic">I2</span>::RefItem&lt;&#39;a&gt;) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">O</span>::Item;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>BinaryExpression&lt;I1, I2, O, F&gt;</code> is a generic binary expression, and <code>eval_batch</code> writes the row loop only once:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval_batch</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>, i2: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>) -&gt; <span style="font-weight:bold;font-style:italic">Result</span>&lt;ArrayImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> i1a: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">I1</span> = i1.try_into()?;   <span style="color:#888;font-style:italic">// type erasure → concrete type
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> i2a: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">I2</span> = i2.try_into()?;
+</span></span><span style="display:flex;"><span>  assert_eq!(i1.len(), i2.len(), <span style="color:#666;font-style:italic">&#34;array length mismatch&#34;</span>);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> <span style="font-weight:bold;text-decoration:underline">mut</span> builder: <span style="color:#666;font-weight:bold;font-style:italic">O</span>::Builder = O::Builder::with_capacity(i1.len());
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span> (i1, i2) <span style="font-weight:bold;text-decoration:underline">in</span> i1a.iter().zip(i2a.iter()) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">match</span> (i1, i2) {
+</span></span><span style="display:flex;"><span>      (<span style="font-weight:bold;font-style:italic">Some</span>(i1), <span style="font-weight:bold;font-style:italic">Some</span>(i2)) =&gt; builder.push(<span style="font-weight:bold;font-style:italic">Some</span>(<span style="font-weight:bold;font-style:italic">self</span>.expr.eval(i1, i2).as_scalar_ref())),
+</span></span><span style="display:flex;"><span>      _ =&gt; builder.push(<span style="font-weight:bold;font-style:italic">None</span>),   <span style="color:#888;font-style:italic">// NULL propagation
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic">Ok</span>(builder.finish().into())
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre class="mermaid">graph LR
+    subgraph Expression evaluation flow
+        A1[ArrayImpl] --&gt;|try_into| I1[&amp;I1]
+        A2[ArrayImpl] --&gt;|try_into| I2[&amp;I2]
+        I1 --&gt; ZIP[iter zip]
+        I2 --&gt; ZIP
+        ZIP --&gt;|Some, Some| EVAL[F::eval]
+        ZIP --&gt;|contains None| NULL[push None]
+        EVAL --&gt; PUSH[builder.push]
+        NULL --&gt; PUSH
+        PUSH --&gt; FINISH[finish]
+        FINISH --&gt; OUT[ArrayImpl]
+    end
+</pre>
+
+<p><strong>NULL propagation</strong> is the core of SQL three-valued logic: if any input is NULL, the output is NULL, and the <strong>scalar function is not called</strong>.</p>
+<p>Concrete functions are implemented via <code>BinaryExprFunc</code>. For example, comparison operations support <strong>type promotion</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">ExprCmpLe</span>&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, C: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt;(<span style="font-weight:bold;text-decoration:underline">pub</span> PhantomData&lt;(I1, I2, C)&gt;);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span>&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, C: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt; BinaryExprFunc&lt;I1, I2, BoolArray&gt; <span style="font-weight:bold;text-decoration:underline">for</span> ExprCmpLe&lt;I2, I2, C&gt;
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">where</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; I1::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">Into</span>&lt;C::RefItem&lt;&#39;a&gt;&gt;,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; I2::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">Into</span>&lt;C::RefItem&lt;&#39;a&gt;&gt;,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; C::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">PartialOrd</span>,
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval</span>&lt;&#39;a&gt;(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="color:#666;font-weight:bold;font-style:italic">I1</span>::RefItem&lt;&#39;a&gt;, i2: <span style="color:#666;font-weight:bold;font-style:italic">I2</span>::RefItem&lt;&#39;a&gt;) -&gt; <span style="font-weight:bold;text-decoration:underline">bool</span> {
+</span></span><span style="display:flex;"><span>    i1.into().partial_cmp(&amp;i2.into()).unwrap() == Ordering::Less
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The third type parameter <code>C</code> is the <strong>common promotion type</strong> — <code>ExprCmpLe::&lt;_, _, I64Array&gt;</code> means promoting two <code>i32</code> values to <code>i64</code> before comparing.</p>
+<p><strong>Why use <code>PhantomData</code>?</strong>
+<code>ExprCmpLe</code> itself stores no data; <code>I1</code>/<code>I2</code>/<code>C</code> are only used at the type level.
+<code>PhantomData&lt;(I1, I2, C)&gt;</code> tells the compiler that this type &ldquo;owns&rdquo; these three type parameters,
+so it can correctly infer trait implementations and lifetimes, without occupying any runtime memory.</p>
+<p>Finally, <code>build_binary_expression</code> is a <strong>runtime factory</strong> that maps the <code>ExpressionFunc</code> enum to a concrete <code>Box&lt;dyn Expression&gt;</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">build_binary_expression</span>(f: <span style="color:#666;font-weight:bold;font-style:italic">ExpressionFunc</span>) -&gt; <span style="font-weight:bold;font-style:italic">Box</span>&lt;<span style="font-weight:bold;text-decoration:underline">dyn</span> Expression&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">match</span> f {
+</span></span><span style="display:flex;"><span>    CmpLe =&gt; <span style="font-weight:bold;font-style:italic">Box</span>::new(BinaryExpression::&lt;I32Array, I32Array, BoolArray, _&gt;::new(
+</span></span><span style="display:flex;"><span>      ExprCmpLe::&lt;_, _, I32Array&gt;(PhantomData),
+</span></span><span style="display:flex;"><span>    )),
+</span></span><span style="display:flex;"><span>    StrContains =&gt; <span style="font-weight:bold;font-style:italic">Box</span>::new(BinaryExpression::&lt;StringArray, StringArray, BoolArray, _&gt;::new(ExprStrContains)),
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This solves the problem of <strong>selecting a concrete typed expression from a runtime name</strong> — the SQL parser gets a string function name, which must be mapped to a concrete typed implementation.</p>
+<h2 class="heading" id="7-the-macro-system-making-the-type-family-extensible">
+  7. The Macro System: Making the Type Family Extensible
+  <a class="anchor" href="#7-the-macro-system-making-the-type-family-extensible">#</a>
+</h2>
+<h3 class="heading" id="problem-to-solve-5">
+  Problem to solve
+  <a class="anchor" href="#problem-to-solve-5">#</a>
+</h3>
+<p>Every time a type is added (such as <code>f64</code>), the physical variants, scalar variants, array aliases, builders, and conversions must all be repeated&hellip;
+<strong>The more repetition, the more likely drift</strong> — you might add an array but forget the conversion, or write the wrong type name in a conversion.</p>
+<h3 class="heading" id="why-design-it-this-way-5">
+  Why design it this way
+  <a class="anchor" href="#why-design-it-this-way-5">#</a>
+</h3>
+<p>Use <strong>a type-family catalog</strong> so that &ldquo;one line defines one type family&rdquo;.
+<code>mini-arrow</code> implements this with the <code>for_all_variants!</code> macro:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span>macro_rules! for_all_variants {
+</span></span><span style="display:flex;"><span>  (<span style="color:#888;font-weight:bold">$macro</span>:<span style="color:#666;font-weight:bold;font-style:italic">ident</span> <span style="color:#888;font-weight:bold">$(,</span> <span style="color:#888;font-weight:bold">$x</span>:<span style="color:#666;font-weight:bold;font-style:italic">ident</span>)*) =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-weight:bold">$macro</span>! {
+</span></span><span style="display:flex;"><span>      [<span style="color:#888;font-weight:bold">$($x</span>),*],
+</span></span><span style="display:flex;"><span>      { Int32, int32, I32Array, I32ArrayBuilder, <span style="font-weight:bold;text-decoration:underline">i32</span>, <span style="font-weight:bold;text-decoration:underline">i32</span> },
+</span></span><span style="display:flex;"><span>      { <span style="font-weight:bold;font-style:italic">String</span>, string, StringArray, StringArrayBuilder, <span style="font-weight:bold;font-style:italic">String</span>, &amp;&#39;a <span style="font-weight:bold;text-decoration:underline">str</span> }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  };
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Each tuple is <code>{ enum variant name, function suffix, array type, builder type, owned type, reference type }</code>.
+Then <code>impls.rs</code> uses this catalog to <strong>batch-generate</strong> all the boilerplate:</p>
+<ul>
+<li><code>impl_array_dispatch</code>: <code>ArrayImpl</code>&rsquo;s <code>get</code> / <code>len</code> / <code>is_empty</code> / <code>identifier</code></li>
+<li><code>impl_array_conversion</code>: all <code>From</code> / <code>TryFrom</code> conversions</li>
+<li><code>impl_scalar</code> / <code>impl_scalar_conversion</code>: <code>Scalar</code> / <code>ScalarRef</code> implementations and conversions</li>
+</ul>
+<p><strong>Why use macros instead of writing by hand?</strong>
+The macro makes the catalog the <strong>single source of truth</strong> — adding a type only requires adding one line to the catalog, and the rest of the code is generated automatically,
+without the drift of &ldquo;adding an array but forgetting the conversion&rdquo;. <strong>Omitting or duplicating a type family becomes a compile or test failure.</strong></p>
+<blockquote>
+<p><strong>Note</strong>: <code>mini-arrow</code>&rsquo;s <code>macros.rs</code> and <code>impls.rs</code> are currently commented out
+(<code>//mod macros;</code>, <code>//mod impls;</code>); the hand-written <code>array_impl.rs</code>, <code>builder_impl.rs</code>, etc. are what actually take effect.
+This shows the project is in a <strong>transitional phase from hand-written code to macro generation</strong> — the macro version is written but not yet enabled.</p></blockquote>
+<h1 class="heading" id="summary">
+  Summary
+  <a class="anchor" href="#summary">#</a>
+</h1>
+<table>
+  <thead>
+      <tr>
+          <th>Module</th>
+          <th>Problem to solve</th>
+          <th>Why design it this way</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>scalar</strong></td>
+          <td>How owned values and zero-copy references coexist</td>
+          <td>Use <code>Scalar</code> / <code>ScalarRef</code> two traits + GAT; primitive types implement both, <code>String</code>/<code>&amp;str</code> are separated</td>
+      </tr>
+      <tr>
+          <td><strong>array</strong></td>
+          <td>How fixed/variable-length and null values are stored columnarly</td>
+          <td>Arrow standard layout: <code>data+bitmap</code> (fixed), <code>data+offsets+bitmap</code> (variable); NULL is value state, not a type</td>
+      </tr>
+      <tr>
+          <td><strong>builder</strong></td>
+          <td>How to incrementally build immutable arrays</td>
+          <td><code>ArrayBuilder</code> trait reciprocally linked to <code>Array</code>; <code>from_slice</code> default impl goes through builder</td>
+      </tr>
+      <tr>
+          <td><strong>type erasure</strong></td>
+          <td>How to uniformly dispatch arbitrary types at runtime</td>
+          <td>Three erased enums + <code>From</code>/<code>TryFrom</code> checked conversions; wrong variants return <code>Err</code> rather than panic</td>
+      </tr>
+      <tr>
+          <td><strong>expr</strong></td>
+          <td>How to avoid repeating decisions in every loop</td>
+          <td>Generic adapter <code>BinaryExpression</code> separates the row loop from the scalar function; NULL propagation, type promotion</td>
+      </tr>
+      <tr>
+          <td><strong>macro system</strong></td>
+          <td>How to make the type family extensible</td>
+          <td><code>for_all_variants</code> catalog defines one type family per line, batch-generating boilerplate</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Design principles that run throughout:</strong></p>
+<ol>
+<li><strong>Move decisions out of the row loop</strong>: arity, type, length, NULL, and output construction are all handled uniformly by the adapter.</li>
+<li><strong>Nullability is value state</strong>: use <code>Option</code> / validity bitmap, not a <code>DataType::Nullable</code> variant.</li>
+<li><strong>Checked runtime erasure</strong>: downcasting is fallible; wrong variants return <code>Err</code>.</li>
+<li><strong>Catalog-driven extension</strong>: one line defines a type family; omitting or duplicating becomes a compile or test failure.</li>
+</ol>
+<h3 class="heading" id="back-to-the-start-how-each-difficulty-is-conquered">
+  Back to the start: how each difficulty is conquered
+  <a class="anchor" href="#back-to-the-start-how-each-difficulty-is-conquered">#</a>
+</h3>
+<table>
+  <thead>
+      <tr>
+          <th>Difficulty listed at the start</th>
+          <th>Solved by</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Difficulty 1: fixed vs variable length</td>
+          <td><code>array</code>&rsquo;s two layouts: <code>PrimitiveArray</code> (fixed), <code>StringArray</code> (offset + flat buffer)</td>
+      </tr>
+      <tr>
+          <td>Difficulty 2: null values (NULL)</td>
+          <td><code>array</code>&rsquo;s validity bitmap; NULL is value state, not a type variant</td>
+      </tr>
+      <tr>
+          <td>Difficulty 3: owned values vs zero-copy references</td>
+          <td><code>scalar</code>&rsquo;s <code>Scalar</code> / <code>ScalarRef</code> dual traits + GAT</td>
+      </tr>
+      <tr>
+          <td>Difficulty 4: type only known at runtime</td>
+          <td>type-erasure enums + <code>From</code> / <code>TryFrom</code> checked conversions</td>
+      </tr>
+      <tr>
+          <td>Difficulty 5: repeated decisions in expression evaluation</td>
+          <td><code>expr</code>&rsquo;s generic adapter <code>BinaryExpression</code></td>
+      </tr>
+      <tr>
+          <td>Difficulty 6: scaling the type family</td>
+          <td>the <code>for_all_variants</code> macro catalog</td>
+      </tr>
+  </tbody>
+</table>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+  
+  
+  <script defer
+    type="module"
+    id="mermaid_script"
+    data-light-theme="default"
+    data-dark-theme="dark"
+    src='/js/mermaid.js'>
+  </script>
+  
+
+  
+
+  
+
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>My book</h2>
+  <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="Book cover of Distributed System Illustrated: A Visual Guide for Engineers by Lichuang"
+         width="320"
+         height="414"
+         loading="lazy"
+         decoding="async">
+  </a>
+  <p>My book,
+    <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+      <em>Distributed System Illustrated</em>
+    </a>,
+    explains distributed systems through clear diagrams — from clocks and CAP to Paxos, Raft, and distributed transactions.
+  </p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+Also translated in 
+    
+     <a href="/zh/post/20260815-mini-arrow/">中文 </a>
+    
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>

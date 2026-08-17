@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content=""/>
+
+
+
+<title>
+    
+    Mini-Arrow：迷你Arrow的Rust实现 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20260815-mini-arrow/"/>
+
+
+
+<link rel="alternate" hreflang="en" href="https://www.codedump.info/en/post/20260815-mini-arrow/"/>
+
+<link rel="alternate" hreflang="x-default" href="https://www.codedump.info/zh/post/20260815-mini-arrow/"/>
+
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20260815-mini-arrow/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Mini-Arrow：迷你Arrow的Rust实现">
+  <meta property="og:description" content="本文介绍 mini-arrow 项目，它是一个Rust编写的迷你Apache Arrow项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了Build a Typed Database Expression Engine in Rust。
+在展开讲解之前，我们先了解Arrow项目：
+Arrow 要解决什么问题 # Arrow 是一个列式内存格式项目，它要解决以下几个核心问题：
+行式 vs 列式 # 传统数据库（如 MySQL）按行存储数据：一条记录的所有字段连续放在一起。
+行式存储： [id=1, name=&#34;Alice&#34;, age=30] [id=2, name=&#34;Bob&#34;, age=25] [id=3, ...] 而列式存储（如 Arrow、ClickHouse）按列存储：同一列的所有值连续放在一起。
+列式存储： id: [1, 2, 3, ...] name: [&#34;Alice&#34;, &#34;Bob&#34;, ...] age: [30, 25, ...] 为什么列式更好？ 分析型查询（如 SELECT AVG(age) FROM users）只关心 age 一列。列式存储能：
+只读需要的列，跳过无关数据，减少 I/O； 缓存局部性好——同一列的值在内存里连续，扫描时命中率高； 支持向量化——对连续内存做 SIMD 批量运算，比逐行解释快几个数量级。 列式存储的难点 # 把数据按列存放，会立刻遇到几个棘手问题：">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2026-08-15T21:40:35+08:00">
+    <meta property="article:modified_time" content="2026-08-15T21:40:35+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.d2e2f08285a1451785129b382caf7d25915ad9c538e57a2515acedd64c4b4cbc.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en" >
+                /en
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/tags" >
+                /tags
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en/page/about-en/" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20260815-mini-arrow/">Mini-Arrow：迷你Arrow的Rust实现</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Mini-Arrow：迷你Arrow的Rust实现</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-08-15T21:40:35&#43;08:00">2026年8月15日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#行式-vs-列式">行式 vs 列式</a></li>
+    <li><a href="#列式存储的难点">列式存储的难点</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#1-types划定基本类型的边界">1、 <code>types</code>：划定“基本类型”的边界</a></li>
+    <li><a href="#2scalarowned-值与零拷贝引用">2、scalar：owned 值与零拷贝引用</a>
+      <ul>
+        <li><a href="#要解决的问题">要解决的问题</a></li>
+        <li><a href="#为什么这样设计">为什么这样设计</a></li>
+      </ul>
+    </li>
+    <li><a href="#3array列式存储与空值">3、array：列式存储与空值</a>
+      <ul>
+        <li><a href="#要解决的问题-1">要解决的问题</a></li>
+        <li><a href="#为什么这样设计-1">为什么这样设计</a></li>
+      </ul>
+    </li>
+    <li><a href="#4builder不可变数组的增量构建">4、builder：不可变数组的增量构建</a>
+      <ul>
+        <li><a href="#要解决的问题-2">要解决的问题</a></li>
+        <li><a href="#为什么这样设计-2">为什么这样设计</a></li>
+      </ul>
+    </li>
+    <li><a href="#5类型擦除跨越运行时边界">5、类型擦除：跨越运行时边界</a>
+      <ul>
+        <li><a href="#要解决的问题-3">要解决的问题</a></li>
+        <li><a href="#为什么这样设计-3">为什么这样设计</a></li>
+      </ul>
+    </li>
+    <li><a href="#6expr把决策移出行循环">6、expr：把决策移出行循环</a>
+      <ul>
+        <li><a href="#要解决的问题-4">要解决的问题</a></li>
+        <li><a href="#为什么这样设计-4">为什么这样设计</a></li>
+      </ul>
+    </li>
+    <li><a href="#7宏系统让类型族可扩展">7、宏系统：让类型族可扩展</a>
+      <ul>
+        <li><a href="#要解决的问题-5">要解决的问题</a></li>
+        <li><a href="#为什么这样设计-5">为什么这样设计</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#回到开头难点如何被逐一攻克">回到开头：难点如何被逐一攻克</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <p>本文介绍 <a href="https://github.com/lichuang/mini-arrow">mini-arrow</a> 项目，它是一个Rust编写的迷你<a href="https://arrow.apache.org/">Apache Arrow</a>项目的实现，仅用1600行的Rust代码，展示了Arrow中几个最核心问题的设计和解决方案。项目参考了<a href="https://skyzh.github.io/type-exercise-in-rust/">Build a Typed Database Expression Engine in Rust</a>。</p>
+<p>在展开讲解之前，我们先了解Arrow项目：</p>
+<h1 class="heading" id="arrow-要解决什么问题">
+  Arrow 要解决什么问题
+  <a class="anchor" href="#arrow-%e8%a6%81%e8%a7%a3%e5%86%b3%e4%bb%80%e4%b9%88%e9%97%ae%e9%a2%98">#</a>
+</h1>
+<p>Arrow 是一个<strong>列式内存格式</strong>项目，它要解决以下几个核心问题：</p>
+<h2 class="heading" id="行式-vs-列式">
+  行式 vs 列式
+  <a class="anchor" href="#%e8%a1%8c%e5%bc%8f-vs-%e5%88%97%e5%bc%8f">#</a>
+</h2>
+<p>传统数据库（如 MySQL）按<strong>行</strong>存储数据：一条记录的所有字段连续放在一起。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>行式存储：
+</span></span><span style="display:flex;"><span>  [id=1, name=&#34;Alice&#34;, age=30] [id=2, name=&#34;Bob&#34;, age=25] [id=3, ...]
+</span></span></code></pre></div><p>而列式存储（如 Arrow、ClickHouse）按<strong>列</strong>存储：同一列的所有值连续放在一起。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>列式存储：
+</span></span><span style="display:flex;"><span>  id:    [1, 2, 3, ...]
+</span></span><span style="display:flex;"><span>  name:  [&#34;Alice&#34;, &#34;Bob&#34;, ...]
+</span></span><span style="display:flex;"><span>  age:   [30, 25, ...]
+</span></span></code></pre></div><p><strong>为什么列式更好？</strong> 分析型查询（如 <code>SELECT AVG(age) FROM users</code>）只关心 <code>age</code> 一列。列式存储能：</p>
+<ol>
+<li><strong>只读需要的列</strong>，跳过无关数据，减少 I/O；</li>
+<li><strong>缓存局部性好</strong>——同一列的值在内存里连续，扫描时命中率高；</li>
+<li><strong>支持向量化</strong>——对连续内存做 SIMD 批量运算，比逐行解释快几个数量级。</li>
+</ol>
+<h2 class="heading" id="列式存储的难点">
+  列式存储的难点
+  <a class="anchor" href="#%e5%88%97%e5%bc%8f%e5%ad%98%e5%82%a8%e7%9a%84%e9%9a%be%e7%82%b9">#</a>
+</h2>
+<p>把数据按列存放，会立刻遇到几个棘手问题：</p>
+<p><strong>难点一：定长 vs 变长。</strong>
+<code>i32</code> 可以放进 <code>Vec&lt;i32&gt;</code>，但 <code>String</code> 长度不定，不能直接放进一个定长数组。需要额外的布局来管理变长数据。</p>
+<p><strong>难点二：空值（NULL）。</strong>
+<code>Vec&lt;T&gt;</code> 要求连续、定长，无法&quot;跳过&quot;某个位置。NULL 怎么表示？如果为每个值包一层 <code>Option</code>，会破坏连续布局、浪费内存、无法向量化。</p>
+<p><strong>难点三：owned 值 vs 零拷贝引用。</strong>
+读取 <code>StringArray</code> 时，我们希望直接拿到 <code>&amp;str</code> 而不拷贝；但构建数组时又需要持有 <code>String</code> 的所有权。两种形态如何共存？</p>
+<p><strong>难点四：运行时才知道类型。</strong>
+Rust 的泛型在编译期展开，但数据库引擎在运行时才知道列的类型（从 SQL 解析出来）。如何让任意类型的数组被统一传递、分发、求值？</p>
+<p><strong>难点五：表达式求值的重复决策。</strong>
+每个二元运算（<code>+</code>、<code>&lt;=</code>、<code>contains</code>）都要处理参数个数、类型检查、长度检查、NULL 传播、输出构建。如果这些逻辑写死在每个循环里，每新增一个函数就多一处重复和出错的机会。</p>
+<p><strong>难点六：类型族扩展。</strong>
+每加一个类型（如 <code>f64</code>），就要重复物理变体、标量变体、数组别名、构建器、转换……重复越多，越容易漂移。</p>
+<p><code>mini-arrow</code> 的四个模块——<code>scalar</code>、<code>array</code>、<code>builder</code>、<code>expr</code>——正是为逐一攻克这些难点而设计的。下面从&quot;一个看似简单的问题&quot;开始，逐步拆解每个模块的设计动机。</p>
+<h1 class="heading" id="起点一个看似简单的问题">
+  起点：一个看似简单的问题
+  <a class="anchor" href="#%e8%b5%b7%e7%82%b9%e4%b8%80%e4%b8%aa%e7%9c%8b%e4%bc%bc%e7%ae%80%e5%8d%95%e7%9a%84%e9%97%ae%e9%a2%98">#</a>
+</h1>
+<p>手写一个 <code>i32 + i32</code> 的循环很容易：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">for</span> row <span style="font-weight:bold;text-decoration:underline">in</span> 0..left.len() {
+</span></span><span style="display:flex;"><span>    output.push(<span style="font-weight:bold;text-decoration:underline">match</span> (left.get(row), right.get(row)) {
+</span></span><span style="display:flex;"><span>        (<span style="font-weight:bold;font-style:italic">Some</span>(left), <span style="font-weight:bold;font-style:italic">Some</span>(right)) =&gt; <span style="font-weight:bold;font-style:italic">Some</span>(left.wrapping_add(right)),
+</span></span><span style="display:flex;"><span>        _ =&gt; <span style="font-weight:bold;font-style:italic">None</span>,
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这段代码对 <code>i32</code> 没问题。但一旦要求更多，它就开始“漏气”：</p>
+<ol>
+<li><strong>字符串怎么办？</strong> <code>StringArray::get</code> 如果返回 <code>String</code>，每次都要拷贝；我们希望返回 <code>&amp;str</code>。</li>
+<li><strong>NULL 怎么办？</strong> 不能返回 <code>Vec&lt;Option&lt;T&gt;&gt;</code>，那会破坏列式布局。</li>
+<li><strong>混合类型怎么办？</strong> <code>i32 &lt;= i64</code> 该先提升成 <code>i64</code> 再比较。</li>
+<li><strong>运行时才知道类型怎么办？</strong> SQL 解析出的函数名是字符串，运行时才能映射到具体实现。</li>
+<li><strong>每加一个函数都要重写一次 arity / 长度 / NULL 检查怎么办？</strong></li>
+</ol>
+<p><code>mini-arrow</code> 的解法是把这些问题拆开，每个模块只解决一个问题：<strong>把那些决策从行循环里移出来</strong>，沉淀成 <code>scalar</code>、<code>array</code>、<code>builder</code>、<code>expr</code> 四个模块。每个模块都对应开头列出的一个难点，下面逐一拆解：</p>
+<h1 class="heading" id="模块拆解每个模块在解决什么问题">
+  模块拆解：每个模块在解决什么问题
+  <a class="anchor" href="#%e6%a8%a1%e5%9d%97%e6%8b%86%e8%a7%a3%e6%af%8f%e4%b8%aa%e6%a8%a1%e5%9d%97%e5%9c%a8%e8%a7%a3%e5%86%b3%e4%bb%80%e4%b9%88%e9%97%ae%e9%a2%98">#</a>
+</h1>
+<h2 class="heading" id="1-types划定基本类型的边界">
+  1、 <code>types</code>：划定“基本类型”的边界
+  <a class="anchor" href="#1-types%e5%88%92%e5%ae%9a%e5%9f%ba%e6%9c%ac%e7%b1%bb%e5%9e%8b%e7%9a%84%e8%be%b9%e7%95%8c">#</a>
+</h2>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> PrimitiveType: <span style="font-weight:bold;font-style:italic">Default</span> + <span style="font-weight:bold;font-style:italic">Copy</span> + Debug + <span style="font-weight:bold;font-style:italic">&#39;static</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">i32</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">i64</span> {}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> PrimitiveType <span style="font-weight:bold;text-decoration:underline">for</span> <span style="font-weight:bold;text-decoration:underline">bool</span> {}
+</span></span></code></pre></div><p><strong>要解决的问题</strong>：哪些类型可以用“定长数组”存储？</p>
+<p><code>PrimitiveType</code> 是一个标记 trait。满足它的类型才能放进 <code>PrimitiveArray&lt;T&gt;</code>——因为它们 <code>Default + Copy + Debug + 'static</code>。<code>String</code> 不是 <code>Copy</code>，所以被排除在外，必须走 <code>StringArray</code> 这套变长布局。</p>
+<pre class="mermaid">graph LR
+    subgraph PrimitiveType 边界
+        PT[PrimitiveType trait] --&gt; |i32, i64, bool| PA[PrimitiveArray&amp;lt;T&amp;gt;]
+        PT -.-&gt;|String 不满足 Copy| SA[StringArray 变长布局]
+    end
+</pre>
+
+<hr>
+<h2 class="heading" id="2scalarowned-值与零拷贝引用">
+  2、scalar：owned 值与零拷贝引用
+  <a class="anchor" href="#2scalarowned-%e5%80%bc%e4%b8%8e%e9%9b%b6%e6%8b%b7%e8%b4%9d%e5%bc%95%e7%94%a8">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98">#</a>
+</h3>
+<p>数据库里一个&quot;值&quot;有两种形态：</p>
+<ul>
+<li><strong>拥有所有权的值</strong>（owned）：如 <code>String</code>，可以自由持有、移动。</li>
+<li><strong>零拷贝引用</strong>（borrowed）：如 <code>&amp;str</code>，只是借用数组里的字节，不产生分配。</li>
+</ul>
+<p>如果强制统一成一种形态，就会出问题：</p>
+<ul>
+<li>若统一用 owned，那么 <code>StringArray::get</code> 每次都要 <code>to_string()</code> 拷贝一份，性能灾难。</li>
+<li>若统一用引用，那么构建数组时无法持有数据。</li>
+</ul>
+<h3 class="heading" id="为什么这样设计">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1">#</a>
+</h3>
+<p>用<strong>两个 trait</strong> 表达这两种形态，并用**泛型关联类型（GAT）**把它们关联起来：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> Scalar: <span style="font-weight:bold;font-style:italic">&#39;static</span> + <span style="font-weight:bold;font-style:italic">Clone</span> + Debug + TryFrom&lt;ScalarImpl&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ScalarImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;Item = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">RefType</span>&lt;&#39;a&gt;: <span style="color:#666;font-weight:bold;font-style:italic">ScalarRef</span>&lt;&#39;a, ScalarType = <span style="font-weight:bold;font-style:italic">Self</span>, ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>::ArrayType&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">as_scalar_ref</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::RefType&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> ScalarRef&lt;&#39;a&gt;:
+</span></span><span style="display:flex;"><span>  &#39;a + <span style="font-weight:bold;font-style:italic">Clone</span> + <span style="font-weight:bold;font-style:italic">Copy</span> + Debug + TryFrom&lt;ScalarRefImpl&lt;&#39;a&gt;&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ScalarRefImpl&lt;&#39;a&gt;&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;RefItem&lt;&#39;a&gt; = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarType</span>: <span style="color:#666;font-weight:bold;font-style:italic">Scalar</span>&lt;RefType&lt;&#39;a&gt; = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">as_scalar</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::ScalarType;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这两个 trait 形成一组<strong>互反箭头</strong>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Scalar ──RefType&lt;&#39;a&gt;──&gt; ScalarRef&lt;&#39;a&gt;
+</span></span><span style="display:flex;"><span>  │                         │
+</span></span><span style="display:flex;"><span>ArrayType                ArrayType
+</span></span><span style="display:flex;"><span>  ▼                         ▼
+</span></span><span style="display:flex;"><span>Array ─────Builder─────&gt; ArrayBuilder
+</span></span></code></pre></div><p><strong>关键洞察：基本类型既是 <code>Scalar</code> 又是 <code>ScalarRef</code>。</strong></p>
+<ul>
+<li><code>i32</code> 是 <code>Copy</code> 的，拷贝它没有成本，所以 <code>RefType&lt;'a&gt; = i32</code>，<code>as_scalar_ref</code> 就是 <code>*self</code>。</li>
+<li><code>String</code> 则不同：<code>Scalar</code> 是 <code>String</code>，<code>ScalarRef</code> 是 <code>&amp;'a str</code>，<code>as_scalar_ref</code> 返回 <code>self.as_str()</code>。</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph 整数 i32
+        S1[i32 as Scalar] --&gt;|RefType = i32| SR1[i32 as ScalarRef]
+        SR1 --&gt;|ScalarType = i32| S1
+    end
+
+    subgraph 字符串 String
+        S2[String as Scalar] --&gt;|RefType = &amp;str| SR2[&amp;str as ScalarRef]
+        SR2 --&gt;|ScalarType = String| S2
+    end
+</pre>
+
+<p><strong>为什么需要生命周期索引的关联类型？</strong>
+因为 <code>StringArray::get</code> 返回的 <code>&amp;str</code> 的生命周期必须与数组的借用绑定。
+普通关联类型无法表达&quot;返回值借用 self&quot;，必须用 <code>RefItem&lt;'a&gt;</code> 这种 GAT。
+<code>for&lt;'a&gt;</code> 这个 HRTB 绑定意味着&quot;对调用者选择的任意借用生命周期都成立&quot;——整数实现可以忽略它，字符串实现不能。</p>
+<h2 class="heading" id="3array列式存储与空值">
+  3、array：列式存储与空值
+  <a class="anchor" href="#3array%e5%88%97%e5%bc%8f%e5%ad%98%e5%82%a8%e4%b8%8e%e7%a9%ba%e5%80%bc">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题-1">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98-1">#</a>
+</h3>
+<p>列式存储的核心是<strong>把同一列的数据连续存放</strong>，以获得缓存局部性和向量化能力。但有两个难题：</p>
+<ol>
+<li><strong>定长 vs 变长</strong>：<code>i32</code> 可以放进 <code>Vec&lt;i32&gt;</code>，但 <code>String</code> 长度不定，不能直接放。</li>
+<li><strong>空值（NULL）</strong>：<code>Vec&lt;T&gt;</code> 要求连续、定长，无法&quot;跳过&quot;某个位置。</li>
+</ol>
+<h3 class="heading" id="为什么这样设计-1">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1-1">#</a>
+</h3>
+<p>采用 <strong>Arrow 标准布局</strong>，<code>mini-arrow</code> 完整实现了两种：</p>
+<p><strong>定长类型 <code>PrimitiveArray&lt;T&gt;</code></strong> —— <code>data + bitmap</code>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">PrimitiveArray</span>&lt;T: <span style="color:#666;font-weight:bold;font-style:italic">PrimitiveType</span>&gt; {
+</span></span><span style="display:flex;"><span>  data: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;T&gt;,      <span style="color:#888;font-style:italic">// 连续数据
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  bitmap: <span style="color:#666;font-weight:bold;font-style:italic">BitVec</span>,    <span style="color:#888;font-style:italic">// 空值位图
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><ul>
+<li>NULL 位置用 <code>T::default()</code> 占位，位图第 <code>i</code> 位标记是否有效。</li>
+<li>读取：<code>if bitmap[i] { Some(data[i]) } else { None }</code>。</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph PrimitiveArray_i32
+        data[&#34;data: 1, 2, 3, 0, 5&#34;]
+        bitmap[&#34;bitmap: 1, 1, 1, 0, 1&#34;]
+    end
+    data --&gt;|第 i 行对应 bitmap 第 i 位| bitmap
+    data --&gt;|bitmap 第 3 位为 0| null[&#34;第 3 行是 NULL, data 中 0 只是占位&#34;]
+</pre>
+
+<p><strong>变长类型 <code>StringArray</code></strong> —— <code>data + offsets + bitmap</code>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">StringArray</span> {
+</span></span><span style="display:flex;"><span>  data: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;<span style="font-weight:bold;text-decoration:underline">u8</span>&gt;,       <span style="color:#888;font-style:italic">// 所有字符串拼接的字节
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  offsets: <span style="font-weight:bold;font-style:italic">Vec</span>&lt;<span style="font-weight:bold;text-decoration:underline">usize</span>&gt;, <span style="color:#888;font-style:italic">// 每个字符串的起始偏移
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  bitmap: <span style="color:#666;font-weight:bold;font-style:italic">BitVec</span>,      <span style="color:#888;font-style:italic">// 空值位图
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><ul>
+<li>第 <code>i</code> 个字符串的区间是 <code>offsets[i]..offsets[i+1]</code>，长度 = 差值。</li>
+<li>读取：<code>&amp;data[offsets[i]..offsets[i+1]]</code>，<strong>零拷贝返回 <code>&amp;str</code></strong>。</li>
+<li>offsets 数的是 <strong>UTF-8 字节</strong>，不是字符；空行和 NULL 行都重复前一个 offset。</li>
+</ul>
+<pre class="mermaid">graph LR
+    subgraph StringArray
+        data[&#34;data bytes: h e l l o w o r l d&#34;]
+        offsets[&#34;offsets: 0, 5, 10&#34;]
+        bitmap[&#34;bitmap: 1, 1&#34;]
+    end
+    data --&gt;|所有字节连续存放| offsets
+    offsets --&gt;|第 0 行范围 0 到 5| str0[&#34;hello&#34;]
+    offsets --&gt;|第 1 行范围 5 到 10| str1[&#34;world&#34;]
+    bitmap --&gt;|两行均有效| offsets
+</pre>
+
+<p><strong>为什么 NULL 用位图而不是 <code>Option&lt;T&gt;</code>？</strong>
+可空性是<strong>值状态</strong>，不是类型变体。用 <code>Option</code> 或 validity 位图表达，而不是为每个值包一层 <code>Option</code>。
+因为 <code>Vec&lt;Option&lt;T&gt;&gt;</code> 会破坏连续布局、浪费内存，且无法向量化。</p>
+<p><strong>统一抽象 <code>Array</code> trait</strong>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> Array: <span style="font-weight:bold;font-style:italic">Sized</span> + <span style="font-weight:bold;font-style:italic">&#39;static</span> + TryFrom&lt;ArrayImpl&gt; + <span style="font-weight:bold;font-style:italic">Into</span>&lt;ArrayImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Builder</span>: <span style="color:#666;font-weight:bold;font-style:italic">ArrayBuilder</span>&lt;Array = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Item</span>: <span style="color:#666;font-weight:bold;font-style:italic">Scalar</span>&lt;ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">RefItem</span>&lt;&#39;a&gt;: <span style="color:#666;font-weight:bold;font-style:italic">ScalarRef</span>&lt;&#39;a, ScalarType = <span style="font-weight:bold;font-style:italic">Self</span>::Item, ArrayType = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">get</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>, idx: <span style="font-weight:bold;text-decoration:underline">usize</span>) -&gt; <span style="font-weight:bold;font-style:italic">Option</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">len</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="font-weight:bold;text-decoration:underline">usize</span>;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">iter</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">ArrayIterator</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">from_slice</span>(data: <span style="font-weight:bold;text-decoration:underline">&amp;</span>[<span style="font-weight:bold;font-style:italic">Option</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;]) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>; <span style="color:#888;font-style:italic">// 默认实现：走 builder
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}
+</span></span></code></pre></div><table>
+  <thead>
+      <tr>
+          <th>数组</th>
+          <th><code>Item</code>（owned）</th>
+          <th><code>RefItem</code>（引用）</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>I32Array</code></td>
+          <td><code>i32</code></td>
+          <td><code>i32</code>（Copy，无成本）</td>
+      </tr>
+      <tr>
+          <td><code>StringArray</code></td>
+          <td><code>String</code></td>
+          <td><code>&amp;str</code>（零拷贝）</td>
+      </tr>
+  </tbody>
+</table>
+<p>这样，<strong>一个泛型契约</strong>就能同时读取普通、空、全 NULL 的数组，且字符串读取不产生分配。</p>
+<h2 class="heading" id="4builder不可变数组的增量构建">
+  4、builder：不可变数组的增量构建
+  <a class="anchor" href="#4builder%e4%b8%8d%e5%8f%af%e5%8f%98%e6%95%b0%e7%bb%84%e7%9a%84%e5%a2%9e%e9%87%8f%e6%9e%84%e5%bb%ba">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题-2">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98-2">#</a>
+</h3>
+<p>数组一旦建好就是<strong>不可变</strong>的（列式存储通常如此）。但构建过程需要<strong>增量 push</strong>，最后一次性产出。</p>
+<h3 class="heading" id="为什么这样设计-2">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1-2">#</a>
+</h3>
+<p>把构建抽象成 <code>ArrayBuilder</code> trait，与 <code>Array</code> 通过关联类型互相关联：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> ArrayBuilder {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Array</span>: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&lt;Builder = <span style="font-weight:bold;font-style:italic">Self</span>&gt;;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">with_capacity</span>(capacity: <span style="font-weight:bold;text-decoration:underline">usize</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">push</span>(&amp;<span style="font-weight:bold;text-decoration:underline">mut</span> <span style="font-weight:bold;font-style:italic">self</span>, value: <span style="font-weight:bold;font-style:italic">Option</span>&lt;&lt;<span style="font-weight:bold;font-style:italic">Self</span>::Array <span style="font-weight:bold;text-decoration:underline">as</span> Array&gt;::RefItem&lt;<span style="font-weight:bold;font-style:italic">&#39;_</span>&gt;&gt;);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">finish</span>(<span style="font-weight:bold;font-style:italic">self</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span>::Array;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><strong><code>PrimitiveArrayBuilder&lt;T&gt;</code></strong>：<code>Some(v)</code> 数据入 <code>data</code>、位图置 <code>true</code>；<code>None</code> 推入 <code>T::default()</code> 占位、位图置 <code>false</code>。</p>
+<p><strong><code>StringArrayBuilder</code></strong>：<code>Some(s)</code> 字节追加到 <code>data</code>、记录新 offset；<code>None</code> offset 不变（复用前一个）、位图置 <code>false</code>。</p>
+<pre class="mermaid">graph LR
+    subgraph Builder 流程
+        WC[with_capacity] --&gt; P1[push Some]
+        P1 --&gt; P2[push None]
+        P2 --&gt; P3[push Some]
+        P3 --&gt; F[finish]
+        F --&gt; A[Array 不可变]
+    end
+</pre>
+
+<p><strong>为什么 builder 和 array 是&quot;互反&quot;的？</strong>
+<code>Array::Builder</code> 指向能构建它的 builder，<code>ArrayBuilder::Array</code> 指向它产出的数组。
+<code>Array::Builder</code> 和 <code>ArrayBuilder::Array</code> 这两个关联类型方向相反，形成“互反”关系。这样 <code>from_slice</code> 的默认实现才能泛型地写出：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> <span style="font-weight:bold;text-decoration:underline">mut</span> builder = <span style="font-weight:bold;font-style:italic">Self</span>::Builder::with_capacity(data.len());
+</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// ... push
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>builder.finish()
+</span></span></code></pre></div><h2 class="heading" id="5类型擦除跨越运行时边界">
+  5、类型擦除：跨越运行时边界
+  <a class="anchor" href="#5%e7%b1%bb%e5%9e%8b%e6%93%a6%e9%99%a4%e8%b7%a8%e8%b6%8a%e8%bf%90%e8%a1%8c%e6%97%b6%e8%be%b9%e7%95%8c">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题-3">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98-3">#</a>
+</h3>
+<p>Rust 的泛型在<strong>编译期</strong>展开，但数据库引擎在<strong>运行时</strong>才知道列的类型（比如从 SQL 解析出来）。
+我们需要一个<strong>统一类型</strong>，让任意数组都能被传递、分发、求值。</p>
+<h3 class="heading" id="为什么这样设计-3">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1-3">#</a>
+</h3>
+<p>用三个<strong>擦除枚举</strong>做类型擦除：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span> {
+</span></span><span style="display:flex;"><span>  Int32(I32Array), Int64(I64Array), Bool(BoolArray), <span style="font-weight:bold;font-style:italic">String</span>(StringArray),
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarImpl</span> { Int32(<span style="font-weight:bold;text-decoration:underline">i32</span>), Int64(<span style="font-weight:bold;text-decoration:underline">i64</span>), Bool(<span style="font-weight:bold;text-decoration:underline">bool</span>), <span style="font-weight:bold;font-style:italic">String</span>(<span style="font-weight:bold;font-style:italic">String</span>) }
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">enum</span> <span style="color:#666;font-weight:bold;font-style:italic">ScalarRefImpl</span>&lt;&#39;a&gt; { Int32(<span style="font-weight:bold;text-decoration:underline">i32</span>), Int64(<span style="font-weight:bold;text-decoration:underline">i64</span>), Bool(<span style="font-weight:bold;text-decoration:underline">bool</span>), <span style="font-weight:bold;font-style:italic">String</span>(&amp;&#39;a <span style="font-weight:bold;text-decoration:underline">str</span>) }
+</span></span></code></pre></div><p><strong>装箱（upcast）用 <code>From</code>，拆箱（downcast）用 <code>TryFrom</code>：</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> <span style="font-weight:bold;font-style:italic">From</span>&lt;I32Array&gt; <span style="font-weight:bold;text-decoration:underline">for</span> ArrayImpl {          <span style="color:#888;font-style:italic">// 装箱：具体 → 枚举
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">from</span>(array: <span style="color:#666;font-weight:bold;font-style:italic">I32Array</span>) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">Self</span> { ArrayImpl::Int32(array) }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span> TryFrom&lt;ArrayImpl&gt; <span style="font-weight:bold;text-decoration:underline">for</span> I32Array {       <span style="color:#888;font-style:italic">// 拆箱：枚举 → 具体，类型不符报错
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">type</span> <span style="color:#666;font-weight:bold;font-style:italic">Error</span> = TypeMismatch;
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">try_from</span>(array: <span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>) -&gt; <span style="font-weight:bold;font-style:italic">Result</span>&lt;<span style="font-weight:bold;font-style:italic">Self</span>, <span style="font-weight:bold;font-style:italic">Self</span>::Error&gt; {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">match</span> array {
+</span></span><span style="display:flex;"><span>      ArrayImpl::Int32(array) =&gt; <span style="font-weight:bold;font-style:italic">Ok</span>(array),
+</span></span><span style="display:flex;"><span>      other =&gt; <span style="font-weight:bold;font-style:italic">Err</span>(TypeMismatch(stringify!(Int32), other.identifier())),
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre class="mermaid">graph LR
+    subgraph 类型擦除
+        A1[I32Array] --&gt;|From| E1[ArrayImpl::Int32]
+        S1[i32] --&gt;|From| E2[ScalarImpl::Int32]
+        R1[&amp;str] --&gt;|From| E3[ScalarRefImpl::String]
+    end
+    E1 --&gt;|TryFrom| A1
+    E1 -.-&gt;|类型不符| Err[Err&amp;lt;TypeMismatch&amp;gt;]
+</pre>
+
+<p><strong>为什么拆箱是&quot;可失败的&quot;？</strong>
+因为 <code>ArrayImpl</code> 是运行时值，它可能装着 <code>StringArray</code>，而调用方请求的是 <code>I32Array</code>。
+编译期无法保证这一点，所以必须用 <code>TryFrom</code> 在边界处做<strong>受检转换</strong>。
+这正是 <code>TypeMismatch</code> 错误存在的意义——它把&quot;类型不符&quot;变成可处理的错误，而不是崩溃。
+<strong>错误的变体返回 <code>Err</code>，而不是 panic。</strong></p>
+<h2 class="heading" id="6expr把决策移出行循环">
+  6、expr：把决策移出行循环
+  <a class="anchor" href="#6expr%e6%8a%8a%e5%86%b3%e7%ad%96%e7%a7%bb%e5%87%ba%e8%a1%8c%e5%be%aa%e7%8e%af">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题-4">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98-4">#</a>
+</h3>
+<p>每个二元/一元循环都必须遵守的<strong>五条重复决策</strong>：</p>
+<ol>
+<li>检查输入个数（arity）；</li>
+<li>检查物理类型；</li>
+<li>检查每个输入长度；</li>
+<li>任一严格输入为 NULL 时<strong>跳过标量函数</strong>；</li>
+<li>构建关联的输出数组，或返回第一个行错误而不产生部分输出。</li>
+</ol>
+<p>如果这些决策写死在每个循环里，每新增一个函数就多一处重复和出错的机会。</p>
+<h3 class="heading" id="为什么这样设计-4">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1-4">#</a>
+</h3>
+<p>用<strong>泛型适配器</strong>把&quot;行循环&quot;和&quot;具体标量函数&quot;分离：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">trait</span> BinaryExprFunc&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, O: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval</span>&lt;&#39;a&gt;(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="color:#666;font-weight:bold;font-style:italic">I1</span>::RefItem&lt;&#39;a&gt;, i2: <span style="color:#666;font-weight:bold;font-style:italic">I2</span>::RefItem&lt;&#39;a&gt;) -&gt; <span style="color:#666;font-weight:bold;font-style:italic">O</span>::Item;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>BinaryExpression&lt;I1, I2, O, F&gt;</code> 是泛型二元表达式，<code>eval_batch</code> 只写一次行循环：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval_batch</span>(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>, i2: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">ArrayImpl</span>) -&gt; <span style="font-weight:bold;font-style:italic">Result</span>&lt;ArrayImpl&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> i1a: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">I1</span> = i1.try_into()?;   <span style="color:#888;font-style:italic">// 类型擦除 → 具体类型
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> i2a: <span style="font-weight:bold;text-decoration:underline">&amp;</span><span style="color:#666;font-weight:bold;font-style:italic">I2</span> = i2.try_into()?;
+</span></span><span style="display:flex;"><span>  assert_eq!(i1.len(), i2.len(), <span style="color:#666;font-style:italic">&#34;array length mismatch&#34;</span>);
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">let</span> <span style="font-weight:bold;text-decoration:underline">mut</span> builder: <span style="color:#666;font-weight:bold;font-style:italic">O</span>::Builder = O::Builder::with_capacity(i1.len());
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span> (i1, i2) <span style="font-weight:bold;text-decoration:underline">in</span> i1a.iter().zip(i2a.iter()) {
+</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">match</span> (i1, i2) {
+</span></span><span style="display:flex;"><span>      (<span style="font-weight:bold;font-style:italic">Some</span>(i1), <span style="font-weight:bold;font-style:italic">Some</span>(i2)) =&gt; builder.push(<span style="font-weight:bold;font-style:italic">Some</span>(<span style="font-weight:bold;font-style:italic">self</span>.expr.eval(i1, i2).as_scalar_ref())),
+</span></span><span style="display:flex;"><span>      _ =&gt; builder.push(<span style="font-weight:bold;font-style:italic">None</span>),   <span style="color:#888;font-style:italic">// NULL 传播
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;font-style:italic">Ok</span>(builder.finish().into())
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre class="mermaid">graph LR
+    subgraph 表达式求值流程
+        A1[ArrayImpl] --&gt;|try_into| I1[&amp;I1]
+        A2[ArrayImpl] --&gt;|try_into| I2[&amp;I2]
+        I1 --&gt; ZIP[iter zip]
+        I2 --&gt; ZIP
+        ZIP --&gt;|Some, Some| EVAL[F::eval]
+        ZIP --&gt;|含 None| NULL[push None]
+        EVAL --&gt; PUSH[builder.push]
+        NULL --&gt; PUSH
+        PUSH --&gt; FINISH[finish]
+        FINISH --&gt; OUT[ArrayImpl]
+    end
+</pre>
+
+<p><strong>NULL 传播</strong>是 SQL 三值逻辑的核心：任一输入为 NULL，输出就是 NULL，且<strong>不调用标量函数</strong>。</p>
+<p>具体函数通过 <code>BinaryExprFunc</code> 实现，例如比较运算支持<strong>类型提升</strong>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">struct</span> <span style="color:#666;font-weight:bold;font-style:italic">ExprCmpLe</span>&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, C: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt;(<span style="font-weight:bold;text-decoration:underline">pub</span> PhantomData&lt;(I1, I2, C)&gt;);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">impl</span>&lt;I1: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, I2: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>, C: <span style="color:#666;font-weight:bold;font-style:italic">Array</span>&gt; BinaryExprFunc&lt;I1, I2, BoolArray&gt; <span style="font-weight:bold;text-decoration:underline">for</span> ExprCmpLe&lt;I2, I2, C&gt;
+</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">where</span>
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; I1::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">Into</span>&lt;C::RefItem&lt;&#39;a&gt;&gt;,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; I2::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">Into</span>&lt;C::RefItem&lt;&#39;a&gt;&gt;,
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">for</span>&lt;&#39;a&gt; C::RefItem&lt;&#39;a&gt;: <span style="font-weight:bold;font-style:italic">PartialOrd</span>,
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">eval</span>&lt;&#39;a&gt;(&amp;<span style="font-weight:bold;font-style:italic">self</span>, i1: <span style="color:#666;font-weight:bold;font-style:italic">I1</span>::RefItem&lt;&#39;a&gt;, i2: <span style="color:#666;font-weight:bold;font-style:italic">I2</span>::RefItem&lt;&#39;a&gt;) -&gt; <span style="font-weight:bold;text-decoration:underline">bool</span> {
+</span></span><span style="display:flex;"><span>    i1.into().partial_cmp(&amp;i2.into()).unwrap() == Ordering::Less
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>第三个类型参数 <code>C</code> 是<strong>公共提升类型</strong>——<code>ExprCmpLe::&lt;_, _, I64Array&gt;</code> 表示把两个 <code>i32</code> 提升为 <code>i64</code> 再比较。</p>
+<p><strong>为什么用 <code>PhantomData</code>？</strong>
+<code>ExprCmpLe</code> 本身不存任何数据，<code>I1</code>/<code>I2</code>/<code>C</code> 只用于类型层面。
+<code>PhantomData&lt;(I1, I2, C)&gt;</code> 让编译器知道这个类型&quot;拥有&quot;这三个类型参数，
+从而正确推导 trait 实现和生命周期，而不占用任何运行时内存。</p>
+<p>最后，<code>build_binary_expression</code> 是<strong>运行时工厂</strong>，把 <code>ExpressionFunc</code> 枚举映射到具体的 <code>Box&lt;dyn Expression&gt;</code>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">pub</span> <span style="font-weight:bold;text-decoration:underline">fn</span> <span style="color:#666;font-weight:bold;font-style:italic">build_binary_expression</span>(f: <span style="color:#666;font-weight:bold;font-style:italic">ExpressionFunc</span>) -&gt; <span style="font-weight:bold;font-style:italic">Box</span>&lt;<span style="font-weight:bold;text-decoration:underline">dyn</span> Expression&gt; {
+</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">match</span> f {
+</span></span><span style="display:flex;"><span>    CmpLe =&gt; <span style="font-weight:bold;font-style:italic">Box</span>::new(BinaryExpression::&lt;I32Array, I32Array, BoolArray, _&gt;::new(
+</span></span><span style="display:flex;"><span>      ExprCmpLe::&lt;_, _, I32Array&gt;(PhantomData),
+</span></span><span style="display:flex;"><span>    )),
+</span></span><span style="display:flex;"><span>    StrContains =&gt; <span style="font-weight:bold;font-style:italic">Box</span>::new(BinaryExpression::&lt;StringArray, StringArray, BoolArray, _&gt;::new(ExprStrContains)),
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这解决的是<strong>从运行时名字选择具体类型化表达式</strong>的问题——SQL 解析器拿到的是字符串函数名，需要映射到具体的类型化实现。</p>
+<h2 class="heading" id="7宏系统让类型族可扩展">
+  7、宏系统：让类型族可扩展
+  <a class="anchor" href="#7%e5%ae%8f%e7%b3%bb%e7%bb%9f%e8%ae%a9%e7%b1%bb%e5%9e%8b%e6%97%8f%e5%8f%af%e6%89%a9%e5%b1%95">#</a>
+</h2>
+<h3 class="heading" id="要解决的问题-5">
+  要解决的问题
+  <a class="anchor" href="#%e8%a6%81%e8%a7%a3%e5%86%b3%e7%9a%84%e9%97%ae%e9%a2%98-5">#</a>
+</h3>
+<p>每加一个类型（如 <code>f64</code>），就要重复物理变体、标量变体、数组别名、构建器、转换……
+<strong>重复越多，漂移越可能发生</strong>——可能加了数组却忘了加转换，或转换里写错类型名。</p>
+<h3 class="heading" id="为什么这样设计-5">
+  为什么这样设计
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1-5">#</a>
+</h3>
+<p>用<strong>一个类型族目录（catalog）</strong>，让&quot;一行定义一个类型族&quot;。
+<code>mini-arrow</code> 用 <code>for_all_variants!</code> 宏实现：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-rust" data-lang="rust"><span style="display:flex;"><span>macro_rules! for_all_variants {
+</span></span><span style="display:flex;"><span>  (<span style="color:#888;font-weight:bold">$macro</span>:<span style="color:#666;font-weight:bold;font-style:italic">ident</span> <span style="color:#888;font-weight:bold">$(,</span> <span style="color:#888;font-weight:bold">$x</span>:<span style="color:#666;font-weight:bold;font-style:italic">ident</span>)*) =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#888;font-weight:bold">$macro</span>! {
+</span></span><span style="display:flex;"><span>      [<span style="color:#888;font-weight:bold">$($x</span>),*],
+</span></span><span style="display:flex;"><span>      { Int32, int32, I32Array, I32ArrayBuilder, <span style="font-weight:bold;text-decoration:underline">i32</span>, <span style="font-weight:bold;text-decoration:underline">i32</span> },
+</span></span><span style="display:flex;"><span>      { <span style="font-weight:bold;font-style:italic">String</span>, string, StringArray, StringArrayBuilder, <span style="font-weight:bold;font-style:italic">String</span>, &amp;&#39;a <span style="font-weight:bold;text-decoration:underline">str</span> }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  };
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>每个元组是 <code>{ 枚举变体名, 函数后缀, 数组类型, 构建器类型, owned 类型, 引用类型 }</code>。
+然后 <code>impls.rs</code> 用这个清单<strong>批量生成</strong>所有样板代码：</p>
+<ul>
+<li><code>impl_array_dispatch</code>：<code>ArrayImpl</code> 的 <code>get</code> / <code>len</code> / <code>is_empty</code> / <code>identifier</code></li>
+<li><code>impl_array_conversion</code>：所有 <code>From</code> / <code>TryFrom</code> 转换</li>
+<li><code>impl_scalar</code> / <code>impl_scalar_conversion</code>：<code>Scalar</code> / <code>ScalarRef</code> 实现与转换</li>
+</ul>
+<p><strong>为什么用宏而不是手写？</strong>
+宏让目录成为<strong>唯一事实来源</strong>——新增类型只需在清单加一行，其余代码自动生成，
+且不会出现&quot;加了数组却忘了加转换&quot;这种漂移。<strong>省略或重复一个类型族会变成编译或测试失败。</strong></p>
+<blockquote>
+<p><strong>注意</strong>：<code>mini-arrow</code> 的 <code>macros.rs</code> 和 <code>impls.rs</code> 目前被注释掉了
+（<code>//mod macros;</code>、<code>//mod impls;</code>），实际生效的是手写的 <code>array_impl.rs</code>、<code>builder_impl.rs</code> 等。
+这说明项目正处于<strong>从手写代码迁移到宏生成</strong>的过渡阶段——宏版本已写好但未启用。</p></blockquote>
+<h1 class="heading" id="总结">
+  总结
+  <a class="anchor" href="#%e6%80%bb%e7%bb%93">#</a>
+</h1>
+<table>
+  <thead>
+      <tr>
+          <th>模块</th>
+          <th>要解决的问题</th>
+          <th>为什么这样设计</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>scalar</strong></td>
+          <td>owned 值与零拷贝引用如何共存</td>
+          <td>用 <code>Scalar</code> / <code>ScalarRef</code> 两个 trait + GAT 关联；基本类型双实现，<code>String</code>/<code>&amp;str</code> 分离</td>
+      </tr>
+      <tr>
+          <td><strong>array</strong></td>
+          <td>定长/变长、空值如何列式存储</td>
+          <td>Arrow 标准布局：<code>data+bitmap</code>（定长）、<code>data+offsets+bitmap</code>（变长）；NULL 是值状态不是类型</td>
+      </tr>
+      <tr>
+          <td><strong>builder</strong></td>
+          <td>不可变数组如何增量构建</td>
+          <td><code>ArrayBuilder</code> trait 与 <code>Array</code> 互反关联，<code>from_slice</code> 默认实现走 builder</td>
+      </tr>
+      <tr>
+          <td><strong>类型擦除</strong></td>
+          <td>运行时如何统一分发任意类型</td>
+          <td>三个擦除枚举 + <code>From</code>/<code>TryFrom</code> 受检转换；错误变体返回 <code>Err</code> 而非 panic</td>
+      </tr>
+      <tr>
+          <td><strong>expr</strong></td>
+          <td>如何避免每个循环重复决策</td>
+          <td>泛型适配器 <code>BinaryExpression</code> 把行循环与标量函数分离；NULL 传播、类型提升</td>
+      </tr>
+      <tr>
+          <td><strong>宏系统</strong></td>
+          <td>如何让类型族可扩展</td>
+          <td><code>for_all_variants</code> 目录一行定义一个类型族，批量生成样板代码</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>贯穿始终的设计原则：</strong></p>
+<ol>
+<li><strong>把决策移出行循环</strong>：arity、类型、长度、NULL、输出构建，都由适配器统一处理。</li>
+<li><strong>可空性是值状态</strong>：用 <code>Option</code> / validity 位图，而不是 <code>DataType::Nullable</code> 变体。</li>
+<li><strong>受检的运行时擦除</strong>：downcast 是可失败的，错误变体返回 <code>Err</code>。</li>
+<li><strong>目录驱动扩展</strong>：一行定义一个类型族，省略或重复变成编译/测试失败。</li>
+</ol>
+<h3 class="heading" id="回到开头难点如何被逐一攻克">
+  回到开头：难点如何被逐一攻克
+  <a class="anchor" href="#%e5%9b%9e%e5%88%b0%e5%bc%80%e5%a4%b4%e9%9a%be%e7%82%b9%e5%a6%82%e4%bd%95%e8%a2%ab%e9%80%90%e4%b8%80%e6%94%bb%e5%85%8b">#</a>
+</h3>
+<table>
+  <thead>
+      <tr>
+          <th>开头列出的难点</th>
+          <th>由谁解决</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>难点一：定长 vs 变长</td>
+          <td><code>array</code> 的两种布局：<code>PrimitiveArray</code>（定长）、<code>StringArray</code>（offset + 扁平 buffer）</td>
+      </tr>
+      <tr>
+          <td>难点二：空值（NULL）</td>
+          <td><code>array</code> 的 validity 位图，NULL 是值状态而非类型变体</td>
+      </tr>
+      <tr>
+          <td>难点三：owned 值 vs 零拷贝引用</td>
+          <td><code>scalar</code> 的 <code>Scalar</code> / <code>ScalarRef</code> 双 trait + GAT</td>
+      </tr>
+      <tr>
+          <td>难点四：运行时才知道类型</td>
+          <td>类型擦除枚举 + <code>From</code> / <code>TryFrom</code> 受检转换</td>
+      </tr>
+      <tr>
+          <td>难点五：表达式求值的重复决策</td>
+          <td><code>expr</code> 的泛型适配器 <code>BinaryExpression</code></td>
+      </tr>
+      <tr>
+          <td>难点六：类型族扩展</td>
+          <td>宏系统 <code>for_all_variants</code> 目录</td>
+      </tr>
+  </tbody>
+</table>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+  
+  
+  <script defer
+    type="module"
+    id="mermaid_script"
+    data-light-theme="default"
+    data-dark-theme="dark"
+    src='/js/mermaid.js'>
+  </script>
+  
+
+  
+
+  
+
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>我的书</h2>
+  <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="《图解分布式系统原理》书籍封面，作者 Lichuang，一本图解分布式系统的技术书"
+         width="320"
+         height="414"
+         loading="lazy"
+         decoding="async">
+  </a>
+  <p>我的书
+    <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+      《图解分布式系统原理》
+    </a>
+    通过清晰的图解讲解分布式系统——从时钟、CAP 到 Paxos、Raft 和分布式事务。
+  </p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+Also translated in 
+    
+     <a href="/en/post/20260815-mini-arrow/">English </a>
+    
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
