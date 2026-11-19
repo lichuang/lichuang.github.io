@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="Starting from the constraints of object storage, deriving Lance&#39;s dataset directory organization: manifests, data files, transaction files, indices, tags, and branches."/>
+
+
+
+<title>
+    
+    Understanding Lance (Part 1): File Organization | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/en/post/20261118-lance-1/"/>
+
+
+
+<link rel="alternate" hreflang="zh" href="https://www.codedump.info/zh/post/20261118-lance-1/"/>
+
+<link rel="alternate" hreflang="x-default" href="https://www.codedump.info/en/post/20261118-lance-1/"/>
+
+
+<meta property="og:url" content="https://www.codedump.info/en/post/20261118-lance-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="Understanding Lance (Part 1): File Organization">
+  <meta property="og:description" content="Starting from the constraints of object storage, deriving Lance&#39;s dataset directory organization: manifests, data files, transaction files, indices, tags, and branches.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2026-11-18T10:17:06+08:00">
+    <meta property="article:modified_time" content="2026-11-18T10:17:06+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.d2e2f08285a1451785129b382caf7d25915ad9c538e57a2515acedd64c4b4cbc.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统原理
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en/page/about-en/" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/en/">Home</a><span class="breadcrumbs-separator">/</span><a href="/en/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/en/post/20261118-lance-1/">Understanding Lance (Part 1): File Organization</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">Understanding Lance (Part 1): File Organization</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-11-18T10:17:06&#43;08:00">November 18, 2026</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#manifest-files">Manifest Files</a>
+      <ul>
+        <li><a href="#latest_version_hintjson">latest_version_hint.json</a></li>
+        <li><a href="#version">version</a></li>
+        <li><a href="#fragments">fragments</a></li>
+      </ul>
+    </li>
+    <li><a href="#data-files-and-deletion-files">Data Files and Deletion Files</a></li>
+    <li><a href="#transaction-files">Transaction Files</a></li>
+    <li><a href="#index-files">Index Files</a></li>
+    <li><a href="#tag-and-branch-metadata-_refs">Tag and Branch Metadata <code>_refs/</code></a>
+      <ul>
+        <li><a href="#tag">Tag</a></li>
+        <li><a href="#branch">Branch</a></li>
+      </ul>
+    </li>
+    <li><a href="#summary">Summary</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="characteristics-of-object-storage">
+  Characteristics of Object Storage
+  <a class="anchor" href="#characteristics-of-object-storage">#</a>
+</h1>
+<p>Lance is a columnar storage format that primarily targets S3 object storage. Compared with local disk storage, object storage has the following characteristics:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Constraint</th>
+          <th>Consequence</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>There are no real directories</td>
+          <td>Directories are just key prefixes; <code>tree/</code> and <code>_indices/{uuid}/</code> are naming conventions</td>
+      </tr>
+      <tr>
+          <td>No transactions across objects</td>
+          <td>You cannot &ldquo;write multiple files at once and have them take effect atomically&rdquo;</td>
+      </tr>
+      <tr>
+          <td>Only single-object operations are atomic</td>
+          <td><code>PUT</code> / <code>PUT-if-not-exists</code> / <code>DELETE</code></td>
+      </tr>
+      <tr>
+          <td>rename is not always atomic</td>
+          <td>On S3 it is copy+delete, so rename cannot be used for commit</td>
+      </tr>
+      <tr>
+          <td>list can be expensive</td>
+          <td>Every directory listing is a request; on S3 Express it is even O(n)</td>
+      </tr>
+      <tr>
+          <td>Requests are rate-limited</td>
+          <td>File names need to be spread across prefixes</td>
+      </tr>
+      <tr>
+          <td>Consistency models differ</td>
+          <td>You cannot assume &ldquo;it shows up in list immediately after writing&rdquo;</td>
+      </tr>
+  </tbody>
+</table>
+<p>Therefore, any design that <strong>&ldquo;modifies multiple files together&rdquo;</strong> is infeasible.</p>
+<p>These characteristics of object storage cause the file organization design to differ greatly from designs targeting local disks. In local-disk-oriented file designs, a file can be modified in place — a disk structure such as a B-Tree, for example, can modify a data file page by page, and such a modification can target a specified range within a specified file. But in object storage, since a modified file has to be uploaded to object storage in full, even changing a single byte has the same effect as modifying the whole file and uploading it again.</p>
+<p>Given these characteristics, file organizations targeting object storage generally have the following properties:</p>
+<ul>
+<li>There is a metadata file in the system that records which files make up the current version.</li>
+<li>Committed files are never modified.</li>
+<li>If the data changes, the change is achieved by writing new files and modifying the metadata file to point at the new files.</li>
+</ul>
+<p>Based on the analysis above, we now understand the characteristics of object storage and how the corresponding file organization should be designed. Next, let&rsquo;s look at Lance&rsquo;s file organization.</p>
+<h1 class="heading" id="lances-file-organization">
+  Lance&rsquo;s File Organization
+  <a class="anchor" href="#lances-file-organization">#</a>
+</h1>
+<p>Although Lance, like Parquet, is a columnar storage format, Parquet only has columnar data files, whereas Lance has a more complete file organization, including:</p>
+<ul>
+<li>The dataset metadata file (manifest)</li>
+<li>Data files (equivalent to Parquet data files)</li>
+<li>Index files</li>
+<li>Transaction files</li>
+<li>Metadata files that support tags and branches</li>
+</ul>
+<p>With these categories of files, Lance can implement MVCC, indices, and other features by itself. If only Parquet were used, the application layer would need to design these file organizations itself to implement such features — for example, <a href="https://github.com/databendlabs/databend">databend</a>.</p>
+<p>The following is a tree diagram of Lance&rsquo;s file organization:</p>
+<pre tabindex="0"><code>{dataset_root}/
+├─ data/
+│  ├─ {data_file_key}.lance              ← data file (column data + page encoding)
+│  └─ {data_file_key}/                   ← Blob v2 sidecar (optional)
+│     ├─ 00000000000000000000000000000001.blob
+│     └─ ...
+├─ _versions/
+│  ├─ {bit-reversed version}.manifest    ← or {version}.manifest (V1)
+│  └─ latest_version_hint.json           ← optional
+├─ _transactions/
+│  └─ {read_version}-{uuid}.txn
+├─ _deletions/
+│  ├─ {fragment_id}-{read_version}-{id}.arrow
+│  └─ {fragment_id}-{read_version}-{id}.bin
+├─ _indices/
+│  └─ {index_uuid}/
+│     └─ ...                             ← index implementation-defined
+├─ _refs/
+│  ├─ tags/{tag}.json
+│  └─ branches/{branch}.json
+└─ tree/{branch_name}/                   ← branch dataset, same structure as above
+</code></pre><p>In this file organization, there are the following categories of files:</p>
+<ul>
+<li>Manifest files: the metadata files describing the whole system, and the key to implementing MVCC</li>
+<li>Data files: the files that actually store data</li>
+<li>Transaction files: used to decide whether the transactions on both sides can coexist when a commit conflicts</li>
+<li>Index files: store indices of various types</li>
+<li>Tag and branch files: metadata files that store tags and branches</li>
+</ul>
+<p>The following sections explain each in detail.</p>
+<h2 class="heading" id="manifest-files">
+  Manifest Files
+  <a class="anchor" href="#manifest-files">#</a>
+</h2>
+<p>The <code>_versions/</code> directory holds Manifest files. A Manifest is the metadata file of the whole system, and it is a <strong>complete snapshot of a certain version</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>version
+</span></span><span style="display:flex;"><span>schema
+</span></span><span style="display:flex;"><span>fragments
+</span></span><span style="display:flex;"><span>indices
+</span></span><span style="display:flex;"><span>config
+</span></span><span style="display:flex;"><span>table_metadata
+</span></span><span style="display:flex;"><span>base_paths
+</span></span><span style="display:flex;"><span>feature flags
+</span></span><span style="display:flex;"><span>transaction_file / transaction_section
+</span></span></code></pre></div><p>With this information, a read only needs to read the Manifest file to obtain the overall organization of the whole system. Correspondingly, when modifying, the Manifest file is the last file to be modified: only after data files, transaction files, and so on have all been modified is the Manifest file finally updated.</p>
+<h3 class="heading" id="latest_version_hintjson">
+  latest_version_hint.json
+  <a class="anchor" href="#latest_version_hintjson">#</a>
+</h3>
+<p>In addition to <code>*.manifest</code>, the <code>_versions/</code> directory may also contain a <code>latest_version_hint.json</code>, whose content is:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{&#34;version&#34;: 42}
+</span></span></code></pre></div><p>It solves only one problem: <strong>how to cheaply find the latest manifest</strong>. But not all storage needs it:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Storage</th>
+          <th>Way to find the latest version</th>
+          <th>Needs hint</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>S3 Standard / GCS / Azure</td>
+          <td>V2 naming is bit-reversed, so the first item from <code>list</code> is the latest</td>
+          <td>No</td>
+      </tr>
+      <tr>
+          <td>S3 Express / local filesystem</td>
+          <td><code>list</code> is not guaranteed to be lexically ordered; a full list is O(n)</td>
+          <td>Yes</td>
+      </tr>
+  </tbody>
+</table>
+<p>In other words:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>uses_version_hint = global switch &amp;&amp; !list_is_lexically_ordered
+</span></span></code></pre></div><p>On storage that needs it, the reader first reads the hint to get a starting version, then probes upward with HEAD requests until some version does not exist; if the hint is missing or stale, it falls back to a full listing. It is purely an optimization: deleting it does not affect correctness, and write failures can be ignored.</p>
+<p>Returning to the Manifest file, we will focus on explaining its <code>version</code> and <code>fragments</code> fields.</p>
+<h3 class="heading" id="version">
+  version
+  <a class="anchor" href="#version">#</a>
+</h3>
+<p>In Lance, <code>version</code> is a monotonically increasing positive integer. There is no pointer between different versions pointing to the previous version&rsquo;s Manifest file. In other words, different versions use <code>version</code> as logical time to distinguish their ordering, rather than using pointers.</p>
+<p>A direct consequence: any version can be opened in O(1), and time travel does not require replaying history; conversely, deleting an old manifest does not affect the usability of new manifests.</p>
+<h3 class="heading" id="fragments">
+  fragments
+  <a class="anchor" href="#fragments">#</a>
+</h3>
+<p>Next, a fragment is a logical concept. It consists of a group of data files and is the smallest &ldquo;row unit&rdquo; in the Manifest file, used to represent an immutable data shard of a Lance table. In other words: <strong>one fragment may correspond to multiple data files, while a data file can belong to only one fragment within the same manifest</strong> — the relationship is one-to-many.</p>
+<p>The qualifier &ldquo;within the same manifest&rdquo; is needed because across versions the same data file can be referenced by multiple manifests:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>v1.manifest → fragment 0 → data/A.lance
+</span></span><span style="display:flex;"><span>v2.manifest → fragment 0 → data/A.lance
+</span></span><span style="display:flex;"><span>v3.manifest → fragment 0 → data/A.lance
+</span></span></code></pre></div><p>This is exactly the cost of &ldquo;files are immutable + the manifest is a complete snapshot&rdquo;: every data change requires writing a new manifest, while old manifests still point at the old files. Precisely because of this, reclaiming space cannot be decided by &ldquo;delete it once some manifest no longer references it&rdquo;; it must be judged by the union of references from all retained version manifests.</p>
+<p>A fragment may correspond to multiple data files, which makes it easy to achieve the following: when part of the data in a fragment is modified, only some of its data files are modified.</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" decoding="async" alt="Manifest file" src="/media/imgs/20261118-lance-1/manifest.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> Manifest file </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>As shown in the figure:</p>
+<ul>
+<li>Manifest 1 contains two fragments, one with data file <code>1.lance</code> and the other with data file <code>2.lance</code>.</li>
+<li>After a certain modification, the Manifest file is updated to Manifest 2, in which:
+<ul>
+<li>fragment 1 was not modified, so it can continue to be used by Manifest 2, and <code>1.lance</code> is kept as is.</li>
+<li>The data in <code>2.lance</code> was modified; following the principle we mentioned earlier that &ldquo;files cannot be modified after being written&rdquo;, the change is not made to <code>2.lance</code> but instead a new <code>3.lance</code> file is generated and pointed to by a new fragment 3.</li>
+</ul>
+</li>
+</ul>
+<p>Note that here &ldquo;the old fragment 2 disappears and the new fragment 3 appears&rdquo;, rather than updating fragment 2 in place. Lance&rsquo;s fragment ids are a global high-water mark and are never reused: if an id were reused, deletion files, row addresses, and caches left over from old versions would incorrectly point at new data.</p>
+<h2 class="heading" id="data-files-and-deletion-files">
+  Data Files and Deletion Files
+  <a class="anchor" href="#data-files-and-deletion-files">#</a>
+</h2>
+<p>We explain data files and deletion files together here because, in my view, both belong to the category of files that store data.</p>
+<p>First, the data files in the <code>data</code> directory fall into two categories overall:</p>
+<ul>
+<li><code>.lance</code> files: store the actual column data; the format of data files will be explained in detail in a later chapter.</li>
+<li><code>.blob</code> files: if a blob value is especially large, it is not stored in the <code>.lance</code> file but stored separately in a <code>.blob</code> file.</li>
+</ul>
+<p>Besides the data files in the <code>data</code> directory, the <code>_deletions</code> directory also stores deletion files. This is likewise an application of the principle that &ldquo;files cannot be modified after being written&rdquo;. Consider this scenario: some data in the original data has been deleted. Rewriting a new data file would be too expensive; instead, the ids of the data to be deleted are written into a separate deletion file.</p>
+<p>Deletion files are named as follows:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_deletions/{fragment_id}-{read_version}-{id}.{arrow|bin}
+</span></span></code></pre></div><table>
+  <thead>
+      <tr>
+          <th>Extension</th>
+          <th>Format</th>
+          <th>Applicable to</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>.arrow</code></td>
+          <td>Arrow IPC, list of row numbers</td>
+          <td>Sparse deletions</td>
+      </tr>
+      <tr>
+          <td><code>.bin</code></td>
+          <td>Roaring bitmap</td>
+          <td>Dense deletions</td>
+      </tr>
+  </tbody>
+</table>
+<p>Including <code>fragment_id</code> and <code>read_version</code> in the filename both guarantees uniqueness and allows old version manifests to continue referencing old deletion files.</p>
+<p>Therefore, the <code>Fragment</code> struct has two members that store the fragment&rsquo;s data files and deletion file respectively:</p>
+<pre tabindex="0"><code>pub struct Fragment {
+    pub files: Vec&lt;DataFile&gt;,
+    pub deletion_file: Option&lt;DeletionFile&gt;,
+    // ....
+}
+</code></pre><p>For example, a fragment&rsquo;s original data file contains three rows of data <code>[&quot;hello&quot;, &quot;string&quot;, &quot;world&quot;]</code>, and a certain update deletes the second row. In this case there is no need to regenerate a data file <code>[&quot;hello&quot;, &quot;world&quot;]</code>; instead, only a new deletion file needs to be added to record that the second row is deleted, and when reading and writing, the deleted row is automatically filtered out.</p>
+<h2 class="heading" id="transaction-files">
+  Transaction Files
+  <a class="anchor" href="#transaction-files">#</a>
+</h2>
+<p>The <code>_transactions</code> directory stores transaction files, named <code>{read_version}-{uuid}.txn</code>. The file content is the <strong>raw encoding of the <code>lance.table.Transaction</code> protobuf</strong>, with no header, footer, or length prefix.</p>
+<p>It records &ldquo;intent&rdquo; rather than &ldquo;result&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>read_version
+</span></span><span style="display:flex;"><span>uuid
+</span></span><span style="display:flex;"><span>operation (Append / Delete / Overwrite / Update / Rewrite / ...)
+</span></span><span style="display:flex;"><span>  └─ parameters required by each
+</span></span></code></pre></div><p>For example, Append only knows &ldquo;these fragments are to be added&rdquo;, not their final fragment ids; the final ids, the manifest version number, and the index coverage range are all computed when the manifest is built.</p>
+<p>It is used at commit time for:</p>
+<ul>
+<li>Letting the loser know what the winner did when retrying</li>
+<li>Conflict detection</li>
+<li>History auditing</li>
+</ul>
+<p>The details of transactions will also be analyzed in a later chapter.</p>
+<h2 class="heading" id="index-files">
+  Index Files
+  <a class="anchor" href="#index-files">#</a>
+</h2>
+<p>The <code>_indices</code> directory stores index files, with one UUID directory per index segment:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_indices/{uuid}/
+</span></span></code></pre></div><p>This UUID is the <code>IndexMetadata.uuid</code> generated when the index is written, not the index name. An index with the same name may correspond to multiple physical segments; replacement, pruning, and remapping all happen at the segment level, while the directory name stays unchanged.</p>
+<p>The directory contents are determined by the index type:</p>
+<pre tabindex="0"><code>IVF-PQ         → centroid / PQ codebook / partition data
+BTREE          → sorted pages + page index
+FTS / inverted → posting list / document table
+bitmap         → Roaring bitmap
+zonemap        → statistics
+FRAG_REUSE     → fragment reuse mapping
+MEM_WAL        → MemWAL state
+</code></pre><p>Like data files, index files may also be referenced by multiple version manifests.</p>
+<h2 class="heading" id="tag-and-branch-metadata-_refs">
+  Tag and Branch Metadata <code>_refs/</code>
+  <a class="anchor" href="#tag-and-branch-metadata-_refs">#</a>
+</h2>
+<p><code>_refs</code> is located in the main root, is shared by all branches, and stores two kinds of named references.</p>
+<p>Tags and Branches respectively solve the following problems:</p>
+<pre tabindex="0"><code>Tag    = give a certain (branch, version) a name
+         solving &#34;how to point stably at a snapshot&#34;
+
+Branch = fork another version chain from a certain version
+         solving &#34;how to evolve independently without affecting each other&#34;
+</code></pre><p>In short: Tag solves the <strong>naming</strong> problem, while Branch solves the <strong>forking</strong> problem.</p>
+<h3 class="heading" id="tag">
+  Tag
+  <a class="anchor" href="#tag">#</a>
+</h3>
+<p>Tag files are stored in <code>_refs/tags/{tag}.json</code>, with roughly the following content:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  &#34;branch&#34;: <span style="font-weight:bold;text-decoration:underline">null</span>,
+</span></span><span style="display:flex;"><span>  &#34;version&#34;: 5,
+</span></span><span style="display:flex;"><span>  &#34;createdAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
+</span></span><span style="display:flex;"><span>  &#34;updatedAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
+</span></span><span style="display:flex;"><span>  &#34;manifestSize&#34;: 1024,
+</span></span><span style="display:flex;"><span>  &#34;metadata&#34;: {}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>branch</code> being <code>null</code> means main, so a tag always points at the pair <code>(branch, version)</code> rather than a bare version number.</p>
+<p><strong>Using a name instead of a version number</strong></p>
+<p>The platform side should not hardcode <code>version=42</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds = lance.dataset(uri, version=42)               <span style="color:#888;font-style:italic"># fragile</span>
+</span></span><span style="display:flex;"><span>ds = lance.dataset(uri, version=<span style="color:#666;font-style:italic">&#34;prod-2026-11&#34;</span>)   <span style="color:#888;font-style:italic"># readable, changeable</span>
+</span></span></code></pre></div><p><strong>Giving &ldquo;important versions&rdquo; a stable anchor</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Training dataset snapshot  → tag &#34;training-v1&#34;
+</span></span><span style="display:flex;"><span>Production release point   → tag &#34;prod&#34;
+</span></span><span style="display:flex;"><span>Evaluation baseline        → tag &#34;baseline-2026-11&#34;
+</span></span></code></pre></div><p><strong>Preventing deletion by GC</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>The version a tag points to enters the cleanup working set by default
+</span></span><span style="display:flex;"><span>As long as the tag exists, this version will not be reclaimed
+</span></span></code></pre></div><p>This is the only &ldquo;side-effect&rdquo; capability of a tag: it is a handle for a retention policy.</p>
+<p><strong>Allowing names to move</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>prod: v5 → v7
+</span></span></code></pre></div><p>Only <code>tags.update(&quot;prod&quot;, 7)</code> is needed, without changing any data.</p>
+<p>This differs from Git: Git tags are immutable by default, while Lance tags are <strong>re-pointable aliases</strong>.</p>
+<p>What Tag does not solve:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ Does not isolate writes: you cannot &#34;modify data on prod without affecting others&#34;
+</span></span><span style="display:flex;"><span>✗ Does not create a new version
+</span></span><span style="display:flex;"><span>✗ Does not copy data
+</span></span><span style="display:flex;"><span>✗ Does not provide parallel development
+</span></span></code></pre></div><h3 class="heading" id="branch">
+  Branch
+  <a class="anchor" href="#branch">#</a>
+</h3>
+<p>Branch files are stored in <code>_refs/branches/{branch}.json</code>; in addition, <code>tree/{branch}/</code> holds the data files of a branch, and the layout of this directory is the same as that of a regular dataset (<code>data/</code>, <code>_versions/</code>, <code>_indices/</code> are all present).</p>
+<p>An easy pitfall: a <code>/</code> in a branch name is encoded differently in two places.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>branch = &#34;bugfix/issue-123&#34;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>_refs/branches/bugfix%2Fissue-123.json   ← metadata file, slash is encoded
+</span></span><span style="display:flex;"><span>tree/bugfix/issue-123/                    ← data directory, truly nested
+</span></span></code></pre></div><p>The former must be flat (otherwise it would be treated as a subdirectory), while the latter is intentionally hierarchical (to make prefix-based cleanup easy).</p>
+<p>Branch can create branches, thereby achieving <strong>parallel evolution without interference</strong>.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main        → production data
+</span></span><span style="display:flex;"><span>tree/exp-a  → experimenter A&#39;s cleaning logic
+</span></span><span style="display:flex;"><span>tree/exp-b  → experimenter B&#39;s schema change
+</span></span></code></pre></div><p>The three chains each have their own <code>_versions/</code>, their own <code>data/</code>, and their own <code>_indices/</code>.</p>
+<p>Note that <strong>branch version numbers are counted independently</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main v5  →  create_branch(&#34;dev&#34;, 5)  →  dev v5
+</span></span></code></pre></div><p>Here <code>dev v5</code> and <code>main v5</code> are two completely different manifests that just happen to have the same version number (inherited at fork time). This is also why a tag must carry a branch.</p>
+<p><strong>Isolation without copying data</strong></p>
+<p>Creating a branch is a shallow clone:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>manifest.base_paths → parent branch
+</span></span><span style="display:flex;"><span>data_file.base_id   → parent branch
+</span></span></code></pre></div><p>So:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1 TB main
+</span></span><span style="display:flex;"><span>create_branch(&#34;exp&#34;) writes only one manifest + one JSON
+</span></span></code></pre></div><p>Compared with <code>deep_clone</code>, which really copies all files.</p>
+<p><strong>Supports &ldquo;discard after trial and error&rdquo;</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>create branch → write → find a problem → delete_branch
+</span></span><span style="display:flex;"><span>main was never touched
+</span></span></code></pre></div><p><strong>Supports &ldquo;forking from any point&rdquo;</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;fix&#34;</span>, 12)           <span style="color:#888;font-style:italic"># from the current branch&#39;s v12</span>
+</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;exp&#34;</span>, <span style="color:#666;font-style:italic">&#34;v2-prod&#34;</span>)    <span style="color:#888;font-style:italic"># from a tag</span>
+</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;child&#34;</span>, (<span style="color:#666;font-style:italic">&#34;dev&#34;</span>, 7)) <span style="color:#888;font-style:italic"># from another branch&#39;s v7</span>
+</span></span></code></pre></div><p><strong>Naturally suited to &ldquo;multi-tenant / multi-environment&rdquo;</strong></p>
+<p><code>tree/{branch_name}/</code> stores the branch&rsquo;s data files, with the same structure as top-level data files:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>tree/tenant-a
+</span></span><span style="display:flex;"><span>tree/tenant-b
+</span></span><span style="display:flex;"><span>tree/staging
+</span></span><span style="display:flex;"><span>tree/prod
+</span></span></code></pre></div><p>Each is a complete dataset that can be read and written independently.</p>
+<p>What Branch does not solve:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ Does not provide named snapshots: a branch points at &#34;latest&#34;, not a fixed version
+</span></span><span style="display:flex;"><span>✗ Does not auto-merge: Lance has no merge/rebase semantics for branches
+</span></span><span style="display:flex;"><span>✗ Does not share version numbers: each counts independently starting from the fork version
+</span></span><span style="display:flex;"><span>✗ Is not zero-cost: new writes still consume space
+</span></span></code></pre></div><p>To summarize:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Tag    → naming and retention
+</span></span><span style="display:flex;"><span>         turning &#34;a certain version&#34; into a readable, movable, protectable name
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Branch → forking and isolation
+</span></span><span style="display:flex;"><span>         using zero-copy shallow references to open a version chain that can evolve independently
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Tag governs &#34;where to point&#34;, Branch governs &#34;where to write&#34;.
+</span></span></code></pre></div><h2 class="heading" id="summary">
+  Summary
+  <a class="anchor" href="#summary">#</a>
+</h2>
+<p>Stringing these files together by &ldquo;who decides whom&rdquo;, the relationships are:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>                    _versions/*.manifest
+</span></span><span style="display:flex;"><span>                    (single source of truth, complete snapshot, commit point)
+</span></span><span style="display:flex;"><span>                             │
+</span></span><span style="display:flex;"><span>        ┌────────────────────┼────────────────────┐
+</span></span><span style="display:flex;"><span>        │ fragments[]        │ index_section      │ transaction_file
+</span></span><span style="display:flex;"><span>        ▼                    ▼                    ▼
+</span></span><span style="display:flex;"><span>  data/*.lance         _indices/{uuid}/     _transactions/*.txn
+</span></span><span style="display:flex;"><span>  data/{key}/*.blob                         (or an inline copy in the manifest)
+</span></span><span style="display:flex;"><span>        │
+</span></span><span style="display:flex;"><span>        │ fragment.deletion_file
+</span></span><span style="display:flex;"><span>        ▼
+</span></span><span style="display:flex;"><span>  _deletions/*
+</span></span></code></pre></div><p>The corresponding write order is:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1. Write data files / blob sidecar
+</span></span><span style="display:flex;"><span>2. Write deletion files
+</span></span><span style="display:flex;"><span>3. Write index files
+</span></span><span style="display:flex;"><span>4. Write _transactions/*.txn
+</span></span><span style="display:flex;"><span>5. Conditionally write _versions/*.manifest   ← only now are the first four steps visible to readers
+</span></span></code></pre></div><p>And two conclusions that run through the whole article:</p>
+<ul>
+<li><strong>The manifest is the single source of truth</strong>: readers only need the manifest, not transaction files;</li>
+<li><strong>Files are immutable and shareable</strong>: a data file / index file may be referenced by multiple version manifests at the same time, so &ldquo;deleting the old manifest&rdquo; does not mean &ldquo;deleting the files it references&rdquo;.</li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>My book</h2>
+  <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="Book cover of Distributed System Illustrated: A Visual Guide for Engineers by Lichuang"
+         width="320"
+         height="414"
+         loading="lazy"
+         decoding="async">
+  </a>
+  <p>My book,
+    <a href="https://leanpub.com/distributed-system-illustrated" target="_blank" rel="noopener noreferrer">
+      <em>Distributed System Illustrated</em>
+    </a>,
+    explains distributed systems through clear diagrams — from clocks and CAP to Paxos, Raft, and distributed transactions.
+  </p>
+  <p>Read the <a href="https://www.codedump.info/dist-system-en">online edition</a> for free.</p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+Also translated in 
+    
+     <a href="/zh/post/20261118-lance-1/">中文 </a>
+    
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
