@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="从对象存储的约束出发，推导 Lance 的数据集目录组织：manifest、数据文件、事务文件、索引、tag 与 branch。"/>
+
+
+
+<title>
+    
+    理解Lance（一）文件组织结构 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20261118-lance-1/"/>
+
+
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20261118-lance-1/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="理解Lance（一）文件组织结构">
+  <meta property="og:description" content="从对象存储的约束出发，推导 Lance 的数据集目录组织：manifest、数据文件、事务文件、索引、tag 与 branch。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2026-11-18T10:17:06+08:00">
+    <meta property="article:modified_time" content="2026-11-18T10:17:06+08:00">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.d2e2f08285a1451785129b382caf7d25915ad9c538e57a2515acedd64c4b4cbc.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统原理
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en/page/about-en/" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20261118-lance-1/">理解Lance（一）文件组织结构</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">理解Lance（一）文件组织结构</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-11-18T10:17:06&#43;08:00">2026年11月18日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#manifest文件">manifest文件</a>
+      <ul>
+        <li><a href="#latest_version_hintjson">latest_version_hint.json</a></li>
+        <li><a href="#version">version</a></li>
+        <li><a href="#fragments">fragments</a></li>
+      </ul>
+    </li>
+    <li><a href="#数据文件和删除文件">数据文件和删除文件</a></li>
+    <li><a href="#事务文件">事务文件</a></li>
+    <li><a href="#索引文件">索引文件</a></li>
+    <li><a href="#tag-与-branch-元数据-_refs">Tag 与 Branch 元数据 <code>_refs/</code></a>
+      <ul>
+        <li><a href="#tag">Tag</a></li>
+        <li><a href="#branch">Branch</a></li>
+      </ul>
+    </li>
+    <li><a href="#小结">小结</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <h1 class="heading" id="对象存储特点">
+  对象存储特点
+  <a class="anchor" href="#%e5%af%b9%e8%b1%a1%e5%ad%98%e5%82%a8%e7%89%b9%e7%82%b9">#</a>
+</h1>
+<p>Lance是一个列式存储格式，主要面向S3对象存储，对比本地磁盘存储，对象存储有以下特点：</p>
+<table>
+  <thead>
+      <tr>
+          <th>约束</th>
+          <th>后果</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>没有真正的目录</td>
+          <td>目录只是 key 前缀，<code>tree/</code>、<code>_indices/{uuid}/</code> 都是命名约定</td>
+      </tr>
+      <tr>
+          <td>跨对象没有事务</td>
+          <td>不能“同时写多个文件并原子生效”</td>
+      </tr>
+      <tr>
+          <td>只有单对象操作是原子的</td>
+          <td><code>PUT</code> / <code>PUT-if-not-exists</code> / <code>DELETE</code></td>
+      </tr>
+      <tr>
+          <td>rename 不总是原子</td>
+          <td>S3 是 copy+delete，不能用 rename 做提交</td>
+      </tr>
+      <tr>
+          <td>list 可能很贵</td>
+          <td>每次列目录都是请求；S3 Express 甚至是 O(n)</td>
+      </tr>
+      <tr>
+          <td>请求有速率限制</td>
+          <td>文件名要打散前缀</td>
+      </tr>
+      <tr>
+          <td>一致性模型有差异</td>
+          <td>不能假设“写完立刻在 list 里看到”</td>
+      </tr>
+  </tbody>
+</table>
+<p>所以任何 **“多文件一起改”**的设计都不可行。</p>
+<p>对象存储的这些特点导致了文件组织的设计与面向本地磁盘的设计有很大的差异。在面向本地存储的文件设计中，可以就地修改一个文件，如B-Tree这样的磁盘结构，可以以页面为单位来修改一个数据文件，这个修改操作可以指定修改文件中指定一个范围的内容；但是在对象存储中，由于修改后需要把文件完整上传到对象存储，所以即使修改了一个字节，效果也和整体修改一个文件再上传是一样的。</p>
+<p>根据这些特点，面向对象存储的文件组织通常有以下特点：</p>
+<ul>
+<li>系统中存在一个元文件，记录当前版本由哪些文件组成。</li>
+<li>已提交的文件，永不修改。</li>
+<li>如果数据有变更，将通过写新的文件，以及修改元数据文件来指向新文件，以达到变更效果。</li>
+</ul>
+<p>根据以上的分析，我们已经了解了对象存储的特点和相应的文件组织应该如何设计，接下来来看Lance的文件组织。</p>
+<h1 class="heading" id="lance的文件组织">
+  Lance的文件组织
+  <a class="anchor" href="#lance%e7%9a%84%e6%96%87%e4%bb%b6%e7%bb%84%e7%bb%87">#</a>
+</h1>
+<p>Lance虽然和Parquet一样，都是列存格式，但是Parquet只有列存数据文件，Lance有更加完整的一个文件组织，包括：</p>
+<ul>
+<li>数据集的元文件（manifest）</li>
+<li>数据文件（和parquet数据文件等价）</li>
+<li>索引文件</li>
+<li>事务文件</li>
+<li>支持tag和branch的元文件</li>
+</ul>
+<p>有了这几大类文件，Lance自己就可以实现：MVCC、索引等功能，而如果只采用Parquet，应用层需要自己设计这些文件组织才能实现这些功能，例如 <a href="https://github.com/databendlabs/databend">databend</a>。</p>
+<p>以下是Lance的文件组织树状图：</p>
+<pre tabindex="0"><code>{dataset_root}/
+├─ data/
+│  ├─ {data_file_key}.lance              ← 数据文件（列数据 + 页编码）
+│  └─ {data_file_key}/                   ← Blob v2 sidecar（可选）
+│     ├─ 00000000000000000000000000000001.blob
+│     └─ ...
+├─ _versions/
+│  ├─ {bit-reversed version}.manifest    ← 或 {version}.manifest（V1）
+│  └─ latest_version_hint.json           ← 可选
+├─ _transactions/
+│  └─ {read_version}-{uuid}.txn
+├─ _deletions/
+│  ├─ {fragment_id}-{read_version}-{id}.arrow
+│  └─ {fragment_id}-{read_version}-{id}.bin
+├─ _indices/
+│  └─ {index_uuid}/
+│     └─ ...                             ← 索引实现自定义
+├─ _refs/
+│  ├─ tags/{tag}.json
+│  └─ branches/{branch}.json
+└─ tree/{branch_name}/                   ← 分支 dataset，结构同上
+</code></pre><p>在这个文件组织中，有以下几类文件：</p>
+<ul>
+<li>manifest文件：这是描述整个系统的元文件，也是实现MVCC的关键</li>
+<li>数据文件：真正存放数据的文件</li>
+<li>事务文件：提交发生冲突时，用它判断两边的事务能否共存</li>
+<li>索引文件：保存各类型的索引</li>
+<li>tag和branch文件：用于保存tag和分支的元文件</li>
+</ul>
+<p>以下展开详细解释。</p>
+<h2 class="heading" id="manifest文件">
+  manifest文件
+  <a class="anchor" href="#manifest%e6%96%87%e4%bb%b6">#</a>
+</h2>
+<p><code>_versions/</code>目录中保存的是Manifest文件，它是整个系统的元文件， 是<strong>某个版本的完整快照</strong>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>version
+</span></span><span style="display:flex;"><span>schema
+</span></span><span style="display:flex;"><span>fragments
+</span></span><span style="display:flex;"><span>indices
+</span></span><span style="display:flex;"><span>config
+</span></span><span style="display:flex;"><span>table_metadata
+</span></span><span style="display:flex;"><span>base_paths
+</span></span><span style="display:flex;"><span>feature flags
+</span></span><span style="display:flex;"><span>transaction_file / transaction_section
+</span></span></code></pre></div><p>有了这些信息，读取时只需要读取Manifest文件，就能够得到整个系统的整体组织；相对应的，在修改时，Manifest文件是最后一个被修改的文件，只有当数据文件、事务文件等都修改完成后，才最后更新Manifest文件。</p>
+<h3 class="heading" id="latest_version_hintjson">
+  latest_version_hint.json
+  <a class="anchor" href="#latest_version_hintjson">#</a>
+</h3>
+<p><code>_versions/</code> 目录中除了 <code>*.manifest</code>，还可能有一个 <code>latest_version_hint.json</code>，内容是：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{&#34;version&#34;: 42}
+</span></span></code></pre></div><p>它只解决一个问题：<strong>怎么廉价地找到最新的 manifest</strong>。但并不是所有存储都需要它：</p>
+<table>
+  <thead>
+      <tr>
+          <th>存储</th>
+          <th>找最新版本的方式</th>
+          <th>需要 hint</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>S3 Standard / GCS / Azure</td>
+          <td>V2 命名反序，<code>list</code> 第一项即最新</td>
+          <td>否</td>
+      </tr>
+      <tr>
+          <td>S3 Express / 本地文件系统</td>
+          <td><code>list</code> 不保证词法有序，全量 list 是 O(n)</td>
+          <td>是</td>
+      </tr>
+  </tbody>
+</table>
+<p>也就是说：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>uses_version_hint = 全局开关 &amp;&amp; !list_is_lexically_ordered
+</span></span></code></pre></div><p>在需要它的存储上，读端先读 hint 拿到一个起点版本，再用 HEAD 请求向上探测，直到某个版本不存在；hint 缺失或过期时会回退到完整 listing。它纯粹是优化，删掉不影响正确性，写失败也可以忽略。</p>
+<p>回到Manifest文件中，我们重点解释其中的version和fragments字段。</p>
+<h3 class="heading" id="version">
+  version
+  <a class="anchor" href="#version">#</a>
+</h3>
+<p>在Lance中，version为单调递增的正整数，不同版本之间的数据，并没有指针用于指向前面版本的Manifest文件。也就是说，不同版本之间，用version做为逻辑时间来进行区分版本之间的先后关系，而不是采用指针的方式。</p>
+<p>一个直接的结果：任意版本都可以 O(1) 打开，时间旅行不需要 replay 历史；反过来，删掉一个旧 manifest 也不影响新 manifest 的可用性。</p>
+<h3 class="heading" id="fragments">
+  fragments
+  <a class="anchor" href="#fragments">#</a>
+</h3>
+<p>其次，fragment是一个逻辑上的概念，它由一组data file的数据文件组成，是Manifest文件里最小的”行单位“，用于表示Lance表的一个不可变数据的分片。也就是说：<strong>一个fragment可能对应多个数据文件，而一个数据文件在同一个manifest里只能属于一个fragment</strong>，两者是一对多的关系。</p>
+<p>需要限定“同一个 manifest 内”，因为跨版本时同一个数据文件会被多个 manifest 引用：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>v1.manifest → fragment 0 → data/A.lance
+</span></span><span style="display:flex;"><span>v2.manifest → fragment 0 → data/A.lance
+</span></span><span style="display:flex;"><span>v3.manifest → fragment 0 → data/A.lance
+</span></span></code></pre></div><p>这正是“文件不可变 + manifest 是完整快照”的代价：改一次数据就要写一份新的清单，而旧清单仍然指着那批老文件。也正因为如此，回收空间不能按“某个 manifest 不再引用就删”，而要按所有保留版本 manifest 的引用并集来判断。</p>
+<p>一个fragment可能对应多个data file，这样能够方便实现：当修改了一个fragment中的部分数据时，只修改其中的一部分数据文件。</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" decoding="async" alt="Manifest文件" src="/media/imgs/20261118-lance-1/manifest.png" >
+    </div>
+
+    
+    <div class="caption-container">
+        <figcaption> Manifest文件 </figcaption>
+    </div>
+    
+</figure>
+</p>
+<p>如图所示：</p>
+<ul>
+<li>Manifest 1 文件中，有两个 fragment，其中一个的数据文件为 1.lance，另一个为数据文件 2.lance。</li>
+<li>某次修改后，Manifest文件更新到了Manifest 2，其中：
+<ul>
+<li>fragment 1 没有修改，因此可以继续被 Manifest 2 使用，<code>1.lance</code> 也原样保留。</li>
+<li>而 2.lance 文件的数据被修改，根据我们前面提到的”文件在写入后不可被修改“，此时并不是在 2.lance 文件上做修改，而是生成一个新的 3.lance 文件，并用一个新的 fragment 3 指向它。</li>
+</ul>
+</li>
+</ul>
+<p>注意这里是“旧的 fragment 2 消失，新的 fragment 3 出现”，而不是原地更新 fragment 2。Lance 的 fragment id 是全局高水位、永不复用：如果复用 id，旧版本留下的删除文件、row address、缓存就会错误地指向新数据。</p>
+<h2 class="heading" id="数据文件和删除文件">
+  数据文件和删除文件
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e6%96%87%e4%bb%b6%e5%92%8c%e5%88%a0%e9%99%a4%e6%96%87%e4%bb%b6">#</a>
+</h2>
+<p>这里把数据文件和删除文件放在一起解释，因为在我看来两者同属于存储数据的文件。</p>
+<p>先说位于<code>data</code>目录的数据文件，整体上分为两类：</p>
+<ul>
+<li><code>.lance</code>文件：存放真正的列数据，将在后面的章节详细解释数据文件的格式。</li>
+<li><code>.blob</code>文件：blob的值如果特别大，就不会存放在<code>.lance</code>文件中，而是单独存放在<code>.blob</code>文件中。</li>
+</ul>
+<p>除了<code>data</code>目录的数据文件以外，<code>_deletions</code>目录还存储了删除文件。这同样是”文件在写入后不可被修改“原则的运用，考虑这样一个场景：对原来的数据进行了某些删除，如果重新写一个新的数据文件，代价太大，取而代之的是，将被删除的数据id写到单独的删除文件中。</p>
+<p>删除文件的命名是：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_deletions/{fragment_id}-{read_version}-{id}.{arrow|bin}
+</span></span></code></pre></div><table>
+  <thead>
+      <tr>
+          <th>扩展名</th>
+          <th>格式</th>
+          <th>适用</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>.arrow</code></td>
+          <td>Arrow IPC，行号列表</td>
+          <td>稀疏删除</td>
+      </tr>
+      <tr>
+          <td><code>.bin</code></td>
+          <td>Roaring bitmap</td>
+          <td>稠密删除</td>
+      </tr>
+  </tbody>
+</table>
+<p>文件名带上 <code>fragment_id</code> 和 <code>read_version</code>，既保证了唯一性，也让旧版本 manifest 可以继续引用旧的删除文件。</p>
+<p>因此，<code>Fragment</code>结构体中，有两个成员分别保存该fragment的数据文件和删除文件：</p>
+<pre tabindex="0"><code>pub struct Fragment {
+    pub files: Vec&lt;DataFile&gt;,
+    pub deletion_file: Option&lt;DeletionFile&gt;,
+    // ....
+}
+</code></pre><p>举一个例子，fragment中原有的数据文件内容有三行数据 <code>[&quot;hello&quot;, &quot;string&quot;, &quot;world&quot;]</code>，某次更新删除了第二行数据，这时不需要重新生成一个数据文件 <code>[&quot;hello&quot;, &quot;world&quot;]</code>，而只需要新增一个删除文件保存第二行数据被删除即可，在进行读写时，自动过滤掉被删除的那一行数据。</p>
+<h2 class="heading" id="事务文件">
+  事务文件
+  <a class="anchor" href="#%e4%ba%8b%e5%8a%a1%e6%96%87%e4%bb%b6">#</a>
+</h2>
+<p><code>_transactions</code>目录下存储的是事务文件，命名为 <code>{read_version}-{uuid}.txn</code>。文件内容是 <strong><code>lance.table.Transaction</code> protobuf 的原始编码</strong>，没有 header、footer 或长度前缀。</p>
+<p>它记录的是“意图”而不是“结果”：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>read_version
+</span></span><span style="display:flex;"><span>uuid
+</span></span><span style="display:flex;"><span>operation（Append / Delete / Overwrite / Update / Rewrite / ...）
+</span></span><span style="display:flex;"><span>  └─ 各自需要的参数
+</span></span></code></pre></div><p>比如 Append 只知道“要加这些 fragments”，不知道它们最终的 fragment id；最终的 id、manifest 版本号、索引覆盖范围，都要等构建 manifest 时才算出来。</p>
+<p>它用于在提交时：</p>
+<ul>
+<li>重试时让输家知道赢家做了什么</li>
+<li>冲突检测</li>
+<li>历史审计</li>
+</ul>
+<p>关于事务的详细内容，也将在后续章节展开分析。</p>
+<h2 class="heading" id="索引文件">
+  索引文件
+  <a class="anchor" href="#%e7%b4%a2%e5%bc%95%e6%96%87%e4%bb%b6">#</a>
+</h2>
+<p><code>_indices</code>目录保存索引文件，每个索引段一个 UUID 目录：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_indices/{uuid}/
+</span></span></code></pre></div><p>这个 UUID 就是写出索引时生成的 <code>IndexMetadata.uuid</code>，不是索引名。同名索引可以对应多个物理段，替换、裁剪、重映射都发生在段这一级，目录名保持不变。</p>
+<p>目录内容由索引类型来决定：</p>
+<pre tabindex="0"><code>IVF-PQ         → centroid / PQ codebook / partition 数据
+BTREE          → 排序页 + 页索引
+FTS / inverted → posting list / 文档表
+bitmap         → Roaring bitmap
+zonemap        → 统计信息
+FRAG_REUSE     → fragment 复用映射
+MEM_WAL        → MemWAL 状态
+</code></pre><p>和 data file 一样，索引文件也可能被多个版本的 manifest 引用。</p>
+<h2 class="heading" id="tag-与-branch-元数据-_refs">
+  Tag 与 Branch 元数据 <code>_refs/</code>
+  <a class="anchor" href="#tag-%e4%b8%8e-branch-%e5%85%83%e6%95%b0%e6%8d%ae-_refs">#</a>
+</h2>
+<p><code>_refs</code> 位于 main root，由所有分支共享，存放两类命名引用。</p>
+<p>Tag 和 Branch 分别解决以下问题：</p>
+<pre tabindex="0"><code>Tag    = 给某个 (branch, version) 起个名字
+         解决“怎么稳定地指向一个快照”
+
+Branch = 从某个版本分叉出另一条版本链
+         解决“怎么在互不影响的前提下各自演进”
+</code></pre><p>简而言之：Tag解决<strong>命名</strong>问题，而Branch解决<strong>分叉</strong>问题。</p>
+<h3 class="heading" id="tag">
+  Tag
+  <a class="anchor" href="#tag">#</a>
+</h3>
+<p>Tag文件存放在 <code>_refs/tags/{tag}.json</code>文件中，内容大致是：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  &#34;branch&#34;: <span style="font-weight:bold;text-decoration:underline">null</span>,
+</span></span><span style="display:flex;"><span>  &#34;version&#34;: 5,
+</span></span><span style="display:flex;"><span>  &#34;createdAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
+</span></span><span style="display:flex;"><span>  &#34;updatedAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
+</span></span><span style="display:flex;"><span>  &#34;manifestSize&#34;: 1024,
+</span></span><span style="display:flex;"><span>  &#34;metadata&#34;: {}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>branch</code> 为 <code>null</code> 表示 main，所以 tag 指向的永远是 <code>(branch, version)</code> 这个二元组，而不是裸的版本号。</p>
+<p><strong>用名字代替版本号</strong></p>
+<p>平台侧不该硬编码 <code>version=42</code>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds = lance.dataset(uri, version=42)               <span style="color:#888;font-style:italic"># 脆弱</span>
+</span></span><span style="display:flex;"><span>ds = lance.dataset(uri, version=<span style="color:#666;font-style:italic">&#34;prod-2026-11&#34;</span>)   <span style="color:#888;font-style:italic"># 可读、可改</span>
+</span></span></code></pre></div><p><strong>给“重要版本”一个稳定锚点</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>训练数据集快照  → tag &#34;training-v1&#34;
+</span></span><span style="display:flex;"><span>生产发布点      → tag &#34;prod&#34;
+</span></span><span style="display:flex;"><span>评测基线        → tag &#34;baseline-2026-11&#34;
+</span></span></code></pre></div><p><strong>防止被 GC 删掉</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>tag 指向的版本默认进入 cleanup 的 working set
+</span></span><span style="display:flex;"><span>只要 tag 还在，这个版本就不会被回收
+</span></span></code></pre></div><p>这是 tag 唯一“有副作用”的能力：它是一个保留策略的把手。</p>
+<p><strong>让名字可以移动</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>prod: v5 → v7
+</span></span></code></pre></div><p>只需要 <code>tags.update(&quot;prod&quot;, 7)</code>，不改任何数据。</p>
+<p>这一点和 Git 不同：Git tag 默认不可移动，Lance tag 是<strong>可 re-point 的别名</strong>。</p>
+<p>Tag 不解决：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ 不隔离写入：不能“在 prod 上改数据而不影响别人”
+</span></span><span style="display:flex;"><span>✗ 不产生新版本
+</span></span><span style="display:flex;"><span>✗ 不复制数据
+</span></span><span style="display:flex;"><span>✗ 不提供并行开发
+</span></span></code></pre></div><h3 class="heading" id="branch">
+  Branch
+  <a class="anchor" href="#branch">#</a>
+</h3>
+<p>Branch文件存放在 <code>_refs/branches/{branch}.json</code>文件中，另外在<code>tree/{branch}/</code>目录中的是某个分支的数据文件，这个目录的布局和一般的数据文件布局一样（<code>data/</code>、<code>_versions/</code>、<code>_indices/</code> 一应俱全）。</p>
+<p>一个容易踩的坑：分支名里的 <code>/</code> 在两处编码方式不同。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>branch = &#34;bugfix/issue-123&#34;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>_refs/branches/bugfix%2Fissue-123.json   ← 元数据文件，斜杠被编码
+</span></span><span style="display:flex;"><span>tree/bugfix/issue-123/                    ← 数据目录，真实嵌套
+</span></span></code></pre></div><p>前者必须扁平（否则会被当成子目录），后者有意的层级化（便于按前缀清理）。</p>
+<p>Branch 可以创建分支，从而实现 <strong>并行演进，互不干扰</strong>。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main        → 线上数据
+</span></span><span style="display:flex;"><span>tree/exp-a  → 实验者 A 的清洗逻辑
+</span></span><span style="display:flex;"><span>tree/exp-b  → 实验者 B 的 schema 变更
+</span></span></code></pre></div><p>三条链各自 <code>_versions/</code>、各自 <code>data/</code>、各自 <code>_indices/</code>。</p>
+<p>需要注意的是，<strong>分支的版本号是各自独立计数的</strong>：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main v5  →  create_branch(&#34;dev&#34;, 5)  →  dev v5
+</span></span></code></pre></div><p>这里的 <code>dev v5</code> 和 <code>main v5</code> 是两个完全不同的 manifest，只是版本号恰好相同（fork 时继承）。这也是 tag 必须带上 branch 的原因。</p>
+<p><strong>不复制数据的隔离</strong></p>
+<p>创建分支是 shallow clone：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>manifest.base_paths → 父分支
+</span></span><span style="display:flex;"><span>data_file.base_id   → 父分支
+</span></span></code></pre></div><p>所以：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1 TB 的 main
+</span></span><span style="display:flex;"><span>create_branch(&#34;exp&#34;) 只写一个 manifest + 一个 JSON
+</span></span></code></pre></div><p>对比 <code>deep_clone</code>：要真拷贝所有文件。</p>
+<p><strong>支持“试错后丢弃”</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>create branch → 写入 → 发现问题 → delete_branch
+</span></span><span style="display:flex;"><span>main 完全没被碰过
+</span></span></code></pre></div><p><strong>支持“从任意点分叉”</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;fix&#34;</span>, 12)           <span style="color:#888;font-style:italic"># 从当前分支 v12</span>
+</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;exp&#34;</span>, <span style="color:#666;font-style:italic">&#34;v2-prod&#34;</span>)    <span style="color:#888;font-style:italic"># 从 tag</span>
+</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;child&#34;</span>, (<span style="color:#666;font-style:italic">&#34;dev&#34;</span>, 7)) <span style="color:#888;font-style:italic"># 从别的分支 v7</span>
+</span></span></code></pre></div><p><strong>天然适合“多租户 / 多环境”</strong></p>
+<p><code>tree/{branch_name}/</code> 目录存储的是分支的数据文件，结构和顶层数据文件一样：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>tree/tenant-a
+</span></span><span style="display:flex;"><span>tree/tenant-b
+</span></span><span style="display:flex;"><span>tree/staging
+</span></span><span style="display:flex;"><span>tree/prod
+</span></span></code></pre></div><p>每个都是完整 dataset，可以独立读写。</p>
+<p>Branch 不解决：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ 不提供命名快照：分支指向“最新”，不指向某个固定版本
+</span></span><span style="display:flex;"><span>✗ 不自动合并：Lance 没有 merge/rebase 分支的语义
+</span></span><span style="display:flex;"><span>✗ 不共享版本号：各自从 fork 版本开始独立计数
+</span></span><span style="display:flex;"><span>✗ 不是零成本：新写入仍然占空间
+</span></span></code></pre></div><p>总结下来：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Tag    → 命名与保留
+</span></span><span style="display:flex;"><span>         把“某个版本”变成可读、可移动、可保护的名字
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Branch → 分叉与隔离
+</span></span><span style="display:flex;"><span>         用零拷贝的浅引用，开出一条可以独立演进的版本链
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Tag 管“指向哪里”，Branch 管“在哪里写”。
+</span></span></code></pre></div><h2 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h2>
+<p>把这些文件按“谁决定谁”串起来，关系是：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>                    _versions/*.manifest
+</span></span><span style="display:flex;"><span>                    （唯一真相、完整快照、提交点）
+</span></span><span style="display:flex;"><span>                             │
+</span></span><span style="display:flex;"><span>        ┌────────────────────┼────────────────────┐
+</span></span><span style="display:flex;"><span>        │ fragments[]        │ index_section      │ transaction_file
+</span></span><span style="display:flex;"><span>        ▼                    ▼                    ▼
+</span></span><span style="display:flex;"><span>  data/*.lance         _indices/{uuid}/     _transactions/*.txn
+</span></span><span style="display:flex;"><span>  data/{key}/*.blob                         （或 manifest 内联副本）
+</span></span><span style="display:flex;"><span>        │
+</span></span><span style="display:flex;"><span>        │ fragment.deletion_file
+</span></span><span style="display:flex;"><span>        ▼
+</span></span><span style="display:flex;"><span>  _deletions/*
+</span></span></code></pre></div><p>对应的写入顺序：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1. 写 data files / blob sidecar
+</span></span><span style="display:flex;"><span>2. 写 deletion files
+</span></span><span style="display:flex;"><span>3. 写 index files
+</span></span><span style="display:flex;"><span>4. 写 _transactions/*.txn
+</span></span><span style="display:flex;"><span>5. 条件写 _versions/*.manifest   ← 前四步到此才对读者可见
+</span></span></code></pre></div><p>以及两条贯穿全文的结论：</p>
+<ul>
+<li><strong>manifest 是唯一真相</strong>：读端只需要 manifest，不需要事务文件；</li>
+<li><strong>文件不可变、可共享</strong>：一个 data file / index file 可能被多个版本的 manifest 同时引用，所以“删掉旧 manifest”并不等于“删掉它引用的文件”。</li>
+</ul>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>我的书</h2>
+  <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="《图解分布式系统原理》书籍封面，作者 Lichuang，一本图解分布式系统的技术书"
+         width="320"
+         height="414"
+         loading="lazy"
+         decoding="async">
+  </a>
+  <p>我的书
+    <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+      《图解分布式系统原理》
+    </a>
+    通过清晰的图解讲解分布式系统——从时钟、CAP 到 Paxos、Raft 和分布式事务。
+  </p>
+  <p>在线版可<a href="https://www.codedump.info/dist-system-cn">免费阅读</a>。</p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
