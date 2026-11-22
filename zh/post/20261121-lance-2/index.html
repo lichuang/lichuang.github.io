@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh"
+  dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300..700&display=swap" rel="stylesheet">
+
+
+
+<link rel="icon" type="image/ico" href="https://www.codedump.info//favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://www.codedump.info//favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://www.codedump.info//favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://www.codedump.info//android-chrome-192x192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://www.codedump.info//apple-touch-icon.png">
+
+<meta name="description" content="详细解读Lance数据文件布局格式。"/>
+
+
+
+<title>
+    
+    理解Lance（二）数据文件布局格式 | codedump notes
+    
+</title>
+
+<link rel="canonical" href="https://www.codedump.info/zh/post/20261121-lance-2/"/>
+
+
+
+<meta property="og:url" content="https://www.codedump.info/zh/post/20261121-lance-2/">
+  <meta property="og:site_name" content="codedump notes">
+  <meta property="og:title" content="理解Lance（二）数据文件布局格式">
+  <meta property="og:description" content="详细解读Lance数据文件布局格式。">
+  <meta property="og:locale" content="zh">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="post">
+    <meta property="article:published_time" content="2026-11-21T20:29:42+08:00">
+    <meta property="article:modified_time" content="2026-11-21T20:29:42+08:00">
+    <meta property="article:tag" content="存储">
+    <meta property="article:tag" content="存储引擎">
+    <meta property="article:tag" content="Lance">
+    <meta property="article:tag" content="列式存储">
+    <meta property="article:tag" content="对象存储">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/assets/combined.min.67073565b2af8047b58a6910409025bacdd875fb8ce86de3478c86f45b3162a7.css" media="all">
+
+
+
+
+
+
+
+
+
+</head>
+
+
+
+
+
+
+
+<body class="typo">
+
+  <div class="content">
+    <header>
+      
+
+<div class="header">
+
+    
+
+    <h1 class="header-title">
+        <a href="https://www.codedump.info/">codedump notes</a>
+    </h1>
+
+    <div class="flex">
+        
+
+        
+        
+      
+        <p class="small ">
+            <a href="/" >
+                /home
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-en" >
+                /Distributed System Illustrated
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/zh" >
+                /中文
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/dist-system-cn" >
+                /图解分布式系统原理
+            </a>
+        </p>
+        
+      
+        <p class="small ">
+            <a href="/en/page/about-en/" >
+                /about
+            </a>
+        </p>
+        
+        
+    </div>
+
+    
+
+</div>
+
+    </header>
+
+    <main class="main">
+      
+
+
+
+
+<div class="breadcrumbs"><a href="/zh/">Home</a><span class="breadcrumbs-separator">/</span><a href="/zh/post/">Posts</a><span class="breadcrumbs-separator">/</span>
+        <a href="/zh/post/20261121-lance-2/">理解Lance（二）数据文件布局格式</a></div>
+
+
+<div >
+
+  <div class="single-intro-container">
+
+    
+
+    <h1 class="single-title">理解Lance（二）数据文件布局格式</h1>
+    
+
+    
+
+    <p class="single-readtime">
+      
+      
+      
+      <time datetime="2026-11-21T20:29:42&#43;08:00">2026年11月21日</time>
+      
+
+      
+    </p>
+
+  </div>
+
+  
+
+  
+  
+
+  <div class="single-tags">
+    
+    <span>
+      <a href="https://www.codedump.info/zh/tags/%E5%AD%98%E5%82%A8/">#存储</a>
+    </span>
+    
+    
+    <span>
+      <a href="https://www.codedump.info/zh/tags/%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E/">#存储引擎</a>
+    </span>
+    
+    
+    <span>
+      <a href="https://www.codedump.info/zh/tags/lance/">#Lance</a>
+    </span>
+    
+    
+    <span>
+      <a href="https://www.codedump.info/zh/tags/%E5%88%97%E5%BC%8F%E5%AD%98%E5%82%A8/">#列式存储</a>
+    </span>
+    
+    
+    <span>
+      <a href="https://www.codedump.info/zh/tags/%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8/">#对象存储</a>
+    </span>
+    
+    
+  </div>
+
+  
+  
+
+  
+
+  
+  <aside class="toc">
+    <p><strong>Table of contents</strong></p>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#文件结构">文件结构</a>
+      <ul>
+        <li><a href="#数据页面">数据页面</a></li>
+        <li><a href="#global-buffers">Global Buffers</a></li>
+        <li><a href="#column-metadata">Column Metadata</a></li>
+        <li><a href="#cmo-table">CMO Table</a></li>
+        <li><a href="#gbo-table">GBO Table</a></li>
+        <li><a href="#footer">Footer</a></li>
+        <li><a href="#文件结构小结">文件结构小结</a></li>
+      </ul>
+    </li>
+    <li><a href="#数据页面编码">数据页面编码</a></li>
+  </ul>
+</nav>
+  </aside>
+  
+
+  
+
+  <div class="single-content">
+    <p>在上篇文章中，分析Lance中的各类文件组织、作用，本篇详细分析其中的数据文件结构（也就是.lance后缀的文件），通过分析其结构，最后我们和Parquet做一个对比。</p>
+<h2 class="heading" id="文件结构">
+  文件结构
+  <a class="anchor" href="#%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84">#</a>
+</h2>
+<p>如下图所示，一个数据文件通常分为以下几大部分：</p>
+<ul>
+<li>存放列数据的数据页面</li>
+<li>Global Buffer，简称为GBO</li>
+<li>存储列元数据的Column Metadata数组</li>
+<li>Column Metadata Offset Table，简称为CMO，用于存储Column Metadata数组的偏移量</li>
+<li>Global Buffers Offset Table，简称为GBO，用于存储Global Buffers的偏移量</li>
+<li>最后部分是固定长度的Footer</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>┌──────────────────────────────────────────┐
+</span></span><span style="display:flex;"><span>│ Data Pages                               │  ← 数据
+</span></span><span style="display:flex;"><span>│   Data Buffer 0*                         │
+</span></span><span style="display:flex;"><span>│   ...                                    │
+</span></span><span style="display:flex;"><span>│   Data Buffer BN*                        │
+</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤
+</span></span><span style="display:flex;"><span>│ Global Buffer 0: schema (protobuf)       │  ← GBO[0]，变长
+</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── column_meta_start
+</span></span><span style="display:flex;"><span>│ Column Metadatas                         │  ← 每列一个独立 protobuf
+</span></span><span style="display:flex;"><span>│   Column 0 Metadata                      │
+</span></span><span style="display:flex;"><span>│   ...                                    │
+</span></span><span style="display:flex;"><span>│   Column CN Metadata                     │
+</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── column_meta_offsets_start
+</span></span><span style="display:flex;"><span>│ Column Metadata Offset Table (CMO)       │  ← 16B × CN
+</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── global_buff_offsets_start
+</span></span><span style="display:flex;"><span>│ Global Buffers Offset Table (GBO)        │  ← 16B × GN
+</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── file_len - 40
+</span></span><span style="display:flex;"><span>│ Footer (fixed 40 bytes)                  │
+</span></span><span style="display:flex;"><span>│   u64: column_meta_start                 │
+</span></span><span style="display:flex;"><span>│   u64: column_meta_offsets_start         │
+</span></span><span style="display:flex;"><span>│   u64: global_buff_offsets_start         │
+</span></span><span style="display:flex;"><span>│   u32: number of global buffers          │
+</span></span><span style="display:flex;"><span>│   u32: number of columns                 │
+</span></span><span style="display:flex;"><span>│   u16: major version                     │
+</span></span><span style="display:flex;"><span>│   u16: minor version                     │
+</span></span><span style="display:flex;"><span>│   &#34;LANC&#34;                                 │
+</span></span><span style="display:flex;"><span>└──────────────────────────────────────────┘
+</span></span></code></pre></div><p>以下对这几部分进行解释。</p>
+<h3 class="heading" id="数据页面">
+  数据页面
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e9%a1%b5%e9%9d%a2">#</a>
+</h3>
+<p>从文件偏移0开始，是多个数据页面，每个页面按照64B进行对齐：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>文件偏移 0
+</span></span><span style="display:flex;"><span>┌──────────────────────────────────────────┐
+</span></span><span style="display:flex;"><span>│ page 0 ─ buffer 0   [64B 对齐]            │
+</span></span><span style="display:flex;"><span>│          buffer 1   [64B 对齐]            │ 
+</span></span><span style="display:flex;"><span>│          ...                             │
+</span></span><span style="display:flex;"><span>│ page 1 ─ ...                             │
+</span></span><span style="display:flex;"><span>│                                          │
+</span></span><span style="display:flex;"><span>└──────────────────────────────────────────┘
+</span></span></code></pre></div><p>数据页面存放具体的列数据，但是根据列的不同宽度有不同的布局格式，在后面数据页面布局格式中再进行解释。</p>
+<h3 class="heading" id="global-buffers">
+  Global Buffers
+  <a class="anchor" href="#global-buffers">#</a>
+</h3>
+<p>Global Buffers 保存的是不属于任何页、不属于任何列的“文件级”辅助数据。它只有一条硬规则：</p>
+<ul>
+<li>GBO[0] 恒为 FileDescriptor（schema + 行数）</li>
+<li>GBO[1..] 是任意字节，语义靠 Schema.metadata 的 key → &ldquo;index[:参数]&rdquo; 引用</li>
+</ul>
+<p>GBO 表里每项 16 字节：
+GBO[i] = (GlobalBuffer[i].position, GlobalBuffer[i].size)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>GBO（16B × num_global_buffers）
+</span></span><span style="display:flex;"><span>┌────────────────────┬────────────────────┐
+</span></span><span style="display:flex;"><span>│ position u64       │ size u64           │ → index 0
+</span></span><span style="display:flex;"><span>├────────────────────┼────────────────────┤
+</span></span><span style="display:flex;"><span>│ position u64       │ size u64           │ → index 1
+</span></span><span style="display:flex;"><span>├────────────────────┼────────────────────┤
+</span></span><span style="display:flex;"><span>│ ...                                     │
+</span></span><span style="display:flex;"><span>└─────────────────────────────────────────┘
+</span></span></code></pre></div><p>GBO[0] 永远是 FileDescriptor：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">FileDescriptor</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  Schema schema = 1;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">uint64</span> length = 2;    <span style="color:#888;font-style:italic">// 文件总行数
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}<span style="">
+</span></span></span><span style="display:flex;"><span><span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Schema</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> lance.file.Field fields = 1;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  map&lt;<span style="font-weight:bold;text-decoration:underline">string</span>, <span style="font-weight:bold;text-decoration:underline">bytes</span>&gt; metadata = 5;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><p>这是文件格式唯一的“类型信息”来源：</p>
+<ul>
+<li>文件容器本身没有类型概念；</li>
+<li>列只是 column index，buffer 只是 global buffer index；</li>
+<li>类型、nullable、嵌套结构、field id，全在 GBO[0] 里。</li>
+</ul>
+<h3 class="heading" id="column-metadata">
+  Column Metadata
+  <a class="anchor" href="#column-metadata">#</a>
+</h3>
+<p>Column Metadata数据用于存储每列的元数据，每列对应一个独立的protobuf：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">ColumnMetadata</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  Encoding encoding = 1;        <span style="color:#888;font-style:italic">// 列级包装（字典 / 统计）
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> Page pages = 2;<span style="">
+</span></span></span><span style="display:flex;"><span><span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Page</span> {<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_offsets = 1;   <span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_sizes   = 2;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">uint64</span> length                  = 3;   <span style="color:#888;font-style:italic">// 页行数
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    Encoding encoding              = 4;   <span style="color:#888;font-style:italic">// PageLayout
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="font-weight:bold;text-decoration:underline">uint64</span> priority                = 5;   <span style="color:#888;font-style:italic">// 页首顶层行号
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  }<span style="">
+</span></span></span><span style="display:flex;"><span><span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_offsets = 3;     <span style="color:#888;font-style:italic">// 列级 buffer
+</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_sizes   = 4;<span style="">
+</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+</span></span></span></code></pre></div><p>可以看到在每个<code>ColumnMetadata</code>中，有若干个<code>Page</code>组成的页面数组，每个<code>Page</code>的重点字段有：</p>
+<ul>
+<li><code>buffer_offsets</code>和<code>buffer_sizes</code>：表示这个数据页面在整个文件中的位置和偏移量</li>
+<li><code>length</code>：该页面中存储了多少行数据</li>
+<li><code>encoding</code>：页面编码布局，后面将展开讨论</li>
+</ul>
+<h3 class="heading" id="cmo-table">
+  CMO Table
+  <a class="anchor" href="#cmo-table">#</a>
+</h3>
+<p>紧跟在<code>Column Metadata</code>之后，是CMO表，用于存储Column Metadata信息，按照这里给出的<code>(position, size)</code>二元组来解析<code>ColumnMetadata</code> proto 结构体。</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>(position u64, size u64) × num_columns
+</span></span><span style="display:flex;"><span>共 16 × num_columns 字节
+</span></span></code></pre></div><h3 class="heading" id="gbo-table">
+  GBO Table
+  <a class="anchor" href="#gbo-table">#</a>
+</h3>
+<p>与 CMO 同构：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>(position u64, size u64) × num_global_buffers
+</span></span></code></pre></div><ul>
+<li><code>GBO[0]</code> 是 schema；</li>
+<li><code>GBO[1..]</code> 是 <code>add_global_buffer</code> 挂载的任意字节块（索引文件里的 IVF 元数据、zone map 等）。</li>
+</ul>
+<h3 class="heading" id="footer">
+  Footer
+  <a class="anchor" href="#footer">#</a>
+</h3>
+<p>最后是定长的Footer，用于存放整个文件的元数据：</p>
+<table>
+  <thead>
+      <tr>
+          <th>相对末尾偏移</th>
+          <th>大小</th>
+          <th>字段</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>−40</td>
+          <td>8</td>
+          <td><code>column_meta_start</code></td>
+      </tr>
+      <tr>
+          <td>−32</td>
+          <td>8</td>
+          <td><code>column_meta_offsets_start</code></td>
+      </tr>
+      <tr>
+          <td>−24</td>
+          <td>8</td>
+          <td><code>global_buff_offsets_start</code></td>
+      </tr>
+      <tr>
+          <td>−16</td>
+          <td>4</td>
+          <td><code>num_global_buffers</code></td>
+      </tr>
+      <tr>
+          <td>−12</td>
+          <td>4</td>
+          <td><code>num_columns</code></td>
+      </tr>
+      <tr>
+          <td>−8</td>
+          <td>2</td>
+          <td><code>major_version</code></td>
+      </tr>
+      <tr>
+          <td>−6</td>
+          <td>2</td>
+          <td><code>minor_version</code></td>
+      </tr>
+      <tr>
+          <td>−4</td>
+          <td>4</td>
+          <td><code>&quot;LANC&quot;</code></td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>全部小端无符号；</li>
+<li>定长 40 字节，<strong>不是 protobuf</strong>；</li>
+</ul>
+<h3 class="heading" id="文件结构小结">
+  文件结构小结
+  <a class="anchor" href="#%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84%e5%b0%8f%e7%bb%93">#</a>
+</h3>
+<p>我们已经分析了数据文件的结构，以下是对各组成部分的小结：</p>
+<table>
+  <thead>
+      <tr>
+          <th>区域</th>
+          <th>大小</th>
+          <th>定长</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Data Region</td>
+          <td>取决于数据</td>
+          <td>否</td>
+      </tr>
+      <tr>
+          <td>Global Buffer 0</td>
+          <td>protobuf 序列化长度</td>
+          <td>否</td>
+      </tr>
+      <tr>
+          <td>Column Metadata</td>
+          <td>每列一段 protobuf</td>
+          <td>否</td>
+      </tr>
+      <tr>
+          <td>CMO</td>
+          <td><code>16 × num_columns</code></td>
+          <td>是</td>
+      </tr>
+      <tr>
+          <td>GBO</td>
+          <td><code>16 × num_global_buffers</code></td>
+          <td>是</td>
+      </tr>
+      <tr>
+          <td>Footer</td>
+          <td>40</td>
+          <td>是</td>
+      </tr>
+  </tbody>
+</table>
+<p>根据这个结构，解析数据文件的伪代码如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>footer = parse_footer(tail[-40:])
+</span></span><span style="display:flex;"><span>gbo    = parse_table(tail, footer.global_buff_offsets_start, footer.num_global_buffers)
+</span></span><span style="display:flex;"><span>schema = FileDescriptor::decode(read(gbo[0].pos, gbo[0].size))
+</span></span><span style="display:flex;"><span>cmo    = parse_table(tail, footer.column_meta_offsets_start, footer.num_columns)
+</span></span><span style="display:flex;"><span>for i in projected_columns:
+</span></span><span style="display:flex;"><span>    col_meta[i] = ColumnMetadata::decode(read(cmo[i].pos, cmo[i].size))
+</span></span></code></pre></div><p>区间公式如下：</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>[0,                          column_meta_start)         → Data Region
+</span></span><span style="display:flex;"><span>[column_meta_start,         column_meta_offsets_start)  → Column Metadatas
+</span></span><span style="display:flex;"><span>[column_meta_offsets_start, global_buff_offsets_start)  → CMO   (16B × N)
+</span></span><span style="display:flex;"><span>[global_buff_offsets_start, file_len - 40)              → GBO   (16B × GN)
+</span></span><span style="display:flex;"><span>[file_len - 40,             file_len)                   → Footer
+</span></span></code></pre></div><h2 class="heading" id="数据页面编码">
+  数据页面编码
+  <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e9%a1%b5%e9%9d%a2%e7%bc%96%e7%a0%81">#</a>
+</h2>
+
+    
+    
+    <script src="https://giscus.app/client.js"
+        data-repo="lichuang/lichuang.github.io"
+        data-repo-id="MDEwOlJlcG9zaXRvcnkxNDk2MzEzMjU="
+        data-category=""
+        data-category-id="DIC_kwDOCOsxXc4Crotc"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+
+    
+    
+  </div>
+
+  
+
+  
+
+  
+
+
+  
+
+  
+
+  
+
+</div>
+
+
+    </main>
+  </div>
+
+  <aside class="book-promo" aria-label="Book promotion">
+  
+  <h2>我的书</h2>
+  <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+    <img src="/media/dist-system-en/book-cover.png"
+         srcset="/media/dist-system-en/book-cover.png 1x, /media/dist-system-en/book-cover-2x.png 2x"
+         alt="《图解分布式系统原理》书籍封面，作者 Lichuang，一本图解分布式系统的技术书"
+         width="320"
+         height="414"
+         loading="lazy"
+         decoding="async">
+  </a>
+  <p>我的书
+    <a href="https://xiaobot.net/p/DSI" target="_blank" rel="noopener noreferrer">
+      《图解分布式系统原理》
+    </a>
+    通过清晰的图解讲解分布式系统——从时钟、CAP 到 Paxos、Raft 和分布式事务。
+  </p>
+  <p>在线版可<a href="https://www.codedump.info/dist-system-cn">免费阅读</a>。</p>
+  
+</aside>
+
+
+  <footer>
+    <div class="footer-social-icons">
+
+    <a href="https://github.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Github">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>GitHub</title><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+    <a href="https://x.com/lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Twitter">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Twitter</title><path d="m 20.808145,8.2320672 c 0.0097,0.2043875 0.0097,0.418508 0.0097,0.632628 0,6.2873468 -4.788505,13.5285018 -13.5285014,13.5285018 v 0 c -2.5791818,0 -5.1096931,-0.759154 -7.28982572375,-2.141201 0.37957667375,0.04867 0.75915336375,0.06813 1.12899732375,0.06813 2.1412017,0 4.224007,-0.720223 5.9077703,-2.043875 -2.0341418,0 -3.8152323,-1.362583 -4.4381274,-3.30913 0.7104897,0.136259 1.4501775,0.10706 2.1412018,-0.08759 -2.209331,-0.447712 -3.80549947,-2.384527 -3.80549947,-4.632788 v -0.0584 C 1.5957264,10.558191 2.3354143,10.782044 3.0945676,10.811242 1.206417,8.1542054 0.63218569,4.971601 2.4035435,2.4800207 c 2.4039856,2.9684842 5.9661667,4.7787731 9.7911305,4.9734277 -0.379576,-1.654565 0.136259,-3.3869919 1.372317,-4.5451873 1.927081,-1.8102888 4.953962,-1.7226943 6.754518,0.2043873 1.0706,-0.2141202 2.092538,-0.6131622 3.036613,-1.1581954 -0.360111,1.1095318 -1.109532,2.0536071 -2.102271,2.6570367 0.953808,-0.1167928 1.868685,-0.369844 2.744631,-0.7786188 -0.64236,0.9635408 -1.450177,1.8005561 -2.38452,2.4818475 z"/></svg>
+    </a>
+    <a href="https://www.douban.com/people/Lichuang" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Douban">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Douban</title><path d="M.51 3.06h22.98V.755H.51V3.06Zm20.976 2.537v9.608h-2.137l-1.669 5.76H24v2.28H0v-2.28h6.32l-1.67-5.76H2.515V5.597h18.972Zm-5.066 9.608H7.58l1.67 5.76h5.501l1.67-5.76ZM18.367 7.9H5.634v5.025h12.733V7.9Z"/></svg>
+    </a>
+    <a href="https://t.me/codedump_notes" target="_blank"
+        rel="noopener noreferrer me"
+        class="me-2"
+        title="Telegram">
+        <svg role="img" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Telegram</title><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+    </a>
+
+
+
+
+
+
+
+<div class="text-center">
+    <p class="text-sm text-tertiary-text"> @2018 codedump <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener noreferrer" target="_blank">CC BY-SA</a>Powered by<a href="https://gohugo.io/">Hugo</a>and<a href="https://github.com/tomfran/typo">typo</a>
+
+</div>
+
+</div>
+
+  </footer>
+
+  
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body);"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ]
+    });
+  });
+</script>
+  
+
+</body>
+
+<script src="/js/theme-switch.js"></script>
+<script defer src="/js/copy-code.js"></script>
+</html>
