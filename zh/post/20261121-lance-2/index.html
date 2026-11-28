@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="http://localhost:1313//android-chrome-192x192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="http://localhost:1313//apple-touch-icon.png">
 
-<meta name="description" content="详细解读Lance数据文件布局格式。"/>
+<meta name="description" content="拆解 Lance 数据文件的物理布局：Footer、CMO/GBO、Column Metadata，并逐层对比 Parquet，解释它为什么更适合随机访问。"/>
 
 
 
@@ -33,7 +33,7 @@
 <meta property="og:url" content="http://localhost:1313/zh/post/20261121-lance-2/">
   <meta property="og:site_name" content="codedump notes">
   <meta property="og:title" content="理解Lance（二）数据文件布局格式">
-  <meta property="og:description" content="详细解读Lance数据文件布局格式。">
+  <meta property="og:description" content="拆解 Lance 数据文件的物理布局：Footer、CMO/GBO、Column Metadata，并逐层对比 Parquet，解释它为什么更适合随机访问。">
   <meta property="og:locale" content="zh">
   <meta property="og:type" content="article">
     <meta property="article:section" content="post">
@@ -66,7 +66,7 @@
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.218894d7bb3410b00f1dbc7f4fff054f0b93038cdbdc7b5472fe74b12c5c47b2.css" media="all">
 
 
 
@@ -102,7 +102,7 @@
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
@@ -130,7 +130,7 @@
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -220,7 +220,7 @@
     <p><strong>Table of contents</strong></p>
     <nav id="TableOfContents">
   <ul>
-    <li><a href="#文件结构">文件结构</a>
+    <li><a href="#lance-数据文件结构">Lance 数据文件结构</a>
       <ul>
         <li><a href="#数据页面">数据页面</a></li>
         <li><a href="#global-buffers">Global Buffers</a></li>
@@ -231,10 +231,52 @@
         <li><a href="#文件结构小结">文件结构小结</a></li>
       </ul>
     </li>
-    <li><a href="#对比parquet的优化">对比Parquet的优化</a>
+    <li><a href="#parquet-文件结构">Parquet 文件结构</a>
       <ul>
-        <li><a href="#取消row-group">取消row group</a></li>
-        <li><a href="#优化随机访问">优化随机访问</a></li>
+        <li><a href="#透明编码和非透明编码">透明编码和非透明编码</a></li>
+        <li><a href="#为顺序扫描优化">为顺序扫描优化</a>
+          <ul>
+            <li><a href="#存储布局让磁盘-io-尽量连续">存储布局：让磁盘 I/O 尽量连续</a></li>
+            <li><a href="#编码与压缩减少字节量--适配向量化">编码与压缩：减少字节量 + 适配向量化</a></li>
+            <li><a href="#元数据扫描时该跳就跳">元数据：扫描时“该跳就跳”</a></li>
+            <li><a href="#小结">小结</a></li>
+            <li><a href="#例子">例子</a></li>
+          </ul>
+        </li>
+        <li><a href="#较差的点查性能">较差的点查性能</a></li>
+      </ul>
+    </li>
+    <li><a href="#为什么-lance-需要随机访问">为什么 Lance 需要随机访问</a>
+      <ul>
+        <li><a href="#索引回表">索引回表</a></li>
+        <li><a href="#训练时的随机采样">训练时的随机采样</a></li>
+        <li><a href="#对象存储把读放大变成延迟和账单">对象存储把读放大变成延迟和账单</a></li>
+        <li><a href="#两类负载的形状不同">两类负载的形状不同</a></li>
+      </ul>
+    </li>
+    <li><a href="#lance-对比-parquet-的优化">Lance 对比 Parquet 的优化</a>
+      <ul>
+        <li><a href="#取消-row-group">取消 row group</a>
+          <ul>
+            <li><a href="#行数被最宽列绑架">行数被最宽列绑架</a></li>
+            <li><a href="#读放大的下限是页不是-chunk">读放大的下限是“页”，不是 chunk</a></li>
+            <li><a href="#row-group-小--runt-page">row group 小 → runt page</a></li>
+            <li><a href="#lance-的做法">Lance 的做法</a></li>
+          </ul>
+        </li>
+        <li><a href="#优化随机访问">优化随机访问</a>
+          <ul>
+            <li><a href="#取消-row-group让页保持大和点查读得少不再互斥">取消 row group：让“页保持大”和“点查读得少”不再互斥</a></li>
+            <li><a href="#pagepriority-把行页变成二分">Page.priority 把“行→页”变成二分</a></li>
+            <li><a href="#页内再拆-chunkbuffer-0">页内再拆 chunk：buffer 0</a></li>
+            <li><a href="#压缩编码的选择被可定位性约束">压缩编码的选择被“可定位性”约束</a></li>
+            <li><a href="#删除走位图不重写">删除走位图，不重写</a></li>
+            <li><a href="#元数据可以按列取">元数据可以按列取</a></li>
+            <li><a href="#一次点查的对照">一次点查的对照</a></li>
+            <li><a href="#代价">代价</a></li>
+            <li><a href="#小结-1">小结</a></li>
+          </ul>
+        </li>
       </ul>
     </li>
   </ul>
@@ -245,146 +287,150 @@
   
 
   <div class="single-content">
-    <p>在上篇文章中，分析Lance中的各类文件组织、作用，本篇详细分析其中的数据文件结构（也就是.lance后缀的文件），通过分析其结构，最后我们和Parquet做一个对比。</p>
-<h2 class="heading" id="文件结构">
-  文件结构
-  <a class="anchor" href="#%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84">#</a>
+    <p>在上篇文章中，分析了 Lance 中各类文件的组织与作用，本篇详细分析其中的数据文件结构（也就是 <code>.lance</code> 后缀的文件），并和 Parquet 做一个对比。需要说明的是，本篇文章会提及Lance的页内编码（如Miniblock、Fullzip等），这部分的详细内容会在后面的文章展开解释。</p>
+<h2 class="heading" id="lance-数据文件结构">
+  Lance 数据文件结构
+  <a class="anchor" href="#lance-%e6%95%b0%e6%8d%ae%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84">#</a>
 </h2>
-<p>如下图所示，一个数据文件通常分为以下几大部分：</p>
+<p>如下所示，一个数据文件通常分为以下几大部分：</p>
 <ul>
 <li>存放列数据的数据页面</li>
-<li>Global Buffer，简称为GBO</li>
-<li>存储列元数据的Column Metadata数组</li>
-<li>Column Metadata Offset Table，简称为CMO，用于存储Column Metadata数组的偏移量</li>
-<li>Global Buffers Offset Table，简称为GBO，用于存储Global Buffers的偏移量</li>
-<li>最后部分是固定长度的Footer</li>
+<li>Global Buffer（简称 GB），存放不属于任何页、任何列的文件级数据</li>
+<li>存储列元数据的 Column Metadata 数组</li>
+<li>Column Metadata Offset Table（简称 CMO），存储各 Column Metadata 的位置和大小</li>
+<li>Global Buffers Offset Table（简称 GBO），存储各 Global Buffer 的位置和大小</li>
+<li>最后是固定长度的 Footer</li>
 </ul>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>┌──────────────────────────────────────────┐
-</span></span><span style="display:flex;"><span>│ Data Pages                               │  ← 数据
-</span></span><span style="display:flex;"><span>│   Data Buffer 0*                         │
-</span></span><span style="display:flex;"><span>│   ...                                    │
-</span></span><span style="display:flex;"><span>│   Data Buffer BN*                        │
-</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤
-</span></span><span style="display:flex;"><span>│ Global Buffer 0: schema (protobuf)       │  ← GBO[0]，变长
-</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── column_meta_start
-</span></span><span style="display:flex;"><span>│ Column Metadatas                         │  ← 每列一个独立 protobuf
-</span></span><span style="display:flex;"><span>│   Column 0 Metadata                      │
-</span></span><span style="display:flex;"><span>│   ...                                    │
-</span></span><span style="display:flex;"><span>│   Column CN Metadata                     │
-</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── column_meta_offsets_start
-</span></span><span style="display:flex;"><span>│ Column Metadata Offset Table (CMO)       │  ← 16B × CN
-</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── global_buff_offsets_start
-</span></span><span style="display:flex;"><span>│ Global Buffers Offset Table (GBO)        │  ← 16B × GN
-</span></span><span style="display:flex;"><span>├──────────────────────────────────────────┤◀── file_len - 40
-</span></span><span style="display:flex;"><span>│ Footer (fixed 40 bytes)                  │
-</span></span><span style="display:flex;"><span>│   u64: column_meta_start                 │
-</span></span><span style="display:flex;"><span>│   u64: column_meta_offsets_start         │
-</span></span><span style="display:flex;"><span>│   u64: global_buff_offsets_start         │
-</span></span><span style="display:flex;"><span>│   u32: number of global buffers          │
-</span></span><span style="display:flex;"><span>│   u32: number of columns                 │
-</span></span><span style="display:flex;"><span>│   u16: major version                     │
-</span></span><span style="display:flex;"><span>│   u16: minor version                     │
-</span></span><span style="display:flex;"><span>│   &#34;LANC&#34;                                 │
-</span></span><span style="display:flex;"><span>└──────────────────────────────────────────┘
-</span></span></code></pre></div><p>以下对这几部分进行解释。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">┌──────────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">│ Data Pages                               │  ← 各列的数据页
+</span></span><span class="line"><span class="cl">│   （GB[1..] 可能穿插其中）                │
+</span></span><span class="line"><span class="cl">│   Data Buffer 0*                         │
+</span></span><span class="line"><span class="cl">│   ...                                    │
+</span></span><span class="line"><span class="cl">│   Data Buffer BN*                        │
+</span></span><span class="line"><span class="cl">├──────────────────────────────────────────┤
+</span></span><span class="line"><span class="cl">│ Global Buffer 0: FileDescriptor          │  ← GB[0]（含 schema），变长
+</span></span><span class="line"><span class="cl">├──────────────────────────────────────────┤◀── column_meta_start
+</span></span><span class="line"><span class="cl">│ Column Metadatas                         │  ← 每列一个独立 protobuf
+</span></span><span class="line"><span class="cl">│   Column 0 Metadata                      │
+</span></span><span class="line"><span class="cl">│   ...                                    │
+</span></span><span class="line"><span class="cl">│   Column CN Metadata                     │
+</span></span><span class="line"><span class="cl">├──────────────────────────────────────────┤◀── column_meta_offsets_start
+</span></span><span class="line"><span class="cl">│ Column Metadata Offset Table (CMO)       │  ← 16B × CN
+</span></span><span class="line"><span class="cl">├──────────────────────────────────────────┤◀── global_buff_offsets_start
+</span></span><span class="line"><span class="cl">│ Global Buffers Offset Table (GBO)        │  ← 16B × GN
+</span></span><span class="line"><span class="cl">├──────────────────────────────────────────┤◀── file_len - 40
+</span></span><span class="line"><span class="cl">│ Footer (fixed 40 bytes)                  │
+</span></span><span class="line"><span class="cl">│   u64: column_meta_start                 │
+</span></span><span class="line"><span class="cl">│   u64: column_meta_offsets_start         │
+</span></span><span class="line"><span class="cl">│   u64: global_buff_offsets_start         │
+</span></span><span class="line"><span class="cl">│   u32: number of global buffers          │
+</span></span><span class="line"><span class="cl">│   u32: number of columns                 │
+</span></span><span class="line"><span class="cl">│   u16: major version                     │
+</span></span><span class="line"><span class="cl">│   u16: minor version                     │
+</span></span><span class="line"><span class="cl">│   &#34;LANC&#34;                                 │
+</span></span><span class="line"><span class="cl">└──────────────────────────────────────────┘
+</span></span></code></pre></div><p>GB[1..] 是在编码过程中通过 <code>add_global_buffer</code> 就地写入的，因此可能落在数据页之间；GB[0] 则在所有页写完之后、列元数据之前写入，位置固定。</p>
+<p>以下对这几部分进行解释。</p>
 <h3 class="heading" id="数据页面">
   数据页面
   <a class="anchor" href="#%e6%95%b0%e6%8d%ae%e9%a1%b5%e9%9d%a2">#</a>
 </h3>
-<p>从文件偏移0开始，是多个数据页面，每个页面按照64B进行对齐：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>文件偏移 0
-</span></span><span style="display:flex;"><span>┌──────────────────────────────────────────┐
-</span></span><span style="display:flex;"><span>│ page 0 ─ buffer 0   [64B 对齐]            │
-</span></span><span style="display:flex;"><span>│          buffer 1   [64B 对齐]            │ 
-</span></span><span style="display:flex;"><span>│          ...                             │
-</span></span><span style="display:flex;"><span>│ page 1 ─ ...                             │
-</span></span><span style="display:flex;"><span>│                                          │
-</span></span><span style="display:flex;"><span>└──────────────────────────────────────────┘
-</span></span></code></pre></div><p>数据页面存放具体的列数据，但是根据列的不同宽度有不同的布局格式，在后面数据页面布局格式中再进行解释。</p>
+<p>从文件偏移 0 开始是数据页面，页内每个 buffer 按 64B 对齐：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">文件偏移 0
+</span></span><span class="line"><span class="cl">┌──────────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">│ page 0 ─ buffer 0   [64B 对齐]            │
+</span></span><span class="line"><span class="cl">│          buffer 1   [64B 对齐]            │
+</span></span><span class="line"><span class="cl">│          ...                             │
+</span></span><span class="line"><span class="cl">│ page 1 ─ ...                             │
+</span></span><span class="line"><span class="cl">│                                          │
+</span></span><span class="line"><span class="cl">└──────────────────────────────────────────┘
+</span></span></code></pre></div><p>页本身不要求对齐，对齐的是页内的各个 buffer（不足处补 padding）。数据页面存放具体的列数据，根据列的类型和编码方式会有不同的页内布局，这部分留到后续文章展开。</p>
 <h3 class="heading" id="global-buffers">
   Global Buffers
   <a class="anchor" href="#global-buffers">#</a>
 </h3>
-<p>Global Buffers 保存的是不属于任何页、不属于任何列的“文件级”辅助数据。它只有一条硬规则：</p>
+<p>Global Buffers 保存的是不属于任何页、不属于任何列的“文件级”辅助数据，比如 schema、文件级索引、列统计。之所以单独开一块而不是塞进列元数据，是因为容器要对扩展保持中立：索引和统计没有列号，也不该为了放它们而虚构一列。</p>
+<p>它只有一条硬规则：</p>
 <ul>
-<li>GBO[0] 恒为 FileDescriptor（schema + 行数）</li>
-<li>GBO[1..] 是任意字节，语义靠 Schema.metadata 的 key → &ldquo;index[:参数]&rdquo; 引用</li>
+<li>GB[0] 恒为 FileDescriptor（schema + 行数）</li>
+<li>GB[1..] 是任意字节，语义靠 <code>Schema.metadata</code> 的 <code>key → &quot;index[:参数]&quot;</code> 引用</li>
 </ul>
-<p>GBO 表里每项 16 字节：
-GBO[i] = (GlobalBuffer[i].position, GlobalBuffer[i].size)</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>GBO（16B × num_global_buffers）
-</span></span><span style="display:flex;"><span>┌────────────────────┬────────────────────┐
-</span></span><span style="display:flex;"><span>│ position u64       │ size u64           │ → index 0
-</span></span><span style="display:flex;"><span>├────────────────────┼────────────────────┤
-</span></span><span style="display:flex;"><span>│ position u64       │ size u64           │ → index 1
-</span></span><span style="display:flex;"><span>├────────────────────┼────────────────────┤
-</span></span><span style="display:flex;"><span>│ ...                                     │
-</span></span><span style="display:flex;"><span>└─────────────────────────────────────────┘
-</span></span></code></pre></div><p>GBO[0] 永远是 FileDescriptor：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">FileDescriptor</span> {<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  Schema schema = 1;<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">uint64</span> length = 2;    <span style="color:#888;font-style:italic">// 文件总行数
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>}<span style="">
-</span></span></span><span style="display:flex;"><span><span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Schema</span> {<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> lance.file.Field fields = 1;<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  map&lt;<span style="font-weight:bold;text-decoration:underline">string</span>, <span style="font-weight:bold;text-decoration:underline">bytes</span>&gt; metadata = 5;<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
+<p>GBO 表里每项 16 字节，记录各 Global Buffer 的位置和长度：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">GBO[i] = (GB[i].position, GB[i].size)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">GBO（16B × num_global_buffers）
+</span></span><span class="line"><span class="cl">┌────────────────────┬────────────────────┐
+</span></span><span class="line"><span class="cl">│ position u64       │ size u64           │ → GB[0]
+</span></span><span class="line"><span class="cl">├────────────────────┼────────────────────┤
+</span></span><span class="line"><span class="cl">│ position u64       │ size u64           │ → GB[1]
+</span></span><span class="line"><span class="cl">├────────────────────┼────────────────────┤
+</span></span><span class="line"><span class="cl">│ ...                                     │
+</span></span><span class="line"><span class="cl">└─────────────────────────────────────────┘
+</span></span></code></pre></div><p>GB[0] 永远是 FileDescriptor：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-protobuf" data-lang="protobuf"><span class="line"><span class="cl"><span class="kd">message</span> <span class="nc">FileDescriptor</span> <span class="p">{</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="n">Schema</span> <span class="n">schema</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="kt">uint64</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>    <span class="c1">// 文件总行数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="kd">message</span> <span class="nc">Schema</span> <span class="p">{</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="k">repeated</span> <span class="n">lance.file.Field</span> <span class="n">fields</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="n">map</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">bytes</span><span class="p">&gt;</span> <span class="n">metadata</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="p">}</span><span class="err">
 </span></span></span></code></pre></div><p>这是文件格式唯一的“类型信息”来源：</p>
 <ul>
 <li>文件容器本身没有类型概念；</li>
 <li>列只是 column index，buffer 只是 global buffer index；</li>
-<li>类型、nullable、嵌套结构、field id，全在 GBO[0] 里。</li>
+<li>类型、nullable、嵌套结构、field id，全在 GB[0] 里。</li>
 </ul>
 <h3 class="heading" id="column-metadata">
   Column Metadata
   <a class="anchor" href="#column-metadata">#</a>
 </h3>
-<p>Column Metadata数据用于存储每列的元数据，每列对应一个独立的protobuf：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-proto" data-lang="proto"><span style="display:flex;"><span><span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">ColumnMetadata</span> {<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  Encoding encoding = 1;        <span style="color:#888;font-style:italic">// 列级包装（字典 / 统计）
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> Page pages = 2;<span style="">
-</span></span></span><span style="display:flex;"><span><span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;font-style:italic;text-decoration:underline">message</span> <span style="color:#666;font-weight:bold;font-style:italic">Page</span> {<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_offsets = 1;   <span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_sizes   = 2;<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>    <span style="font-weight:bold;text-decoration:underline">uint64</span> length                  = 3;   <span style="color:#888;font-style:italic">// 页行数
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    Encoding encoding              = 4;   <span style="color:#888;font-style:italic">// PageLayout
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>    <span style="font-weight:bold;text-decoration:underline">uint64</span> priority                = 5;   <span style="color:#888;font-style:italic">// 页首顶层行号
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  }<span style="">
-</span></span></span><span style="display:flex;"><span><span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_offsets = 3;     <span style="color:#888;font-style:italic">// 列级 buffer
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">repeated</span> <span style="font-weight:bold;text-decoration:underline">uint64</span> buffer_sizes   = 4;<span style="">
-</span></span></span><span style="display:flex;"><span><span style=""></span>}<span style="">
-</span></span></span></code></pre></div><p>可以看到在每个<code>ColumnMetadata</code>中，有若干个<code>Page</code>组成的页面数组，每个<code>Page</code>的重点字段有：</p>
+<p>Column Metadata 存储每列的元数据，每列对应一个独立的 protobuf：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-protobuf" data-lang="protobuf"><span class="line"><span class="cl"><span class="kd">message</span> <span class="nc">ColumnMetadata</span> <span class="p">{</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="n">Encoding</span> <span class="n">encoding</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>        <span class="c1">// 列级 buffer 的解释方式；结构编码下通常为空
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">repeated</span> <span class="n">Page</span> <span class="n">pages</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="kd">message</span> <span class="nc">Page</span> <span class="p">{</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>    <span class="k">repeated</span> <span class="kt">uint64</span> <span class="n">buffer_offsets</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>    <span class="k">repeated</span> <span class="kt">uint64</span> <span class="n">buffer_sizes</span>   <span class="o">=</span> <span class="mi">2</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>    <span class="kt">uint64</span> <span class="n">length</span>                  <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>   <span class="c1">// 页行数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">Encoding</span> <span class="n">encoding</span>              <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>   <span class="c1">// PageLayout
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kt">uint64</span> <span class="n">priority</span>                <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>   <span class="c1">// 页首顶层行号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="p">}</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="k">repeated</span> <span class="kt">uint64</span> <span class="n">buffer_offsets</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>     <span class="c1">// 列级 buffer
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">repeated</span> <span class="kt">uint64</span> <span class="n">buffer_sizes</span>   <span class="o">=</span> <span class="mi">4</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span><span class="p">}</span><span class="err">
+</span></span></span></code></pre></div><p>可以看到每个 <code>ColumnMetadata</code> 里有一个由若干 <code>Page</code> 组成的数组，每个 <code>Page</code> 的重点字段有：</p>
 <ul>
-<li><code>buffer_offsets</code>和<code>buffer_sizes</code>：表示这个数据页面在整个文件中的位置和偏移量</li>
-<li><code>length</code>：该页面中存储了多少行数据</li>
-<li><code>encoding</code>：页面编码布局，后面将展开讨论</li>
-<li><code>priority</code>：该页第一行数据的行号</li>
+<li><code>buffer_offsets</code> 和 <code>buffer_sizes</code>：该页各 buffer 在文件中的绝对偏移与长度</li>
+<li><code>length</code>：该页存储了多少行</li>
+<li><code>encoding</code>：页布局与编码方式，决定了页内如何组织 buffer</li>
+<li><code>priority</code>：该页第一行的行号</li>
 </ul>
 <h3 class="heading" id="cmo-table">
   CMO Table
   <a class="anchor" href="#cmo-table">#</a>
 </h3>
-<p>紧跟在<code>Column Metadata</code>之后，是CMO表，用于存储Column Metadata信息，按照这里给出的<code>(position, size)</code>二元组来解析<code>ColumnMetadata</code> proto 结构体。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>(position u64, size u64) × num_columns
-</span></span><span style="display:flex;"><span>共 16 × num_columns 字节
+<p>紧跟 <code>Column Metadata</code> 之后是 CMO 表，它记录每个 <code>ColumnMetadata</code> 的 <code>(position, size)</code>，据此解析对应的 protobuf：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">(position u64, size u64) × num_columns
+</span></span><span class="line"><span class="cl">共 16 × num_columns 字节
 </span></span></code></pre></div><h3 class="heading" id="gbo-table">
   GBO Table
   <a class="anchor" href="#gbo-table">#</a>
 </h3>
 <p>与 CMO 同构：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>(position u64, size u64) × num_global_buffers
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">(position u64, size u64) × num_global_buffers
 </span></span></code></pre></div><ul>
-<li><code>GBO[0]</code> 是 schema；</li>
-<li><code>GBO[1..]</code> 是 <code>add_global_buffer</code> 挂载的任意字节块（索引文件里的 IVF 元数据、zone map 等）。</li>
+<li><code>GBO[0]</code> 指向 GB[0]（FileDescriptor）；</li>
+<li><code>GBO[1..]</code> 指向通过 <code>add_global_buffer</code> 挂载的任意字节块（索引文件里的 IVF 元数据、zone map 等）。</li>
 </ul>
 <h3 class="heading" id="footer">
   Footer
   <a class="anchor" href="#footer">#</a>
 </h3>
-<p>最后是定长的Footer，用于存放整个文件的元数据：</p>
+<p>最后是定长的 Footer，用于存放整个文件的元数据：</p>
 <table>
   <thead>
       <tr>
@@ -439,7 +485,9 @@ GBO[i] = (GlobalBuffer[i].position, GlobalBuffer[i].size)</p>
 <ul>
 <li>全部小端无符号；</li>
 <li>定长 40 字节，<strong>不是 protobuf</strong>；</li>
+<li>放尾部而不是头部，是因为写入时只有把所有页和元数据都写完之后，才知道各区域的偏移；代价是读文件必须先 seek 到末尾 40 字节。</li>
 </ul>
+<p>CMO 和 GBO 都是 <code>(position, size)</code> 而不是只有 <code>position</code>，因为每一项都是变长的 protobuf 或任意字节块，长度无法从位置推出。</p>
 <h3 class="heading" id="文件结构小结">
   文件结构小结
   <a class="anchor" href="#%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84%e5%b0%8f%e7%bb%93">#</a>
@@ -455,12 +503,12 @@ GBO[i] = (GlobalBuffer[i].position, GlobalBuffer[i].size)</p>
   </thead>
   <tbody>
       <tr>
-          <td>Data Region</td>
+          <td>Data Pages</td>
           <td>取决于数据</td>
           <td>否</td>
       </tr>
       <tr>
-          <td>Global Buffer 0</td>
+          <td>GB[0]（schema）</td>
           <td>protobuf 序列化长度</td>
           <td>否</td>
       </tr>
@@ -487,96 +535,675 @@ GBO[i] = (GlobalBuffer[i].position, GlobalBuffer[i].size)</p>
   </tbody>
 </table>
 <p>根据这个结构，解析数据文件的伪代码如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>footer = parse_footer(tail[-40:])
-</span></span><span style="display:flex;"><span>gbo    = parse_table(tail, footer.global_buff_offsets_start, footer.num_global_buffers)
-</span></span><span style="display:flex;"><span>schema = FileDescriptor::decode(read(gbo[0].pos, gbo[0].size))
-</span></span><span style="display:flex;"><span>cmo    = parse_table(tail, footer.column_meta_offsets_start, footer.num_columns)
-</span></span><span style="display:flex;"><span>for i in projected_columns:
-</span></span><span style="display:flex;"><span>    col_meta[i] = ColumnMetadata::decode(read(cmo[i].pos, cmo[i].size))
-</span></span></code></pre></div><p>区间公式如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>[0,                          column_meta_start)         → Data Region
-</span></span><span style="display:flex;"><span>[column_meta_start,         column_meta_offsets_start)  → Column Metadatas
-</span></span><span style="display:flex;"><span>[column_meta_offsets_start, global_buff_offsets_start)  → CMO   (16B × N)
-</span></span><span style="display:flex;"><span>[global_buff_offsets_start, file_len - 40)              → GBO   (16B × GN)
-</span></span><span style="display:flex;"><span>[file_len - 40,             file_len)                   → Footer
-</span></span></code></pre></div><h2 class="heading" id="对比parquet的优化">
-  对比Parquet的优化
-  <a class="anchor" href="#%e5%af%b9%e6%af%94parquet%e7%9a%84%e4%bc%98%e5%8c%96">#</a>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">footer = parse_footer(tail[-40:])
+</span></span><span class="line"><span class="cl">gbo    = parse_table(tail, footer.global_buff_offsets_start, footer.num_global_buffers)
+</span></span><span class="line"><span class="cl">schema = FileDescriptor::decode(read(gbo[0].pos, gbo[0].size))
+</span></span><span class="line"><span class="cl">cmo    = parse_table(tail, footer.column_meta_offsets_start, footer.num_columns)
+</span></span><span class="line"><span class="cl">for i in projected_columns:
+</span></span><span class="line"><span class="cl">    col_meta[i] = ColumnMetadata::decode(read(cmo[i].pos, cmo[i].size))
+</span></span></code></pre></div><p>用 GB[0] 的偏移可以把文件切成几个区间：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">[0,                     GB[0].pos)                       → Data Pages
+</span></span><span class="line"><span class="cl">[GB[0].pos,             GB[0].pos + GB[0].size)          → GB[0]（FileDescriptor）
+</span></span><span class="line"><span class="cl">[column_meta_start,     column_meta_offsets_start)       → Column Metadatas
+</span></span><span class="line"><span class="cl">[column_meta_offsets_start, global_buff_offsets_start)   → CMO   (16B × N)
+</span></span><span class="line"><span class="cl">[global_buff_offsets_start, file_len - 40)               → GBO   (16B × GN)
+</span></span><span class="line"><span class="cl">[file_len - 40,         file_len)                        → Footer
+</span></span></code></pre></div><p>注意 <code>GB[0].pos + GB[0].size == column_meta_start</code>：GB[0] 紧贴在列元数据之前。但 GB[1..] 是就地写入的，可能落在 <code>[0, GB[0].pos)</code> 里，所以「Data Pages」这个区间实际也包含它们。</p>
+<h2 class="heading" id="parquet-文件结构">
+  Parquet 文件结构
+  <a class="anchor" href="#parquet-%e6%96%87%e4%bb%b6%e7%bb%93%e6%9e%84">#</a>
 </h2>
-<p>对比Parquet，Lance的数据文件格式设计，主要有两点优化：</p>
+<p>上面介绍了 Lance 数据文件的结构，接下来对比 Lance 相对 Parquet 做的优化。在此之前，先简略看看 Parquet 的文件结构，了解它的优缺点。</p>
+<p>Parquet 的数据文件布局大体如下：</p>
+<p>
+
+
+
+
+
+
+
+
+
+
+
+<figure class="">
+
+    <div>
+        <img loading="lazy" decoding="async" alt="Parquet 文件结构：row group / column chunk / page" src="/media/imgs/20261121-lance-2/FileLayout.gif" >
+    </div>
+
+    
+</figure>
+</p>
+<p>我们可以看到：</p>
 <ul>
-<li>取消了row group</li>
-<li>优化了随机访问的性能</li>
+<li>一个 Parquet 文件由多个 row group 组成。</li>
+<li>每个 row group 中包含多列的数据。</li>
+<li>每列的数据又由多个页面组成。</li>
+<li>在这些组成部分中，row group 和列数据都是逻辑组件，真正存放数据的物理单元是页面。每个页面前面有一个 PageHeader（Thrift），记录该页的类型、编码方式、压缩前后大小等；schema 和文件版本不在这里，而在文件尾部的 FileMetaData 中。</li>
+</ul>
+<p>在 Parquet 中，数据页面是压缩边界，每个页面可以独立编解码，因此 Parquet 可以在页面中采用压缩率更高的“非透明编码”。</p>
+<p>这里有必要说明和对比一下“透明编码（transparent encoding）”和“非透明编码（opaque encoding）”。</p>
+<h3 class="heading" id="透明编码和非透明编码">
+  透明编码和非透明编码
+  <a class="anchor" href="#%e9%80%8f%e6%98%8e%e7%bc%96%e7%a0%81%e5%92%8c%e9%9d%9e%e9%80%8f%e6%98%8e%e7%bc%96%e7%a0%81">#</a>
+</h3>
+<p>所谓<strong>透明编码（transparent encoding）</strong>：压缩后的数据仍然<strong>1:1 逐值可定位</strong>。它有以下的特点：</p>
+<ul>
+<li>压缩后仍是定宽（或定宽偏移），位置可由 i 直接算出</li>
+<li>不跨值依赖（value[i] 不依赖 value[i-1]）</li>
+<li>不共享可变状态（不靠“扫描历史”还原）</li>
+</ul>
+<p>也就是说，读端能直接算出“第 i 个值在压缩后的位置”，并单独解出这一个值。这个区别对随机访问影响很大：不透明编码要取第 i 个值，必须先把前面 0..i 的数据顺序解出来。两者的对比如下：</p>
+<ul>
+<li>透明：  value[i] 的位置 = 已知公式 → 单值解码 → 不碰其他值</li>
+<li>不透明：value[i] 的位置 = 必须先解出 [0..i) → 串行</li>
+</ul>
+<p>常见编码的透明性总结如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th>编码</th>
+          <th>定宽？</th>
+          <th>跨值依赖？</th>
+          <th>结论</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Flat</td>
+          <td>是</td>
+          <td>否</td>
+          <td>✅ 透明</td>
+      </tr>
+      <tr>
+          <td>Variable（offsets + data）</td>
+          <td>offsets 定宽</td>
+          <td>否</td>
+          <td>✅ 透明</td>
+      </tr>
+      <tr>
+          <td>固定位宽 Bitpacking</td>
+          <td>是</td>
+          <td>否</td>
+          <td>✅ 透明</td>
+      </tr>
+      <tr>
+          <td>FSST</td>
+          <td>是（定宽 code + symbol table）</td>
+          <td>否</td>
+          <td>✅ 透明</td>
+      </tr>
+      <tr>
+          <td>Constant</td>
+          <td>0 字节</td>
+          <td>否</td>
+          <td>✅ 透明</td>
+      </tr>
+      <tr>
+          <td>ByteStreamSplit</td>
+          <td>是（字节流拆分）</td>
+          <td>否</td>
+          <td>✅ 透明（但常接整块压缩）</td>
+      </tr>
+      <tr>
+          <td><strong>RLE</strong></td>
+          <td>否（run 长度变长）</td>
+          <td><strong>是</strong></td>
+          <td>❌</td>
+      </tr>
+      <tr>
+          <td><strong>Delta</strong></td>
+          <td>否</td>
+          <td><strong>是</strong></td>
+          <td>❌</td>
+      </tr>
+      <tr>
+          <td><strong>整块通用压缩（zstd / snappy / lz4）</strong></td>
+          <td>否</td>
+          <td><strong>是</strong></td>
+          <td>❌</td>
+      </tr>
+  </tbody>
+</table>
+<p>下面挑几个展开说明：</p>
+<p><strong>RLE 为什么不透明</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">编码：[(value=7, run=1000), (value=3, run=1), ...]
+</span></span></code></pre></div><p>要取第 1001 个值：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">必须先走完第一个 run
+</span></span><span class="line"><span class="cl">→ 才知道第二个 run 在哪
+</span></span><span class="line"><span class="cl">→ 位置不可计算，只能“扫”出来
+</span></span></code></pre></div><p><strong>Delta 为什么不透明</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">v[0] = base
+</span></span><span class="line"><span class="cl">v[i] = v[i-1] + delta_i
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">取 v[1000] → 必须从 v[0] 累加 1000 次
+</span></span></code></pre></div><p><strong>ByteStreamSplit 为什么本身是透明的</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">f32 按字节拆成 4 个流
+</span></span><span class="line"><span class="cl">取 v[i] 只需在 4 个流里各 jump 到第 i 个字节
+</span></span></code></pre></div><p>它在 Parquet 里之所以经常被归到“不透明”一侧，不是因为拆分本身，而是因为它总是再接一层整块通用压缩——一旦套上 zstd，就退化成下面这种不可定位的形态。</p>
+<p><strong>整块 zstd / snappy 为什么不透明</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">压缩块 = [字面量][回溯引用][字面量][回溯引用]...
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">要解第 i 个字节，必须从块头开始顺序执行所有回溯复制
+</span></span></code></pre></div><p>注意是“整块压缩”不透明。如果每个值单独压一帧（per-value），第 i 个值的位置依然可算——Lance 处理超长值时就是这么做的。</p>
+<p><strong>Bitpacking 为什么反而透明</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1024 个值，每个 13 bit
+</span></span><span class="line"><span class="cl">byte_offset(i) = i * 13 / 8
+</span></span></code></pre></div><p>只要每块位宽固定，单值定位就成立。</p>
+<p><strong>FSST 为什么透明</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">FSST = 符号表 + 定宽 code 流
+</span></span><span class="line"><span class="cl">每 8 个原始字节 → 8 个 code（1 字节一个）
+</span></span></code></pre></div><p>code 的位置可算，查符号表即可，所以透明。</p>
+<p>透明性的代价：</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>透明</th>
+          <th>不透明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>单值定位</td>
+          <td>O(1)</td>
+          <td>O(i) 或整块解</td>
+      </tr>
+      <tr>
+          <td>压缩率</td>
+          <td>低</td>
+          <td>高</td>
+      </tr>
+      <tr>
+          <td>可用编码</td>
+          <td>flat / variable / bitpack / fsst / per-value general</td>
+          <td>+ rle / delta / block zstd</td>
+      </tr>
+  </tbody>
+</table>
+<p>回到 Parquet：由于数据页面是压缩边界，Parquet 可以选择压缩比更大的非透明编码，代价是放弃了“单值可定位”——随机访问时必须先把整页解开。</p>
+<h3 class="heading" id="为顺序扫描优化">
+  为顺序扫描优化
+  <a class="anchor" href="#%e4%b8%ba%e9%a1%ba%e5%ba%8f%e6%89%ab%e6%8f%8f%e4%bc%98%e5%8c%96">#</a>
+</h3>
+<p>以下是几个典型的顺序扫描的例子：</p>
+<p><strong>例 1：数仓聚合报表</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="n">region</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">amount</span><span class="p">),</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">WHERE</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="s1">&#39;2026-01-01&#39;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">region</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p><strong>例 2：特征工程 / 训练集导出</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">tbl</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetDataset</span><span class="p">(</span><span class="s2">&#34;s3://bucket/features&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">df</span> <span class="o">=</span> <span class="n">tbl</span><span class="o">.</span><span class="n">to_table</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&#34;user_id&#34;</span><span class="p">,</span> <span class="s2">&#34;embedding&#34;</span><span class="p">,</span> <span class="s2">&#34;ctr&#34;</span><span class="p">])</span>
+</span></span><span class="line"><span class="cl"><span class="n">df</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&#34;s3://bucket/export&#34;</span><span class="p">)</span>
+</span></span></code></pre></div><p><strong>例 3：全表校验 / 统计</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">),</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">ts</span><span class="p">),</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">ts</span><span class="p">),</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="k">distinct</span><span class="w"> </span><span class="n">user_id</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">events</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>以上几个例子的共同点：</p>
+<ul>
+<li>结果很小（聚合结果 / 几列）</li>
+<li>输入很大（全表或全分区）</li>
+<li>扫描比例 &gt; 10%，通常接近 100%</li>
+<li>不关心“第 3 行在哪”，只关心“全部扫一遍要多久”</li>
+</ul>
+<p>最后一点是决定性的：<strong>行与行之间的顺序不重要，只有总字节数重要。</strong></p>
+<p><strong>顺序扫描（full scan / column scan）</strong> 指：</p>
+<ul>
+<li>按顺序、成块地读完整列（或一整个行区间），</li>
+<li>在读取的过程中逐行判断条件，</li>
+<li>不事先知道“哪些行会命中”。</li>
+</ul>
+<p>Parquet 为顺序扫描（尤其是分析型全表/大范围扫描）做的优化，可以从「存储布局」「编码压缩」「元数据跳过」三条线来看。</p>
+<h4 class="heading" id="存储布局让磁盘-io-尽量连续">
+  存储布局：让磁盘 I/O 尽量连续
+  <a class="anchor" href="#%e5%ad%98%e5%82%a8%e5%b8%83%e5%b1%80%e8%ae%a9%e7%a3%81%e7%9b%98-io-%e5%b0%bd%e9%87%8f%e8%bf%9e%e7%bb%ad">#</a>
+</h4>
+<p><strong>行列混合布局（Row Group + Column Chunk）</strong></p>
+<p>文件按 Row Group 水平切分（parquet-mr 默认 128MB，生产上常见调到 512MB～1GB），Row Group 内部按列存储，每列是一个连续的 Column Chunk。这意味着：</p>
+<ul>
+<li>扫描某几列时，读的是文件中<strong>连续的大块数据</strong>，而不是像行存那样读一行、跳过不需要的字段。机械盘时代减少寻道，SSD/对象存储时代则天然匹配预读和大块 GET。</li>
+<li>Row Group 足够大，一次顺序读的粒度大，摊薄了 open/seek/请求次数，这对 HDFS、S3 这类高延迟存储尤其关键。</li>
+<li>列裁剪（projection pushdown）下，不需要的 Column Chunk 完全不读。</li>
+</ul>
+<p><strong>页式组织（Page）</strong></p>
+<p>Column Chunk 内再切成约 1MB 的 Page，Page 是编码和压缩的最小单元。解码器可以按页流水线式地解压、解码，内存占用可控，也便于 reader 做跨页预读和 I/O 合并（Arrow、Parquet-MR 等实现都有 coalescing 优化，把多个小的逻辑读合并成大块顺序读）。</p>
+<h4 class="heading" id="编码与压缩减少字节量--适配向量化">
+  编码与压缩：减少字节量 + 适配向量化
+  <a class="anchor" href="#%e7%bc%96%e7%a0%81%e4%b8%8e%e5%8e%8b%e7%bc%a9%e5%87%8f%e5%b0%91%e5%ad%97%e8%8a%82%e9%87%8f--%e9%80%82%e9%85%8d%e5%90%91%e9%87%8f%e5%8c%96">#</a>
+</h4>
+<p>顺序扫描的瓶颈通常是 I/O 带宽，所以 Parquet 在编码上尽量把数据压小、压得“扫描友好”：</p>
+<ul>
+<li><strong>字典编码</strong>：低基数字段（如状态、枚举）存成字典 + 整数下标，扫描时很多过滤甚至可以直接在字典上做。</li>
+<li><strong>RLE / Bit-packing</strong>：重复值和整数下标用游程 + 紧凑位宽存储，对有序或低区分度列压缩率极高，解码天然适合批量/向量化（SIMD）展开。</li>
+<li><strong>Delta 编码</strong>：时间戳、自增 ID 这类递增序列只存差值。</li>
+<li><strong>块压缩（Snappy/Zstd/LZ4）</strong>：在 Page 级压缩，换来的是扫描时更少的磁盘字节。Snappy 这种轻压缩选型本身就是“为吞吐让路”的取舍——CPU 解码开销远低于省下的 I/O。</li>
+</ul>
+<p>整体效果是：顺序扫描读的字节数可能只有原始数据的 1/5 甚至更少。</p>
+<h4 class="heading" id="元数据扫描时该跳就跳">
+  元数据：扫描时“该跳就跳”
+  <a class="anchor" href="#%e5%85%83%e6%95%b0%e6%8d%ae%e6%89%ab%e6%8f%8f%e6%97%b6%e8%af%a5%e8%b7%b3%e5%b0%b1%e8%b7%b3">#</a>
+</h4>
+<p>顺序扫描不等于必须读完所有字节，Parquet 用分层统计信息支持跳过：</p>
+<ul>
+<li><strong>Footer</strong>：文件末尾的 Thrift 元数据记录了所有 Row Group 的列统计（min/max/null_count、总字节数、编码等）。reader 只需一次尾部 seek 读完 footer，就能规划整个扫描——哪些 Row Group 被谓词排除、要读哪些 Column Chunk、偏移量在哪。</li>
+<li><strong>Column Index / Offset Index</strong>（parquet-format 2.5 引入，parquet-mr 1.11 起支持）：把统计细化到 Page 级，配合 Page 偏移表可以<strong>跳过单个数据页</strong>，对排序后的数据效果极好（比如按时间排序后扫某个时间窗）。</li>
+<li><strong>谓词下推的执行形态</strong>：先读过滤列的页、用它把候选行区间裁掉，再对投影列做延迟物化（late materialization），避免把整行读出来再丢弃。</li>
+</ul>
+<h4 class="heading" id="小结">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93">#</a>
+</h4>
+<table>
+  <thead>
+      <tr>
+          <th>层面</th>
+          <th>设计</th>
+          <th>对顺序扫描的收益</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>布局</td>
+          <td>列式 + 大 Row Group + 连续 Column Chunk</td>
+          <td>连续大块 I/O，列裁剪</td>
+      </tr>
+      <tr>
+          <td>页</td>
+          <td>~1MB Page，解码/压缩单元</td>
+          <td>流式解码，I/O 合并</td>
+      </tr>
+      <tr>
+          <td>编码</td>
+          <td>字典、RLE/Bit-packing、Delta</td>
+          <td>字节量小，向量化解码</td>
+      </tr>
+      <tr>
+          <td>压缩</td>
+          <td>Page 级 Snappy/Zstd</td>
+          <td>降低 I/O 带宽消耗</td>
+      </tr>
+      <tr>
+          <td>元数据</td>
+          <td>Footer 统计、Column/Offset Index</td>
+          <td>Row Group/Page 级跳过</td>
+      </tr>
+  </tbody>
+</table>
+<p>核心思想一句话：<strong>牺牲细粒度随机访问的能力，换取“读的就是要用的、读的过程全是大块连续 I/O、能不读的通过统计跳过”</strong>。这也是为什么 Parquet 适合 OLAP 扫描，而点查型负载需要额外的索引或行存层。</p>
+<h4 class="heading" id="例子">
+  例子
+  <a class="anchor" href="#%e4%be%8b%e5%ad%90">#</a>
+</h4>
+<p>假设一张表：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">10 亿行 × 20 列 ≈ 200 GB（逻辑，未压缩）
+</span></span></code></pre></div><p>查询：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">SELECT region, sum(amount) FROM sales
+</span></span><span class="line"><span class="cl">WHERE ts &gt;= &#39;2026-01-01&#39; GROUP BY region
+</span></span></code></pre></div><p><strong>列存先砍一刀</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">20 列 → 只读 3 列（region / amount / ts）
+</span></span><span class="line"><span class="cl">假设这 3 列占 30 B/行
+</span></span><span class="line"><span class="cl">→ 30 GB 逻辑
+</span></span></code></pre></div><p><strong>6.7x 缩减</strong>，这一步由列存完成，和 row group 无关。</p>
+<p><strong>压缩再砍一刀</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">同质数据（region 低基数、amount 有分布、ts 单调）
+</span></span><span class="line"><span class="cl">+ delta / RLE / dictionary / zstd
+</span></span><span class="line"><span class="cl">→ 约 4x
+</span></span><span class="line"><span class="cl">→ 30 GB → 7.5 GB 物理
+</span></span></code></pre></div><p><strong>row group 统计再跳一点</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1 GB row group → 200 个
+</span></span><span class="line"><span class="cl">每个 row group 在 ts 上记录 min/max → 跳过 30% 不可能命中的 row group
+</span></span><span class="line"><span class="cl">→ 5.25 GB 物理
+</span></span></code></pre></div><p>合计：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">200 GB 原始
+</span></span><span class="line"><span class="cl">→ 30 GB（列裁剪）
+</span></span><span class="line"><span class="cl">→ 7.5 GB（压缩）
+</span></span><span class="line"><span class="cl">→ 5.25 GB（统计跳过）
+</span></span><span class="line"><span class="cl">总缩减 38x
+</span></span></code></pre></div><p>以 Parquet 的文件结构，顺序扫描的大致流程如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1. 读尾部 8 字节 → footer length + magic
+</span></span><span class="line"><span class="cl">2. 读 FileMetaData（可能几 MB）
+</span></span><span class="line"><span class="cl">3. 对每个未剪枝的 row group、每列：
+</span></span><span class="line"><span class="cl">     read dictionary page（如果有）
+</span></span><span class="line"><span class="cl">     read data pages（顺序）
+</span></span><span class="line"><span class="cl">     解压、解码
+</span></span><span class="line"><span class="cl">4. 拼 batch
+</span></span></code></pre></div><h3 class="heading" id="较差的点查性能">
+  较差的点查性能
+  <a class="anchor" href="#%e8%be%83%e5%b7%ae%e7%9a%84%e7%82%b9%e6%9f%a5%e6%80%a7%e8%83%bd">#</a>
+</h3>
+<p>然而，Parquet 的设计对点查却不太友好。例如这样的点查查询：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">sales</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">12345678</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>对 Parquet 文件的访问路径变成：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1. 读 footer（几 MB）
+</span></span><span class="line"><span class="cl">2. 读 3 个 column chunk 的元数据
+</span></span><span class="line"><span class="cl">3. 读 dictionary page
+</span></span><span class="line"><span class="cl">4. 定位到 1 个 page（1 MB）
+</span></span><span class="line"><span class="cl">5. 解压整页
+</span></span><span class="line"><span class="cl">6. 解 levels 走到那一行
+</span></span><span class="line"><span class="cl">7. 取 200 B
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">读了 ~1 MB，拿到 200 B
+</span></span><span class="line"><span class="cl">读放大 5000x
+</span></span></code></pre></div><p>究其根本原因，Parquet 的文件设计是为优化顺序扫描而设计的。顺序扫描的账只有两项：总字节数、请求数。Parquet 的每个设计都在压这两项：</p>
+<ul>
+<li>列存              → 少读列</li>
+<li>1 MB 页           → 少发请求</li>
+<li>非透明编码 + 大块压缩 → 少读字节</li>
+<li>统计剪枝          → 再少读一点</li>
+</ul>
+<p>代价是“页内不可定位”，但只要命中比例高，这个代价就被摊薄到可以忽略。</p>
+<h2 class="heading" id="为什么-lance-需要随机访问">
+  为什么 Lance 需要随机访问
+  <a class="anchor" href="#%e4%b8%ba%e4%bb%80%e4%b9%88-lance-%e9%9c%80%e8%a6%81%e9%9a%8f%e6%9c%ba%e8%ae%bf%e9%97%ae">#</a>
+</h2>
+<p>Parquet 能接受这个代价，是因为它的主场景是分析型扫描：一条查询动辄扫过百万行，单次点查的读放大被整体吞吐摊薄。Lance 面对的工作负载不是这一种。</p>
+<h3 class="heading" id="索引回表">
+  索引回表
+  <a class="anchor" href="#%e7%b4%a2%e5%bc%95%e5%9b%9e%e8%a1%a8">#</a>
+</h3>
+<p>向量检索、全文检索、标量索引有共同形态：先用索引拿到一批行地址，再按地址回表取出原始数据。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">query → 索引 → [row_addr, row_addr, ...] → 回表 → 结果
+</span></span></code></pre></div><p>top-k 通常只有几十到几百行，却散布在整个文件甚至多个 fragment 里。这一步天然是随机的，而且它是索引查询的必经路径——索引构建得再快，回表慢就等于全文检索、向量检索整体慢。</p>
+<p>行地址本身也是为这件事设计的：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">row_address = (fragment_id &lt;&lt; 32) | local_row_offset
+</span></span></code></pre></div><p>给定地址，位运算就能拆出 fragment 和行偏移，不需要任何查找表。</p>
+<h3 class="heading" id="训练时的随机采样">
+  训练时的随机采样
+  <a class="anchor" href="#%e8%ae%ad%e7%bb%83%e6%97%b6%e7%9a%84%e9%9a%8f%e6%9c%ba%e9%87%87%e6%a0%b7">#</a>
+</h3>
+<p>机器学习训练要把数据集打散成 batch：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">一个 epoch：N 个 batch，每个 batch 随机取 B 行
+</span></span><span class="line"><span class="cl">每一行可能来自不同 fragment、不同页
+</span></span></code></pre></div><p>打散不是可选优化。batch 内样本若有相关性，梯度质量会受影响，所以随机性属于训练语义的一部分。如果取一行要 1 MB，GPU 就会因为等 I/O 而空转——这也是 Lance 强调高 GPU 利用率的直接原因。</p>
+<h3 class="heading" id="对象存储把读放大变成延迟和账单">
+  对象存储把读放大变成延迟和账单
+  <a class="anchor" href="#%e5%af%b9%e8%b1%a1%e5%ad%98%e5%82%a8%e6%8a%8a%e8%af%bb%e6%94%be%e5%a4%a7%e5%8f%98%e6%88%90%e5%bb%b6%e8%bf%9f%e5%92%8c%e8%b4%a6%e5%8d%95">#</a>
+</h3>
+<p>同样的读放大，在本地磁盘和对象存储上代价完全不同：</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>本地磁盘</th>
+          <th>对象存储</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>多读 1 MB</td>
+          <td>几毫秒</td>
+          <td>一次 GET 的固定延迟（几十毫秒）</td>
+      </tr>
+      <tr>
+          <td>计费</td>
+          <td>不计</td>
+          <td>按请求数 + 流量计费</td>
+      </tr>
+      <tr>
+          <td>吞吐</td>
+          <td>高</td>
+          <td>单流受限，需靠并发摊薄</td>
+      </tr>
+  </tbody>
+</table>
+<p>取 200 B 却付 1 MB 的流量和延迟，在服务化场景下会直接体现为成本和 P99。尤其是并发几十上百个点查时，读放大是按倍数相乘的。</p>
+<h3 class="heading" id="两类负载的形状不同">
+  两类负载的形状不同
+  <a class="anchor" href="#%e4%b8%a4%e7%b1%bb%e8%b4%9f%e8%bd%bd%e7%9a%84%e5%bd%a2%e7%8a%b6%e4%b8%8d%e5%90%8c">#</a>
+</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">分析型扫描：读得多，但连续        → 瓶颈是顺序吞吐
+</span></span><span class="line"><span class="cl">索引回表 / 训练采样：读得少，且散  → 瓶颈是单次请求的字节数
+</span></span></code></pre></div><p>Lance 的目标负载偏后者。顺序扫描当然仍是大多数查询的主体，但只针对顺序扫描优化，索引回表和训练采样就会被文件格式本身卡住——而这两类恰好是 AI 数据栈的核心路径。</p>
+<p>于是问题变成一个必须同时满足的约束：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">顺序扫描要页足够大（摊薄 I/O 与元数据开销）
+</span></span><span class="line"><span class="cl">随机访问要读取粒度足够小（控制单次请求字节数）
+</span></span></code></pre></div><p>Parquet 用“页”这一个单位同时承担两件事，所以只能折中。Lance 的答案是把它拆成两层——这就是下一节要讲的。</p>
+<h2 class="heading" id="lance-对比-parquet-的优化">
+  Lance 对比 Parquet 的优化
+  <a class="anchor" href="#lance-%e5%af%b9%e6%af%94-parquet-%e7%9a%84%e4%bc%98%e5%8c%96">#</a>
+</h2>
+<p>对比 Parquet，Lance 的数据文件格式设计主要有两点变化：</p>
+<ul>
+<li>取消 row group，每列独立分页</li>
+<li>页内引入可定位结构（MiniBlock / FullZip），让随机访问落到字节区间</li>
 </ul>
 <p>以下展开解释。</p>
-<h3 class="heading" id="取消row-group">
-  取消row group
-  <a class="anchor" href="#%e5%8f%96%e6%b6%88row-group">#</a>
+<h3 class="heading" id="取消-row-group">
+  取消 row group
+  <a class="anchor" href="#%e5%8f%96%e6%b6%88-row-group">#</a>
 </h3>
-<p>row group是Parquet中特有的设计，Parquet数据文件中分为多个row group，每个row group中可能存在多个列数据。以一个包含列<code>id</code>、<code>name</code>、<code>embedding</code>的数据为例，其物理结构如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Parquet file
-</span></span><span style="display:flex;"><span>├── RowGroup 0            ← 行方向切一刀：第 0 ~ 999,999 行
-</span></span><span style="display:flex;"><span>│   ├── ColumnChunk: id        （这 100 万行的 id）
-</span></span><span style="display:flex;"><span>│   ├── ColumnChunk: name      （这 100 万行的 name）
-</span></span><span style="display:flex;"><span>│   └── ColumnChunk: embedding （这 100 万行的 embedding）
-</span></span><span style="display:flex;"><span>├── RowGroup 1            ← 第 1,000,000 ~ 1,999,999 行
-</span></span><span style="display:flex;"><span>│   ├── ColumnChunk: id
-</span></span><span style="display:flex;"><span>│   ├── ...
-</span></span><span style="display:flex;"><span>└── ...
+<p>row group 是 Parquet 中特有的设计，一个 Parquet 文件被切成多个 row group，每个 row group 内含各列的一段数据。以包含列 <code>id</code>、<code>name</code>、<code>embedding</code> 的表为例，假设把 row group 调到 100 万行，其物理结构如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Parquet file
+</span></span><span class="line"><span class="cl">├── RowGroup 0            ← 行方向切一刀：第 0 ~ 999,999 行
+</span></span><span class="line"><span class="cl">│   ├── ColumnChunk: id        （这 100 万行的 id）
+</span></span><span class="line"><span class="cl">│   ├── ColumnChunk: name      （这 100 万行的 name）
+</span></span><span class="line"><span class="cl">│   └── ColumnChunk: embedding （这 100 万行的 embedding）
+</span></span><span class="line"><span class="cl">├── RowGroup 1            ← 第 1,000,000 ~ 1,999,999 行
+</span></span><span class="line"><span class="cl">│   ├── ColumnChunk: id
+</span></span><span class="line"><span class="cl">│   ├── ...
+</span></span><span class="line"><span class="cl">└── ...
 </span></span></code></pre></div><p>在上面的例子中，数据模型大体如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>RowGroup {
-</span></span><span style="display:flex;"><span>  num_rows: 1_000_000
-</span></span><span style="display:flex;"><span>  columns: [
-</span></span><span style="display:flex;"><span>    ColumnChunk { column: id,        num_values: 1_000_000 },
-</span></span><span style="display:flex;"><span>    ColumnChunk { column: name,      num_values: 1_000_000 },
-</span></span><span style="display:flex;"><span>    ColumnChunk { column: embedding, num_values: 1_000_000 },
-</span></span><span style="display:flex;"><span>  ]
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>这样的设计带来的问题是：RowGroup 在第 1,000,000 行处切开，也就是说，<strong>同一个row group的所有列必须有相同的行</strong>。</p>
-<p>这就是“行列都切齐”：<strong>同一个 row group 里，每一列覆盖的行区间完全相同</strong>。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">RowGroup {
+</span></span><span class="line"><span class="cl">  num_rows: 1_000_000
+</span></span><span class="line"><span class="cl">  columns: [
+</span></span><span class="line"><span class="cl">    ColumnChunk { column: id,        num_values: 1_000_000 },
+</span></span><span class="line"><span class="cl">    ColumnChunk { column: name,      num_values: 1_000_000 },
+</span></span><span class="line"><span class="cl">    ColumnChunk { column: embedding, num_values: 1_000_000 },
+</span></span><span class="line"><span class="cl">  ]
+</span></span><span class="line"><span class="cl">}
+</span></span></code></pre></div><p>这样的设计带来的问题是：RowGroup 在第 1,000,000 行处切开，也就是说，<strong>同一个 row group 的所有列必须覆盖完全相同的行区间</strong>。</p>
 <p>这样的设计造成以下几个问题：</p>
-<h4 class="heading" id="写内存--row-group-大小--列宽">
-  写内存 ∝ row group 大小 × 列宽
-  <a class="anchor" href="#%e5%86%99%e5%86%85%e5%ad%98--row-group-%e5%a4%a7%e5%b0%8f--%e5%88%97%e5%ae%bd">#</a>
+<h4 class="heading" id="行数被最宽列绑架">
+  行数被最宽列绑架
+  <a class="anchor" href="#%e8%a1%8c%e6%95%b0%e8%a2%ab%e6%9c%80%e5%ae%bd%e5%88%97%e7%bb%91%e6%9e%b6">#</a>
 </h4>
-<p>多个行的数据放在同一个row group里面，导致了不同列的列宽度被强行绑在了一起。考虑这样的两列：</p>
+<p>Parquet 的 row group 按<strong>字节</strong>控制大小（parquet-mr 默认 128MB），但它覆盖的<strong>行数</strong>由整行宽度决定，所有列共用这个行数。考虑两列：</p>
 <ul>
 <li><code>embedding</code> = <code>fixed_size_list&lt;float32, 1024&gt;</code> = <strong>4096 字节/行</strong></li>
 <li><code>id</code> = 8 字节/行</li>
 </ul>
-<p>那么单个 row group 的 <code>embedding</code> chunk = <code>100万 × 4096B</code> ≈ <strong>4 GB</strong>。</p>
-<p>设想让 <code>id</code> 的页大一点（多装些行、减少页数），让 <code>embedding</code> 的页小一点（少装些行、降低随机读放大）。<strong>在 Parquet 里做不到</strong>——它们必须共享同一个 row group 的行边界。只能取一个折中值，让窄列和宽列都不舒服。</p>
-<h4 class="heading" id="行组大小难以自适应">
-  行组大小难以自适应
-  <a class="anchor" href="#%e8%a1%8c%e7%bb%84%e5%a4%a7%e5%b0%8f%e9%9a%be%e4%bb%a5%e8%87%aa%e9%80%82%e5%ba%94">#</a>
+<p>整行约 4.1 KB，所以 128MB 的 row group 只有约 3.2 万行：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">embedding chunk = 3.2 万 × 4096B ≈ 128 MB
+</span></span><span class="line"><span class="cl">id        chunk = 3.2 万 × 8B    ≈ 256 KB   ← 窄列只剩个零头
+</span></span></code></pre></div><p>反过来，想让 <code>id</code> 的 chunk 达到 8MB 左右（一页），row group 得放大到 100 万行；此时 <code>embedding</code> 的 chunk 就是 <strong>4 GB</strong>，写侧要为这一个 row group 缓冲大量数据（不少实现靠溢出落盘来兜底，但代价是写放大）。</p>
+<p>也就是说，<strong>窄列需要的行数和宽列能承受的行数相差几个数量级，却只能共用一个值。</strong></p>
+<h4 class="heading" id="读放大的下限是页不是-chunk">
+  读放大的下限是“页”，不是 chunk
+  <a class="anchor" href="#%e8%af%bb%e6%94%be%e5%a4%a7%e7%9a%84%e4%b8%8b%e9%99%90%e6%98%af%e9%a1%b5%e4%b8%8d%e6%98%af-chunk">#</a>
 </h4>
-<p><strong>若 row group 大（比如 100 万行）</strong>，想读<strong>一行</strong>（点查 / 随机采样）：</p>
+<p>这里要区分两个概念：</p>
 <ul>
-<li>定位到 row group；</li>
-<li>读 <code>id</code> 的 chunk —— 但 chunk 有 8MB，你只要 8 字节；</li>
-<li>读 <code>embedding</code> 的 chunk —— 4GB 里你只要 4KB。</li>
+<li>chunk：一列在一个 row group 内的全部数据，大小 = row group 行数 × 该列单行宽度</li>
+<li>page ：chunk 内部再按字节切出来的块，默认约 1 MB</li>
 </ul>
-<p>→ <strong>读放大极其严重</strong>。除非 page 足够小，但 page 大小又被 row group 卡住。</p>
-<p><strong>若 row group 小（比如 1 万行）</strong>，为了降低读放大：</p>
+<p>点查读的是<strong>页</strong>：定位到目标行所在页，读大约 1 MB，再解压整页。所以读放大倍数 ≈ <code>page_size / row_size</code>，与 chunk 大小无关。页大小在格式层面是按页记录的，并不被 row group 的行数直接卡死（部分实现支持按列配置页大小）。</p>
+<p>真正被 row group 绑住的是另外两件事：</p>
+<ol>
+<li><strong>统计剪枝的粒度</strong>：footer 里的 min/max 是 row group 级的，要细到页级得额外写 Column Index / Offset Index（可选，不少写入端并不开启）。</li>
+<li><strong>切分与并行</strong>：row group 天然是任务划分和文件切分的单位，行数不合适时，窄列全是 runt page、宽列又要吃满内存。</li>
+</ol>
+<h4 class="heading" id="row-group-小--runt-page">
+  row group 小 → runt page
+  <a class="anchor" href="#row-group-%e5%b0%8f--runt-page">#</a>
+</h4>
+<p>反过来，把 row group 调小：</p>
 <ul>
-<li><code>id</code> chunk = <code>1万 × 8B</code> = <strong>80 KB</strong>；</li>
-<li>再小一点到 1000 行 → <code>id</code> chunk = <strong>8 KB</strong>。</li>
+<li>1 万行时 <code>id</code> chunk = <code>1万 × 8B</code> = <strong>80 KB</strong>，1000 行时只有 <strong>8 KB</strong>；</li>
+<li>此时窄列的页可能只有几 KB，这就是所谓的 <strong>runt page</strong>（发育不良的小页）；</li>
+<li>云存储上一次 I/O 有固定开销（延迟、请求计费、吞吐下限），几 KB 的页读起来极不划算，顺序扫描也会退化成海量小请求。</li>
 </ul>
-<p>云存储上一次 I/O 有固定开销（延迟、请求计费、吞吐下限）。<strong>8KB 的页就是“runt page”</strong>（发育不良的小页）：读它不划算，顺序扫描时又变成海量小请求，吞吐极差。Parquet文件格式在这种情况下陷入了两难：</p>
+<p>于是陷入两难：</p>
 <ul>
-<li><strong>row group 大 → 写内存爆炸 + 随机读放大；</strong></li>
-<li><strong>row group 小 → 满是小页，云上读吞吐差。</strong></li>
+<li><strong>row group 小 →</strong> 行数少，窄列整个 chunk 只有几十 KB 甚至几 KB，再切页就是 runt page；</li>
+<li><strong>row group 大 →</strong> 想给窄列攒出足够字节，行数就得放大，而宽列的 chunk 按倍数膨胀，写侧要为整组缓冲。</li>
 </ul>
-<p>因为以上的考虑，Lance取消了row group，而是以数据页做为单位，每页只保存一个列的数据。这样的设计可以让Lance支持<strong>部分页读取</strong>：</p>
+<p>无论怎么调，窄列和宽列的诉求都绑在同一个行数上。</p>
+<h4 class="heading" id="lance-的做法">
+  Lance 的做法
+  <a class="anchor" href="#lance-%e7%9a%84%e5%81%9a%e6%b3%95">#</a>
+</h4>
+<p>因为以上的考虑，Lance 取消了 row group，只保留“页”：每列独立分页，每页只存放一列的数据，页的大小按列自己的字节预算计算——写入端默认每列累积约 8 MiB 就切一页（<code>data_cache_bytes</code> 可调），与其他列完全无关。这样 Lance 才能支持<strong>部分页读取</strong>：</p>
 <ul>
-<li>每页记录“首页行号”，读某段行时先定位到页；</li>
-<li>页内编码（MiniBlock / FullZip / Sparse）允许从中间开始解码；</li>
-<li>元数据给出精确的 buffer offset/size。</li>
+<li>每页记录首行行号（<code>priority</code>），读某段行时先定位到页；</li>
+<li>页内编码（MiniBlock / FullZip / Sparse）允许从页面中间开始解码；</li>
+<li>元数据给出精确的 buffer offset/size，可以只发一个 range GET。</li>
 </ul>
 <h3 class="heading" id="优化随机访问">
   优化随机访问
   <a class="anchor" href="#%e4%bc%98%e5%8c%96%e9%9a%8f%e6%9c%ba%e8%ae%bf%e9%97%ae">#</a>
 </h3>
+<p>Lance 的随机访问能力建立在「页内可定位」上。先看取消 row group 在这里起的作用，再看页内的几个机制。</p>
+<h4 class="heading" id="取消-row-group让页保持大和点查读得少不再互斥">
+  取消 row group：让“页保持大”和“点查读得少”不再互斥
+  <a class="anchor" href="#%e5%8f%96%e6%b6%88-row-group%e8%ae%a9%e9%a1%b5%e4%bf%9d%e6%8c%81%e5%a4%a7%e5%92%8c%e7%82%b9%e6%9f%a5%e8%af%bb%e5%be%97%e5%b0%91%e4%b8%8d%e5%86%8d%e4%ba%92%e6%96%a5">#</a>
+</h4>
+<p>点查读的从来不是整个 chunk，而是页：在列元数据里按行号定位到页，读大约一个页的字节，再解压。chunk 有多大，不影响这一次读取的字节数。</p>
+<p>真正决定点查读取量的是<strong>页大小</strong>。而在 Parquet 里，页同时是编码单元、压缩单元和 I/O 单元，三者绑死：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Parquet：点查最小读取量 = 页大小
+</span></span><span class="line"><span class="cl">        想让点查读得少 → 页必须小
+</span></span><span class="line"><span class="cl">        页一小 → 压缩窗口变小、页头占比升高 → 顺序扫描变差
+</span></span><span class="line"><span class="cl">        于是只能折中，典型取 1 MB
+</span></span></code></pre></div><p>也就是说，Parquet 的点查放大下限被“压缩率”钉在 1 MB 这一级；想再往下压，顺序扫描就要付代价。</p>
+<p>而 row group 让这条约束更难绕开。chunk 大小 = 行数 × 该列单行宽度，同一 row group 里各列的行数完全相同，于是窄列的 chunk 可能只有宽列的几百分之一：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">128 MB row group ≈ 3.2 万行
+</span></span><span class="line"><span class="cl">→ embedding chunk ≈ 128 MB，id chunk ≈ 256 KB
+</span></span><span class="line"><span class="cl">→ 页大小不能超过 chunk 大小：窄列连 1 MB 的页都放不下
+</span></span><span class="line"><span class="cl">→ 想让窄列也能用大页，只能给 row group 塞更多行
+</span></span><span class="line"><span class="cl">→ 宽列的 chunk 按同样倍数一起膨胀
+</span></span></code></pre></div><p>也就是说，页大小这个本来该按列单独决定的参数，被迫在“整组行数”这一个数字上妥协。</p>
+<p>Lance 取消 row group 之后，页的大小可以纯粹按 I/O 经济性、并且按列单独来定，点查粒度不再等于页大小：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Lance：页  ≈ 8 MB      → 顺序扫描摊薄 I/O 与元数据开销
+</span></span><span class="line"><span class="cl">       块  ≈ 4 KB     → 点查只读命中的 chunk
+</span></span></code></pre></div><p>页大不影响点查读得少，块的压缩窗口也不至于小到伤压缩率。取消 row group 在这里的作用，是解除“页大小必须同时服务随机访问”这条约束。</p>
+<p>副产品是每列的页数完全独立（列 A 3 个页、列 B 17 个页、列 C 1 个页），窄列不必为了迁就宽列被挤成 runt 页，宽列也不必为了迁就窄列被限制大小。</p>
+<p>把点查读取量从 1 MB 压到 4 KB 的是下一节的块索引；取消 row group 让“大页 + 小块”能同时成立。两者叠加，才有后面那张点查对比里的数字。</p>
+<h4 class="heading" id="pagepriority-把行页变成二分">
+  Page.priority 把“行→页”变成二分
+  <a class="anchor" href="#pagepriority-%e6%8a%8a%e8%a1%8c%e9%a1%b5%e5%8f%98%e6%88%90%e4%ba%8c%e5%88%86">#</a>
+</h4>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-protobuf" data-lang="protobuf"><span class="line"><span class="cl"><span class="kd">message</span> <span class="nc">Page</span> <span class="p">{</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="kt">uint64</span> <span class="n">length</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span><span class="err">
+</span></span></span><span class="line"><span class="cl"><span class="err"></span>  <span class="kt">uint64</span> <span class="n">priority</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>   <span class="c1">// 这一页第一行的行号
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span><span class="err">
+</span></span></span></code></pre></div><p>页表天然按 priority 有序，<code>partition_point</code> 一次二分就能找到相交的页。</p>
+<p>Parquet 要么靠可选的 OffsetIndex，要么从头扫变长的 Thrift 页头。</p>
+<h4 class="heading" id="页内再拆-chunkbuffer-0">
+  页内再拆 chunk：buffer 0
+  <a class="anchor" href="#%e9%a1%b5%e5%86%85%e5%86%8d%e6%8b%86-chunkbuffer-0">#</a>
+</h4>
+<p>MiniBlock 页把“索引”和“数据”放在不同的 buffer 里（有字典或 list 时还会多出字典、rep index 等 buffer）：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">buffer 0  每 chunk 一个 2–4 字节的索引字
+</span></span><span class="line"><span class="cl">buffer 1  所有 chunk 首尾相接
+</span></span></code></pre></div><p>索引字里编码了两件事：这个 chunk 占多少个 8 字节字，以及块内有多少个值（以 log2 表示）：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">word = ((chunk_bytes / 8 - 1) &lt;&lt; 4) | log2(num_values)
+</span></span></code></pre></div><p>读端在初始化时把 buffer 0 整体载入内存（每个 chunk 只占 2–4 字节），前缀和算出第 r 行落在第 k 个 chunk，再用 <code>chunk_bytes</code> 得到它在 buffer 1 里的精确字节区间——<strong>随机访问时只需读那一个 chunk</strong>。</p>
+<p>而 Parquet 的页是<strong>一个不可切分的压缩块</strong>，页内没有任何定位结构。</p>
+<p>MiniBlock 的 buffer 布局（索引、rep/def、值分开存放）和块头的具体格式，这里不展开。</p>
+<h4 class="heading" id="压缩编码的选择被可定位性约束">
+  压缩编码的选择被“可定位性”约束
+  <a class="anchor" href="#%e5%8e%8b%e7%bc%a9%e7%bc%96%e7%a0%81%e7%9a%84%e9%80%89%e6%8b%a9%e8%a2%ab%e5%8f%af%e5%ae%9a%e4%bd%8d%e6%80%a7%e7%ba%a6%e6%9d%9f">#</a>
+</h4>
+<ul>
+<li>Parquet：可以 delta / RLE / BSS / 整块 zstd 等非透明压缩，压缩率高，代价是每次都必须把整个页解开。</li>
+<li>Lance：MiniBlock 是块级压缩，chunk 内仍可用 RLE / BSS / zstd；但 FullZip（值级交错布局）强制逐值透明，压缩后必须还能算出第 i 个值的位置。</li>
+</ul>
+<p>因此 Lance 的 FullZip 压缩率通常偏低，补偿手段是“单值 ≥ 32 KiB 时逐值 zstd”——逐值压一帧，位置依然可算。</p>
+<h4 class="heading" id="删除走位图不重写">
+  删除走位图，不重写
+  <a class="anchor" href="#%e5%88%a0%e9%99%a4%e8%b5%b0%e4%bd%8d%e5%9b%be%e4%b8%8d%e9%87%8d%e5%86%99">#</a>
+</h4>
+<p>这一条已经超出单个数据文件的范围，属于数据集层的设计，但它直接决定了“删一行要付多少代价”：</p>
+<ul>
+<li>Parquet 格式本身没有删除语义，删一行要靠引擎读-改-写整个 row group（跨列）。</li>
+<li>Lance 用 <code>_deletions/</code> 下的位图记录被删除的行，数据文件本身不动。删一行的代价从重写整个 row group 降到写一个小文件。</li>
+</ul>
+<h4 class="heading" id="元数据可以按列取">
+  元数据可以按列取
+  <a class="anchor" href="#%e5%85%83%e6%95%b0%e6%8d%ae%e5%8f%af%e4%bb%a5%e6%8c%89%e5%88%97%e5%8f%96">#</a>
+</h4>
+<ul>
+<li>Parquet：所有元数据集中在 Footer 里，打开文件要一次读完，大小 O(row_groups × columns)。</li>
+<li>Lance：元数据分散在 CMO / GBO 中，每列 16 字节，只读投影列的元数据，宽表 + 窄投影时打开文件的成本差距明显。</li>
+</ul>
+<h4 class="heading" id="一次点查的对照">
+  一次点查的对照
+  <a class="anchor" href="#%e4%b8%80%e6%ac%a1%e7%82%b9%e6%9f%a5%e7%9a%84%e5%af%b9%e7%85%a7">#</a>
+</h4>
+<p>根据 Parquet 和 Lance 的数据文件结构，一次点查的流程对比如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Parquet：
+</span></span><span class="line"><span class="cl">  读 footer（几 MB）
+</span></span><span class="line"><span class="cl">  → 定位 row group
+</span></span><span class="line"><span class="cl">  → 读 dictionary page
+</span></span><span class="line"><span class="cl">  → 扫页头或查 OffsetIndex
+</span></span><span class="line"><span class="cl">  → 读 1 MB 页
+</span></span><span class="line"><span class="cl">  → 解压整页
+</span></span><span class="line"><span class="cl">  → 解 levels 走到目标行
+</span></span><span class="line"><span class="cl">  → 取 200 B          读放大 ≈ 5000x
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Lance：
+</span></span><span class="line"><span class="cl">  查 manifest 得 fragment → file（0 I/O）
+</span></span><span class="line"><span class="cl">  → Page.priority 二分（内存）
+</span></span><span class="line"><span class="cl">  → 查 buffer 0（初始化时已进缓存）
+</span></span><span class="line"><span class="cl">  → 读命中 chunk（约 4 KiB）
+</span></span><span class="line"><span class="cl">  取 200 B            读放大 ≈ 20x
+</span></span></code></pre></div><p>Lance 的读放大并没有消失，只是从“整页 1 MB”缩到了“一个 chunk 4 KiB”这一级。真正需要担心的是 chunk 别做得太大，这也是 MiniBlock 把块压到 32 KiB 以内的原因。</p>
+<p>两者的特点是：</p>
+<ul>
+<li>Parquet 的随机访问是“先定位到页，再把页整个解开”；</li>
+<li>Lance 的随机访问是“逐层定位到字节区间，只读命中的那一小块”。</li>
+</ul>
+<h4 class="heading" id="代价">
+  代价
+  <a class="anchor" href="#%e4%bb%a3%e4%bb%b7">#</a>
+</h4>
+<p>Lance 不是“更优”，而是“换了一种代价”：</p>
+<table>
+  <thead>
+      <tr>
+          <th>代价</th>
+          <th>说明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>压缩率偏低</td>
+          <td>FullZip 必须透明，不能用 delta / 整块 zstd</td>
+      </tr>
+      <tr>
+          <td>元数据更复杂</td>
+          <td>CMO / GBO / PageInfo / ChunkIndex / rep index 多层</td>
+      </tr>
+      <tr>
+          <td>调度更复杂</td>
+          <td>需要自己的 FieldScheduler / PageScheduler</td>
+      </tr>
+      <tr>
+          <td>顺序扫描略慢</td>
+          <td>解压粒度碎（4 KiB vs 1 MB），大块 SIMD 机会少</td>
+      </tr>
+      <tr>
+          <td>额外文件类型</td>
+          <td><code>_deletions/</code>、<code>_indices/</code></td>
+      </tr>
+  </tbody>
+</table>
+<h4 class="heading" id="小结-1">
+  小结
+  <a class="anchor" href="#%e5%b0%8f%e7%bb%93-1">#</a>
+</h4>
+<p>把两边的结构放在一起看，差异只有一句话：</p>
+<ul>
+<li>Parquet：row group → column chunk → page（页内不可定位）</li>
+<li>Lance  ：column → page → buffer（页内可定位到 chunk）</li>
+</ul>
+<p>Lance 去掉了跨列共享的 row group，让每列按自己的字节预算分页；再在页内用 buffer 0 的块索引把随机访问落到具体字节区间。</p>
+<p>两边是两种取舍，没有绝对优劣：</p>
+<ul>
+<li>Parquet 用读放大换压缩率和顺序吞吐；</li>
+<li>Lance 用元数据复杂度和压缩率换随机访问的字节数。</li>
+</ul>
+<p>粗略的判据是命中比例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">命中 &gt; 5%–10%  → 顺序扫描，Parquet 更优
+</span></span><span class="line"><span class="cl">命中 &lt; 1%      → 随机访问，Lance 更优
+</span></span></code></pre></div><p>页内的三种布局（MiniBlock、FullZip、Sparse）细节较多，会在后续文章中单独展开。</p>
 
     
     

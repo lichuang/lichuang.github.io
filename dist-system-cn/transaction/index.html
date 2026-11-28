@@ -68,7 +68,7 @@
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.218894d7bb3410b00f1dbc7f4fff054f0b93038cdbdc7b5472fe74b12c5c47b2.css" media="all">
 
 
 
@@ -108,14 +108,14 @@
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
       
         <p class="small ">
             <a href="/dist-system-en" >
-                DistributedSystemIllustrated
+                Distributed-System-Illustrated
             </a>
         </p>
         
@@ -136,7 +136,7 @@
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -229,7 +229,14 @@
       <ul>
         <li><a href="#731-两阶段提交">7.3.1 两阶段提交</a></li>
         <li><a href="#732-三阶段提交">7.3.2 三阶段提交</a></li>
-        <li><a href="#733-google-spanner">7.3.3 Google Spanner</a></li>
+        <li><a href="#733-google-spanner">7.3.3 Google Spanner</a>
+          <ul>
+            <li><a href="#7331-整体架构">7.3.3.1 整体架构</a></li>
+            <li><a href="#7332-true-time">7.3.3.2 True Time</a></li>
+            <li><a href="#7333-分布式事务实现">7.3.3.3 分布式事务实现</a></li>
+            <li><a href="#7334-总结">7.3.3.4 总结</a></li>
+          </ul>
+        </li>
         <li><a href="#734-tcc事务">7.3.4 TCC事务</a></li>
         <li><a href="#735-saga事务">7.3.5 SAGA事务</a></li>
       </ul>
@@ -1003,8 +1010,8 @@ print x1, y1
 </p>
 <p>乐观并发控制在执行时不会加锁，在冲突率低的场景下，性能远高于基于锁的协议。由于不申请锁，从根本上避免了死锁问题。但是，如果事务间频繁冲突，大量的回滚和重试会带来巨大开销，性能甚至不如简单的加锁。一个长事务可能被短事务不断抢先提交而导致多次验证失败和回滚。</p>
 <p>乐观并发控制采用时间戳的方式验证数据版本的思想，也可以用于应用层面。例如可以在数据表中增加一个字段&quot;version&quot;表示数据的版本，在提交修改时，仅当数据版本是当初读出来的版本时才进行更新，否则再次读取当前的最新数据进行重试：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> <span style="font-weight:bold;text-decoration:underline">table</span> <span style="font-weight:bold;text-decoration:underline">SET</span> <span style="font-weight:bold;text-decoration:underline">data</span> = new_value, <span style="font-weight:bold;text-decoration:underline">version</span> = 2 <span style="font-weight:bold;text-decoration:underline">WHERE</span> id = 123 <span style="font-weight:bold;text-decoration:underline">AND</span> <span style="font-weight:bold;text-decoration:underline">version</span> = 1;
-</span></span></code></pre></div><p>如果这条UPDATE语句返回的&quot;受影响行数&quot;为0，就意味着在它读取之后、更新之前，已经有其他事务修改了数据（version 不再是 1），即验证失败。应用层可以捕获此信号并进行回滚或重试。这本质上是乐观并发控制思想在SQL层面的实现。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">UPDATE</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new_value</span><span class="p">,</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">123</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>如果这条UPDATE语句返回的&quot;受影响行数&quot;为0，就意味着在它读取之后、更新之前，已经有其他事务修改了数据（version 不再是 1），即验证失败。应用层可以捕获此信号并进行回滚或重试。这本质上是乐观并发控制思想在SQL层面的实现。</p>
 <hr>
 <h3 class="heading" id="723-多版本并发控制">
   7.2.3 多版本并发控制
@@ -1184,16 +1191,16 @@ print x1, y1
 <p>与&quot;丢失更新&quot;不同，丢失更新是两个事务修改同一个数据项，而在写倾斜中，事务通常修改的是不同的数据项。这种异常通常发生在快照隔离或可重复读等中等隔离级别下，因为这些级别无法检测到这种逻辑冲突。</p>
 <p>值得注意的是，写倾斜并非 MVCC 机制下的偶然异常，而是<em>快照隔离（Snapshot Isolation, SI）</em><sup id="fnref:9"><a href="#fn:9" class="footnote-ref" role="doc-noteref">9</a></sup>模型中特有的典型问题。大多数基于 MVCC 实现的数据库，其默认隔离级别本质上就是快照隔离。在此级别下，每个事务都仿佛拥有数据库在特定时刻的&quot;冻结&quot;快照，事务基于该快照中的状态（例如：当前只有 1 名医生值班）做出业务决策。写倾斜的根本原因在于：事务做决策所依赖的前提（Premise），在事务提交时已经因为其他并发事务的修改而不再成立，但传统的快照隔离机制无法感知这种跨记录的逻辑依赖。</p>
 <p>在较低的隔离级别（如读已提交或可重复读）下，可以通过手动加锁来防止写倾斜。最常用的方法是<code>SELECT ... FOR UPDATE</code>，这个命令会在事务读取数据时，对所读取的行加上排他锁（或升级锁）。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- 事务 T1 和 T2 都会执行类似下面的代码
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">BEGIN</span>;
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- 读取并锁定所有在班的医生记录
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">SELECT</span> * <span style="font-weight:bold;text-decoration:underline">FROM</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">WHERE</span> oncall = <span style="font-weight:bold;text-decoration:underline">true</span> <span style="font-weight:bold;text-decoration:underline">FOR</span> <span style="font-weight:bold;text-decoration:underline">UPDATE</span>;
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- 假设查询结果返回了 A 和 B 两行，且 count &gt; 1
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- 应用程序代码检查 count
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- 如果可以下班，则更新
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">SET</span> oncall = <span style="font-weight:bold;text-decoration:underline">false</span> <span style="font-weight:bold;text-decoration:underline">WHERE</span> name = <span style="color:#666;font-style:italic">&#39;A&#39;</span>; <span style="color:#888;font-style:italic">-- 或 &#39;B&#39;
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">COMMIT</span>;
-</span></span></code></pre></div><p><strong>代码7.3 改进后的医生值班事务</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- 事务 T1 和 T2 都会执行类似下面的代码
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">BEGIN</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- 读取并锁定所有在班的医生记录
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">on_call_doctors</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">oncall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">true</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- 假设查询结果返回了 A 和 B 两行，且 count &gt; 1
+</span></span></span><span class="line"><span class="cl"><span class="c1">-- 应用程序代码检查 count
+</span></span></span><span class="line"><span class="cl"><span class="c1">-- 如果可以下班，则更新
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">UPDATE</span><span class="w"> </span><span class="n">on_call_doctors</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">oncall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">false</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;A&#39;</span><span class="p">;</span><span class="w"> </span><span class="c1">-- 或 &#39;B&#39;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">COMMIT</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p><strong>代码7.3 改进后的医生值班事务</strong></p>
 <p>它的执行原理是：当事务T1执行SELECT &hellip; FOR UPDATE时，它锁定了A和B的记录。此时事务T2再尝试执行同样的查询时，它必须等待，直到T1提交或回滚释放了锁。这样一来，并发执行变成了串行执行，写倾斜就不会发生。</p>
 <p>除此以外，现代数据库理论还提出了更为高效的*可串行化快照隔离（Serializable Snapshot Isolation, SSI）*算法。SSI 是一种乐观并发控制机制，它保留了 MVCC &ldquo;读不阻塞写&quot;的高性能优势，通过在后台追踪事务之间的读写依赖关系，自动检测并中止那些可能导致写倾斜的事务。目前，PostgreSQL 等主流数据库的 Serializable 级别正是采用了这种技术，在保证严格一致性的同时，最大程度地减少了锁竞争带来的性能损耗。</p>
 <hr>

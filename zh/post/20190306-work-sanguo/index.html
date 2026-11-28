@@ -42,7 +42,11 @@
 TSession # 管理一个连接，继承自TDataHandler。
 RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工作：
 注册RPC方法：每个RPC方法有一个对应的method ID，与之关联。RPC协议中头部会带上对应的method ID用于查询对应的是哪个方法，然后再来根据具体方法进行处理。 管理rpc channel：内部维护一个map用于管理rpc channel，一个地址对应一个RPC channel，如果同样的地址又来了一个channel连接，将踢掉之前的rpc channel，即同一个地址只能有一个channel。内部的map可以通过多种方式访问到channel：host-port组合、地址、guid。 PacketParser # 负责RPC协议的读写。RPC协议具体的格式如下：
-协议包头 1个字节的magic number。 8个字节的call guid，用于表示发送方。 8个字节的method ID，为0的时候表示这是一个rpc应答消息。 4个字节的包体长度。 包体内容：大小如包体长度所示。 内部集成了socket对象，用于收发RPC数据。">
+协议包头 1个字节的magic number。 8个字节的call guid，用于表示发送方。 8个字节的method ID，为0的时候表示这是一个rpc应答消息。 4个字节的包体长度。 包体内容：大小如包体长度所示。 内部集成了socket对象，用于收发RPC数据。
+ProtobufChannel # 具体维护一个RPC连接，继承自google::protobuf::RpcChannel::RpcChannel（该类是protobuf自动生成，有纯虚函数CallMethod），以及TDataHandler,内部使用PacketParser来完成RPC协议的读写。
+当写入数据的时候，如果当前还在连接状态，则首先push进入消息队列中，待连接成功了再进行发送，使用者不需要关注这个逻辑。
+另外，还提供了订阅关闭事件的接口，用户可以注册一个callback来订阅这个channel关闭事件。
+Lock Service # lock service服务，本质上提供针对一个key的读写、加锁、删除、创建操作，当一个key被锁住之后，后续针对该key的请求会被记录到一个等待队列中，在解锁之后再被执行。">
   <meta property="og:locale" content="zh">
   <meta property="og:type" content="article">
     <meta property="article:section" content="post">
@@ -70,7 +74,7 @@ RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.e37abb75e20079c13c12920010a37fb52339da4fa0ce5fdaf7ef55e93d694ee8.css" media="all">
 
 
 
@@ -106,7 +110,7 @@ RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
@@ -134,7 +138,7 @@ RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -202,16 +206,16 @@ RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工
   <a class="anchor" href="#tdatahandler">#</a>
 </h2>
 <p>纯虚类，有以下接口：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#888;font-style:italic">//处理连接
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleConnect</span>(<span style="font-weight:bold;text-decoration:underline">int</span> error) {
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理写
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleWrite</span>() {
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理读
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleRead</span>() = 0;
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 处理错误
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>virtual <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">HandleError</span>(<span style="font-weight:bold;text-decoration:underline">int</span> error) = 0;
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="c1">//处理连接
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">virtual</span> <span class="kt">void</span> <span class="nf">HandleConnect</span><span class="p">(</span><span class="kt">int</span> <span class="n">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 处理写
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">virtual</span> <span class="kt">void</span> <span class="nf">HandleWrite</span><span class="p">()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 处理读
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">virtual</span> <span class="kt">void</span> <span class="nf">HandleRead</span><span class="p">()</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 处理错误
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">virtual</span> <span class="kt">void</span> <span class="nf">HandleError</span><span class="p">(</span><span class="kt">int</span> <span class="n">error</span><span class="p">)</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
 </span></span></code></pre></div><h2 class="heading" id="tsocket">
   TSocket
   <a class="anchor" href="#tsocket">#</a>
@@ -269,14 +273,14 @@ RPC # ProtobufService # ProtobufService继承自TAcceptHandler，负责以下工
 </h1>
 <p>lock service服务，本质上提供针对一个key的读写、加锁、删除、创建操作，当一个key被锁住之后，后续针对该key的请求会被记录到一个等待队列中，在解锁之后再被执行。</p>
 <p>对外暴露以下服务：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>service LockService {
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Read</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Write</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Lock</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Unlock</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Create</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>  rpc <span style="color:#666;font-weight:bold;font-style:italic">Delete</span>(Request) <span style="color:#666;font-weight:bold;font-style:italic">returns</span> (Response);
-</span></span><span style="display:flex;"><span>};
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="n">service</span> <span class="n">LockService</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Read</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Write</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Lock</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Unlock</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Create</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rpc</span> <span class="nf">Delete</span><span class="p">(</span><span class="n">Request</span><span class="p">)</span> <span class="nf">returns</span> <span class="p">(</span><span class="n">Response</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
 </span></span></code></pre></div><p>针对每个key，有一个Node结构体与之对应。当有多个请求等待在同一个key的时候，创建一个LockWaitContext信息，LockWaitContext用于缓存向Lockserver请求的信息，等待被唤醒时根据这些信息进行操作。而一个Node的所有LockWaitContext保存在Node的wait_list中。</p>
 <p>
 

@@ -67,7 +67,7 @@
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.218894d7bb3410b00f1dbc7f4fff054f0b93038cdbdc7b5472fe74b12c5c47b2.css" media="all">
 
 
 
@@ -107,14 +107,14 @@
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
       
         <p class="small ">
             <a href="/dist-system-en" >
-                DistributedSystemIllustrated
+                Distributed-System-Illustrated
             </a>
         </p>
         
@@ -135,7 +135,7 @@
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -223,7 +223,14 @@
       <ul>
         <li><a href="#two-phase-commit">Two-Phase Commit</a></li>
         <li><a href="#three-phase-commit">Three-Phase Commit</a></li>
-        <li><a href="#google-spanner">Google Spanner</a></li>
+        <li><a href="#google-spanner">Google Spanner</a>
+          <ul>
+            <li><a href="#overall-architecture">Overall Architecture</a></li>
+            <li><a href="#true-time">True Time</a></li>
+            <li><a href="#distributed-transactions-1">Distributed Transactions</a></li>
+            <li><a href="#summary">Summary</a></li>
+          </ul>
+        </li>
         <li><a href="#tcc-transactions">TCC Transactions</a></li>
         <li><a href="#saga-transactions">SAGA Transactions</a></li>
       </ul>
@@ -978,8 +985,8 @@
 </p>
 <p>Optimistic concurrency control does not acquire locks during execution; in scenarios with low conflict rates, its performance is much higher than lock-based protocols. Because no locks are requested, deadlocks are fundamentally avoided. However, if transactions frequently conflict, a large amount of rollback and retry will bring huge overhead, and performance may even be worse than simple locking. A long transaction may be repeatedly preempted by short transactions, causing multiple validation failures and rollbacks.</p>
 <p>Optimistic concurrency control&rsquo;s idea of using timestamps to verify data versions can also be applied at the application level. For example, a field <code>version</code> can be added to a data table to indicate the data version. When submitting a modification, the update is performed only if the data version is the version originally read; otherwise, the current latest data is read again and the operation is retried:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> <span style="font-weight:bold;text-decoration:underline">table</span> <span style="font-weight:bold;text-decoration:underline">SET</span> <span style="font-weight:bold;text-decoration:underline">data</span> = new_value, <span style="font-weight:bold;text-decoration:underline">version</span> = 2 <span style="font-weight:bold;text-decoration:underline">WHERE</span> id = 123 <span style="font-weight:bold;text-decoration:underline">AND</span> <span style="font-weight:bold;text-decoration:underline">version</span> = 1;
-</span></span></code></pre></div><p>If the &ldquo;number of affected rows&rdquo; returned by this UPDATE statement is 0, it means that, after it read the data and before it updated it, another transaction has modified the data (version is no longer 1), i.e., validation failed. The application layer can catch this signal and roll back or retry. This is essentially the implementation of optimistic concurrency control at the SQL level.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="k">UPDATE</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new_value</span><span class="p">,</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">123</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>If the &ldquo;number of affected rows&rdquo; returned by this UPDATE statement is 0, it means that, after it read the data and before it updated it, another transaction has modified the data (version is no longer 1), i.e., validation failed. The application layer can catch this signal and roll back or retry. This is essentially the implementation of optimistic concurrency control at the SQL level.</p>
 <h3 class="heading" id="multi-version-concurrency-control">
   Multi-Version Concurrency Control
   <a class="anchor" href="#multi-version-concurrency-control">#</a>
@@ -1154,16 +1161,16 @@
 <p>Unlike &ldquo;lost update,&rdquo; lost update occurs when two transactions modify the same data item, while in write skew transactions usually modify different data items. This anomaly usually occurs under medium isolation levels such as snapshot isolation or repeatable read, because these levels cannot detect this kind of logical conflict.</p>
 <p>It is worth noting that write skew is not an accidental anomaly under MVCC, but a typical problem specific to the <em>Snapshot Isolation (SI)</em>[14] model. Most databases based on MVCC have a default isolation level that is essentially snapshot isolation. Under this level, each transaction seems to have a &ldquo;frozen&rdquo; snapshot of the database at a specific moment; the transaction makes business decisions based on the state in that snapshot (for example, currently only one doctor is on call). The root cause of write skew is that the premise (Premise) on which the transaction based its decision is no longer valid at commit time because of modifications by other concurrent transactions, but the traditional snapshot isolation mechanism cannot perceive this cross-record logical dependency.</p>
 <p>At lower isolation levels (such as read committed or repeatable read), write skew can be prevented by manually acquiring locks. The most common method is <code>SELECT ... FOR UPDATE</code>, which acquires an exclusive lock (or upgrade lock) on the rows read when the transaction reads the data.</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Both transactions T1 and T2 execute code similar to the following
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">BEGIN</span>;
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Read and lock all on-call doctor records
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">SELECT</span> * <span style="font-weight:bold;text-decoration:underline">FROM</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">WHERE</span> oncall = <span style="font-weight:bold;text-decoration:underline">true</span> <span style="font-weight:bold;text-decoration:underline">FOR</span> <span style="font-weight:bold;text-decoration:underline">UPDATE</span>;
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Suppose the query returns two rows, A and B, and count &gt; 1
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- Application code checks count
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">-- If allowed to go off duty, update
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">UPDATE</span> on_call_doctors <span style="font-weight:bold;text-decoration:underline">SET</span> oncall = <span style="font-weight:bold;text-decoration:underline">false</span> <span style="font-weight:bold;text-decoration:underline">WHERE</span> name = <span style="color:#666;font-style:italic">&#39;A&#39;</span>; <span style="color:#888;font-style:italic">-- or &#39;B&#39;
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="font-weight:bold;text-decoration:underline">COMMIT</span>;
-</span></span></code></pre></div><p>Its execution principle is: when transaction T1 executes <code>SELECT ... FOR UPDATE</code>, it locks the records of A and B. At this point, when transaction T2 tries to execute the same query, it must wait until T1 commits or rolls back and releases the locks. In this way, concurrent execution becomes serial execution, and write skew will not occur.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-sql" data-lang="sql"><span class="line"><span class="cl"><span class="c1">-- Both transactions T1 and T2 execute code similar to the following
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">BEGIN</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Read and lock all on-call doctor records
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">on_call_doctors</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">oncall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">true</span><span class="w"> </span><span class="k">FOR</span><span class="w"> </span><span class="k">UPDATE</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">-- Suppose the query returns two rows, A and B, and count &gt; 1
+</span></span></span><span class="line"><span class="cl"><span class="c1">-- Application code checks count
+</span></span></span><span class="line"><span class="cl"><span class="c1">-- If allowed to go off duty, update
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">UPDATE</span><span class="w"> </span><span class="n">on_call_doctors</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">oncall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">false</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;A&#39;</span><span class="p">;</span><span class="w"> </span><span class="c1">-- or &#39;B&#39;
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">COMMIT</span><span class="p">;</span><span class="w">
+</span></span></span></code></pre></div><p>Its execution principle is: when transaction T1 executes <code>SELECT ... FOR UPDATE</code>, it locks the records of A and B. At this point, when transaction T2 tries to execute the same query, it must wait until T1 commits or rolls back and releases the locks. In this way, concurrent execution becomes serial execution, and write skew will not occur.</p>
 <p>In addition, modern database theory has proposed the more efficient <em>Serializable Snapshot Isolation (SSI)</em> algorithm. SSI is an optimistic concurrency control mechanism that retains the high-performance advantage of MVCC &ldquo;reads do not block writes&rdquo;; by tracking read-write dependency relationships among transactions in the background, it automatically detects and aborts transactions that may cause write skew. Currently, the Serializable level of mainstream databases such as PostgreSQL uses this technology[15], ensuring strict consistency while minimizing performance losses caused by lock contention.</p>
 <h2 class="heading" id="distributed-transactions">
   Distributed Transactions

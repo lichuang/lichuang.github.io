@@ -71,7 +71,7 @@
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.218894d7bb3410b00f1dbc7f4fff054f0b93038cdbdc7b5472fe74b12c5c47b2.css" media="all">
 
 
 
@@ -111,14 +111,14 @@
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
       
         <p class="small ">
             <a href="/dist-system-en" >
-                DistributedSystemIllustrated
+                Distributed-System-Illustrated
             </a>
         </p>
         
@@ -139,7 +139,7 @@
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -355,22 +355,22 @@
   <a class="anchor" href="#manifest-files">#</a>
 </h2>
 <p>The <code>_versions/</code> directory holds Manifest files. A Manifest is the metadata file of the whole system, and it is a <strong>complete snapshot of a certain version</strong>:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>version
-</span></span><span style="display:flex;"><span>schema
-</span></span><span style="display:flex;"><span>fragments
-</span></span><span style="display:flex;"><span>indices
-</span></span><span style="display:flex;"><span>config
-</span></span><span style="display:flex;"><span>table_metadata
-</span></span><span style="display:flex;"><span>base_paths
-</span></span><span style="display:flex;"><span>feature flags
-</span></span><span style="display:flex;"><span>transaction_file / transaction_section
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">version
+</span></span><span class="line"><span class="cl">schema
+</span></span><span class="line"><span class="cl">fragments
+</span></span><span class="line"><span class="cl">indices
+</span></span><span class="line"><span class="cl">config
+</span></span><span class="line"><span class="cl">table_metadata
+</span></span><span class="line"><span class="cl">base_paths
+</span></span><span class="line"><span class="cl">feature flags
+</span></span><span class="line"><span class="cl">transaction_file / transaction_section
 </span></span></code></pre></div><p>With this information, a read only needs to read the Manifest file to obtain the overall organization of the whole system. Correspondingly, when modifying, the Manifest file is the last file to be modified: only after data files, transaction files, and so on have all been modified is the Manifest file finally updated.</p>
 <h3 class="heading" id="latest_version_hintjson">
   latest_version_hint.json
   <a class="anchor" href="#latest_version_hintjson">#</a>
 </h3>
 <p>In addition to <code>*.manifest</code>, the <code>_versions/</code> directory may also contain a <code>latest_version_hint.json</code>, whose content is:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{&#34;version&#34;: 42}
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span><span class="nt">&#34;version&#34;</span><span class="p">:</span> <span class="mi">42</span><span class="p">}</span>
 </span></span></code></pre></div><p>It solves only one problem: <strong>how to cheaply find the latest manifest</strong>. But not all storage needs it:</p>
 <table>
   <thead>
@@ -394,7 +394,7 @@
   </tbody>
 </table>
 <p>In other words:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>uses_version_hint = global switch &amp;&amp; !list_is_lexically_ordered
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">uses_version_hint = global switch &amp;&amp; !list_is_lexically_ordered
 </span></span></code></pre></div><p>On storage that needs it, the reader first reads the hint to get a starting version, then probes upward with HEAD requests until some version does not exist; if the hint is missing or stale, it falls back to a full listing. It is purely an optimization: deleting it does not affect correctness, and write failures can be ignored.</p>
 <p>Returning to the Manifest file, we will focus on explaining its <code>version</code> and <code>fragments</code> fields.</p>
 <h3 class="heading" id="version">
@@ -409,9 +409,9 @@
 </h3>
 <p>Next, a fragment is a logical concept. It consists of a group of data files and is the smallest &ldquo;row unit&rdquo; in the Manifest file, used to represent an immutable data shard of a Lance table. In other words: <strong>one fragment may correspond to multiple data files, while a data file can belong to only one fragment within the same manifest</strong> — the relationship is one-to-many.</p>
 <p>The qualifier &ldquo;within the same manifest&rdquo; is needed because across versions the same data file can be referenced by multiple manifests:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>v1.manifest → fragment 0 → data/A.lance
-</span></span><span style="display:flex;"><span>v2.manifest → fragment 0 → data/A.lance
-</span></span><span style="display:flex;"><span>v3.manifest → fragment 0 → data/A.lance
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">v1.manifest → fragment 0 → data/A.lance
+</span></span><span class="line"><span class="cl">v2.manifest → fragment 0 → data/A.lance
+</span></span><span class="line"><span class="cl">v3.manifest → fragment 0 → data/A.lance
 </span></span></code></pre></div><p>This is exactly the cost of &ldquo;files are immutable + the manifest is a complete snapshot&rdquo;: every data change requires writing a new manifest, while old manifests still point at the old files. Precisely because of this, reclaiming space cannot be decided by &ldquo;delete it once some manifest no longer references it&rdquo;; it must be judged by the union of references from all retained version manifests.</p>
 <p>A fragment may correspond to multiple data files, which makes it easy to achieve the following: when part of the data in a fragment is modified, only some of its data files are modified.</p>
 <p>
@@ -462,7 +462,7 @@
 </ul>
 <p>Besides the data files in the <code>data</code> directory, the <code>_deletions</code> directory also stores deletion files. This is likewise an application of the principle that &ldquo;files cannot be modified after being written&rdquo;. Consider this scenario: some data in the original data has been deleted. Rewriting a new data file would be too expensive; instead, the ids of the data to be deleted are written into a separate deletion file.</p>
 <p>Deletion files are named as follows:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_deletions/{fragment_id}-{read_version}-{id}.{arrow|bin}
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">_deletions/{fragment_id}-{read_version}-{id}.{arrow|bin}
 </span></span></code></pre></div><table>
   <thead>
       <tr>
@@ -498,10 +498,10 @@
 </h2>
 <p>The <code>_transactions</code> directory stores transaction files, named <code>{read_version}-{uuid}.txn</code>. The file content is the <strong>raw encoding of the <code>lance.table.Transaction</code> protobuf</strong>, with no header, footer, or length prefix.</p>
 <p>It records &ldquo;intent&rdquo; rather than &ldquo;result&rdquo;:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>read_version
-</span></span><span style="display:flex;"><span>uuid
-</span></span><span style="display:flex;"><span>operation (Append / Delete / Overwrite / Update / Rewrite / ...)
-</span></span><span style="display:flex;"><span>  └─ parameters required by each
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">read_version
+</span></span><span class="line"><span class="cl">uuid
+</span></span><span class="line"><span class="cl">operation (Append / Delete / Overwrite / Update / Rewrite / ...)
+</span></span><span class="line"><span class="cl">  └─ parameters required by each
 </span></span></code></pre></div><p>For example, Append only knows &ldquo;these fragments are to be added&rdquo;, not their final fragment ids; the final ids, the manifest version number, and the index coverage range are all computed when the manifest is built.</p>
 <p>It is used at commit time for:</p>
 <ul>
@@ -515,7 +515,7 @@
   <a class="anchor" href="#index-files">#</a>
 </h2>
 <p>The <code>_indices</code> directory stores index files, with one UUID directory per index segment:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>_indices/{uuid}/
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">_indices/{uuid}/
 </span></span></code></pre></div><p>This UUID is the <code>IndexMetadata.uuid</code> generated when the index is written, not the index name. An index with the same name may correspond to multiple physical segments; replacement, pruning, and remapping all happen at the segment level, while the directory name stays unchanged.</p>
 <p>The directory contents are determined by the index type:</p>
 <pre tabindex="0"><code>IVF-PQ         → centroid / PQ codebook / partition data
@@ -543,113 +543,113 @@ Branch = fork another version chain from a certain version
   <a class="anchor" href="#tag">#</a>
 </h3>
 <p>Tag files are stored in <code>_refs/tags/{tag}.json</code>, with roughly the following content:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  &#34;branch&#34;: <span style="font-weight:bold;text-decoration:underline">null</span>,
-</span></span><span style="display:flex;"><span>  &#34;version&#34;: 5,
-</span></span><span style="display:flex;"><span>  &#34;createdAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
-</span></span><span style="display:flex;"><span>  &#34;updatedAt&#34;: <span style="color:#666;font-style:italic">&#34;...&#34;</span>,
-</span></span><span style="display:flex;"><span>  &#34;manifestSize&#34;: 1024,
-</span></span><span style="display:flex;"><span>  &#34;metadata&#34;: {}
-</span></span><span style="display:flex;"><span>}
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;branch&#34;</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;version&#34;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;createdAt&#34;</span><span class="p">:</span> <span class="s2">&#34;...&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;updatedAt&#34;</span><span class="p">:</span> <span class="s2">&#34;...&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;manifestSize&#34;</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;metadata&#34;</span><span class="p">:</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p><code>branch</code> being <code>null</code> means main, so a tag always points at the pair <code>(branch, version)</code> rather than a bare version number.</p>
 <p><strong>Using a name instead of a version number</strong></p>
 <p>The platform side should not hardcode <code>version=42</code>:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds = lance.dataset(uri, version=42)               <span style="color:#888;font-style:italic"># fragile</span>
-</span></span><span style="display:flex;"><span>ds = lance.dataset(uri, version=<span style="color:#666;font-style:italic">&#34;prod-2026-11&#34;</span>)   <span style="color:#888;font-style:italic"># readable, changeable</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">ds</span> <span class="o">=</span> <span class="n">lance</span><span class="o">.</span><span class="n">dataset</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>               <span class="c1"># fragile</span>
+</span></span><span class="line"><span class="cl"><span class="n">ds</span> <span class="o">=</span> <span class="n">lance</span><span class="o">.</span><span class="n">dataset</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&#34;prod-2026-11&#34;</span><span class="p">)</span>   <span class="c1"># readable, changeable</span>
 </span></span></code></pre></div><p><strong>Giving &ldquo;important versions&rdquo; a stable anchor</strong></p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Training dataset snapshot  → tag &#34;training-v1&#34;
-</span></span><span style="display:flex;"><span>Production release point   → tag &#34;prod&#34;
-</span></span><span style="display:flex;"><span>Evaluation baseline        → tag &#34;baseline-2026-11&#34;
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Training dataset snapshot  → tag &#34;training-v1&#34;
+</span></span><span class="line"><span class="cl">Production release point   → tag &#34;prod&#34;
+</span></span><span class="line"><span class="cl">Evaluation baseline        → tag &#34;baseline-2026-11&#34;
 </span></span></code></pre></div><p><strong>Preventing deletion by GC</strong></p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>The version a tag points to enters the cleanup working set by default
-</span></span><span style="display:flex;"><span>As long as the tag exists, this version will not be reclaimed
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">The version a tag points to enters the cleanup working set by default
+</span></span><span class="line"><span class="cl">As long as the tag exists, this version will not be reclaimed
 </span></span></code></pre></div><p>This is the only &ldquo;side-effect&rdquo; capability of a tag: it is a handle for a retention policy.</p>
 <p><strong>Allowing names to move</strong></p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>prod: v5 → v7
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">prod: v5 → v7
 </span></span></code></pre></div><p>Only <code>tags.update(&quot;prod&quot;, 7)</code> is needed, without changing any data.</p>
 <p>This differs from Git: Git tags are immutable by default, while Lance tags are <strong>re-pointable aliases</strong>.</p>
 <p>What Tag does not solve:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ Does not isolate writes: you cannot &#34;modify data on prod without affecting others&#34;
-</span></span><span style="display:flex;"><span>✗ Does not create a new version
-</span></span><span style="display:flex;"><span>✗ Does not copy data
-</span></span><span style="display:flex;"><span>✗ Does not provide parallel development
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">✗ Does not isolate writes: you cannot &#34;modify data on prod without affecting others&#34;
+</span></span><span class="line"><span class="cl">✗ Does not create a new version
+</span></span><span class="line"><span class="cl">✗ Does not copy data
+</span></span><span class="line"><span class="cl">✗ Does not provide parallel development
 </span></span></code></pre></div><h3 class="heading" id="branch">
   Branch
   <a class="anchor" href="#branch">#</a>
 </h3>
 <p>Branch files are stored in <code>_refs/branches/{branch}.json</code>; in addition, <code>tree/{branch}/</code> holds the data files of a branch, and the layout of this directory is the same as that of a regular dataset (<code>data/</code>, <code>_versions/</code>, <code>_indices/</code> are all present).</p>
 <p>An easy pitfall: a <code>/</code> in a branch name is encoded differently in two places.</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>branch = &#34;bugfix/issue-123&#34;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>_refs/branches/bugfix%2Fissue-123.json   ← metadata file, slash is encoded
-</span></span><span style="display:flex;"><span>tree/bugfix/issue-123/                    ← data directory, truly nested
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">branch = &#34;bugfix/issue-123&#34;
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">_refs/branches/bugfix%2Fissue-123.json   ← metadata file, slash is encoded
+</span></span><span class="line"><span class="cl">tree/bugfix/issue-123/                    ← data directory, truly nested
 </span></span></code></pre></div><p>The former must be flat (otherwise it would be treated as a subdirectory), while the latter is intentionally hierarchical (to make prefix-based cleanup easy).</p>
 <p>Branch can create branches, thereby achieving <strong>parallel evolution without interference</strong>.</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main        → production data
-</span></span><span style="display:flex;"><span>tree/exp-a  → experimenter A&#39;s cleaning logic
-</span></span><span style="display:flex;"><span>tree/exp-b  → experimenter B&#39;s schema change
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">main        → production data
+</span></span><span class="line"><span class="cl">tree/exp-a  → experimenter A&#39;s cleaning logic
+</span></span><span class="line"><span class="cl">tree/exp-b  → experimenter B&#39;s schema change
 </span></span></code></pre></div><p>The three chains each have their own <code>_versions/</code>, their own <code>data/</code>, and their own <code>_indices/</code>.</p>
 <p>Note that <strong>branch version numbers are counted independently</strong>:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>main v5  →  create_branch(&#34;dev&#34;, 5)  →  dev v5
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">main v5  →  create_branch(&#34;dev&#34;, 5)  →  dev v5
 </span></span></code></pre></div><p>Here <code>dev v5</code> and <code>main v5</code> are two completely different manifests that just happen to have the same version number (inherited at fork time). This is also why a tag must carry a branch.</p>
 <p><strong>Isolation without copying data</strong></p>
 <p>Creating a branch is a shallow clone:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>manifest.base_paths → parent branch
-</span></span><span style="display:flex;"><span>data_file.base_id   → parent branch
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">manifest.base_paths → parent branch
+</span></span><span class="line"><span class="cl">data_file.base_id   → parent branch
 </span></span></code></pre></div><p>So:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1 TB main
-</span></span><span style="display:flex;"><span>create_branch(&#34;exp&#34;) writes only one manifest + one JSON
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1 TB main
+</span></span><span class="line"><span class="cl">create_branch(&#34;exp&#34;) writes only one manifest + one JSON
 </span></span></code></pre></div><p>Compared with <code>deep_clone</code>, which really copies all files.</p>
 <p><strong>Supports &ldquo;discard after trial and error&rdquo;</strong></p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>create branch → write → find a problem → delete_branch
-</span></span><span style="display:flex;"><span>main was never touched
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">create branch → write → find a problem → delete_branch
+</span></span><span class="line"><span class="cl">main was never touched
 </span></span></code></pre></div><p><strong>Supports &ldquo;forking from any point&rdquo;</strong></p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;fix&#34;</span>, 12)           <span style="color:#888;font-style:italic"># from the current branch&#39;s v12</span>
-</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;exp&#34;</span>, <span style="color:#666;font-style:italic">&#34;v2-prod&#34;</span>)    <span style="color:#888;font-style:italic"># from a tag</span>
-</span></span><span style="display:flex;"><span>ds.create_branch(<span style="color:#666;font-style:italic">&#34;child&#34;</span>, (<span style="color:#666;font-style:italic">&#34;dev&#34;</span>, 7)) <span style="color:#888;font-style:italic"># from another branch&#39;s v7</span>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">ds</span><span class="o">.</span><span class="n">create_branch</span><span class="p">(</span><span class="s2">&#34;fix&#34;</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>           <span class="c1"># from the current branch&#39;s v12</span>
+</span></span><span class="line"><span class="cl"><span class="n">ds</span><span class="o">.</span><span class="n">create_branch</span><span class="p">(</span><span class="s2">&#34;exp&#34;</span><span class="p">,</span> <span class="s2">&#34;v2-prod&#34;</span><span class="p">)</span>    <span class="c1"># from a tag</span>
+</span></span><span class="line"><span class="cl"><span class="n">ds</span><span class="o">.</span><span class="n">create_branch</span><span class="p">(</span><span class="s2">&#34;child&#34;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&#34;dev&#34;</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span> <span class="c1"># from another branch&#39;s v7</span>
 </span></span></code></pre></div><p><strong>Naturally suited to &ldquo;multi-tenant / multi-environment&rdquo;</strong></p>
 <p><code>tree/{branch_name}/</code> stores the branch&rsquo;s data files, with the same structure as top-level data files:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>tree/tenant-a
-</span></span><span style="display:flex;"><span>tree/tenant-b
-</span></span><span style="display:flex;"><span>tree/staging
-</span></span><span style="display:flex;"><span>tree/prod
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">tree/tenant-a
+</span></span><span class="line"><span class="cl">tree/tenant-b
+</span></span><span class="line"><span class="cl">tree/staging
+</span></span><span class="line"><span class="cl">tree/prod
 </span></span></code></pre></div><p>Each is a complete dataset that can be read and written independently.</p>
 <p>What Branch does not solve:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>✗ Does not provide named snapshots: a branch points at &#34;latest&#34;, not a fixed version
-</span></span><span style="display:flex;"><span>✗ Does not auto-merge: Lance has no merge/rebase semantics for branches
-</span></span><span style="display:flex;"><span>✗ Does not share version numbers: each counts independently starting from the fork version
-</span></span><span style="display:flex;"><span>✗ Is not zero-cost: new writes still consume space
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">✗ Does not provide named snapshots: a branch points at &#34;latest&#34;, not a fixed version
+</span></span><span class="line"><span class="cl">✗ Does not auto-merge: Lance has no merge/rebase semantics for branches
+</span></span><span class="line"><span class="cl">✗ Does not share version numbers: each counts independently starting from the fork version
+</span></span><span class="line"><span class="cl">✗ Is not zero-cost: new writes still consume space
 </span></span></code></pre></div><p>To summarize:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Tag    → naming and retention
-</span></span><span style="display:flex;"><span>         turning &#34;a certain version&#34; into a readable, movable, protectable name
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>Branch → forking and isolation
-</span></span><span style="display:flex;"><span>         using zero-copy shallow references to open a version chain that can evolve independently
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>Tag governs &#34;where to point&#34;, Branch governs &#34;where to write&#34;.
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Tag    → naming and retention
+</span></span><span class="line"><span class="cl">         turning &#34;a certain version&#34; into a readable, movable, protectable name
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Branch → forking and isolation
+</span></span><span class="line"><span class="cl">         using zero-copy shallow references to open a version chain that can evolve independently
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Tag governs &#34;where to point&#34;, Branch governs &#34;where to write&#34;.
 </span></span></code></pre></div><h2 class="heading" id="summary">
   Summary
   <a class="anchor" href="#summary">#</a>
 </h2>
 <p>Stringing these files together by &ldquo;who decides whom&rdquo;, the relationships are:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>                    _versions/*.manifest
-</span></span><span style="display:flex;"><span>                    (single source of truth, complete snapshot, commit point)
-</span></span><span style="display:flex;"><span>                             │
-</span></span><span style="display:flex;"><span>        ┌────────────────────┼────────────────────┐
-</span></span><span style="display:flex;"><span>        │ fragments[]        │ index_section      │ transaction_file
-</span></span><span style="display:flex;"><span>        ▼                    ▼                    ▼
-</span></span><span style="display:flex;"><span>  data/*.lance         _indices/{uuid}/     _transactions/*.txn
-</span></span><span style="display:flex;"><span>  data/{key}/*.blob                         (or an inline copy in the manifest)
-</span></span><span style="display:flex;"><span>        │
-</span></span><span style="display:flex;"><span>        │ fragment.deletion_file
-</span></span><span style="display:flex;"><span>        ▼
-</span></span><span style="display:flex;"><span>  _deletions/*
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">                    _versions/*.manifest
+</span></span><span class="line"><span class="cl">                    (single source of truth, complete snapshot, commit point)
+</span></span><span class="line"><span class="cl">                             │
+</span></span><span class="line"><span class="cl">        ┌────────────────────┼────────────────────┐
+</span></span><span class="line"><span class="cl">        │ fragments[]        │ index_section      │ transaction_file
+</span></span><span class="line"><span class="cl">        ▼                    ▼                    ▼
+</span></span><span class="line"><span class="cl">  data/*.lance         _indices/{uuid}/     _transactions/*.txn
+</span></span><span class="line"><span class="cl">  data/{key}/*.blob                         (or an inline copy in the manifest)
+</span></span><span class="line"><span class="cl">        │
+</span></span><span class="line"><span class="cl">        │ fragment.deletion_file
+</span></span><span class="line"><span class="cl">        ▼
+</span></span><span class="line"><span class="cl">  _deletions/*
 </span></span></code></pre></div><p>The corresponding write order is:</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1. Write data files / blob sidecar
-</span></span><span style="display:flex;"><span>2. Write deletion files
-</span></span><span style="display:flex;"><span>3. Write index files
-</span></span><span style="display:flex;"><span>4. Write _transactions/*.txn
-</span></span><span style="display:flex;"><span>5. Conditionally write _versions/*.manifest   ← only now are the first four steps visible to readers
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">1. Write data files / blob sidecar
+</span></span><span class="line"><span class="cl">2. Write deletion files
+</span></span><span class="line"><span class="cl">3. Write index files
+</span></span><span class="line"><span class="cl">4. Write _transactions/*.txn
+</span></span><span class="line"><span class="cl">5. Conditionally write _versions/*.manifest   ← only now are the first four steps visible to readers
 </span></span></code></pre></div><p>And two conclusions that run through the whole article:</p>
 <ul>
 <li><strong>The manifest is the single source of truth</strong>: readers only need the manifest, not transaction files;</li>

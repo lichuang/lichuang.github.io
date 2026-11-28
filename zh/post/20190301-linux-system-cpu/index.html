@@ -55,7 +55,11 @@ CPU上下文切换 # 系统调用过程中，
 当进程通过sleep这样的函数将自己主动挂起时，也会被重新调度。
 当优先级更高的进程运行时，为了保证高优先级进程的运行，当前进程也会被挂起，由更高优先级的进程来运行。
 最后，当发生硬件中断时，CPU上的进程会被中断挂起，转而执行内核中的中断服务程序。
-中断上下文切换 # 为了快速响应硬件的事件，中断处理会打断进程的正常调度和执行，转而调度中断处理程序，响应设备事件。而在打断其它进程时，就需要将进程当前的状态保存下来，这样在中断结束后，进程仍然可以从原来的状态恢复执行。">
+中断上下文切换 # 为了快速响应硬件的事件，中断处理会打断进程的正常调度和执行，转而调度中断处理程序，响应设备事件。而在打断其它进程时，就需要将进程当前的状态保存下来，这样在中断结束后，进程仍然可以从原来的状态恢复执行。
+跟进程上下文不同，中断上下文切换并不涉及到进程的用户态。所以，即使中断过程打断了一个正处在用户态的进程，也不需要保存和恢复进程的虚拟内存、全局变量等用户态资源。中断上下文，其实只包括内核态中断服务程序所需的状态，包括寄存器、内核堆栈、硬件中断参数等。
+对于同一个CPU而言，中断处理比进程拥有更高的优先级，所以中断上下文切换并不会与进程上下文切换同时发生。同样道理，由于中断会打断正常进程的调度和执行，所以大部分中断处理程序都短小精悍，以便尽可能快的执行结束。
+如何查看系统的上下文切换情况 # 采用vmstat工具：
+每隔 5 秒输出 1 组数据 # $ vmstat 5 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu----- r b swpd free buff cache si so bi bo in cs us sy id wa st 0 0 0 7005360 91564 818900 0 0 0 0 25 33 0 0 100 0 0 TODO # iostat命令 vmstat命令 pidstat命令 去哪里读取各种指标？对应linux内核什么行为？ 参考资料 # 极客时间专栏-Linux性能优化实践">
   <meta property="og:locale" content="zh">
   <meta property="og:type" content="article">
     <meta property="article:section" content="post">
@@ -83,7 +87,7 @@ CPU上下文切换 # 系统调用过程中，
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.e37abb75e20079c13c12920010a37fb52339da4fa0ce5fdaf7ef55e93d694ee8.css" media="all">
 
 
 
@@ -119,7 +123,7 @@ CPU上下文切换 # 系统调用过程中，
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
@@ -147,7 +151,7 @@ CPU上下文切换 # 系统调用过程中，
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -211,8 +215,8 @@ CPU上下文切换 # 系统调用过程中，
   <a class="anchor" href="#%e5%b9%b3%e5%9d%87%e8%b4%9f%e8%bd%bd">#</a>
 </h1>
 <p>使用uptime命令可以查看系统的负载情况，如：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="">$</span> uptime
-</span></span><span style="display:flex;"><span> 09:20:53 up 35 days, 11:30,  1 user,  load average: 0.00, 0.01, 0.05
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="err">$</span> <span class="n">uptime</span>
+</span></span><span class="line"><span class="cl"> <span class="mi">09</span><span class="o">:</span><span class="mi">20</span><span class="o">:</span><span class="mi">53</span> <span class="n">up</span> <span class="mi">35</span> <span class="n">days</span><span class="p">,</span> <span class="mi">11</span><span class="o">:</span><span class="mi">30</span><span class="p">,</span>  <span class="mi">1</span> <span class="n">user</span><span class="p">,</span>  <span class="n">load</span> <span class="nl">average</span><span class="p">:</span> <span class="mf">0.00</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.05</span>
 </span></span></code></pre></div><p>其中，最后三列表示是过去1分钟、5分钟、15分钟的平均负载（Load Average）。</p>
 <p>平均负载是指单位时间内，系统处于可运行状态和不可中断状态的平均进程数，也就是平均活跃进程数，和CPU使用率没有直接关系。</p>
 <p>这里解释一下可运行状态和不可中断状态的进程。</p>

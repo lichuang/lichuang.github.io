@@ -65,7 +65,7 @@
 
 
 
-<link rel="stylesheet" href="/assets/combined.min.edc02eb3d85a71cef7a87f41b1f03868d01e594e496379b932c1187feb484c24.css" media="all">
+<link rel="stylesheet" href="/assets/combined.min.218894d7bb3410b00f1dbc7f4fff054f0b93038cdbdc7b5472fe74b12c5c47b2.css" media="all">
 
 
 
@@ -105,14 +105,14 @@
       
         <p class="small ">
             <a href="/" >
-                home
+                Home
             </a>
         </p>
         
       
         <p class="small ">
             <a href="/dist-system-en" >
-                DistributedSystemIllustrated
+                Distributed-System-Illustrated
             </a>
         </p>
         
@@ -133,7 +133,7 @@
       
         <p class="small ">
             <a href="/en/page/about-en/" >
-                about
+                About
             </a>
         </p>
         
@@ -620,11 +620,11 @@
 <li>根据页面编号，能查到这个页面的最新数据保存在哪一帧中。</li>
 </ul>
 <p>根据需要的这两份数据，定义了用于保存wal索引的数据结构：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalHashLoc {
-</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">volatile</span> ht_slot *aHash;  <span style="color:#888;font-style:italic">/* Start of the wal-index hash table */</span>
-</span></span><span style="display:flex;"><span>  <span style="font-weight:bold;text-decoration:underline">volatile</span> u32 *aPgno;      <span style="color:#888;font-style:italic">/* aPgno[1] is the page of first frame indexed */</span>
-</span></span><span style="display:flex;"><span>  u32 iZero;                <span style="color:#888;font-style:italic">/* One less than the frame number of first indexed*/</span>
-</span></span><span style="display:flex;"><span>};
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">WalHashLoc</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">volatile</span> <span class="n">ht_slot</span> <span class="o">*</span><span class="n">aHash</span><span class="p">;</span>  <span class="cm">/* Start of the wal-index hash table */</span>
+</span></span><span class="line"><span class="cl">  <span class="k">volatile</span> <span class="n">u32</span> <span class="o">*</span><span class="n">aPgno</span><span class="p">;</span>      <span class="cm">/* aPgno[1] is the page of first frame indexed */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">iZero</span><span class="p">;</span>                <span class="cm">/* One less than the frame number of first indexed*/</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
 </span></span></code></pre></div><p>其中：</p>
 <ul>
 <li>aHash：保存了根据页面编号查找iFrame帧数的hash数组数据。</li>
@@ -689,20 +689,20 @@
 </figure>
 </p>
 <p>这几个常量，由下面这几个宏来定义：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 每一页aPgno数组大小
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NPAGE      4096                 </span><span style="color:#888;font-style:italic">/* Must be power of 2 */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 查询时hash取模时的质数
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_HASH_1     383                  </span><span style="color:#888;font-style:italic">/* Should be prime */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 每一页hash slot数组大小
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NSLOT      (HASHTABLE_NPAGE*2)  </span><span style="color:#888;font-style:italic">/* Must be a power of 2 */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 页面1实际能容纳的aPgno大小：HASHTABLE_NPAGE减去WALINDEX_HDR_SIZE使用的大小
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define HASHTABLE_NPAGE_ONE  (HASHTABLE_NPAGE - (WALINDEX_HDR_SIZE/sizeof(u32)))
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 一个wal索引页面的大小，为4096*4+8192*2 = 32KB
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WALINDEX_PGSZ   (                                         \
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">    sizeof(ht_slot)*HASHTABLE_NSLOT + HASHTABLE_NPAGE*sizeof(u32) \
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">)
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// 每一页aPgno数组大小
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define HASHTABLE_NPAGE      4096                 </span><span class="cm">/* Must be power of 2 */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 查询时hash取模时的质数
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define HASHTABLE_HASH_1     383                  </span><span class="cm">/* Should be prime */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 每一页hash slot数组大小
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define HASHTABLE_NSLOT      (HASHTABLE_NPAGE*2)  </span><span class="cm">/* Must be a power of 2 */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 页面1实际能容纳的aPgno大小：HASHTABLE_NPAGE减去WALINDEX_HDR_SIZE使用的大小
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define HASHTABLE_NPAGE_ONE  (HASHTABLE_NPAGE - (WALINDEX_HDR_SIZE/sizeof(u32)))
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 一个wal索引页面的大小，为4096*4+8192*2 = 32KB
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WALINDEX_PGSZ   (                                         \
+</span></span></span><span class="line"><span class="cl"><span class="cp">    sizeof(ht_slot)*HASHTABLE_NSLOT + HASHTABLE_NPAGE*sizeof(u32) \
+</span></span></span><span class="line"><span class="cl"><span class="cp">)
 </span></span></span></code></pre></div><h4 class="heading" id="索引文件头结构">
   索引文件头结构
   <a class="anchor" href="#%e7%b4%a2%e5%bc%95%e6%96%87%e4%bb%b6%e5%a4%b4%e7%bb%93%e6%9e%84">#</a>
@@ -934,26 +934,26 @@
 <ul>
 <li>首先根据帧数，知道在第几个索引页面中，也就是<code>apWiData</code>数组的第几个元素，这样就拿到这一帧对应在哪个32KB的数据。（函数<code>walHashGet</code>，另外函数<code>walFramePage</code>是根据帧数得到<code>apWiData</code>数组索引）。</li>
 </ul>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>rc = <span style="color:#666;font-weight:bold;font-style:italic">walHashGet</span>(pWal, <span style="color:#666;font-weight:bold;font-style:italic">walFramePage</span>(iFrame), &amp;sLoc);
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">rc</span> <span class="o">=</span> <span class="nf">walHashGet</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="nf">walFramePage</span><span class="p">(</span><span class="n">iFrame</span><span class="p">),</span> <span class="o">&amp;</span><span class="n">sLoc</span><span class="p">);</span>
 </span></span></code></pre></div><ul>
 <li>
 <p>帧数减去这一页的<code>iZero</code>知道是这一页中的<code>aPgno</code>数组的索引：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>idx = iFrame - sLoc.iZero;
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">idx</span> <span class="o">=</span> <span class="n">iFrame</span> <span class="o">-</span> <span class="n">sLoc</span><span class="p">.</span><span class="n">iZero</span><span class="p">;</span>
 </span></span></code></pre></div></li>
 <li>
 <p>在hash数组中找到空位置存储页面编号：</p>
 </li>
 </ul>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>    <span style="color:#888;font-style:italic">/* Write the aPgno[] array entry and the hash-table slot. */</span>
-</span></span><span style="display:flex;"><span>    nCollide = idx;
-</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">for</span>(iKey=<span style="color:#666;font-weight:bold;font-style:italic">walHash</span>(iPage); sLoc.aHash[iKey]; iKey=<span style="color:#666;font-weight:bold;font-style:italic">walNextHash</span>(iKey)){
-</span></span><span style="display:flex;"><span>      <span style="font-weight:bold;text-decoration:underline">if</span>( (nCollide--)==0 ) <span style="font-weight:bold;text-decoration:underline">return</span> SQLITE_CORRUPT_BKPT;
-</span></span><span style="display:flex;"><span>    }
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">    <span class="cm">/* Write the aPgno[] array entry and the hash-table slot. */</span>
+</span></span><span class="line"><span class="cl">    <span class="n">nCollide</span> <span class="o">=</span> <span class="n">idx</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span><span class="p">(</span><span class="n">iKey</span><span class="o">=</span><span class="nf">walHash</span><span class="p">(</span><span class="n">iPage</span><span class="p">);</span> <span class="n">sLoc</span><span class="p">.</span><span class="n">aHash</span><span class="p">[</span><span class="n">iKey</span><span class="p">];</span> <span class="n">iKey</span><span class="o">=</span><span class="nf">walNextHash</span><span class="p">(</span><span class="n">iKey</span><span class="p">)){</span>
+</span></span><span class="line"><span class="cl">      <span class="k">if</span><span class="p">(</span> <span class="p">(</span><span class="n">nCollide</span><span class="o">--</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span> <span class="p">)</span> <span class="k">return</span> <span class="n">SQLITE_CORRUPT_BKPT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
 </span></span></code></pre></div><ul>
 <li>
 <p>将两者的对应关系存储下来，即：向<code>aPgno</code>中存入页面编号，向<code>aHash</code>中存储帧数：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>    sLoc.aPgno[idx] = iPage;
-</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">AtomicStore</span>(&amp;sLoc.aHash[iKey], (ht_slot)idx);
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">    <span class="n">sLoc</span><span class="p">.</span><span class="n">aPgno</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">iPage</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">AtomicStore</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sLoc</span><span class="p">.</span><span class="n">aHash</span><span class="p">[</span><span class="n">iKey</span><span class="p">],</span> <span class="p">(</span><span class="n">ht_slot</span><span class="p">)</span><span class="n">idx</span><span class="p">);</span>
 </span></span></code></pre></div></li>
 </ul>
 <p>下图展示了这个过程的大体示意：</p>
@@ -1058,37 +1058,37 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>WAL_READ_LOCK：读锁，一共有五个读锁，但是作用不尽相同。</li>
 </ul>
 <p>这四种锁，其中有五个读锁，一共加起来就是8个锁，定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">// wal索引文件中锁的数量
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define SQLITE_SHM_NLOCK        8
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span>
-</span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">// 写锁在所有锁中的偏移量
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_WRITE_LOCK 0
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 除了写锁以外的其他所有锁
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_ALL_BUT_WRITE 1
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// checkpoint锁在所有锁中的偏移量
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_CKPT_LOCK 1
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 恢复锁在所有锁中的偏移量
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_RECOVER_LOCK 2
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 输入读锁索引，返回对应读锁在所有锁中的偏移量，因为读锁从3开始，所以+3
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_READ_LOCK(I) (3 + (I))
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold"></span><span style="color:#888;font-style:italic">// 读索引的数量 = 所有锁数量 - 读锁起始位置3
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span><span style="color:#888;font-weight:bold">#define WAL_NREADER (SQLITE_SHM_NLOCK - 3)
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// wal索引文件中锁的数量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define SQLITE_SHM_NLOCK        8
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 写锁在所有锁中的偏移量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_WRITE_LOCK 0
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 除了写锁以外的其他所有锁
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_ALL_BUT_WRITE 1
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// checkpoint锁在所有锁中的偏移量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_CKPT_LOCK 1
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 恢复锁在所有锁中的偏移量
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_RECOVER_LOCK 2
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 输入读锁索引，返回对应读锁在所有锁中的偏移量，因为读锁从3开始，所以+3
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_READ_LOCK(I) (3 + (I))
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="c1">// 读索引的数量 = 所有锁数量 - 读锁起始位置3
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#define WAL_NREADER (SQLITE_SHM_NLOCK - 3)
 </span></span></span></code></pre></div><p>问题来了，为什么是索引文件头部120字节处开始的呢？从上面对wal索引文件的格式分析可知：索引文件开始是两个<code>WalIndexHdr</code> + 一个<code>WalCkptInfo</code>，而<code>WalCkptInfo</code>结构体定义如下：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalCkptInfo
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>  u32 nBackfill;              <span style="color:#888;font-style:italic">/* Number of WAL frames backfilled into DB */</span>
-</span></span><span style="display:flex;"><span>  u32 aReadMark[WAL_NREADER]; <span style="color:#888;font-style:italic">/* Reader marks */</span>
-</span></span><span style="display:flex;"><span>  u8 aLock[SQLITE_SHM_NLOCK]; <span style="color:#888;font-style:italic">/* Reserved space for locks */</span>
-</span></span><span style="display:flex;"><span>  u32 nBackfillAttempted;     <span style="color:#888;font-style:italic">/* WAL frames perhaps written, or maybe not */</span>
-</span></span><span style="display:flex;"><span>  u32 notUsed0;               <span style="color:#888;font-style:italic">/* Available for future enhancements */</span>
-</span></span><span style="display:flex;"><span>};
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">WalCkptInfo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">nBackfill</span><span class="p">;</span>              <span class="cm">/* Number of WAL frames backfilled into DB */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">aReadMark</span><span class="p">[</span><span class="n">WAL_NREADER</span><span class="p">];</span> <span class="cm">/* Reader marks */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u8</span> <span class="n">aLock</span><span class="p">[</span><span class="n">SQLITE_SHM_NLOCK</span><span class="p">];</span> <span class="cm">/* Reserved space for locks */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">nBackfillAttempted</span><span class="p">;</span>     <span class="cm">/* WAL frames perhaps written, or maybe not */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u32</span> <span class="n">notUsed0</span><span class="p">;</span>               <span class="cm">/* Available for future enhancements */</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
 </span></span></code></pre></div><p>其中的<code>aLock</code>字段就是存储上面的这些锁的数组，把前面这些数据的大小加起来，一直到这个字段就正好是120，有宏定义为证：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-style:italic">/* A block of WALINDEX_LOCK_RESERVED bytes beginning at
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** WALINDEX_LOCK_OFFSET is reserved for locks. Since some systems
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** only support mandatory file-locks, we do not read or write data
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">** from the region of the file on which locks are applied.
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic">*/</span>
-</span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define WALINDEX_LOCK_OFFSET (sizeof(WalIndexHdr) * 2 + offsetof(WalCkptInfo, aLock))
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/* A block of WALINDEX_LOCK_RESERVED bytes beginning at
+</span></span></span><span class="line"><span class="cl"><span class="cm">** WALINDEX_LOCK_OFFSET is reserved for locks. Since some systems
+</span></span></span><span class="line"><span class="cl"><span class="cm">** only support mandatory file-locks, we do not read or write data
+</span></span></span><span class="line"><span class="cl"><span class="cm">** from the region of the file on which locks are applied.
+</span></span></span><span class="line"><span class="cl"><span class="cm">*/</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define WALINDEX_LOCK_OFFSET (sizeof(WalIndexHdr) * 2 + offsetof(WalCkptInfo, aLock))
 </span></span></span></code></pre></div><p>（引用自<a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a>）</p>
 <table>
   <thead>
@@ -1151,10 +1151,10 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   <a class="anchor" href="#%e5%8a%a0%e8%a7%a3%e9%94%81%e6%93%8d%e4%bd%9c">#</a>
 </h3>
 <p>wal与前面的journal相比，少了很多其他类型的锁，wal只有两种类型的锁：shared共享锁，以及exclusive排它锁。对应的API有下面四个：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">walLockShared</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx);
-</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">walUnlockShared</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx);
-</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">int</span> <span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx, <span style="font-weight:bold;text-decoration:underline">int</span> n);
-</span></span><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">static</span> <span style="font-weight:bold;text-decoration:underline">void</span> <span style="color:#666;font-weight:bold;font-style:italic">walUnlockExclusive</span>(Wal *pWal, <span style="font-weight:bold;text-decoration:underline">int</span> lockIdx, <span style="font-weight:bold;text-decoration:underline">int</span> n);
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">walLockShared</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">walUnlockShared</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">walLockExclusive</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">,</span> <span class="kt">int</span> <span class="n">n</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">walUnlockExclusive</span><span class="p">(</span><span class="n">Wal</span> <span class="o">*</span><span class="n">pWal</span><span class="p">,</span> <span class="kt">int</span> <span class="n">lockIdx</span><span class="p">,</span> <span class="kt">int</span> <span class="n">n</span><span class="p">);</span>
 </span></span></code></pre></div><p>这里有几个细节，需要交待一下。</p>
 <p>首先，其中传入的参数<code>lockIdx</code>，就是上面提到的几种锁的类型索引。</p>
 <p>其次，代码中有<code>walLockShared(pWal, WAL_WRITE_LOCK)</code>这样的操作。对一个写锁加共享锁应该怎么理解？需要纠正的是，类似<code>WAL_WRITE_LOCK</code>这样的宏，只是表示这一字节用于什么操作，比如<code>WAL_WRITE_LOCK</code>用于写操作，即：</p>
@@ -1166,11 +1166,11 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <p>最后一个细节是，加共享锁时只能传入锁类型索引，而加排它锁的时候还能传入一个参数n，这是什么意思？</p>
 <p>因为这些不同类型的锁，本质上就是wal索引共享文件上连续的字节，所以区别在于，共享锁一次只能对一个锁进行操作；而排它锁则可以一次多对多个锁进行操作。</p>
 <p>比如</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(pWal, <span style="color:#666;font-weight:bold;font-style:italic">WAL_READ_LOCK</span>(1), WAL_NREADER - 1);
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nf">walLockExclusive</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="nf">WAL_READ_LOCK</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">WAL_NREADER</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
 </span></span></code></pre></div><p>这样就能把从1号读锁开始的所有读锁都加上排它锁。</p>
 <p>再比如：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>  iLock = WAL_ALL_BUT_WRITE + pWal-&gt;ckptLock;
-</span></span><span style="display:flex;"><span>  rc = <span style="color:#666;font-weight:bold;font-style:italic">walLockExclusive</span>(pWal, iLock, <span style="color:#666;font-weight:bold;font-style:italic">WAL_READ_LOCK</span>(0) - iLock);
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="n">iLock</span> <span class="o">=</span> <span class="n">WAL_ALL_BUT_WRITE</span> <span class="o">+</span> <span class="n">pWal</span><span class="o">-&gt;</span><span class="n">ckptLock</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">rc</span> <span class="o">=</span> <span class="nf">walLockExclusive</span><span class="p">(</span><span class="n">pWal</span><span class="p">,</span> <span class="n">iLock</span><span class="p">,</span> <span class="nf">WAL_READ_LOCK</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">iLock</span><span class="p">);</span>
 </span></span></code></pre></div><p>这里的几个常量取值如下：</p>
 <ul>
 <li><code>ckptLock</code>取值为0或者1。</li>
@@ -1304,13 +1304,13 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   <a class="anchor" href="#%e8%af%bb%e9%94%81">#</a>
 </h3>
 <p>前面已经提到，读锁的信息保存在<code>WalCkptInfo</code>的<code>aLock</code>成员中：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="font-weight:bold;text-decoration:underline">struct</span> WalCkptInfo
-</span></span><span style="display:flex;"><span>{
-</span></span><span style="display:flex;"><span>	<span style="color:#888;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  u32 aReadMark[WAL_NREADER]; <span style="color:#888;font-style:italic">/* Reader marks */</span>
-</span></span><span style="display:flex;"><span>  u8 aLock[SQLITE_SHM_NLOCK]; <span style="color:#888;font-style:italic">/* Reserved space for locks */</span>
-</span></span><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// ...
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>};
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">WalCkptInfo</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">u32</span> <span class="n">aReadMark</span><span class="p">[</span><span class="n">WAL_NREADER</span><span class="p">];</span> <span class="cm">/* Reader marks */</span>
+</span></span><span class="line"><span class="cl">  <span class="n">u8</span> <span class="n">aLock</span><span class="p">[</span><span class="n">SQLITE_SHM_NLOCK</span><span class="p">];</span> <span class="cm">/* Reserved space for locks */</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// ...
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">};</span>
 </span></span></code></pre></div><p>在这里：</p>
 <ul>
 <li><code>aReadMark</code>：用于存储每个读操作的<code>readMark</code>值，这个值已经在上面做了解释，这个数组的大小为<code>WAL_NREADER</code>，即每个reader一个readMark值。</li>
@@ -1335,20 +1335,20 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
 <li>在前面的过程中，很可能有写操作在进行，所以在返回之前，最后判断一下wal 索引头数据是否发生了变化，如果发生了变化，前面的步骤就得重新来过，返回重试。</li>
 </ol>
 <p>需要补充说明的是，函数<code>walTryBeginRead</code>在调用时，如果返回重试（<code>WAL_RETRY</code>）的话，调用者会将调用计数递增，当这个调用计数超过一个阈值时，再次调用时<code>walTryBeginRead</code>会休眠一下，超过100次则会报错不再尝试。</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>  <span style="color:#888;font-style:italic">// 尝试超过5次的情况下，要休眠一下
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>  <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt; 5)
-</span></span><span style="display:flex;"><span>  {
-</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">int</span> nDelay = 1; <span style="color:#888;font-style:italic">/* Pause time in microseconds */</span>
-</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt; 100)
-</span></span><span style="display:flex;"><span>    {
-</span></span><span style="display:flex;"><span>      <span style="color:#888;font-style:italic">// 超过100次了，退出报错
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-style:italic"></span>      <span style="color:#666;font-weight:bold;font-style:italic">VVA_ONLY</span>(pWal-&gt;lockError = 1;)
-</span></span><span style="display:flex;"><span>      <span style="font-weight:bold;text-decoration:underline">return</span> SQLITE_PROTOCOL;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>    <span style="font-weight:bold;text-decoration:underline">if</span> (cnt &gt;= 10)
-</span></span><span style="display:flex;"><span>      nDelay = (cnt - 9) * (cnt - 9) * 39;
-</span></span><span style="display:flex;"><span>    <span style="color:#666;font-weight:bold;font-style:italic">sqlite3OsSleep</span>(pWal-&gt;pVfs, nDelay);
-</span></span><span style="display:flex;"><span>  }
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">  <span class="c1">// 尝试超过5次的情况下，要休眠一下
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">5</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">nDelay</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="cm">/* Pause time in microseconds */</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="c1">// 超过100次了，退出报错
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>      <span class="nf">VVA_ONLY</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">lockError</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;)</span>
+</span></span><span class="line"><span class="cl">      <span class="k">return</span> <span class="n">SQLITE_PROTOCOL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="n">nDelay</span> <span class="o">=</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">-</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cnt</span> <span class="o">-</span> <span class="mi">9</span><span class="p">)</span> <span class="o">*</span> <span class="mi">39</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">sqlite3OsSleep</span><span class="p">(</span><span class="n">pWal</span><span class="o">-&gt;</span><span class="n">pVfs</span><span class="p">,</span> <span class="n">nDelay</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
 </span></span></code></pre></div><p>
 
 
@@ -1564,10 +1564,10 @@ AtomicStore(&amp;sLoc.aHash[101], (ht_slot)927);
   <a class="anchor" href="#%e4%b8%8d%e5%90%8c%e7%9a%84checkpoint%e6%a8%a1%e5%bc%8f">#</a>
 </h3>
 <p>上面只是了解了<code>checkpoint</code>的大体流程，但是不同的checkpoint模式又有区别，有如下的宏来进行区分：</p>
-<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_PASSIVE  0  </span><span style="color:#888;font-style:italic">/* Do as much as possible w/o blocking */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_FULL     1  </span><span style="color:#888;font-style:italic">/* Wait for writers, then checkpoint */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_RESTART  2  </span><span style="color:#888;font-style:italic">/* Like FULL but wait for for readers */</span><span style="color:#888;font-weight:bold">
-</span></span></span><span style="display:flex;"><span><span style="color:#888;font-weight:bold">#define SQLITE_CHECKPOINT_TRUNCATE 3  </span><span style="color:#888;font-style:italic">/* Like RESTART but also truncate WAL */</span><span style="color:#888;font-weight:bold">
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#define SQLITE_CHECKPOINT_PASSIVE  0  </span><span class="cm">/* Do as much as possible w/o blocking */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define SQLITE_CHECKPOINT_FULL     1  </span><span class="cm">/* Wait for writers, then checkpoint */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define SQLITE_CHECKPOINT_RESTART  2  </span><span class="cm">/* Like FULL but wait for for readers */</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define SQLITE_CHECKPOINT_TRUNCATE 3  </span><span class="cm">/* Like RESTART but also truncate WAL */</span><span class="cp">
 </span></span></span></code></pre></div><h4 class="heading" id="sqlite_checkpoint_passive">
   SQLITE_CHECKPOINT_PASSIVE
   <a class="anchor" href="#sqlite_checkpoint_passive">#</a>
